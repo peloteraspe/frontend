@@ -1,54 +1,30 @@
-import { useState } from "react";
-import type { NextPage } from "next";
-import Head from "next/head";
-import Image from "next/image";
-import styles from "../styles/Home.module.css";
-import { useRouter } from "next/router";
-import { supabase } from "../supabase";
-
-
+import type { NextPage } from 'next';
+import { Form } from '@/components/organisms';
+import { loginForm } from '@/utils/constants/forms';
+import { useForm } from 'react-hook-form';
+import { Button, Icon } from '@/components/atoms';
+import { useRouter } from 'next/navigation';
+import { User } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
 
 const Home: NextPage = () => {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const router = useRouter();
+  const [isAuthed, setAuthStatus] = useState(false);
 
-  const handleRegister = async (e: { preventDefault: () => void; }) => {
-    e.preventDefault()
-    const { data: user, error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-    if (error) {
-      console.log(error)
-    } else {
-      console.log(user)
-      // router.push('/profile')
-    }
+  const router = useRouter();
+  useEffect(() => {
+    fetch('./api/getUser')
+      .then((response) => response.json())
+      .then((result) => {
+        console.log(result);
+        setAuthStatus(result.user && result.user.role === 'authenticated');
+      });
+  }, []);
+
+  if (isAuthed) {
+    router.push('/dashboard');
   }
 
-  
-  return (
-    <form onSubmit={handleRegister}>
-      <label>
-        Email
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-      </label>
-      <label>
-        Password
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </label>
-      <button type="submit">Register</button>
-    </form>
-  );
+  return <Button text="Ingresar" onClick={() => router.push('/signIn')} />;
 };
 
 export default Home;

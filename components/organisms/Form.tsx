@@ -1,0 +1,255 @@
+import React, { FC, useState } from 'react';
+import {
+  Input,
+  Tag,
+  TextArea,
+  Select,
+  InputRadio,
+  Checkbox,
+} from '../atoms';
+import { AddTag } from '../molecules';
+import { InputDate } from '../molecules/InputDate';
+import { FormProps } from '@/utils/interfaces';
+
+export const Form: FC<FormProps> = ({
+  formInputs,
+  register,
+  setValue,
+  getValues,
+  watch,
+  gap,
+  numberOfColumns,
+}) => {
+  const [tags, setTags] = React.useState<string[]>([]);
+  const [selectTags, setSelectTags] = React.useState<string[]>([]);
+  
+
+  return (
+    <div
+      style={{ gridTemplateColumns: `repeat(${numberOfColumns}, 1fr)` }}
+      className={`!inline-grid !grid-cols-${numberOfColumns} ${
+        gap ? `${gap}` : 'gap-[28px]'
+      } w-full`}
+    >
+      {formInputs.map((input: any, index: number) => {
+        if (input.link) {
+          return (
+            <div key={index}>
+              <p className="!m-0 text-[9px] text-davisGray font-bold">
+                {input.label}
+              </p>
+              <div className="flex w-full items-center gap-1">
+                <p className="!m-0 text-primary text-sm underline break-words w-11/12 font-bold">
+                  {input.url}
+                </p>
+                <img
+                  className="w-[24px] h-[24px] cursor-pointer"
+                  src="/icons/copy.svg"
+                  onClick={() => {
+                    navigator.clipboard.writeText(input.url);
+                  }}
+                />
+              </div>
+            </div>
+          );
+        }
+
+        if (input.select) {
+          return (
+            <div key={index}>
+              <Select
+                {...input}
+                {...register(
+                  input.id,
+                  { required: input.required },
+                  input.idOptions
+                )}
+                errorText={`Please enter ${input.label?.toLowerCase()}`}
+                label={input.label}
+                id={input.id}
+                name={input.id}
+                required={input.required}
+                options={input.selectOptions}
+                isSearchable={input.isSearchable}
+                placeholderText={input.placeholder ?? input.placeholder}
+                setFormValue={(value: any) => {
+                  setValue(input.id, value);
+                }}
+              />
+            </div>
+          );
+        }
+
+        if (input.textArea) {
+          return (
+            <div className="h-full" key={index}>
+              <TextArea
+                {...register(input.id, {
+                  required: input.required,
+                  maxLength: 250,
+                })}
+                noLabel={input.noLabel}
+                labelText={input.label}
+                errorText={`Please enter ${input.label?.toLowerCase()}`}
+                required={input.required}
+                placeholderText={
+                  input.placeholder ? input.placeholder : input.label || ''
+                }
+                disabled={input.disabled}
+                setFormValue={(value: any) => {
+                  setValue(input.id, value);
+                }}
+                rows={input.rows}
+              />
+            </div>
+          );
+        }
+
+        if (input.addTag) {
+          return (
+            <div
+              key={index}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                width: '100%',
+                marginRight: '1.50rem',
+              }}
+            >
+              <>
+                <AddTag
+                  {...register(input.id, {
+                    required: input.required,
+                    maxLength: 250,
+                  })}
+                  placeholderText={
+                    input.placeholder ? input.placeholder : input.label || ''
+                  }
+                  setFormValue={(value: any) => {
+                    setValue(input.id, value);
+                  }}
+                  onClick={() => {
+                    setTags([...tags, getValues(input.id)]);
+                    input.selectId &&
+                      setSelectTags([...selectTags, getValues(input.selectId)]);
+                    setValue(input.id, '');
+                  }}
+                  selectPlaceholder={
+                    input.selectPlaceholder && input.selectPlaceholder
+                  }
+                  selectSetFormValue={(value: any) => {
+                    if (input.selectId) {
+                      setValue(input.selectId, value);
+                    }
+                  }}
+                  selectOptions={input.selectOptions && input.selectOptions}
+                />
+                <div className="flex mt-4 gap-2 h-[24px]">
+                  {tags.map((tag, index) => (
+                    <Tag
+                      icon={
+                        input.icons &&
+                        input.icons.find((icon: { name: string }) => {
+                          return icon.name === selectTags[index];
+                        })
+                      }
+                      text={tag}
+                      subText={selectTags && selectTags[index]}
+                      key={index}
+                      remove={() => {
+                        setTags(tags.filter((_, i) => i !== index));
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            </div>
+          );
+        }
+
+        if (input.inputDate) {
+          return (
+            <div key={index} className="w-full">
+              <InputDate
+                labelText={input.label}
+                disabled={input.disabled}
+                placeholderText={input.placeholder}
+                formDate={input.value ? input.value : watch(input.id)}
+                setFormDate={(value) => {
+                  setValue(input.id, value);
+                }}
+                {...register(input.id)}
+              ></InputDate>
+            </div>
+          );
+        }
+
+        if (input.inputRadio) {
+          return (
+            <div key={index} className="w-full">
+              <InputRadio
+                options={input.options}
+                labelText={input.label}
+                placeholderText={input.placeholder}
+                setFormValue={(value) => {
+                  setValue(input.id, value);
+                }}
+                value={
+                  watch(input.id) !== undefined
+                    ? watch(input.id)
+                    : input.defaultValue
+                }
+                {...register(input.id)}
+              ></InputRadio>
+            </div>
+          );
+        }
+
+        if (input.checkbox) {
+          return (
+            <div key={index} className="w-full">
+              <Checkbox
+                index="1"
+                option={input.option}
+                setFormValue={(value) => setValue(input.id, value)}
+                value={watch(input.id)}
+              ></Checkbox>
+            </div>
+          );
+        }
+
+        return (
+          <div key={index} className="w-full flex">
+            <Input
+              {...register(input.id, {
+                required: input.required,
+                maxLength: 60,
+              })}
+              id={input.id}
+              noLabel={input.noLabel}
+              labelText={input.label}
+              required={input.required}
+              icon={input.icon}
+              img={input.img}
+              width={'100%'}
+              type={input.type}
+              placeholderText={
+                input.placeholder ? input.placeholder : input.label
+              }
+              // {...(input.initialValue ? setValue(input.id, input.initialValue) :  '')}
+              setFormValue={(value) => {
+                setValue(input.id, value);
+              }}
+              defaultValue={
+                input.defaultValue ? input.defaultValue : watch(input.id)
+              }
+              value={input.value ? input.value : watch(input.id)}
+              disabled={input.disabled}
+              max={input.max}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+};
