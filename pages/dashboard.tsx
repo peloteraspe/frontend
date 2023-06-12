@@ -1,20 +1,19 @@
 import { supabase } from "@/supabase";
-import { useEffect, useState } from "react";
-import { useRouter } from 'next/router';
+import { useEffect } from "react";
+import { useRouter } from "next/router";
 import { Button } from "@/components/atoms";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 
 const Dashboard = () => {
   const router = useRouter();
 
-  const { isLoading, session, error } = useSessionContext();
+  const { session } = useSessionContext();
 
   useEffect(() => {
-    console.log(session);
-    if (isLoading && !session) {
+    if (session === null) {
       router.push("/signIn");
     }
-  }, [isLoading, session])
+  }, [session]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -24,7 +23,7 @@ const Dashboard = () => {
   return (
     <div>
       <h1>Dashboard</h1>
-      <Button onClick={()=>handleLogout()}>Logout</Button>
+      <Button onClick={() => handleLogout()}>Logout</Button>
     </div>
   );
 };
