@@ -25,7 +25,7 @@ interface ButtonProps {
 export const Button: FC<ButtonProps> = ({ text, color, onClick, disabled, outline, icon, children, loading }) => {
   const getColor = () => {
     if (disabled) {
-      return 'bg-disabledButton';
+      return 'bg-secondary text-white';
     } else {
       switch (color) {
         case 'primary':

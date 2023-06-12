@@ -1,8 +1,30 @@
-import '../styles/globals.css'
-import type { AppProps } from 'next/app'
+import React, { useEffect, useState } from "react";
+import type { AppProps } from "next/app";
+import { Session } from "@supabase/auth-helpers-nextjs";
+import { SessionContextProvider } from "@supabase/auth-helpers-react";
+import { supabase } from "@/supabase";
+import "../styles/globals.css";
 
-function MyApp({ Component, pageProps }: AppProps) {
-  return <Component {...pageProps} />
-}
+const MyApp = ({
+  Component,
+  pageProps,
+}: AppProps<{
+  initialSession: Session;
+}>) => {
+  const [isHydrated, setIsHydrated] = useState(false);
 
-export default MyApp
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+  return (
+    <SessionContextProvider
+      supabaseClient={supabase}
+      initialSession={pageProps.initialSession}
+    >
+      {/* @ts-ignore */}
+      {isHydrated && <Component {...pageProps} />}
+    </SessionContextProvider>
+  );
+};
+
+export default MyApp;
