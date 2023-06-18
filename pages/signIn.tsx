@@ -68,7 +68,7 @@ const SignIn: NextPage = () => {
         <div className="flex justify-center">
           <Icon
             paths={logo}
-            fill="#FD4F00"
+            fill="#B92CCF"
             width={240}
             height={80}
             viewBox="0 0 1433 329"
@@ -79,7 +79,10 @@ const SignIn: NextPage = () => {
         </div>
         <Button
           text="Ingresar"
-          disabled={form.getValues("email") === undefined}
+          disabled={
+            form.getValues("email") === undefined ||
+            form.getValues("email") === ""
+          }
           onClick={handleMagicLinkClick}
         />
       </div>

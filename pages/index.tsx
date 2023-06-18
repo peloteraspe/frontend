@@ -9,21 +9,29 @@ import Image from "next/image";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import router from "next/router";
 
-
 const Index: NextPage = () => {
-
   const { isLoading, session, error } = useSessionContext();
 
   useEffect(() => {
     if (!isLoading && session) {
       router.push("/dashboard");
     }
-  }, [isLoading, session])
-  
+  }, [isLoading, session]);
+
   return (
     <>
-      <Image className="m-auto" src="/assets/init-soccer-ball.gif" alt="Init soccer ball" width={300} height={300} />
-      <Button text="Ingresar" onClick={() => router.push("/signIn")} />
+      <div className="flex justify-center items-center w-full h-screen">
+        <div className="flex flex-col sm:w-96 p-4 rounded-xl">
+          <Image
+            className="m-auto"
+            src="/assets/init-soccer.gif"
+            alt="Init soccer ball"
+            width={300}
+            height={300}
+          />
+          <Button text="Ingresar" onClick={() => router.push("/signIn")} />
+        </div>
+      </div>
     </>
   );
 };
