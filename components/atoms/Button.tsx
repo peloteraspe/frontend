@@ -5,7 +5,7 @@ export type Colors =
   | 'dark'
   | 'success'
   | 'warning'
-  | 'electricGreen'
+  | 'green'
   | 'fuchsia'
   | 'red';
 
@@ -34,8 +34,8 @@ export const Button: FC<ButtonProps> = ({ text, color, onClick, disabled, outlin
           return 'bg-secondary border-2 border-secondary hover:border-secondary-light hover:bg-secondary-light text-white';
         case 'purple':
           return 'bg-purple text-white border-2 hover:border-purple-light hover:!bg-purple-light border-purple';
-        case 'electricGreen':
-          return 'bg-electricGreen border-2 text-black hover:bg-electricGreen-light border-electricGreen hover:border-electricGreen-light';
+        case 'green':
+          return 'bg-green border-2 text-black hover:bg-green-light border-green hover:border-green-light';
         case 'red':
           return 'bg-red border-2 text-white hover:bg-redHover border-red hover:border-redHover';
         case 'fuchsia':
@@ -54,8 +54,8 @@ export const Button: FC<ButtonProps> = ({ text, color, onClick, disabled, outlin
         return 'border-secondary border-2 text-secondary';
       case 'purple':
         return 'border-purple border-2 text-purple';
-      case 'electricGreen':
-        return 'border-electricGreen border-2 text-electricGreen';
+      case 'green':
+        return 'border-green border-2 text-green';
       case 'fuchsia':
         return 'border-fuchsia border-2 text-fuchsia';
       default:
