@@ -27,7 +27,7 @@ export const TextArea: FC<TextAreaProps> = ({
           className={`${
             disabled
               ? 'bg-white resize-none'
-              : 'py-2 px-3 focus:shadow-[0_0_0_0.2rem_#B92CCF] focus:outline-none focus:border-primary hover:border-primary'
+              : 'py-2 px-3 focus:shadow-[0_0_0_0.2rem_#D943A8] focus:outline-none focus:border-primary hover:border-primary'
           } disabled:border-transparent transition duration-150 appearance-none border border-lightGray rounded-xl w-full  text-gray-700 leading-tight  hover:outline-none`}
           placeholder={placeholderText}
           onChange={(e) => {

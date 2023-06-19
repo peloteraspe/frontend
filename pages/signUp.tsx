@@ -24,7 +24,7 @@ const SignUp: NextPage = () => {
         <div className="flex justify-center">
           <Icon
             paths={logo}
-            fill="#B92CCF"
+            fill="#D943A8"
             width={240}
             height={80}
             viewBox="0 0 1433 329"

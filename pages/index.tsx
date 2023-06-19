@@ -21,14 +21,7 @@ const Index: NextPage = () => {
   return (
     <>
       <div className="flex justify-center items-center w-full h-screen">
-        <div className="flex flex-col sm:w-96 p-4 rounded-xl">
-          <Image
-            className="m-auto"
-            src="/assets/init-soccer.gif"
-            alt="Init soccer ball"
-            width={300}
-            height={300}
-          />
+        <div className="flex flex-col w-96 p-4 rounded-xl">
           <Button text="Ingresar" onClick={() => router.push("/signIn")} />
         </div>
       </div>
