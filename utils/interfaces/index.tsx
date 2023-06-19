@@ -8,10 +8,10 @@ export interface FormProps extends UseFormReturn<any, any> {
   watch: any;
   gap?: string;
   numberOfColumns?: number;
+  formState: any;
 }
 
-export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps {
   required?: boolean;
   error?: boolean;
   labelText?: string;
@@ -22,9 +22,9 @@ export interface InputProps
   disabled?: boolean;
   min?: number;
   max?: number;
-  value?: string;
-  defaultValue?: string;
   isSearchable?: boolean;
+  name?: string;
+  onChange?: any;
 }
 
 export interface TextProps {

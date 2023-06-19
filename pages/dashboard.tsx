@@ -1,5 +1,5 @@
 import { supabase } from "@/supabase";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/atoms";
 import { useSessionContext } from "@supabase/auth-helpers-react";
@@ -9,9 +9,13 @@ const Dashboard = () => {
 
   const { session } = useSessionContext();
 
-  useEffect(() => {
+  useMemo(() => {
     if (session === null) {
       router.push("/signIn");
+    } else {
+      if (Object.keys(session.user.user_metadata).length === 0) {
+        router.push("/signUp");
+      }
     }
   }, [session]);
 

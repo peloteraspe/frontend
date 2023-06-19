@@ -1,15 +1,8 @@
-import React, { FC, useState } from 'react';
-import {
-  Input,
-  Tag,
-  TextArea,
-  Select,
-  InputRadio,
-  Checkbox,
-} from '../atoms';
-import { AddTag } from '../molecules';
-import { InputDate } from '../molecules/InputDate';
-import { FormProps } from '@/utils/interfaces';
+import React, { FC, useState } from "react";
+import { Input, Tag, TextArea, Select, InputRadio, Checkbox } from "../atoms";
+import { AddTag } from "../molecules";
+import { InputDate } from "../molecules/InputDate";
+import { FormProps } from "@/utils/interfaces";
 
 export const Form: FC<FormProps> = ({
   formInputs,
@@ -19,16 +12,18 @@ export const Form: FC<FormProps> = ({
   watch,
   gap,
   numberOfColumns,
+  ...rest
 }) => {
   const [tags, setTags] = React.useState<string[]>([]);
   const [selectTags, setSelectTags] = React.useState<string[]>([]);
-  
+
+  const errors = rest.formState.errors;
 
   return (
     <div
       style={{ gridTemplateColumns: `repeat(${numberOfColumns}, 1fr)` }}
       className={`!inline-grid !grid-cols-${numberOfColumns} ${
-        gap ? `${gap}` : 'gap-[28px]'
+        gap ? `${gap}` : "gap-[28px]"
       } w-full`}
     >
       {formInputs.map((input: any, index: number) => {
@@ -93,7 +88,7 @@ export const Form: FC<FormProps> = ({
                 errorText={`Please enter ${input.label?.toLowerCase()}`}
                 required={input.required}
                 placeholderText={
-                  input.placeholder ? input.placeholder : input.label || ''
+                  input.placeholder ? input.placeholder : input.label || ""
                 }
                 disabled={input.disabled}
                 setFormValue={(value: any) => {
@@ -110,10 +105,10 @@ export const Form: FC<FormProps> = ({
             <div
               key={index}
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                width: '100%',
-                marginRight: '1.50rem',
+                display: "flex",
+                flexDirection: "column",
+                width: "100%",
+                marginRight: "1.50rem",
               }}
             >
               <>
@@ -123,7 +118,7 @@ export const Form: FC<FormProps> = ({
                     maxLength: 250,
                   })}
                   placeholderText={
-                    input.placeholder ? input.placeholder : input.label || ''
+                    input.placeholder ? input.placeholder : input.label || ""
                   }
                   setFormValue={(value: any) => {
                     setValue(input.id, value);
@@ -132,7 +127,7 @@ export const Form: FC<FormProps> = ({
                     setTags([...tags, getValues(input.id)]);
                     input.selectId &&
                       setSelectTags([...selectTags, getValues(input.selectId)]);
-                    setValue(input.id, '');
+                    setValue(input.id, "");
                   }}
                   selectPlaceholder={
                     input.selectPlaceholder && input.selectPlaceholder
@@ -223,15 +218,15 @@ export const Form: FC<FormProps> = ({
             <Input
               {...register(input.id, {
                 required: input.required,
-                maxLength: 60,
+                maxLength: input.maxLength,
+                pattern: input.pattern,
               })}
-              id={input.id}
-              noLabel={input.noLabel}
               labelText={input.label}
               required={input.required}
+              error={errors[input.id]}
               icon={input.icon}
               img={input.img}
-              width={'100%'}
+              width={"100%"}
               type={input.type}
               placeholderText={
                 input.placeholder ? input.placeholder : input.label
@@ -240,12 +235,12 @@ export const Form: FC<FormProps> = ({
               setFormValue={(value) => {
                 setValue(input.id, value);
               }}
-              defaultValue={
-                input.defaultValue ? input.defaultValue : watch(input.id)
-              }
-              value={input.value ? input.value : watch(input.id)}
               disabled={input.disabled}
               max={input.max}
+              errorText={
+                errors[input.id] && `Please enter ${input.label?.toLowerCase()}`
+              }
+              {...rest}
             />
           </div>
         );

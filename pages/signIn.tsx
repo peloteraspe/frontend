@@ -79,10 +79,7 @@ const SignIn: NextPage = () => {
         </div>
         <Button
           text="Ingresar"
-          disabled={
-            form.getValues("email") === undefined ||
-            form.getValues("email") === ""
-          }
+          disabled={!form.formState.isDirty || !form.formState.isValid}
           onClick={handleMagicLinkClick}
         />
       </div>

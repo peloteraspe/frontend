@@ -11,7 +11,6 @@ export const TextArea: FC<TextAreaProps> = ({
   setFormValue,
   disabled,
   rows,
-  value,
 }) => {
   return (
     <label className="h-full">
@@ -36,7 +35,6 @@ export const TextArea: FC<TextAreaProps> = ({
           }}
           disabled={disabled}
           rows={rows}
-          value={value}
         />
       </div>
 
