@@ -1,42 +1,56 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { NextPage } from "next";
-import { supabase } from "@/supabase";
 import { Button, Icon } from "@/components/atoms";
 import { Form } from "@/components/organisms";
 import { signUpForm } from "@/utils/constants/forms";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/router";
 import { useForm } from "react-hook-form";
 import { logo } from "@/utils/constants/icons";
 import { useSessionContext } from "@supabase/auth-helpers-react";
+import { Text } from "@/components/atoms";
+import { updateUser } from "@/api/user";
+
 
 const SignUp: NextPage = () => {
   const router = useRouter();
-
-  const [loading, setLoading] = useState(false);
-
   const { isLoading, session, error } = useSessionContext();
 
   const form = useForm();
 
+  useEffect(() => {
+    console.log(form.getValues("playerPosition"));
+  }, [form.watch("playerPosition")]);
+
+  const handleUpdateUser = () => {
+    updateUser(form.getValues(), session);
+    router.push("/dashboard");
+  };
   return (
-    <div className="flex justify-center items-center w-full h-screen">
+    <div className="flex justify-center items-center w-full">
       <div className="flex flex-col sm:w-96 p-4 rounded-xl">
-        <div className="flex justify-center">
+        <div className="flex mt-3 flex-row-reverse justify-between items-center align-middle">
           <Icon
             paths={logo}
             fill="#D943A8"
-            width={240}
-            height={80}
+            width={100}
+            height={30}
             viewBox="0 0 1433 329"
           ></Icon>
+          <Text color="primary" type="subtitle">
+            Crea tu cuenta
+          </Text>
         </div>
-        <div className="my-4">
+        <div className="my-4 w-full">
           <Form formInputs={signUpForm} numberOfColumns={1} {...form} />
         </div>
         <Button
           text="Registrarse"
-          disabled={!form.formState.isDirty || !form.formState.isValid}
-          onClick={() => {}}
+          disabled={
+            !form.formState.isDirty ||
+            !form.formState.isValid ||
+            form.getValues("playerPosition").length === 0
+          }
+          onClick={() => handleUpdateUser()}
         />
       </div>
     </div>

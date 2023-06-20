@@ -1,8 +1,9 @@
 import { supabase } from "@/supabase";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/atoms";
 import { useSessionContext } from "@supabase/auth-helpers-react";
+import { resetUser } from "@/api/user";
 
 const Dashboard = () => {
   const router = useRouter();
@@ -26,8 +27,9 @@ const Dashboard = () => {
 
   return (
     <div>
-      <h1>Dashboard</h1>
-      <Button onClick={() => handleLogout()}>Logout</Button>
+      <h1>Hola, {session?.user.user_metadata.username}! </h1>
+      <Button onClick={() => resetUser(session, router)}>Reset userData</Button>
+      <Button onClick={() => handleLogout()}>Cerrar Sesión</Button>
     </div>
   );
 };

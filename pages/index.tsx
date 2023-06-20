@@ -1,11 +1,6 @@
 import type { NextPage } from "next";
-import { Form } from "@/components/organisms";
-import { loginForm } from "@/utils/constants/forms";
-import { useForm } from "react-hook-form";
-import { Button, Icon } from "@/components/atoms";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import Image from "next/image";
+import { Button } from "@/components/atoms";
+import { useEffect } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import router from "next/router";
 

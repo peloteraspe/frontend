@@ -4,7 +4,7 @@ import { supabase } from "@/supabase";
 import { Button, Icon } from "@/components/atoms";
 import { Form } from "@/components/organisms";
 import { loginForm } from "@/utils/constants/forms";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/router";
 import { useForm } from "react-hook-form";
 import { logo } from "@/utils/constants/icons";
 import { useSessionContext } from "@supabase/auth-helpers-react";
@@ -49,18 +49,6 @@ const SignIn: NextPage = () => {
   };
 
   const form = useForm();
-
-  // const handleRegister = form.handleSubmit(async (data: { email: string }) => {
-  //   const { data: response, error } = await supabase.auth.signInWithOtp({
-  //     email: data.email,
-  //     options: {
-  //       emailRedirectTo: `${
-  //         process.env.NEXT_PUBLIC_URL || "http://localhost:3000"
-  //       }/dashboard`,
-  //     },
-  //   });
-  //   router.push("/validate");
-  // });
 
   return (
     <div className="flex justify-center items-center w-full h-screen">

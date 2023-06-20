@@ -14,6 +14,34 @@ export const loginForm = [
   },
 ];
 
+export const optionsPositionCard = [
+  {
+    index: "1",
+    title: "Delantera",
+    description: "Delantera description",
+  },
+  {
+    index: "2",
+    title: "Mediocampista",
+    description: "Mediocampista description",
+  },
+  {
+    index: "3",
+    title: "Defensa",
+    description: "Defensa description",
+  },
+  {
+    index: "4",
+    title: "Portera",
+    description: "Portera description",
+  },
+  {
+    index: "5",
+    title: "Cualquiera",
+    description: "Cualquiera description",
+  }
+];
+
 export const signUpForm = [
   {
     id: "username",
@@ -22,4 +50,13 @@ export const signUpForm = [
     required: "Nombre es requerido",
     maxLength: 16,
   },
+  {
+    id: "playerPosition",
+    label: "¿En qué posición de fútbol te gustaría jugar? (Puedes elegir más de una opción)",
+    required: "Al menos una posición es requerida",
+    options: optionsPositionCard,
+    selectCard: true,
+  },
 ];
+
+

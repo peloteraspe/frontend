@@ -23,14 +23,14 @@ export const Text: FC<TextProps> = ({ type, color, children }) => {
   }
 
   switch (color) {
-    case 'red':
-      textColorStyle = 'text-red-500';
+    case 'white':
+      textColorStyle = 'text-white';
       break;
     case 'green':
-      textColorStyle = 'text-green-500';
+      textColorStyle = 'text-green';
       break;
-    case 'blue':
-      textColorStyle = 'text-blue-500';
+    case 'primary':
+      textColorStyle = 'text-primary';
       break;
     // Add more color options as needed
     default:

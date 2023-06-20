@@ -1,8 +1,9 @@
-import React, { FC, useState } from "react";
+import React, { FC } from "react";
 import { Input, Tag, TextArea, Select, InputRadio, Checkbox } from "../atoms";
 import { AddTag } from "../molecules";
 import { InputDate } from "../molecules/InputDate";
 import { FormProps } from "@/utils/interfaces";
+import { SelectCard } from "../atoms/SelectCard";
 
 export const Form: FC<FormProps> = ({
   formInputs,
@@ -209,6 +210,24 @@ export const Form: FC<FormProps> = ({
                 setFormValue={(value) => setValue(input.id, value)}
                 value={watch(input.id)}
               ></Checkbox>
+            </div>
+          );
+        }
+
+        if (input.selectCard) {
+          return (
+            <div key={index} className="w-full">
+              <SelectCard
+                {...register(input.id, {
+                  required: input.required,
+                  pattern: input.pattern,
+                })}
+                setOptionSelected={(value: number[]) => {
+                  setValue(input.id, value);
+                }}
+                cardOptions={input.options}
+                labelText={input.label}
+              ></SelectCard>
             </div>
           );
         }

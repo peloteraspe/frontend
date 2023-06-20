@@ -43,3 +43,15 @@ export interface InputDateProps extends InputProps {
   formDate?: Date;
   disabled?: boolean;
 }
+
+export interface cardOption {
+  index: number;
+  title: string;
+  description: string;
+}
+
+export interface SelectCardProps {
+  setOptionSelected:  (value: any) => void;
+  cardOptions: cardOption[];
+  labelText: string;
+}
