@@ -23,17 +23,19 @@ const SignIn: NextPage = () => {
   }, [isLoading, session]);
 
   const handleMagicLinkClick = async () => {
+    const hostname = window.location.hostname;
+    const currentDomain = hostname.includes("localhost")
+      ? `http://${hostname}:3000`
+      : `https://${hostname}`;
+    const redirectToEmail = `${currentDomain}/dashboard`;
+
     try {
       setLoading(true);
       // const { error } = await supabase.auth.signIn({ email: form.getValues('email') });
       const { data: response, error } = await supabase.auth.signInWithOtp({
         email: form.getValues("email"),
         options: {
-          emailRedirectTo: `${
-            process?.env?.NEXT_PUBLIC_VERCEL_URL !== undefined
-              ? process.env.NEXT_PUBLIC_VERCEL_URL
-              : process.env.NEXT_PUBLIC_URL
-          }/dashboard`,
+          emailRedirectTo: redirectToEmail,
         },
       });
       // localStorage.setItem("supabaseSession", response?.session?.access_token);
