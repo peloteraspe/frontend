@@ -23,7 +23,10 @@ const SignIn: NextPage = () => {
   }, [isLoading, session]);
 
   const handleMagicLinkClick = async () => {
-    console.log(process.env.NEXT_PUBLIC_URL);
+    console.log(
+      process.env.NEXT_PUBLIC_URL,
+      process?.env?.NEXT_PUBLIC_VERCEL_URL
+    );
     try {
       setLoading(true);
       // const { error } = await supabase.auth.signIn({ email: form.getValues('email') });
@@ -31,7 +34,7 @@ const SignIn: NextPage = () => {
         email: form.getValues("email"),
         options: {
           emailRedirectTo: `${
-            process.env.NEXT_PUBLIC_URL
+            process?.env?.NEXT_PUBLIC_VERCEL_URL ?? process.env.NEXT_PUBLIC_URL
           }/dashboard`,
         },
       });
