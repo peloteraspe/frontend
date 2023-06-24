@@ -30,7 +30,9 @@ const SignIn: NextPage = () => {
         email: form.getValues("email"),
         options: {
           emailRedirectTo: `${
-            process.env.NEXT_PUBLIC_URL || "http://localhost:3000"
+            process?.env?.NEXT_PUBLIC_VERCEL_URL !== undefined
+              ? process.env.NEXT_PUBLIC_VERCEL_URL
+              : process.env.NEXT_PUBLIC_URL
           }/dashboard`,
         },
       });
