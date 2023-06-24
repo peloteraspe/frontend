@@ -28,7 +28,7 @@ const SignIn: NextPage = () => {
       ? `http://${hostname}:3000`
       : `https://${hostname}`;
     const redirectToEmail = `${currentDomain}/dashboard`;
-
+    console.log(currentDomain);
     try {
       setLoading(true);
       // const { error } = await supabase.auth.signIn({ email: form.getValues('email') });
