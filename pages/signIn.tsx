@@ -23,6 +23,7 @@ const SignIn: NextPage = () => {
   }, [isLoading, session]);
 
   const handleMagicLinkClick = async () => {
+    console.log(process.env.NEXT_PUBLIC_URL);
     try {
       setLoading(true);
       // const { error } = await supabase.auth.signIn({ email: form.getValues('email') });
