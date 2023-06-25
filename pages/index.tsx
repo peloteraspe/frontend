@@ -2,10 +2,11 @@ import type { NextPage } from "next";
 import { Button } from "@/components/atoms";
 import { useEffect } from "react";
 import { useSessionContext } from "@supabase/auth-helpers-react";
-import router from "next/router";
+import { useRouter } from "next/navigation";
 
 const Index: NextPage = () => {
   const { isLoading, session, error } = useSessionContext();
+  const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && session) {

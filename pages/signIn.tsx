@@ -4,7 +4,7 @@ import { supabase } from "@/supabase";
 import { Button, Icon } from "@/components/atoms";
 import { Form } from "@/components/organisms";
 import { loginForm } from "@/utils/constants/forms";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { logo } from "@/utils/constants/icons";
 import { useSessionContext } from "@supabase/auth-helpers-react";
@@ -24,11 +24,13 @@ const SignIn: NextPage = () => {
 
   const handleMagicLinkClick = async () => {
     const hostname = window.location.hostname;
+    console.log(hostname, "hostname");
     const currentDomain = hostname.includes("localhost")
       ? `http://${hostname}:3000`
       : `https://${hostname}`;
     const redirectToEmail = `${currentDomain}/dashboard`;
     console.log(currentDomain);
+
     try {
       setLoading(true);
       // const { error } = await supabase.auth.signIn({ email: form.getValues('email') });

@@ -1,6 +1,6 @@
 import { supabase } from "@/supabase";
 import { useMemo } from "react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/atoms";
 import { useSessionContext } from "@supabase/auth-helpers-react";
 import { resetUser } from "@/api/user";

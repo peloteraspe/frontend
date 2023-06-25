@@ -3,7 +3,7 @@ import { NextPage } from "next";
 import { Button, Icon } from "@/components/atoms";
 import { Form } from "@/components/organisms";
 import { signUpForm } from "@/utils/constants/forms";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { logo } from "@/utils/constants/icons";
 import { useSessionContext } from "@supabase/auth-helpers-react";

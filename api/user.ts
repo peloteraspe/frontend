@@ -1,6 +1,7 @@
 import { Session, UserAttributes } from "@supabase/supabase-js";
 import { supabase } from "@/supabase";
-import { NextRouter } from "next/router";
+import { AppRouterInstance } from "next/dist/shared/lib/app-router-context";
+
 
 export const updateUser = async (
   data: any,
@@ -23,7 +24,7 @@ export const updateUser = async (
 
 export const resetUser = async (
   session: Session,
-  router: NextRouter
+  router: AppRouterInstance
 ) => {
   const { id } = session.user;
   const { error } = await supabase.auth.updateUser({
