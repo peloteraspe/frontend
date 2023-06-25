@@ -2,11 +2,7 @@ import { Session, UserAttributes } from "@supabase/supabase-js";
 import { supabase } from "@/supabase";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context";
 
-
-export const updateUser = async (
-  data: any,
-  session: Session
-) => {
+export const updateUser = async (data: any, session: Session) => {
   const { id } = session.user;
   console.log(data);
   const { error } = await supabase.auth.updateUser({
@@ -29,10 +25,7 @@ export const resetUser = async (
   const { id } = session.user;
   const { error } = await supabase.auth.updateUser({
     id,
-    data: {
-      username: null,
-      playerPosition: null,
-    },
+    data: null,
   } as UserAttributes);
   if (error) {
     console.log("error", error);
