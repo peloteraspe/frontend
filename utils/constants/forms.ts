@@ -2,61 +2,65 @@ const EMAIL_REGEX = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
 export const loginForm = [
   {
-    id: "email",
-    label: "Correo electrónico",
-    name: "email",
-    placeholder: "Correo electrónico",
-    required: "Email is required",
+    id: 'email',
+    label: 'Correo electrónico',
+    name: 'email',
+    placeholder: 'Correo electrónico',
+    required: 'Email is required',
     pattern: {
       value: EMAIL_REGEX,
-      message: "Invalid email address",
+      message: 'Invalid email address',
     },
   },
 ];
 
 export const optionsPositionCard = [
   {
-    index: "1",
-    title: "Delantera",
-    description: "Delantera description",
+    value: '1',
+    title: 'Delantera',
+    description: 'Delantera description',
+    imageSrc: '/path/to/your/image2.jpg',
   },
   {
-    index: "2",
-    title: "Mediocampista",
-    description: "Mediocampista description",
+    value: '2',
+    title: 'Mediocampista',
+    description: 'Mediocampista description',
+    imageSrc: '/path/to/your/image2.jpg',
   },
   {
-    index: "3",
-    title: "Defensa",
-    description: "Defensa description",
+    value: '3',
+    title: 'Defensa',
+    description: 'Defensa description',
+    imageSrc: '/path/to/your/image2.jpg',
   },
   {
-    index: "4",
-    title: "Portera",
-    description: "Portera description",
+    value: '4',
+    title: 'Portera',
+    description: 'Portera description',
+    imageSrc: '/path/to/your/image2.jpg',
   },
   {
-    index: "5",
-    title: "Cualquiera",
-    description: "Cualquiera description",
-  }
+    value: '5',
+    title: 'Cualquiera',
+    description: 'Cualquiera description',
+    imageSrc: '/path/to/your/image2.jpg',
+  },
 ];
 
 export const signUpForm = [
   {
-    id: "username",
-    label: "Nombre",
-    placeholder: "Nombre",
-    required: "Nombre es requerido",
+    id: 'username',
+    label: 'Nombre',
+    placeholder: 'Nombre',
+    required: 'Nombre es requerido',
     maxLength: 16,
   },
   {
-    id: "playerPosition",
-    label: "¿En qué posición de fútbol te gustaría jugar? (Puedes elegir más de una opción)",
-    required: "Al menos una posición es requerida",
+    id: 'playerPosition',
+    label:
+      '¿En qué posición de fútbol te gustaría jugar? (Puedes elegir más de una opción)',
+    required: 'Al menos una posición es requerida',
     options: optionsPositionCard,
     selectCard: true,
   },
 ];
-
-

@@ -39,6 +39,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             onChange={onChange}
             name={name}
+            autoComplete="off"
           />
         </div>
 
