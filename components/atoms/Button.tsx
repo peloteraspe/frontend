@@ -35,7 +35,7 @@ export const Button: FC<ButtonProps> = ({ text, color, onClick, disabled, outlin
         case 'purple':
           return 'bg-purple text-white border-2 hover:border-purple-light hover:!bg-purple-light border-purple';
         case 'green':
-          return 'bg-green border-2 text-black hover:bg-green-light border-green hover:border-green-light';
+          return 'bg-green border-2 text-white hover:bg-green-light border-green hover:border-green-light';
         case 'red':
           return 'bg-red border-2 text-white hover:bg-redHover border-red hover:border-redHover';
         case 'fuchsia':

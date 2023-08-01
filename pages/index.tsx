@@ -1,8 +1,9 @@
-import type { NextPage } from 'next';
-import { useEffect } from 'react';
-import { useSessionContext } from '@supabase/auth-helpers-react';
-import { useRouter } from 'next/navigation';
-import Head from 'next/head';
+import type { NextPage } from "next";
+import { useEffect } from "react";
+import { useSessionContext } from "@supabase/auth-helpers-react";
+import { useRouter } from "next/navigation";
+import Head from "next/head";
+import { Button } from "../components/atoms";
 
 const Index: NextPage = () => {
   const { isLoading, session, error } = useSessionContext();
@@ -10,7 +11,7 @@ const Index: NextPage = () => {
 
   useEffect(() => {
     if (!isLoading && session) {
-      router.push('/dashboard');
+      router.push("/dashboard");
     }
   }, [isLoading, session]);
 
@@ -22,18 +23,24 @@ const Index: NextPage = () => {
       </Head>
       <main>
         <section
-          className="relative bg-background bg-center h-screen"
-          style={{ backgroundImage: "url('/path-to-image.jpg')" }}
+          className="relative bg-white bg-center h-screen"
+          style={{
+            backgroundImage: "url('/background-main2.png')",
+            backgroundSize: "cover",
+            backgroundRepeat: "no-repeat",
+          }}
         >
-          <div className="absolute inset-0 bg-background opacity-50"></div>
+          <div className="absolute inset-0 bg-background opacity-20"></div>
           <div className="relative flex flex-col items-center justify-center h-full text-center text-white">
             <h1 className="text-5xl font-bold">Bienvenidas a Peloteras</h1>
             <p className="mt-4 text-2xl">
               Conectando Mujeres y Disidencias a través del Fútbol
             </p>
-            <button className="mt-8 px-8 py-4 text-2xl font-bold bg-green hover:bg-green-600 rounded-full">
-              Comienza Ahora
-            </button>
+            <div className="w-1/4 mt-8">
+              <Button color="green" onClick={() => router.push("signIn")}>
+                Comienza Ahora
+              </Button>
+            </div>
           </div>
         </section>
         <section className="py-20 px-8 bg-secondary">
