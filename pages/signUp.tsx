@@ -21,6 +21,8 @@ const SignUp: NextPage = () => {
   };
 
   console.log(form.getValues())
+  console.log(form.formState.isValid)
+  console.log(form.watch('playerPosition'))
 
   return (
     <div className="flex justify-center items-center w-full">
@@ -42,7 +44,7 @@ const SignUp: NextPage = () => {
         </div>
         <Button
           text="Registrarse"
-          disabled={!form.formState.isValid || !form.watch('playerPosition')}
+          disabled={!form.formState.isValid || form.watch('playerPosition').length === 0}
           onClick={() => handleUpdateUser()}
         />
       </div>

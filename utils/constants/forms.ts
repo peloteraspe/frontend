@@ -49,7 +49,7 @@ export const optionsPositionCard = [
 
 export const signUpForm = [
   {
-    id: 'username',
+    id: 'name',
     label: 'Nombre',
     placeholder: 'Nombre',
     required: 'Nombre es requerido',
