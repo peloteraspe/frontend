@@ -28,6 +28,7 @@ export const Form: FC<FormProps> = ({
       className={`!inline-grid !grid-cols-${numberOfColumns} ${
         gap ? `${gap}` : 'gap-[28px]'
       } w-full`}
+      autoComplete="off"
     >
       {formInputs.map((input: any, index: number) => {
         if (input.link) {
@@ -222,6 +223,7 @@ export const Form: FC<FormProps> = ({
               key={index}
               control={control}
               name={input.id}
+              defaultValue={[]}
               render={({ field: { onChange, value } }) => (
                 <SelectCard
                   options={input.options}
@@ -243,6 +245,7 @@ export const Form: FC<FormProps> = ({
                 maxLength: input.maxLength,
                 pattern: input.pattern,
               })}
+              name={input.id}
               labelText={input.label}
               required={input.required}
               error={errors[input.id]}

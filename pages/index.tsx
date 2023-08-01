@@ -32,11 +32,11 @@ const Index: NextPage = () => {
         >
           <div className="absolute inset-0 bg-background opacity-20"></div>
           <div className="relative flex flex-col items-center justify-center h-full text-center text-white">
-            <h1 className="text-5xl font-bold">Bienvenidas a Peloteras</h1>
-            <p className="mt-4 text-2xl">
+            <h1 className="text-5xl font-bold max-sm:relative">Bienvenidas a Peloteras</h1>
+            <p className="mt-4 text-2xl max-sm:hidden">
               Conectando Mujeres y Disidencias a través del Fútbol
             </p>
-            <div className="w-1/4 mt-8">
+            <div className="w-1/4 mt-8 max-sm:w-auto max-sm:my-8 max-sm:px-20">
               <Button color="green" onClick={() => router.push("signIn")}>
                 Comienza Ahora
               </Button>
