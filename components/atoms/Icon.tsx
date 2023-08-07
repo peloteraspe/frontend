@@ -5,7 +5,7 @@ interface Props
     React.DetailedHTMLProps<React.SVGAttributes<SVGSVGElement>, SVGSVGElement>,
     "disabled"
   > {
-  fill: string;
+  fill?: string;
   paths: string[] | { path: string; fill: string }[];
   width?: number;
   height?: number;
