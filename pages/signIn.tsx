@@ -74,7 +74,7 @@ const SignIn: NextPage = () => {
         <Button
           text="Ingresar"
           disabled={!form.formState.isDirty || !form.formState.isValid}
-          onClick={handleMagicLinkClick}
+          onClick={handleMagicLinkClick} 
         />
       </div>
     </div>
