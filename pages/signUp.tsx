@@ -45,7 +45,7 @@ const SignUp: NextPage = () => {
         <Button
           text="Registrarse"
           disabled={!form.formState.isValid || form.watch('playerPosition').length === 0}
-          onClick={() => handleUpdateUser()} 
+          onClick={() => handleUpdateUser()}
         />
       </div>
     </div>
