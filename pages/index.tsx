@@ -36,6 +36,7 @@ const Index: NextPage = () => {
             <p className="mt-4 text-2xl max-sm:hidden">
               Conectando Mujeres y Disidencias a través del Fútbol
             </p>
+   
             <div className="w-48 mt-8 max-sm:w-48 max-sm:my-8">
               <Button color="green" onClick={() => router.push("signIn")}>
                 Comienza Ahora
