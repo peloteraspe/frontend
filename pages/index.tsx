@@ -254,7 +254,10 @@ const Index: NextPage = () => {
             Da el primer paso para conectar, empoderarte y ser parte de una
             comunidad increíble.
           </p>
-          <button className="mt-8 px-8 py-4 text-2xl font-bold rounded-full bg-green" onClick={() => router.push("validate")} >
+          <button
+            className="mt-8 px-8 py-4 text-2xl font-bold rounded-full bg-green"
+            onClick={() => router.push("validate")}
+          >
             Regístrate Ahora
           </button>
         </section>
