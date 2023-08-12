@@ -77,8 +77,8 @@ const SignIn: NextPage = () => {
         </div>
         <Button
           text="Ingresar"
-          disabled={!form.formState.isDirty || !form.formState.isValid}
-          onClick={handleMagicLinkClick}
+          disabled={ !form.formState.isValid}
+          onClick={handleMagicLinkClick} 
         />
         <SelectHours></SelectHours>
       </div>
