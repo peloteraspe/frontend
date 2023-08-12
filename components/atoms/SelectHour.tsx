@@ -1,4 +1,4 @@
-import React, { FC, useRef } from "react";
+import React, { FC, useEffect, useRef, useState } from "react";
 import { Icon, Text } from "../atoms";
 import { chevronDown } from "@/utils/constants/icons";
 
@@ -14,6 +14,14 @@ interface SelectHourProps {
   readOnly?: boolean;
   readOnlySelectHour?: boolean;
 }
+const timeOptions = Array.from({ length: 24 * 2 }).map((_, idx) => {
+  const hours = Math.floor(idx / 2);
+  const minutes = (idx % 2) * 30;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+    2,
+    "0"
+  )}`;
+});
 
 export const SelectHour: FC<SelectHourProps> = ({
   placeholderText,
@@ -26,153 +34,103 @@ export const SelectHour: FC<SelectHourProps> = ({
   error,
   errorText,
 }) => {
-  const [open, setOpen] = React.useState(false);
-  const [SelectedHour, setSelectedHour] = React.useState(formValue || "");
-  const [hourError, setHourError] = React.useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [SelectedHour, setSelectedHour] = useState(formValue || "");
+  const [hourError, setHourError] = useState<string | null>(null);
 
-  // Ref for the container
-  const containerRef = useRef(null);
-  // Refs for each option
-  const optionRefs = useRef<{ [key: string]: React.RefObject<HTMLDivElement> }>(
-    {}
-  );
+  const [filteredOptions, setFilteredOptions] = useState(options);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
-    if (options) {
-      options.forEach((option) => {
-        optionRefs.current[option] = React.createRef();
-      });
-    }
-  }, [options]);
-
-  // const formatHour = (value: string) => {
-  //   const digits = value.replace(/[^0-9]/g, ""); // keep only numbers
-  //   // if (digits.length === 0) return "";
-  //   if (digits.length <= 2) {
-  //     return digits; // Return just the hours (or part of it) without ':'
-  //   }
-  //   let hours = parseInt(digits.slice(0, 2), 10);
-  //   let minutes = parseInt(digits.slice(2, 4), 10);
-
-  //   if (hours > 23) {
-  //     setHourError(errorText || "Invalid hour format");
-  //     return value;
-  //   } else if (minutes > 59) {
-  //     setHourError(errorText || "Invalid minute format");
-  //     return String(hours).padStart(2, "0") + ":" + digits.slice(2);
-  //   }
-
-  //   setHourError(null); // Resetting error if the time is valid
-  //   return (
-  //     String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0")
-  //   );
-  // };
-
-  // const handleHourChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  //   if (e.target.value === "") {
-  //     setSelectedHour("");
-  //     setFormValue("");
-  //     setHourError(null); // Resetting error if the input is cleared
-  //   } else {
-  //     let formattedValue = formatHour(e.target.value);
-  //     setSelectedHour(formattedValue);
-  //     setFormValue(formattedValue);
-  //   }
-  // };
-
-  const handleHourChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = event.target.value;
-    if (/^([01]?[0-9]|2[0-3]):?[0-5]?[0-9]?$/.test(newValue)) {
-      setFormValue(newValue);
-      setSelectedHour(newValue);
-    } else {
-      setHourError(errorText || "Invalid hour format");
-    }
-  };
-
-  const onSelectHourOption = (SelectedHour: string) => {
-    setFormValue(SelectedHour);
-    setSelectedHour(SelectedHour);
-    setOpen(false);
-  };
-
-  const onBlurSelectHour = () => {
-    setTimeout(() => {
-      setOpen(false);
-    }, 200);
-  };
-  // After we set the dropdown to be open, then we'll trigger the scroll behavior
-  const onClickSelectHour = (e: React.MouseEvent<HTMLDivElement>) => {
-    options === undefined || error ? setOpen(false) : setOpen(true);
-    // e.stopPropagation();
-  };
-
-  // Using useEffect to scroll when dropdown is opened
-  React.useEffect(() => {
-    if (open) {
-      scrollToSelector();
-    }
-  }, [open, SelectedHour]);
-
-  const scrollToSelector = () => {
-    if (options && SelectedHour) {
-      // Find the first option that starts with the input
-      const matchingOption = options.find((option) =>
-        option.startsWith(SelectedHour)
+  useEffect(() => {
+    if (SelectedHour) {
+      const filterOptions = timeOptions.filter((option) =>
+        option.startsWith(SelectedHour.padEnd(5, "_"))
       );
-
-      if (matchingOption && optionRefs.current[matchingOption]?.current) {
-        containerRef.current.scrollTo({
-          top: optionRefs.current[matchingOption].current.offsetTop,
-          behavior: "smooth",
-        });
-      }
+      setFilteredOptions(filterOptions);
+    } else if (showDropdown && !SelectedHour) {
+      setFilteredOptions(timeOptions);
     }
-  };
+  }, [SelectedHour, showDropdown]);
 
   const formatInputValue = (value: string): string => {
-    // Remove any non-digit characters
-    const digits = value.replace(/[^0-9]/g, "");
-    // Check for single-digit hour
-    if (digits.length === 0) return "12:00";
-
-    if (digits.length === 1) {
-      if (["0", "1", "2"].includes(digits)) {
-        return `${digits}0:00`;
-      }
-      return `0${digits}:00`;
+    const formattedValue = value.replace(/[^0-9]/g, "");
+    if (formattedValue.length >= 3) {
+      return `${formattedValue.slice(0, 2)}:${formattedValue.slice(2, 4)}`;
+    } else if (formattedValue.length > 0) {
+      return `${formattedValue}`;
     }
-
-    // Check for two-digit hour
-    if (digits.length === 2) {
-      if (parseInt(digits, 10) > 23) {
-        return `0${digits[0]}:00`;
-      }
-      return `${digits}:00`;
-    }
-
-    // For longer values, format hour and minute accordingly
-    if (digits.length >= 3) {
-      return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
-    }
-
-    return value;
+    return "";
   };
 
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = event.target.value.replace(/[^0-9]/g, "");
+    if (newValue.length <= 4) {
+      setSelectedHour(newValue);
+      setFormValue(newValue);
+    }
+  };
+
+  const onClickSelectHour = (e: React.MouseEvent<HTMLDivElement>) => {
+    options === undefined || error ? setOpen(false) : setOpen(true);
+    setSelectedHour(""); // Reset SelectedHour
+    e.stopPropagation();
+  };
   return (
     <div className="w-[45%]">
-      <div onBlur={onBlurSelectHour} className="relative">
+      {/* <div onBlur={onBlurSelectHour} className="relative"> */}
+      <div className="relative">
         <input
           onClick={(e) => onClickSelectHour(e)}
           readOnly={readOnlySelectHour}
           // readOnlySelectHour={readOnlySelectHour}
-          value={formatInputValue(SelectedHour)}
+          // value={formatSelectedHour(SelectedHour)}
           placeholder={placeholderText}
-          onChange={handleHourChange}
+          // onChange={handleHourChange}
+          ref={inputRef}
+          value={formatInputValue(SelectedHour)}
+          onFocus={() => setShowDropdown(true)}
+          onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+          onChange={handleInputChange}
+          // placeholder="HH:MM"
           maxLength={5} // HH:MM format
           className={`${"border-lightGray focus:outline-none focus:border-primary hover:border-primary hover:outline-none py-2 px-3 "} cursor-pointer placeholder:text-lightGray transition duration-150 appearance-none border  rounded-xl w-full  text-white bg-transparent`}
         />
-        <div
+        {showDropdown && filteredOptions.length > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              maxHeight: "100px",
+              overflowY: "auto",
+              border: "1px solid #ccc",
+            }}
+          >
+            {filteredOptions.map((option, idx) => (
+              <div
+                key={idx}
+                onClick={() => {
+                  setSelectedHour(option);
+                  setFormValue(option);
+                  setShowDropdown(false);
+                  setHourError(null);
+                  inputRef.current?.focus();
+                }}
+                style={{
+                  padding: "5px",
+                  cursor: "pointer",
+                  backgroundColor:
+                    option === SelectedHour ? "#eee" : "transparent",
+                }}
+              >
+                {option}
+              </div>
+            ))}
+          </div>
+        )}
+        {/* <div
           style={{
             paddingRight: "12px",
             fontWeight: "600",
@@ -210,7 +168,7 @@ export const SelectHour: FC<SelectHourProps> = ({
                 </div>
               ))}
           </div>
-        )}
+        )} */}
       </div>
       {(error || hourError) && (
         <Text color="red">{hourError || errorText}</Text>

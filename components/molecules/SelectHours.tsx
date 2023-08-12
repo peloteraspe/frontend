@@ -30,6 +30,8 @@ const SelectHours: FC = () => {
         options={optionHours}
         placeholderText="16:00"
       />
+      <p>{initialTime}</p>
+      <p>{finalTime}</p>
     </div>
   );
 };
