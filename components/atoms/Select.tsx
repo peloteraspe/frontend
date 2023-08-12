@@ -1,5 +1,5 @@
-import React, { FC } from 'react';
-import { Text } from '../atoms';
+import React, { FC } from "react";
+import { Text } from "../atoms";
 
 interface SelectProps {
   placeholderText?: string;
@@ -59,7 +59,7 @@ export const Select: FC<SelectProps> = ({
   };
 
   return (
-    <div className={`${isSearchable ? 'h-[56px] mb-[-14px]' : ''}`}>
+    <div className={`${isSearchable ? "h-[56px] mb-[-14px]" : ""}`}>
       <div onBlur={onBlurSelect} className="relative">
         <input
           onClick={() =>
@@ -78,22 +78,22 @@ export const Select: FC<SelectProps> = ({
           }}
           className={`${
             selectToken
-              ? 'border-transparent focus:outline-none focus:border-transparent hover:border-transparent placeholder:text-lightGray py-1 px-2'
-              : 'border-lightGray focus:outline-none focus:border-primary hover:border-primary hover:outline-none py-2 px-3 '
+              ? "border-transparent focus:outline-none focus:border-transparent hover:border-transparent placeholder:text-lightGray py-1 px-2"
+              : "border-lightGray focus:outline-none focus:border-primary hover:border-primary hover:outline-none py-2 px-3 "
           } cursor-pointer placeholder:text-lightGray transition duration-150 appearance-none border  rounded-xl w-full  text-gray-700`}
         />
 
-        {open && !error && selected !== '' && (
+        {open && !error && selected !== "" && (
           <div className="absolute right-0 mt-2 py-2 w-full bg-white rounded-lg shadow-xl z-50 cursor-pointer">
             {options &&
               options?.map((option, index) => (
                 <div
                   key={index}
                   onClick={() =>
-                    options === undefined ? '' : onSelectOption(option)
+                    options === undefined ? "" : onSelectOption(option)
                   }
                   className={`text-ellipsis overflow-hidden block px-4 py-2 text-gray-800 hover:bg-primary hover:text-white ${
-                    selected === option ?? 'bg-primary'
+                    selected === option ?? "bg-primary"
                   } `}
                 >
                   {option}
@@ -107,7 +107,7 @@ export const Select: FC<SelectProps> = ({
                   key={index}
                   onClick={() => onSelectOption(option.key)}
                   className={`block px-4 py-2 text-gray-800 hover:bg-primary hover:text-white ${
-                    selected === option.key ?? 'bg-primary'
+                    selected === option.key ?? "bg-primary"
                   } `}
                 >
                   {option.key}
@@ -117,7 +117,7 @@ export const Select: FC<SelectProps> = ({
         )}
       </div>
       {error && (
-        <Text color="red">
+        <Text variant="sm" color="red">
           {isSearchable ? errorTextSearchable : errorText}
         </Text>
       )}

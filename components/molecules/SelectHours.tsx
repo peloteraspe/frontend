@@ -1,37 +1,44 @@
-import React, { FC, useState } from "react";
+import React, { FC, useEffect, useState } from "react";
 import { SelectHour } from "../atoms/SelectHour";
 import { optionHours } from "@/utils/constants/options";
+import { set } from "react-hook-form";
 
-// interface SelectHourProps {
-//   placeholderText?: string;
-//   error?: boolean;
-//   errorText?: string;
-//   setFormValue: (arg: string) => void;
-//   formValue?: string;
-//   options?: string[];
-//   setOptions?: (arg: string[]) => void;
-//   SelectedHour?: string;
-//   readOnly?: boolean;
-//   readOnlySelectHour?: boolean;
-// }
+interface TimeProps {
+  initialTime: string;
+  finalTime: string;
+}
+interface SelectHoursProps {
+  setFormValue: (arg: TimeProps) => void;
+  formValue?: TimeProps;
+}
 
-const SelectHours: FC = () => {
+const SelectHours: FC<SelectHoursProps> = ({ setFormValue }) => {
+  const [time, setTime] = useState<TimeProps>({
+    initialTime: "",
+    finalTime: "",
+  });
   const [initialTime, setInitialTime] = useState<string>("");
   const [finalTime, setFinalTime] = useState<string>("");
+  useEffect(() => {
+    if (setFormValue) {
+      setTime({ initialTime, finalTime });
+      setFormValue({ initialTime, finalTime });
+    }
+  }, [initialTime, finalTime]);
   return (
     <div className="w-full flex justify-between">
       <SelectHour
         setFormValue={setInitialTime}
         options={optionHours}
         placeholderText="14:00"
+        labelText="Hora de inicio"
       />
       <SelectHour
         setFormValue={setFinalTime}
         options={optionHours}
         placeholderText="16:00"
+        labelText="Hora de finalización"
       />
-      <p>{initialTime}</p>
-      <p>{finalTime}</p>
     </div>
   );
 };

@@ -13,6 +13,7 @@ interface SelectHourProps {
   SelectedHour?: string;
   readOnly?: boolean;
   readOnlySelectHour?: boolean;
+  labelText?: string;
 }
 const timeOptions = Array.from({ length: 24 * 2 }).map((_, idx) => {
   const hours = Math.floor(idx / 2);
@@ -33,6 +34,7 @@ export const SelectHour: FC<SelectHourProps> = ({
   readOnlySelectHour,
   error,
   errorText,
+  labelText,
 }) => {
   const [open, setOpen] = useState(false);
   const [SelectedHour, setSelectedHour] = useState(formValue || "");
@@ -42,13 +44,20 @@ export const SelectHour: FC<SelectHourProps> = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const isValidTime = (time: string): boolean => {
+    const [hours, minutes] = time.split(":");
+    return hours >= "00" && hours <= "23" && minutes >= "00" && minutes <= "59";
+  };
+
   useEffect(() => {
-    if (SelectedHour) {
+    const formattedHour = formatInputValue(SelectedHour);
+
+    if (formattedHour) {
       const filterOptions = timeOptions.filter((option) =>
-        option.startsWith(SelectedHour.padEnd(5, "_"))
+        option.startsWith(formattedHour.padEnd(5, "_"))
       );
       setFilteredOptions(filterOptions);
-    } else if (showDropdown && !SelectedHour) {
+    } else if (showDropdown && !formattedHour) {
       setFilteredOptions(timeOptions);
     }
   }, [SelectedHour, showDropdown]);
@@ -62,12 +71,16 @@ export const SelectHour: FC<SelectHourProps> = ({
     }
     return "";
   };
-
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value.replace(/[^0-9]/g, "");
     if (newValue.length <= 4) {
       setSelectedHour(newValue);
       setFormValue(newValue);
+      if (newValue.length === 4 && !isValidTime(formatInputValue(newValue))) {
+        setHourError("Seleccione una hora válida");
+      } else {
+        setHourError(null);
+      }
     }
   };
 
@@ -78,35 +91,43 @@ export const SelectHour: FC<SelectHourProps> = ({
   };
   return (
     <div className="w-[45%]">
-      {/* <div onBlur={onBlurSelectHour} className="relative"> */}
+      {labelText && (
+        <div className="mb-1 flex">
+          <Text variant="sm" color="white">
+            {labelText}
+          </Text>
+        </div>
+      )}
       <div className="relative">
         <input
           onClick={(e) => onClickSelectHour(e)}
           readOnly={readOnlySelectHour}
-          // readOnlySelectHour={readOnlySelectHour}
-          // value={formatSelectedHour(SelectedHour)}
           placeholder={placeholderText}
-          // onChange={handleHourChange}
           ref={inputRef}
           value={formatInputValue(SelectedHour)}
           onFocus={() => setShowDropdown(true)}
           onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
           onChange={handleInputChange}
-          // placeholder="HH:MM"
           maxLength={5} // HH:MM format
           className={`${"border-lightGray focus:outline-none focus:border-primary hover:border-primary hover:outline-none py-2 px-3 "} cursor-pointer placeholder:text-lightGray transition duration-150 appearance-none border  rounded-xl w-full  text-white bg-transparent`}
         />
+        <div
+          className="absolute bottom-0 right-0 pr-3 mb-2 font-semibold cursor-pointer"
+          onClick={(e) => onClickSelectHour(e)}
+        >
+          <Icon
+            paths={chevronDown}
+            stroke="#4CDB86"
+            width={24}
+            height={24}
+            viewBox="0 0 20 20"
+          ></Icon>
+        </div>
         {showDropdown && filteredOptions.length > 0 && (
           <div
-            style={{
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              right: 0,
-              maxHeight: "100px",
-              overflowY: "auto",
-              border: "1px solid #ccc",
-            }}
+            className={`${
+              filteredOptions.length === 1 ? "h-auto" : "h-[217px]"
+            }  absolute right-0 mt-2 py-2 w-full bg-white rounded-lg shadow-xl z-50 cursor-pointer overflow-x-scroll `}
           >
             {filteredOptions.map((option, idx) => (
               <div
@@ -118,60 +139,20 @@ export const SelectHour: FC<SelectHourProps> = ({
                   setHourError(null);
                   inputRef.current?.focus();
                 }}
-                style={{
-                  padding: "5px",
-                  cursor: "pointer",
-                  backgroundColor:
-                    option === SelectedHour ? "#eee" : "transparent",
-                }}
+                className={`h-[40px] text-ellipsis overflow-hidden block px-4 py-2 text-gray-800 hover:bg-primary hover:text-white ${
+                  SelectedHour === option ?? "bg-primary"
+                } `}
               >
                 {option}
               </div>
             ))}
           </div>
         )}
-        {/* <div
-          style={{
-            paddingRight: "12px",
-            fontWeight: "600",
-            cursor: "pointer",
-            position: "absolute",
-            bottom: "0",
-            right: "0",
-            marginBottom: "8px",
-          }}
-          onClick={(e) => onClickSelectHour(e)}
-        >
-          <Icon
-            paths={chevronDown}
-            stroke="#4CDB86"
-            width={24}
-            height={24}
-            viewBox="0 0 20 20"
-          ></Icon>
-        </div>
-
-        {open && !error && SelectedHour !== "" && (
-          <div className="h-[217px] absolute right-0 mt-2 py-2 w-full bg-white rounded-lg shadow-xl z-50 cursor-pointer overflow-x-scroll ">
-            {options &&
-              options?.map((option, index) => (
-                <div
-                  key={index}
-                  onClick={() =>
-                    options === undefined ? "" : onSelectHourOption(option)
-                  }
-                  className={`h-[40px] text-ellipsis overflow-hidden block px-4 py-2 text-gray-800 hover:bg-primary hover:text-white ${
-                    SelectedHour === option ?? "bg-primary"
-                  } `}
-                >
-                  {option}
-                </div>
-              ))}
-          </div>
-        )} */}
       </div>
       {(error || hourError) && (
-        <Text color="red">{hourError || errorText}</Text>
+        <Text variant="xs" color="red">
+          {hourError || errorText}
+        </Text>
       )}{" "}
     </div>
   );

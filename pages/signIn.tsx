@@ -59,6 +59,9 @@ const SignIn: NextPage = () => {
   };
 
   const form = useForm();
+  useEffect(() => {
+    console.log(form.getValues());
+  }, [form.getValues()]);
 
   return (
     <div className="flex justify-center items-center w-full h-screen">
@@ -72,15 +75,14 @@ const SignIn: NextPage = () => {
             viewBox="0 0 1433 329"
           ></Icon>
         </div>
-        <div className="my-4">
+        <div className="my-[28px]">
           <Form formInputs={loginForm} numberOfColumns={1} {...form} />
         </div>
         <Button
           text="Ingresar"
-          disabled={ !form.formState.isValid}
-          onClick={handleMagicLinkClick} 
+          disabled={!form.formState.isValid}
+          onClick={handleMagicLinkClick}
         />
-        <SelectHours></SelectHours>
       </div>
     </div>
   );
