@@ -1,4 +1,4 @@
-import React, { FC } from 'react';
+import React, { FC, useState } from 'react';
 import { Input, Tag, TextArea, Select, InputRadio, Checkbox } from '../atoms';
 import { AddTag } from '../molecules';
 import { InputDate } from '../molecules/InputDate';
@@ -17,8 +17,14 @@ export const Form: FC<FormProps> = ({
   control,
   ...rest
 }) => {
-  const [tags, setTags] = React.useState<string[]>([]);
-  const [selectTags, setSelectTags] = React.useState<string[]>([]);
+  const [tags, setTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState({}); // Para manejar los tags seleccionados
+  const defaultTags = [
+    // Definir tus tags predeterminados aquí
+    { label: 'Tag1', value: 'tag1' },
+    { label: 'Tag2', value: 'tag2' },
+    { label: 'Tag3', value: 'tag3' },
+  ];
 
   const errors = rest.formState.errors;
 
@@ -115,53 +121,34 @@ export const Form: FC<FormProps> = ({
                 marginRight: '1.50rem',
               }}
             >
-              <>
-                <AddTag
-                  {...register(input.id, {
-                    required: input.required,
-                    maxLength: 250,
-                  })}
-                  placeholderText={
-                    input.placeholder ? input.placeholder : input.label || ''
-                  }
-                  setFormValue={(value: any) => {
-                    setValue(input.id, value);
-                  }}
-                  onClick={() => {
-                    setTags([...tags, getValues(input.id)]);
-                    input.selectId &&
-                      setSelectTags([...selectTags, getValues(input.selectId)]);
-                    setValue(input.id, '');
-                  }}
-                  selectPlaceholder={
-                    input.selectPlaceholder && input.selectPlaceholder
-                  }
-                  selectSetFormValue={(value: any) => {
-                    if (input.selectId) {
-                      setValue(input.selectId, value);
-                    }
-                  }}
-                  selectOptions={input.selectOptions && input.selectOptions}
-                />
-                <div className="flex mt-4 gap-2 h-[24px]">
-                  {tags.map((tag, index) => (
-                    <Tag
-                      icon={
-                        input.icons &&
-                        input.icons.find((icon: { name: string }) => {
-                          return icon.name === selectTags[index];
-                        })
-                      }
-                      text={tag}
-                      subText={selectTags && selectTags[index]}
-                      key={index}
-                      remove={() => {
-                        setTags(tags.filter((_, i) => i !== index));
-                      }}
-                    />
-                  ))}
-                </div>
-              </>
+              <AddTag
+                selectOptions={defaultTags}
+                placeholderText={
+                  input.placeholder ? input.placeholder : input.label || ''
+                }
+                {...register(input.id, {
+                  required: input.required,
+                  maxLength: 250,
+                })}
+                setFormValue={(value) => {
+                  setValue(input.id, value);
+                }}
+                onClick={() => {
+                  setTags([...tags, getValues(input.id)]);
+                  setValue(input.id, '');
+                }}
+              />
+              <div className="flex mt-4 gap-2 h-[24px]">
+                {tags.map((tag, index) => (
+                  <Tag
+                    text={tag}
+                    key={index}
+                    remove={() => {
+                      setTags(tags.filter((_, i) => i !== index));
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           );
         }
