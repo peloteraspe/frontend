@@ -1,9 +1,8 @@
 import React, { FC, useEffect, useState } from "react";
 import { SelectHour } from "../atoms/SelectHour";
 import { optionHours } from "@/utils/constants/options";
-import { set } from "react-hook-form";
 
-interface TimeProps {
+export interface TimeProps {
   initialTime: string;
   finalTime: string;
 }

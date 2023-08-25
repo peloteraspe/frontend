@@ -8,15 +8,11 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { logo } from "@/utils/constants/icons";
 import { useSessionContext } from "@supabase/auth-helpers-react";
-import { SelectHour } from "@/components/atoms/SelectHour";
-import { optionHours } from "@/utils/constants/options";
-import SelectHours from "@/components/molecules/SelectHours";
 
 const SignIn: NextPage = () => {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
-  const [startEvent, setStartEvent] = useState("");
 
   const { isLoading, session, error } = useSessionContext();
 
