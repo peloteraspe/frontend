@@ -1,14 +1,14 @@
-import { useEffect } from 'react';
-import { NextPage } from 'next';
-import { Button, Icon } from '@/components/atoms';
-import { Form } from '@/components/organisms';
-import { signUpForm } from '@/utils/constants/forms';
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { logo } from '@/utils/constants/icons';
-import { useSessionContext } from '@supabase/auth-helpers-react';
-import { Text } from '@/components/atoms';
-import { updateUser } from '@/api/user';
+import { useEffect } from "react";
+import { NextPage } from "next";
+import { Button, Icon } from "@/components/atoms";
+import { Form } from "@/components/organisms";
+import { signUpForm } from "@/utils/constants/forms";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { logo } from "@/utils/constants/icons";
+import { useSessionContext } from "@supabase/auth-helpers-react";
+import { Text } from "@/components/atoms";
+import { updateUser } from "@/api/user";
 
 const SignUp: NextPage = () => {
   const form = useForm();
@@ -17,16 +17,16 @@ const SignUp: NextPage = () => {
 
   const handleUpdateUser = () => {
     updateUser(form.getValues(), session);
-    router.push('/dashboard');
+    router.push("/dashboard");
   };
 
-  console.log(form.getValues())
-  console.log(form.formState.isValid)
-  console.log(form.watch('playerPosition'))
+  console.log(form.getValues());
+  console.log(form.formState.isValid);
+  console.log(form.watch("playerPosition"));
 
   return (
     <div className="flex justify-center items-center w-full">
-      <div className="flex flex-col sm:w-96 p-4 rounded-xl">
+      <div className="flex flex-col w-[300px] lg:!w-[400px] p-4 rounded-xl">
         <div className="flex mt-3 flex-row-reverse justify-between items-center align-middle">
           <Icon
             paths={logo}
@@ -44,7 +44,9 @@ const SignUp: NextPage = () => {
         </div>
         <Button
           text="Registrarse"
-          disabled={!form.formState.isValid || form.watch('playerPosition').length === 0}
+          disabled={
+            !form.formState.isValid || form.watch("playerPosition").length === 0
+          }
           onClick={() => handleUpdateUser()}
         />
       </div>

@@ -58,7 +58,7 @@ const SignIn: NextPage = () => {
 
   return (
     <div className="flex justify-center items-center w-full h-screen">
-      <div className="flex flex-col sm:w-96 p-4 rounded-xl">
+      <div className="flex flex-col w-[300px] lg:!w-[400px] p-4 rounded-xl">
         <div className="flex justify-center">
           <Icon
             paths={logo}
@@ -73,8 +73,8 @@ const SignIn: NextPage = () => {
         </div>
         <Button
           text="Ingresar"
-          disabled={ !form.formState.isValid}
-          onClick={handleMagicLinkClick} 
+          disabled={!form.formState.isValid}
+          onClick={handleMagicLinkClick}
         />
       </div>
     </div>
