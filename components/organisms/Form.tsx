@@ -5,6 +5,7 @@ import { InputDate } from '../molecules/InputDate';
 import { FormProps } from '@/utils/interfaces';
 import SelectCard from '../atoms/SelectCard';
 import { Controller } from 'react-hook-form';
+import { Tags } from './TagsAdd';
 
 export const Form: FC<FormProps> = ({
   formInputs,
@@ -18,7 +19,7 @@ export const Form: FC<FormProps> = ({
   ...rest
 }) => {
   const [tags, setTags] = useState([]);
-  const [selectedTags, setSelectedTags] = useState({}); // Para manejar los tags seleccionados
+  const [selectedTags, setSelectedTags] = useState([]); // Para manejar los tags seleccionados
   const defaultTags = [
     // Definir tus tags predeterminados aquí
     { label: 'Tag1', value: 'tag1' },
@@ -28,6 +29,12 @@ export const Form: FC<FormProps> = ({
 
   const errors = rest.formState.errors;
 
+  const handleTagSelection = (tag) => {
+    setSelectedTags((prevSelectedTags) => ({
+      ...prevSelectedTags,
+      [tag]: !prevSelectedTags[tag],
+    }));
+  }
   return (
     <form
       style={{ gridTemplateColumns: `repeat(${numberOfColumns}, 1fr)` }}
@@ -121,34 +128,13 @@ export const Form: FC<FormProps> = ({
                 marginRight: '1.50rem',
               }}
             >
-              <AddTag
-                selectOptions={defaultTags}
-                placeholderText={
-                  input.placeholder ? input.placeholder : input.label || ''
-                }
-                {...register(input.id, {
-                  required: input.required,
-                  maxLength: 250,
-                })}
-                setFormValue={(value) => {
-                  setValue(input.id, value);
-                }}
-                onClick={() => {
-                  setTags([...tags, getValues(input.id)]);
-                  setValue(input.id, '');
-                }}
+              <Tags
+                tags={tags}
+                remove={(index) => setTags(tags.filter((_, i) => i !== index))}
+                setTags={setTags}
+                selectedTags={selectedTags}
+                handleTagSelection={handleTagSelection} 
               />
-              <div className="flex mt-4 gap-2 h-[24px]">
-                {tags.map((tag, index) => (
-                  <Tag
-                    text={tag}
-                    key={index}
-                    remove={() => {
-                      setTags(tags.filter((_, i) => i !== index));
-                    }}
-                  />
-                ))}
-              </div>
             </div>
           );
         }
