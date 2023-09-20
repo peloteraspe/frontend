@@ -5,6 +5,7 @@ import { InputDate } from "../molecules/InputDate";
 import { FormProps } from "@/utils/interfaces";
 import SelectCard from "../atoms/SelectCard";
 import { Controller } from "react-hook-form";
+import PlacesAutocomplete from "../molecules/GooglePlacesAutocomplete";
 import SelectHours from "../molecules/SelectHours";
 
 export const Form: FC<FormProps> = ({
@@ -236,6 +237,19 @@ export const Form: FC<FormProps> = ({
                 />
               )}
             />
+          );
+        }
+
+        if (input.autoCompleteLocation) {
+          return (
+            <div key={index} className="w-full">
+              <PlacesAutocomplete
+                {...input}
+                label={input.label}
+                {...register(input.id)}
+                onAddressSelect={(value) => setValue(input.id, value)}
+              />
+            </div>
           );
         }
         if (input.selectHours) {
