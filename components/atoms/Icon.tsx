@@ -1,11 +1,12 @@
 import React, { forwardRef } from "react";
+import { Colors } from "@/utils/constants/constants";
 
 interface Props
   extends Omit<
     React.DetailedHTMLProps<React.SVGAttributes<SVGSVGElement>, SVGSVGElement>,
     "disabled"
   > {
-  fill: string;
+  fill?: string | Colors;
   paths: string[] | { path: string; fill: string }[];
   width?: number;
   height?: number;
@@ -29,9 +30,23 @@ export const Icon = forwardRef<SVGSVGElement, Props>(function Icon(props, ref) {
     >
       {paths.map((path: string | { path: string; fill: string }, index) => {
         if (typeof path === "object") {
-          return <path key={index} d={path.path} fill={path.fill ?? fill} />;
+          return (
+            <path
+              className={`${fill?.includes("#") ? "" : `fill-${fill}`}`}
+              key={index}
+              d={path.path}
+              fill={path.fill ?? fill}
+            />
+          );
         } else {
-          return <path key={index} d={path} fill={fill} />;
+          return (
+            <path
+              key={index}
+              className={`${fill?.includes("#") ? "" : `fill-${fill}`}`}
+              d={path}
+              fill={fill}
+            />
+          );
         }
       })}
     </svg>

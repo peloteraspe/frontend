@@ -55,9 +55,14 @@ export const InputDate: FC<InputDateProps> = ({
     <div ref={wrapperRef} className="calendar-container w-full ">
       {labelText && (
         <div className="mb-1">
-          <Text color="black">
+          <Text variant="sm" color="white">
             {labelText}
-            {required && <Text color="black"> *</Text>}
+            {required && (
+              <Text variant="sm" color="white">
+                {" "}
+                *
+              </Text>
+            )}
           </Text>
         </div>
       )}
@@ -95,51 +100,11 @@ export const InputDate: FC<InputDateProps> = ({
           }}
         ></Calendar>
       </div>
-      {error && <Text color="red">{errorText}</Text>}
+      {error && (
+        <Text variant="xs" color="red">
+          {errorText}
+        </Text>
+      )}
     </div>
-    // <label ref={wrapperRef}>
-    //   {labelText && (
-    //     <div className="mb-1">
-    //       <Text color="black">
-    //         {labelText}
-    //         {required && <Text color="black"> *</Text>}
-    //       </Text>
-    //     </div>
-    //   )}
-    //   <div
-    //     className={`relative max-w-[272px] ${
-    //       disabled ? "" : "cursor-pointer"
-    //     } `}
-    //   >
-    //     <input
-    //       className={`${
-    //         disabled
-    //           ? `bg-white border-transparent bgInputDateDisabled`
-    //           : ` cursor-pointer inputDate py-2 px-3  focus:outline-none focus:border-primary hover:border-primary  z-10 border  border-lightGray `
-    //       } disabled:border-transparent transition duration-150 appearance-none rounded-xl w-full  text-gray-700 leading-tight  hover:outline-none h-[38px] placeholder:text-lightGray `}
-    //       type="text"
-    //       placeholder={placeholderText}
-    //       defaultValue={date ? format(date) : ""}
-    //       onClick={() => !disabled && setOpen(true)}
-    //       disabled={disabled}
-    //       readOnly
-    //     />
-    //     <Icon
-    //       paths={calendar}
-    //       fill={"white"}
-    //       style={{ fontWeight: "600" }}
-    //       className={" absolute right-1.5 bottom-1"}
-    //     ></Icon>
-    //   </div>
-    //   {open && (
-    //     <Calendar
-    //       date={date ? date : new Date()}
-    //       getDateValue={(date) => {
-    //         onSelectDate(date);
-    //       }}
-    //     ></Calendar>
-    //   )}
-    //   {error && <Text color="red">{errorText}</Text>}
-    // </label>
   );
 };

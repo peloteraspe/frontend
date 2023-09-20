@@ -1,21 +1,20 @@
 import React, { useState } from "react";
 import DatePicker from "react-datepicker";
 import { Text } from "../atoms";
-import es from "date-fns/locale/es";
 
 const months = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Setiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
 interface PickerProps {
@@ -35,6 +34,7 @@ interface CustomHeaderProps {
 interface CustomDayOfWeekProps {
   day: string;
   dayColor?: string;
+  completeDay?: string;
 }
 
 interface CustomDayProps {
@@ -55,7 +55,7 @@ const CustomHeader = ({
       >
         {"<"}
       </div>
-      <Text>
+      <Text variant="sm">
         {month} {year}
       </Text>
       <div
@@ -68,13 +68,40 @@ const CustomHeader = ({
   );
 };
 
-const CustomDayOfWeek = ({ day, dayColor }: CustomDayOfWeekProps) => (
-  <Text>{day}</Text>
+const getDaySpanish = (day: string) => {
+  const newDay = (() => {
+    switch (day) {
+      case "Sunday":
+        return "D";
+      case "Monday":
+        return "L";
+      case "Tuesday":
+        return "M";
+      case "Wednesday":
+        return "M";
+      case "Thursday":
+        return "J";
+      case "Friday":
+        return "V";
+      case "Saturday":
+        return "S";
+      default:
+        return day;
+    }
+  })();
+  return newDay;
+};
+const CustomDayOfWeek = ({
+  day,
+  dayColor,
+  completeDay,
+}: CustomDayOfWeekProps) => (
+  <Text variant="xs">{getDaySpanish(completeDay)}</Text>
 );
 
 const CustomDay = ({ day }: CustomDayProps) => (
   <div className="flex justify-center items-center w-[36px] h-[36px]">
-    <Text>{day}</Text>
+    <Text variant="xs">{day}</Text>
   </div>
 );
 
@@ -96,14 +123,17 @@ export const Calendar = ({
   return (
     <div className="pickerWrapper">
       <DatePicker
-        locale={es}
         selected={selectedDate}
         shouldCloseOnSelect={true}
         minDate={minDate || new Date()}
         inline
         renderDayContents={(day) => <CustomDay day={day} />}
         formatWeekDay={(day) => (
-          <CustomDayOfWeek day={day.substr(0, 1)} dayColor={dayColor} />
+          <CustomDayOfWeek
+            completeDay={day}
+            day={day.substr(0, 1)}
+            dayColor={dayColor}
+          />
         )}
         renderCustomHeader={({ date, increaseMonth, decreaseMonth }) => {
           const customDate = date;

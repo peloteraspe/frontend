@@ -12,13 +12,6 @@ export const loginForm = [
       message: "Invalid email address",
     },
   },
-  {
-    id: "calendar",
-    label: "Fecha del evento",
-    name: "calendar",
-    placeholder: "Fecha del evento",
-    inputDate: true,
-  },
 ];
 
 export const optionsPositionCard = [

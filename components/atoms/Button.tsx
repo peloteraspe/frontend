@@ -1,13 +1,4 @@
-export type Colors =
-  | "primary"
-  | "secondary"
-  | "purple"
-  | "dark"
-  | "success"
-  | "warning"
-  | "green"
-  | "fuchsia"
-  | "red";
+import { Colors } from "@/utils/constants/constants";
 
 import { FC, ReactNode, MouseEvent } from "react";
 import { Spinner } from "./Spinner";

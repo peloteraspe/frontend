@@ -1,13 +1,13 @@
-import React, { FC } from 'react';
-import { Text } from '../atoms';
-import { TextAreaProps } from '@/utils/interfaces';
+import React, { FC } from "react";
+import { Text } from "../atoms";
+import { TextAreaProps } from "@/utils/interfaces";
 
 export const TextArea: FC<TextAreaProps> = ({
   required,
   error,
   labelText,
-  placeholderText = 'Field Text',
-  errorText = 'Error Text',
+  placeholderText = "Field Text",
+  errorText = "Error Text",
   setFormValue,
   disabled,
   rows,
@@ -16,9 +16,14 @@ export const TextArea: FC<TextAreaProps> = ({
     <label className="h-full">
       {labelText && (
         <div className="mb-1">
-          <Text color="black">
+          <Text variant="sm" color="black">
             {labelText}
-            {required && <Text color="black"> *</Text>}
+            {required && (
+              <Text variant="sm" color="black">
+                {" "}
+                *
+              </Text>
+            )}
           </Text>
         </div>
       )}
@@ -26,8 +31,8 @@ export const TextArea: FC<TextAreaProps> = ({
         <textarea
           className={`${
             disabled
-              ? 'bg-white resize-none'
-              : 'py-2 px-3 focus:shadow-[0_0_0_0.2rem_#D943A8] focus:outline-none focus:border-primary hover:border-primary'
+              ? "bg-white resize-none"
+              : "py-2 px-3 focus:shadow-[0_0_0_0.2rem_#D943A8] focus:outline-none focus:border-primary hover:border-primary"
           } disabled:border-transparent transition duration-150 appearance-none border border-lightGray rounded-xl w-full  text-gray-700 leading-tight  hover:outline-none`}
           placeholder={placeholderText}
           onChange={(e) => {
@@ -38,7 +43,11 @@ export const TextArea: FC<TextAreaProps> = ({
         />
       </div>
 
-      {error && <Text color="red">{errorText}</Text>}
+      {error && (
+        <Text variant="xs" color="red">
+          {errorText}
+        </Text>
+      )}
     </label>
   );
 };

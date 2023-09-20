@@ -20,10 +20,6 @@ const SignUp: NextPage = () => {
     router.push("/dashboard");
   };
 
-  console.log(form.getValues());
-  console.log(form.formState.isValid);
-  console.log(form.watch("playerPosition"));
-
   return (
     <div className="flex justify-center items-center w-full">
       <div className="flex flex-col w-[300px] lg:!w-[400px] p-4 rounded-xl">
@@ -35,7 +31,7 @@ const SignUp: NextPage = () => {
             height={30}
             viewBox="0 0 1433 329"
           ></Icon>
-          <Text color="primary" type="subtitle">
+          <Text color="primary" variant="sm">
             Crea tu cuenta
           </Text>
         </div>
