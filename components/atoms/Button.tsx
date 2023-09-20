@@ -65,7 +65,7 @@ export const Button: FC<ButtonProps> = ({
 
   return (
     <button
-      className={`transition duration-150 py-[8px] text-sm w-full h-full flex items-center justify-center font-bold rounded-md focus:outline-none appearance-none ${
+      className={`z-[-1] transition duration-150 py-[8px] text-sm w-full h-full flex items-center justify-center font-bold rounded-md focus:outline-none appearance-none ${
         outline ? getOutline() : getColor()
       } ${disabled ? "border-0 cursor-not-allowed" : ""}`}
       onClick={onClick}

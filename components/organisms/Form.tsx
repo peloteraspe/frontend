@@ -170,7 +170,7 @@ export const Form: FC<FormProps> = ({
 
         if (input.inputDate) {
           return (
-            <div key={index} className="w-full">
+            <div key={index} className="w-full h-[70px] flex">
               <InputDate
                 labelText={input.label}
                 disabled={input.disabled}

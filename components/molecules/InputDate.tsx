@@ -1,9 +1,17 @@
 import React, { FC, useRef, useState } from "react";
 import { useOutside } from "@/utils/hooks/useOutside";
-import { Icon, Text } from "../atoms";
-import { Calendar } from "../molecules/Calendar";
-import { InputDateProps } from "@/utils/interfaces";
+import { InputProps } from "@/utils/interfaces";
 import { calendar } from "@/utils/constants/icons";
+import { Text } from "../atoms";
+import { Calendar } from "../molecules/Calendar";
+import { Icon } from "@/components/atoms/Icon";
+
+interface InputDateProps extends InputProps {
+  placeholderText?: string;
+  setFormDate: (arg: Date) => void;
+  formDate?: Date;
+  disabled?: boolean;
+}
 
 export const InputDate: FC<InputDateProps> = ({
   required,
@@ -39,14 +47,18 @@ export const InputDate: FC<InputDateProps> = ({
     setOpen(false);
   });
 
+  const toggleCalendar = () => {
+    setOpen(!open);
+  };
+
   return (
-    <label ref={wrapperRef}>
+    <div ref={wrapperRef} className="calendar-container w-full ">
       {labelText && (
         <div className="mb-1">
-          <Text variant="sm" color="black">
+          <Text variant="sm" color="white">
             {labelText}
             {required && (
-              <Text variant="sm" color="black">
+              <Text variant="sm" color="white">
                 {" "}
                 *
               </Text>
@@ -54,21 +66,17 @@ export const InputDate: FC<InputDateProps> = ({
           </Text>
         </div>
       )}
-      <div
-        className={`relative max-w-[272px] ${
-          disabled ? "" : "cursor-pointer"
-        } `}
-      >
+      <div className="relative">
         <input
           className={`${
             disabled
               ? `bg-white border-transparent bgInputDateDisabled`
-              : ` cursor-pointer inputDate py-2 px-3  focus:outline-none focus:border-primary hover:border-primary  z-10 border  border-lightGray `
-          } disabled:border-transparent transition duration-150 appearance-none rounded-xl w-full  text-gray-700 leading-tight  hover:outline-none h-[38px] placeholder:text-lightGray `}
+              : ` cursor-pointer py-2 px-3  focus:outline-none focus:border-primary hover:border-primary  z-10 border  border-lightGray `
+          } disabled:border-transparent bg-transparent transition duration-150 appearance-none rounded-xl  text-white leading-tight  hover:outline-none h-[38px] placeholder:text-lightGray w-full`}
           type="text"
           placeholder={placeholderText}
           defaultValue={date ? format(date) : ""}
-          onClick={() => !disabled && setOpen(true)}
+          onClick={() => !disabled && toggleCalendar()}
           disabled={disabled}
           readOnly
         />
@@ -76,22 +84,27 @@ export const InputDate: FC<InputDateProps> = ({
           paths={calendar}
           fill={"white"}
           style={{ fontWeight: "600" }}
-          className={" absolute right-1.5 bottom-1"}
+          className={" absolute right-1.5 bottom-1 z-[-1]"}
         ></Icon>
       </div>
-      {open && (
+
+      <div
+        className={`calendar ${
+          open ? "expanded-calendar" : "collapsed-calendar"
+        }`}
+      >
         <Calendar
           date={date ? date : new Date()}
           getDateValue={(date) => {
             onSelectDate(date);
           }}
         ></Calendar>
-      )}
+      </div>
       {error && (
         <Text variant="xs" color="red">
           {errorText}
         </Text>
       )}
-    </label>
+    </div>
   );
 };

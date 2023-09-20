@@ -3,18 +3,18 @@ import DatePicker from "react-datepicker";
 import { Text } from "../atoms";
 
 const months = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Setiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
 interface PickerProps {
@@ -34,6 +34,7 @@ interface CustomHeaderProps {
 interface CustomDayOfWeekProps {
   day: string;
   dayColor?: string;
+  completeDay?: string;
 }
 
 interface CustomDayProps {
@@ -48,21 +49,54 @@ const CustomHeader = ({
 }: CustomHeaderProps) => {
   return (
     <div className=" flex justify-between items-center mb-1">
-      <div className="flex" onClick={decreaseMonth}>
+      <div
+        className="flex cursor-pointer w-[20px] h-[20px]"
+        onClick={decreaseMonth}
+      >
         {"<"}
       </div>
       <Text variant="sm">
         {month} {year}
       </Text>
-      <div className="flex" onClick={increaseMonth}>
+      <div
+        className="flex cursor-pointer w-[20px] h-[20px]"
+        onClick={increaseMonth}
+      >
         {" >"}
       </div>
     </div>
   );
 };
 
-const CustomDayOfWeek = ({ day, dayColor }: CustomDayOfWeekProps) => (
-  <Text variant="xs">{day}</Text>
+const getDaySpanish = (day: string) => {
+  const newDay = (() => {
+    switch (day) {
+      case "Sunday":
+        return "D";
+      case "Monday":
+        return "L";
+      case "Tuesday":
+        return "M";
+      case "Wednesday":
+        return "M";
+      case "Thursday":
+        return "J";
+      case "Friday":
+        return "V";
+      case "Saturday":
+        return "S";
+      default:
+        return day;
+    }
+  })();
+  return newDay;
+};
+const CustomDayOfWeek = ({
+  day,
+  dayColor,
+  completeDay,
+}: CustomDayOfWeekProps) => (
+  <Text variant="xs">{getDaySpanish(completeDay)}</Text>
 );
 
 const CustomDay = ({ day }: CustomDayProps) => (
@@ -95,7 +129,11 @@ export const Calendar = ({
         inline
         renderDayContents={(day) => <CustomDay day={day} />}
         formatWeekDay={(day) => (
-          <CustomDayOfWeek day={day.substr(0, 1)} dayColor={dayColor} />
+          <CustomDayOfWeek
+            completeDay={day}
+            day={day.substr(0, 1)}
+            dayColor={dayColor}
+          />
         )}
         renderCustomHeader={({ date, increaseMonth, decreaseMonth }) => {
           const customDate = date;

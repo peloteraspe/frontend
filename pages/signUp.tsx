@@ -22,7 +22,7 @@ const SignUp: NextPage = () => {
 
   return (
     <div className="flex justify-center items-center w-full">
-      <div className="flex flex-col sm:w-96 p-4 rounded-xl">
+      <div className="flex flex-col w-[300px] lg:!w-[400px] p-4 rounded-xl">
         <div className="flex mt-3 flex-row-reverse justify-between items-center align-middle">
           <Icon
             paths={logo}
