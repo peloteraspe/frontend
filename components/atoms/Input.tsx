@@ -25,8 +25,15 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <label className="w-full">
         {labelText && (
           <div className="mb-1 flex">
-            <Text color="black">{labelText}</Text>
-            {required && <Text color="black"> *</Text>}
+            <Text variant="sm" color="white">
+              {labelText}
+            </Text>
+            {required && (
+              <Text variant="sm" color="white">
+                {" "}
+                *
+              </Text>
+            )}
           </div>
         )}
         <div style={{ width: "inherit" }} className="relative cursor-pointer">
@@ -52,7 +59,11 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           />
         </div>
 
-        {error && <Text color="red">{errorText}</Text>}
+        {error && (
+          <Text variant="xs" color="red">
+            {errorText}
+          </Text>
+        )}
       </label>
     );
   }

@@ -55,10 +55,13 @@ const SignIn: NextPage = () => {
   };
 
   const form = useForm();
+  useEffect(() => {
+    console.log(form.getValues());
+  }, [form.getValues()]);
 
   return (
     <div className="flex justify-center items-center w-full h-screen">
-      <div className="flex flex-col sm:w-96 p-4 rounded-xl">
+      <div className="flex flex-col w-[300px] lg:!w-[400px] p-4 rounded-xl">
         <div className="flex justify-center">
           <Icon
             paths={logo}
@@ -68,12 +71,12 @@ const SignIn: NextPage = () => {
             viewBox="0 0 1433 329"
           ></Icon>
         </div>
-        <div className="my-4">
+        <div className="my-[28px]">
           <Form formInputs={loginForm} numberOfColumns={1} {...form} />
         </div>
         <Button
           text="Ingresar"
-          disabled={!form.formState.isDirty || !form.formState.isValid}
+          disabled={!form.formState.isValid}
           onClick={handleMagicLinkClick}
         />
       </div>

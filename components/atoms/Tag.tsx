@@ -1,6 +1,6 @@
-import React, { FC } from 'react';
-import { Icon } from './Icon';
-import { Text } from './Text';
+import React, { FC } from "react";
+import { Icon } from "./Icon";
+import { Text } from "./Text";
 
 interface TagProps {
   text: string;
@@ -11,23 +11,24 @@ interface TagProps {
 
 export const Tag: FC<TagProps> = ({ text, remove, subText, icon }) => {
   return (
-    <div className='relative'>
+    <div className="relative">
       <div
-        className='absolute -top-2 -right-1 bg-primary rounded-full w-3 h-3 text-white flex justify-center items-center text-xs cursor-pointer max-w-[12px] min-w-[12px]'
-        onClick={remove}>
-        <span className='text-[7px] font-bold manrope'>X</span>
+        className="absolute -top-2 -right-1 bg-primary rounded-full w-3 h-3 text-white flex justify-center items-center text-xs cursor-pointer max-w-[12px] min-w-[12px]"
+        onClick={remove}
+      >
+        <span className="text-[7px] font-bold manrope">X</span>
       </div>
       {icon ? (
-        <a href={text} target='_blank' rel='noopener noreferrer'>
+        <a href={text} target="_blank" rel="noopener noreferrer">
           <Icon fill={icon.fill} paths={icon.paths} />
         </a>
       ) : (
-        <div className='rounded-lg px-2 py-1 bg-inactive text-center'>
-          <Text color='primary'>
+        <div className="rounded-lg px-2 py-1 bg-inactive text-center">
+          <Text variant="xs" color="primary">
             {text}
           </Text>
           {subText && (
-            <Text color='electricPink'>
+            <Text variant="xs" color="electricPink">
               {subText}
             </Text>
           )}

@@ -5,6 +5,8 @@ import { InputDate } from "../molecules/InputDate";
 import { FormProps } from "@/utils/interfaces";
 import SelectCard from "../atoms/SelectCard";
 import { Controller } from "react-hook-form";
+import PlacesAutocomplete from "../molecules/GooglePlacesAutocomplete";
+import SelectHours from "../molecules/SelectHours";
 
 export const Form: FC<FormProps> = ({
   formInputs,
@@ -168,7 +170,7 @@ export const Form: FC<FormProps> = ({
 
         if (input.inputDate) {
           return (
-            <div key={index} className="w-full">
+            <div key={index} className="w-full h-[70px] flex">
               <InputDate
                 labelText={input.label}
                 disabled={input.disabled}
@@ -226,6 +228,7 @@ export const Form: FC<FormProps> = ({
               defaultValue={[]}
               render={({ field: { onChange, value } }) => (
                 <SelectCard
+                  labelText={input.label}
                   options={input.options}
                   name={input.id}
                   register={register}
@@ -233,6 +236,31 @@ export const Form: FC<FormProps> = ({
                   value={value}
                 />
               )}
+            />
+          );
+        }
+
+        if (input.autoCompleteLocation) {
+          return (
+            <div key={index} className="w-full">
+              <PlacesAutocomplete
+                {...input}
+                label={input.label}
+                {...register(input.id)}
+                onAddressSelect={(value) => setValue(input.id, value)}
+              />
+            </div>
+          );
+        }
+        if (input.selectHours) {
+          return (
+            <SelectHours
+              key={index}
+              name={input.id}
+              setFormValue={(value) => {
+                setValue(input.id, value);
+              }}
+              {...register(input.id)}
             />
           );
         }
