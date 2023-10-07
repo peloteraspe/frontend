@@ -1,6 +1,5 @@
 import React, { FC, useState } from "react";
-import { Input, Tag, TextArea, Select, InputRadio, Checkbox } from "../atoms";
-import { AddTag } from "../molecules";
+import { Input, TextArea, Select, InputRadio, Checkbox } from "../atoms";
 import { InputDate } from "../molecules/InputDate";
 import { FormProps } from "@/utils/interfaces";
 import SelectCard from "../atoms/SelectCard";
