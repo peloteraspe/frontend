@@ -1,6 +1,6 @@
-import React from 'react';
-import { Text } from './Text';
-import { InputProps } from '@/utils/interfaces';
+import React from "react";
+import { Text } from "./Text";
+import { InputProps } from "@/utils/interfaces";
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   (
@@ -29,20 +29,24 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {required && <Text color="black"> *</Text>}
           </div>
         )}
-        <div style={{ width: 'inherit' }} className="relative cursor-pointer">
+        <div style={{ width: "inherit" }} className="relative cursor-pointer">
           <input
             type={type}
             placeholder={placeholderText}
             min={min}
             max={max}
+            step={1}
+            onInput={(e) => {
+              e.currentTarget.validity.valid || (e.currentTarget.value = "");
+            }}
             disabled={disabled}
             autoComplete="new-password"
             className={`${
               disabled
-                ? 'bg-white'
-                : 'py-2 px-3 bg-transparent focus:outline-none focus:border-primary hover:border-primary h-[42px]'
+                ? "bg-white"
+                : "py-2 px-3 bg-transparent focus:outline-none focus:border-primary hover:border-primary h-[42px]"
             } disabled:border-transparent transition duration-150 appearance-none border border-lightGray rounded-xl w-full  text-white leading-tight  hover:outline-none placeholder:text-lightGray`}
-            ref={ref}
+            // ref={ref}
             onChange={onChange}
             name={name}
           />
@@ -54,4 +58,4 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   }
 );
 
-Input.displayName = 'Input';
+Input.displayName = "Input";
