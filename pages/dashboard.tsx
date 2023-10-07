@@ -37,6 +37,33 @@ const Dashboard = () => {
             name: 'tags',
             label: 'Tags',
             addTag: true,
+            tags: [
+              {
+                text: 'Música',
+                icon: '/assets/characteristics/musica.svg',
+              },
+              {
+                text: 'Botiquín',
+                icon: '/assets/characteristics/botiquin.svg',
+              },
+              {
+                text: 'Estacionamiento',
+                icon: '/assets/characteristics/estacionamiento.svg',
+              },
+              {
+                text: 'Chaleco deportivo',
+                icon: '/assets/characteristics/chaleco.svg',
+              },
+              {
+                text: 'Arbitraje',
+                icon: '/assets/characteristics/arbitraje.svg',
+              },
+              {
+                text: 'Bebidas',
+                icon: '/assets/characteristics/bebidas.svg',
+              },
+            ],
+            labelTags: 'Escoge al menos 3 características',
           },
         ]}
         {...form}

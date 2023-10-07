@@ -3,7 +3,7 @@ import type { AppProps } from "next/app";
 import { Session } from "@supabase/auth-helpers-nextjs";
 import { SessionContextProvider } from "@supabase/auth-helpers-react";
 import { supabase } from "@/supabase";
-import "../styles/globals.css";
+import "../styles/globals.scss";
 
 const MyApp = ({
   Component,

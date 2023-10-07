@@ -25,6 +25,7 @@ export interface InputProps {
   isSearchable?: boolean;
   name?: string;
   onChange?: any;
+  value?: any;
 }
 
 export interface TextProps {

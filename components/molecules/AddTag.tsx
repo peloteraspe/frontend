@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Input } from '../atoms';
 
 export const AddTag = ({
   placeholderText,
@@ -53,14 +54,8 @@ export const AddTag = ({
           ))}
       </div>
       <div className="flex items-center">
-        <label className="mr-2">Otro:</label>
-        <input
-          className="mr-2 p-2 border rounded"
-          type="text"
-          placeholder="Añadir tag"
-          value={customTag}
-          onChange={handleCustomTagChange}
-        />
+        <label className="mr-4">Otro:</label>
+        <Input name='tag' onChange={handleCustomTagChange} />
         <button
           className="px-4 py-2 bg-blue-600 text-white rounded"
           onClick={handleAddCustomTag}

@@ -1,11 +1,13 @@
-import React, { FC, useState } from 'react';
-import { Input, Tag, TextArea, Select, InputRadio, Checkbox } from '../atoms';
-import { AddTag } from '../molecules';
-import { InputDate } from '../molecules/InputDate';
-import { FormProps } from '@/utils/interfaces';
-import SelectCard from '../atoms/SelectCard';
-import { Controller } from 'react-hook-form';
-import { Tags } from './TagsAdd';
+import React, { FC, useState } from "react";
+import { Input, Tag, TextArea, Select, InputRadio, Checkbox } from "../atoms";
+import { AddTag } from "../molecules";
+import { InputDate } from "../molecules/InputDate";
+import { FormProps } from "@/utils/interfaces";
+import SelectCard from "../atoms/SelectCard";
+import { Controller } from "react-hook-form";
+import PlacesAutocomplete from "../molecules/GooglePlacesAutocomplete";
+import SelectHours from "../molecules/SelectHours";
+import { Tags } from "./TagsAdd";
 
 export const Form: FC<FormProps> = ({
   formInputs,
@@ -39,7 +41,7 @@ export const Form: FC<FormProps> = ({
     <form
       style={{ gridTemplateColumns: `repeat(${numberOfColumns}, 1fr)` }}
       className={`!inline-grid !grid-cols-${numberOfColumns} ${
-        gap ? `${gap}` : 'gap-[28px]'
+        gap ? `${gap}` : "gap-[28px]"
       } w-full`}
       autoComplete="off"
     >
@@ -105,7 +107,7 @@ export const Form: FC<FormProps> = ({
                 errorText={`Please enter ${input.label?.toLowerCase()}`}
                 required={input.required}
                 placeholderText={
-                  input.placeholder ? input.placeholder : input.label || ''
+                  input.placeholder ? input.placeholder : input.label || ""
                 }
                 disabled={input.disabled}
                 setFormValue={(value: any) => {
@@ -122,18 +124,20 @@ export const Form: FC<FormProps> = ({
             <div
               key={index}
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                width: '100%',
-                marginRight: '1.50rem',
+                display: "flex",
+                flexDirection: "column",
+                width: "100%",
+                marginRight: "1.50rem",
               }}
             >
               <Tags
+                initialTags={input.tags}
                 tags={tags}
                 remove={(index) => setTags(tags.filter((_, i) => i !== index))}
                 setTags={setTags}
                 selectedTags={selectedTags}
                 handleTagSelection={handleTagSelection} 
+                labelTags={input.labelTags}
               />
             </div>
           );
@@ -141,7 +145,7 @@ export const Form: FC<FormProps> = ({
 
         if (input.inputDate) {
           return (
-            <div key={index} className="w-full">
+            <div key={index} className="w-full h-[70px] flex">
               <InputDate
                 labelText={input.label}
                 disabled={input.disabled}
@@ -199,6 +203,7 @@ export const Form: FC<FormProps> = ({
               defaultValue={[]}
               render={({ field: { onChange, value } }) => (
                 <SelectCard
+                  labelText={input.label}
                   options={input.options}
                   name={input.id}
                   register={register}
@@ -206,6 +211,31 @@ export const Form: FC<FormProps> = ({
                   value={value}
                 />
               )}
+            />
+          );
+        }
+
+        if (input.autoCompleteLocation) {
+          return (
+            <div key={index} className="w-full">
+              <PlacesAutocomplete
+                {...input}
+                label={input.label}
+                {...register(input.id)}
+                onAddressSelect={(value) => setValue(input.id, value)}
+              />
+            </div>
+          );
+        }
+        if (input.selectHours) {
+          return (
+            <SelectHours
+              key={index}
+              name={input.id}
+              setFormValue={(value) => {
+                setValue(input.id, value);
+              }}
+              {...register(input.id)}
             />
           );
         }
@@ -224,7 +254,7 @@ export const Form: FC<FormProps> = ({
               error={errors[input.id]}
               icon={input.icon}
               img={input.img}
-              width={'100%'}
+              width={"100%"}
               type={input.type}
               placeholderText={
                 input.placeholder ? input.placeholder : input.label
