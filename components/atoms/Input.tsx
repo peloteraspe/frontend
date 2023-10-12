@@ -42,6 +42,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             placeholder={placeholderText}
             min={min}
             max={max}
+            step={1}
+            onInput={(e) => {
+              e.currentTarget.validity.valid || (e.currentTarget.value = "");
+            }}
             disabled={disabled}
             autoComplete="new-password"
             className={`${

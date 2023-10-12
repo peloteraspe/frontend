@@ -1,8 +1,8 @@
-import { use, useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import usePlacesAutocomplete, {
   getGeocode,
   getLatLng,
-} from 'use-places-autocomplete';
+} from "use-places-autocomplete";
 
 const PlacesAutocomplete = ({
   onAddressSelect,
@@ -10,13 +10,10 @@ const PlacesAutocomplete = ({
   label,
 }: {
   defaultValue?: string;
-  onAddressSelect?: ({
-    address,
-    latLng,
-  }) => void;
+  onAddressSelect?: ({ address, latLng }) => void;
   label?: string;
 }) => {
-  const [defaultAddress, setDefaultAddress] = useState(defaultValue || '');
+  const [defaultAddress, setDefaultAddress] = useState(defaultValue || "");
   const {
     ready,
     value,
@@ -26,7 +23,7 @@ const PlacesAutocomplete = ({
   } = usePlacesAutocomplete({
     requestOptions: {
       componentRestrictions: {
-        country: 'pe',
+        country: "pe",
       },
     },
     debounce: 300,
@@ -49,7 +46,7 @@ const PlacesAutocomplete = ({
             const latLng = await getGeocode({ placeId: place_id }).then(
               (results) => getLatLng(results[0])
             );
-            setValue(description + '-' + latLng, false);
+            setValue(description + "-" + latLng, false);
             setDefaultAddress(description);
             onAddressSelect &&
               onAddressSelect({
@@ -67,12 +64,12 @@ const PlacesAutocomplete = ({
   };
 
   useEffect(() => {
-    setDefaultAddress(defaultValue || '');
+    setDefaultAddress(defaultValue || "");
   }, [defaultValue]);
   return (
     <div className="">
       <label className="block font-medium text-white text-base">
-        {label || 'Dirección'}
+        {label || "Dirección"}
       </label>
       <input
         value={defaultAddress}
@@ -85,7 +82,7 @@ const PlacesAutocomplete = ({
         className="w-full bg-transparent text-disabled border border-primary rounded-md shadow-sm px-4 py-2 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
       />
 
-      {status === 'OK' && (
+      {status === "OK" && (
         <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-2 cursor-pointer p-2">
           {renderSuggestions()}
         </ul>
