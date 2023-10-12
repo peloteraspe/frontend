@@ -53,7 +53,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                 ? "bg-white"
                 : "py-2 px-3 bg-transparent focus:outline-none focus:border-primary hover:border-primary h-[42px]"
             } disabled:border-transparent transition duration-150 appearance-none border border-lightGray rounded-xl w-full  text-white leading-tight  hover:outline-none placeholder:text-lightGray`}
-            // ref={ref}
+            ref={ref}
             onChange={onChange}
             name={name}
           />
