@@ -52,7 +52,7 @@ export interface cardOption {
 }
 
 export interface SelectCardProps {
-  setOptionSelected:  (value: any) => void;
+  setOptionSelected: (value: any) => void;
   cardOptions: cardOption[];
   labelText: string;
 }

@@ -264,6 +264,7 @@ export const Form: FC<FormProps> = ({
               }}
               disabled={input.disabled}
               max={input.max}
+              min={input.min}
               errorText={
                 errors[input.id] && `Please enter ${input.label?.toLowerCase()}`
               }
