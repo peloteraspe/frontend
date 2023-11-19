@@ -6,15 +6,27 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        poppins: ['var(--font-poppins)', 'sans-serif'],
+      },
       colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: '#F0815B',
+          dark: '#E86D3E',
+          light: '#F59E7B',
+          lightest: '#F9BDAF',
+        },
+        secondary: {
+          DEFAULT: '#27097E',
+          dark: '#1C053D',
+          light: '#3A0CA3',
+        },
         btn: {
-          background: 'hsl(var(--btn-background))',
-          'background-hover': 'hsl(var(--btn-background-hover))',
+          DEFAULT: '#F0815B',
+          hover: '#E86D3E',
         },
       },
     },
   },
-  plugins: [],
-}
+  plugins: [require('@tailwindcss/forms')],
+};

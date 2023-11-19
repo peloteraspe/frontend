@@ -2,6 +2,9 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { type NextRequest, NextResponse } from 'next/server'
 
 export const createClient = (request: NextRequest) => {
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   // Create an unmodified response
   let response = NextResponse.next({
     request: {
@@ -10,8 +13,8 @@ export const createClient = (request: NextRequest) => {
   })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl as string,
+    supabaseAnonKey as string,
     {
       cookies: {
         get(name: string) {
