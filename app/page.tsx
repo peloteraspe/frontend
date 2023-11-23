@@ -14,9 +14,6 @@ export default async function Index() {
     data: { user },
   } = await supabase.auth.getUser();
 
-
-
-console.log(user)
   if (
     user &&
     !user.user_metadata?.playerPosition &&
@@ -32,7 +29,10 @@ console.log(user)
               height={32}
               alt="Peloteras logo"
             />
-            <AuthButton username={user.user_metadata?.username} isLogged={true} />
+            <AuthButton
+              username={user.user_metadata?.username}
+              isLogged={true}
+            />
           </div>
         </nav>
 
@@ -72,14 +72,7 @@ console.log(user)
     );
   }
   return (
-    <div className="flex-1 w-full flex flex-col gap-20 items-center">
-      <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
-        <div className="w-full max-w-5xl flex justify-between items-center p-3 text-sm">
-          <Image src="/logo.png" width={32} height={32} alt="Peloteras logo" />
-          <AuthButton isLogged={user ? true : false} />
-        </div>
-      </nav>
-
+    <>
       {/* <div className="animate-in flex-1 flex flex-col gap-20 opacity-0 max-w-6xl px-3"> */}
       <Header />
       <section>
@@ -111,6 +104,6 @@ console.log(user)
           </a>
         </p>
       </footer>
-    </div>
+    </>
   );
 }

@@ -1,7 +1,18 @@
+import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+
 export default async function getAllPosts() {
-    const res = await fetch('https://raw.githubusercontent.com/cruip/cruip-dummy/main/job-board-posts.json')
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
+  // Replace 'your_table_name' with the actual table name in your Supabase database
+  const { data, error } = await supabase.from('event').select('*');
+  console.log(data, 'data');
 
-    if (!res.ok) throw new Error('failed to fetch data')
+  if (error) {
+    console.error('Error fetching data from Supabase:', error.message);
+    throw new Error('Failed to fetch data');
+  }
 
-    return res.json()
+  return data;
 }

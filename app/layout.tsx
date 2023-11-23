@@ -1,5 +1,9 @@
 import { Poppins } from 'next/font/google';
-import './css/style.css'
+import './css/style.css';
+import Image from 'next/image';
+import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
+import AuthButton from '@/components/AuthButton';
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -19,22 +23,37 @@ const poppinsBold = Poppins({
   display: 'swap',
 });
 
-
 export const metadata = {
   metadataBase: new URL(defaultUrl),
   title: 'Next.js and Supabase Starter Kit',
   description: 'The fastest way to build apps with Next.js and Supabase',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   return (
     <html lang="en" className={`${poppins.variable} ${poppinsBold.variable}`}>
       <body>
-        <main className="min-h-screen flex flex-col items-center">
+        <main className="flex-1 w-full flex flex-col gap-20 items-center">
+          <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
+            <div className="w-full max-w-5xl flex justify-between items-center p-3 text-sm">
+              <Image
+                src="/logo.png"
+                width={32}
+                height={32}
+                alt="Peloteras logo"
+              />
+              <AuthButton isLogged={user ? true : false} />
+            </div>
+          </nav>
           {children}
         </main>
       </body>

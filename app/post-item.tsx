@@ -1,6 +1,15 @@
 import Link from 'next/link';
 
 export default function PostItem({ ...props }) {
+  const formatDate = (date: string) => {
+    const dateObj = new Date(date);
+    const day = dateObj.getDate();
+    const month = dateObj.toLocaleString('default', { month: 'short' });
+    const year = dateObj.getFullYear();
+    const hour = dateObj.getHours();
+    const minutes = dateObj.getMinutes();
+    return `${day} ${month} ${year} ${hour}:${minutes}`;
+  };
   return (
     <div
       className={`[&:nth-child(-n+12)]:-order-1 group ${
@@ -18,7 +27,7 @@ export default function PostItem({ ...props }) {
             <div>
               <div className="flex datas-start space-x-2">
                 <div className="text-sm text-gray-800 font-semibold mb-1">
-                  {props.name}
+                  {props.created_by}
                 </div>
                 {props.sticky && (
                   <svg
@@ -35,7 +44,7 @@ export default function PostItem({ ...props }) {
                   className="text-lg text-gray-800 font-bold"
                   href={`/partidos/${props.id}`}
                 >
-                  {props.title}
+                  {props.description.title}
                 </Link>
               </div>
               <div className="-m-1">
@@ -45,7 +54,8 @@ export default function PostItem({ ...props }) {
                   }`}
                   href="#0"
                 >
-                  {props.tag1}
+                  {props.start_time && formatDate(props.start_time)} -{' '}
+                  {props.end_time && formatDate(props.end_time)}
                 </a>
                 <a
                   className={`text-xs text-gray-500 font-medium inline-flex px-2 py-0.5 hover:text-gray-600 rounded-md m-1 whitespace-nowrap transition duration-150 ease-in-out ${
@@ -53,7 +63,8 @@ export default function PostItem({ ...props }) {
                   }`}
                   href="#0"
                 >
-                  {props.tag2}
+                  {' '}
+                  Costo: S/{props.price}
                 </a>
               </div>
             </div>
