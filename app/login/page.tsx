@@ -14,20 +14,24 @@ export default function Login({
     const email = formData.get('email') as string;
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
-    const currentDomain = "http://localhost:3000/";
+    const currentDomain = 'http://localhost:3000/auth/callback';
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${currentDomain}`
-      }
-    })
+        emailRedirectTo: `${currentDomain}`,
+      },
+    });
 
     if (error) {
-      return redirect('/login?message=Could not authenticate user');
+      return redirect(
+        '/login?message=No puedes ingresar con ese correo'
+      );
     }
 
-    return redirect('/login?message=Check email to continue sign in process');
+    return redirect(
+      '/login?message=Revisa tu correo para ingresar a tu cuenta'
+    );
   };
 
   const signUp = async (formData: FormData) => {
@@ -101,10 +105,23 @@ export default function Login({
             required
           />
 
-          <button className="btn w-full text-white bg-primary hover:bg-primary-dark shadow-sm group mt-4">
+          <button className="btn w-full text-white bg-primary shadow-sm group mt-4">
             Obtener enlace mágico{' '}
-            <span className="group-hover:translate-x-0.5 transition-transform duration-150 ease-in-out ml-1 bg-transparent text-white">
-              -&gt;
+            <span className="group-hover:translate-x-0.5 transition-transform duration-150 ease-in-out ml-1 bg-primary">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth="1.5"
+                stroke="currentColor"
+                className="w-4 h-4 ml-1 bg-primary"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
+                />
+              </svg>
             </span>
           </button>
           {searchParams?.message && (

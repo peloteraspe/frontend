@@ -1,5 +1,5 @@
 import { Poppins } from 'next/font/google';
-import './globals.css';
+import './css/style.css'
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
