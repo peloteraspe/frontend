@@ -148,7 +148,7 @@ export default async function SinglePost({
                   </Link>
                 </div>
                 <h1 className="text-4xl font-extrabold font-inter mb-10">
-                  {post.title}
+                  {post.description.title}
                 </h1>
                 {/* Job description */}
                 <div className="space-y-8 mb-8">

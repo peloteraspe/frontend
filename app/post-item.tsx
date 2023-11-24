@@ -44,7 +44,7 @@ export default function PostItem({ ...props }) {
                   className="text-lg text-gray-800 font-bold"
                   href={`/partidos/${props.id}`}
                 >
-                  {props.description.title}
+                  {props.title}
                 </Link>
               </div>
               <div className="-m-1">
