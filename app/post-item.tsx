@@ -20,9 +20,7 @@ export default function PostItem({ ...props }) {
         className={`px-4 py-6 ${props.sticky && 'bg-indigo-100 rounded-xl'}`}
       >
         <div className="sm:flex items-center space-y-3 sm:space-y-0 sm:space-x-5">
-          <div className="shrink-0">
-            <img src={props.image} width="56" height="56" alt={props.name} />
-          </div>
+          <div className="flex-shrink-0 w-8"></div>
           <div className="grow lg:flex items-center justify-between space-y-5 lg:space-x-2 lg:space-y-0">
             <div>
               <div className="flex datas-start space-x-2">
@@ -68,7 +66,7 @@ export default function PostItem({ ...props }) {
                 </a>
               </div>
             </div>
-            <div className="min-w-[120px] flex items-center lg:justify-end space-x-3 lg:space-x-0">
+            <div className="min-w-[180px] flex items-center lg:justify-end space-x-3 lg:space-x-0">
               <div className="lg:hidden group-hover:lg:block">
                 <Link
                   className="btn-sm py-1.5 px-3 text-white bg-indigo-500 hover:bg-indigo-600 group shadow-sm"

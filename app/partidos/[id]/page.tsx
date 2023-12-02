@@ -5,6 +5,7 @@ import Image from 'next/image';
 import PostItem from '../../post-item';
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
+import Map from '@/components/Map';
 
 export default async function SinglePost({
   params,
@@ -21,6 +22,7 @@ export default async function SinglePost({
     notFound();
   }
   const post = await dataPost[0];
+
   return (
     <section>
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -36,13 +38,13 @@ export default async function SinglePost({
               >
                 <div className="relative bg-gray-50 rounded-xl border border-gray-200 p-5">
                   <div className="text-center mb-6">
-                    <Image
+                    {/* <Image
                       className="inline-flex mb-2"
                       src={post.image}
                       width={72}
                       height={72}
                       alt={post.title}
-                    />
+                    /> */}
                     <h2 className="text-lg font-bold text-gray-800">
                       {post.title}
                     </h2>
@@ -170,6 +172,12 @@ export default async function SinglePost({
                       <p>{post.description.description}</p>
                     </div>
                   </div>
+                </div>
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold text-gray-800 mb-3">
+                    Ubicación
+                  </h3>
+                  <Map lat={post.location.lat} lng={post.location.long} />
                 </div>
                 {/* Social share */}
                 <div className="flex items-center justify-end space-x-4">
