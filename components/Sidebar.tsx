@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import Select from 'react-select';
 
 export default function Sidebar() {
-  const form = useForm();
+  const form = useForm()
   const options = [
     { value: 'Cercado de Lima', label: 'Cercado Lima' },
     { value: 'Rímac', label: 'Rímac' },
@@ -35,7 +35,6 @@ export default function Sidebar() {
     { value: 'Villa El Salvador', label: 'Villa El Salvador' },
     { value: 'San Juan de Miraflores', label: 'San Juan de Miraflores' },
   ];
-
   return (
     <aside className="mb-8 md:mb-0 md:w-64 lg:w-72 md:ml-12 lg:ml-20 md:shrink-0 md:order-1">
       <div
@@ -60,7 +59,12 @@ export default function Sidebar() {
               <ul className="space-y-2">
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      value={'pichanga'}
+                      {...form.register('type')}
+                    />
                     <span className="text-sm text-gray-600 ml-2">
                       Pichanga libre
                     </span>
@@ -68,7 +72,12 @@ export default function Sidebar() {
                 </li>
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      value={'versus'}
+                      {...form.register('type')}
+                    />
                     <span className="text-sm text-gray-600 ml-2">
                       Versus de equipos
                     </span>
@@ -88,13 +97,24 @@ export default function Sidebar() {
                       type="checkbox"
                       className="form-checkbox"
                       defaultChecked
+                      value={new Date().toISOString().split('T')[0]}
+                      {...form.register('date')}
                     />
                     <span className="text-sm text-gray-600 ml-2">Hoy</span>
                   </label>
                 </li>
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      value={
+                        new Date(Date.now() + 86400000)
+                          .toISOString()
+                          .split('T')[0]
+                      }
+                      {...form.register('date')}
+                    />
                     <span className="text-sm text-gray-600 ml-2">Mañana</span>
                   </label>
                 </li>
@@ -108,7 +128,12 @@ export default function Sidebar() {
               <ul className="space-y-2">
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      value={'0-10'}
+                      {...form.register('cost')}
+                    />
                     <span className="text-sm text-gray-600 ml-2">
                       S/0 - S/10
                     </span>
@@ -116,7 +141,12 @@ export default function Sidebar() {
                 </li>
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      value={'10-15'}
+                      {...form.register('cost')}
+                    />
                     <span className="text-sm text-gray-600 ml-2">
                       S/10 - S/15
                     </span>
@@ -124,7 +154,12 @@ export default function Sidebar() {
                 </li>
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      value={'15-100'}
+                      {...form.register('cost')}
+                    />
                     <span className="text-sm text-gray-600 ml-2">
                       &gt; S/15
                     </span>
@@ -138,7 +173,18 @@ export default function Sidebar() {
                 Distrito
               </div>
               <label className="sr-only">Ubicación</label>
-              <Select options={options} isMulti placeholder="Ubicación" />
+              <Controller
+                control={form.control}
+                name="districts"
+                render={({ field }) => (
+                  <Select
+                    options={options}
+                    isMulti
+                    placeholder="Ubicación"
+                    {...field}
+                  />
+                )}
+              />
             </div>
             {/* Group 5 */}
             <div>
@@ -148,7 +194,12 @@ export default function Sidebar() {
               <ul className="space-y-2">
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      value={'estacionamiento'}
+                      {...form.register('extras')}
+                    />
                     <span className="text-sm text-gray-600 ml-2">
                       Estacionamiento
                     </span>
@@ -156,19 +207,19 @@ export default function Sidebar() {
                 </li>
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input type="checkbox" className="form-checkbox" value={'chalecos'} {...form.register('extras')} />
                     <span className="text-sm text-gray-600 ml-2">Chalecos</span>
                   </label>
                 </li>
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input type="checkbox" className="form-checkbox" value={'musica'} {...form.register('extras')} />
                     <span className="text-sm text-gray-600 ml-2">Música</span>
                   </label>
                 </li>
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input type="checkbox" className="form-checkbox" value={'arbitraje'} {...form.register('extras')} />
                     <span className="text-sm text-gray-600 ml-2">
                       Arbitraje
                     </span>
@@ -184,7 +235,7 @@ export default function Sidebar() {
               <ul className="space-y-2">
                 <li>
                   <label className="flex items-center">
-                    <input type="checkbox" className="form-checkbox" />
+                    <input type="checkbox" className="form-checkbox" value={'1h'} {...form.register('duration')} />
                     <span className="text-sm text-gray-600 ml-2">1 hora</span>
                   </label>
                 </li>
@@ -194,6 +245,8 @@ export default function Sidebar() {
                       type="checkbox"
                       className="form-checkbox"
                       defaultChecked
+                      value={'2h'}
+                      {...form.register('duration')}
                     />
                     <span className="text-sm text-gray-600 ml-2">2 horas</span>
                   </label>

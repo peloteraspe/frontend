@@ -6,6 +6,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@heroicons/react": "^2.0.18",
     "@react-google-maps/api": "^2.19.2",
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
