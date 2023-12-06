@@ -28,19 +28,17 @@ export default function Header() {
         <div>
           <Link
             className="btn text-white bg-primary hover:bg-primary-dark shadow-sm"
-            href="/post-a-job"
+            href="#main-content"
           >
             Únete a un partido
           </Link>
         </div>
-        <div className="sm:flex sm:items-center sm:justify-center space-y-2 sm:space-y-0 sm:space-x-3">
+        {/* <div className="sm:flex sm:items-center sm:justify-center space-y-2 sm:space-y-0 sm:space-x-3">
           <div className="inline-flex -space-x-3 -ml-0.5"></div>
           <div className="text-sm text-gray-500 font-medium">
-            {/* Reach <span className="text-indigo-500">100K+</span>{' '}
-              Prefessionals */}
             Únete a <span className="text-indigo-500">100K+</span> Mujeres
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

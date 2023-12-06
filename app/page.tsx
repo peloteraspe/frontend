@@ -82,7 +82,7 @@ export default async function Index() {
               <Sidebar />
 
               {/* Main content */}
-              <div className="md:grow">
+              <div className="md:grow" id="main-content">
                 <PostsList />
               </div>
             </div>
