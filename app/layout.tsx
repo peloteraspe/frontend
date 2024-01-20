@@ -1,32 +1,32 @@
-import { Poppins } from 'next/font/google';
-import './css/style.css';
-import Image from 'next/image';
-import { cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
-import AuthButton from '@/components/AuthButton';
+import { Poppins } from "next/font/google";
+import "./css/style.css";
+import Image from "next/image";
+import { cookies } from "next/headers";
+import { createClient } from "@/utils/supabase/server";
+import AuthButton from "@/components/AuthButton";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
-  : 'http://localhost:3000';
+  : "http://localhost:3000";
 
 const poppins = Poppins({
-  subsets: ['latin'],
-  variable: '--font-poppins',
-  weight: '400',
-  display: 'swap',
+  subsets: ["latin"],
+  variable: "--font-poppins",
+  weight: "400",
+  display: "swap",
 });
 
 const poppinsBold = Poppins({
-  subsets: ['latin'],
-  variable: '--font-poppins-bold',
-  weight: '700',
-  display: 'swap',
+  subsets: ["latin"],
+  variable: "--font-poppins-bold",
+  weight: "700",
+  display: "swap",
 });
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: 'Peloteras',
-  description: 'Peloteras, encuentra tu equipo de fútbol',
+  title: "Peloteras",
+  description: "Donde las mujeres jugamos fútbol",
 };
 
 export default async function RootLayout({
@@ -47,8 +47,8 @@ export default async function RootLayout({
             <div className="w-full max-w-5xl flex justify-between items-center p-3 text-sm">
               <Image
                 src="/logo.png"
-                width={32}
-                height={32}
+                width={50}
+                height={50}
                 alt="Peloteras logo"
               />
               <AuthButton isLogged={user ? true : false} />
