@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 import AuthButton from '@/components/AuthButton';
+import Navbar from '@/components/layout/sidebar';
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -54,6 +55,7 @@ export default async function RootLayout({
               <AuthButton isLogged={user ? true : false} />
             </div>
           </nav>
+          <Navbar />
           {children}
         </main>
       </body>
