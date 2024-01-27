@@ -1,15 +1,15 @@
-'use client';
-import { useState } from 'react';
-import Image from 'next/image';
-import LogoYape from '../app/assets/Logo.Yape.webp';
-import { Stepper } from './Stepper';
-import OperationNumberModal from './OperationNumberModal';
-import operationGuideImage from '../app/assets/donde-nro-operacion.png'; // Replace with your image path
+"use client";
+import { useState } from "react";
+import Image from "next/image";
+import LogoYape from "../app/assets/Logo.Yape.webp";
+import { Stepper } from "./Stepper";
+import OperationNumberModal from "./OperationNumberModal";
+import operationGuideImage from "../app/assets/donde-nro-operacion.png"; // Replace with your image path
 
 const PaymentStepper = (props: any) => {
-  const { post } = props;
+  const { post, paymentData } = props;
   const [currentStep, setCurrentStep] = useState(1);
-  const [operationNumber, setOperationNumber] = useState('');
+  const [operationNumber, setOperationNumber] = useState("");
   const [showModal, setShowModal] = useState(false);
 
   const handlePaymentConfirmation = () => {
@@ -25,17 +25,17 @@ const PaymentStepper = (props: any) => {
           <>
             <div className="mb-4 step-content" id="step-1">
               {/* <!-- Content for Introduction Step --> */}
-              <div className="max-w-6xl mx-auto px-4 sm:px-2 mt-5">
+              <div className="w-[350px] md:w-[450px] h-[500px] max-w-6xl mx-auto px-4 sm:px-2 mt-5">
                 <h2 className="text-lg font-bold text-gray-800 mb-4">
                   Estas a punto de pagar por el siguiente evento:
                 </h2>
-                <div className="flex gap-3 items-center">
+                <div className="flex gap-3 items-center justify-between">
                   <div className="flex flex-col">
                     <h3 className="font-bold text-gray-800">
                       Evento: {post.title}
                     </h3>
                     <h2 className=" font-bold text-gray-800">
-                      Organizado por: {post.created_by}{' '}
+                      Organizado por: {post.created_by}{" "}
                     </h2>
                   </div>
                   <div className="border-indigo-600 rounded-2xl border-2 h-20 w-20 flex items-center justify-center">
@@ -45,7 +45,7 @@ const PaymentStepper = (props: any) => {
 
                 <hr className="my-4" />
                 <h1 className="font-bold text-gray-800 text-center">
-                  {' '}
+                  {" "}
                   Paga con yape
                 </h1>
 
@@ -89,24 +89,29 @@ const PaymentStepper = (props: any) => {
       case 2:
         return (
           <div className="mb-4 step-content" id="step-2">
-            {/* Display QR Code for Payment */}
-            <div className="flex flex-col items-center">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">
-                Escanea el siguiente código QR para realizar tu pago:
-              </h2>
-              {/* Replace src with your dynamic QR code image source */}
-              <Image
-                src="/path-to-qr-code.png"
-                width={200}
-                height={200}
-                alt="QR Code"
-              />
-              <button
-                className="mt-4 btn w-full text-white bg-indigo-500 hover:bg-indigo-600"
-                onClick={() => setCurrentStep(3)}
-              >
-                He realizado el pago
-              </button>
+            <div className="w-[350px] md:w-[450px] h-[500px] max-w-6xl mx-auto px-4 sm:px-2 mt-5">
+              {/* Display QR Code for Payment */}
+              <div className="flex flex-col items-center">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">
+                  Escanea el siguiente código QR para realizar tu pago:
+                </h2>
+                {/* Replace src with your dynamic QR code image source */}
+                <Image
+                  src="/path-to-qr-code.png"
+                  width={200}
+                  height={200}
+                  alt="QR Code"
+                />
+                <h2 className="text-lg font-bold text-gray-800 mb-4">
+                  O realiza el pago a la siguiente cuenta: {paymentData?.number}
+                </h2>
+                <button
+                  className="mt-4 btn w-full text-white bg-indigo-500 hover:bg-indigo-600"
+                  onClick={() => setCurrentStep(3)}
+                >
+                  He realizado el pago
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -162,7 +167,7 @@ const PaymentStepper = (props: any) => {
   };
 
   return (
-    <>
+    <div className="w-[350px] md:w-[500px] h-[600px]">
       <Stepper step={currentStep} setCurrentStep={setCurrentStep} />
       <StepContent />
       <OperationNumberModal
@@ -170,7 +175,7 @@ const PaymentStepper = (props: any) => {
         onClose={() => setShowModal(false)}
         imageSrc={operationGuideImage}
       />
-    </>
+    </div>
   );
 };
 

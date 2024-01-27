@@ -16,12 +16,25 @@ export default async function DetallePago({
     .eq("id", params.id);
   if (!dataPost) {
     notFound();
+    return { props: {} };
   }
+
+  const { data: dataPayment, error: errorPayment } = await supabase
+    .from("paymentMethod")
+    .select("*")
+    .eq("id", 1);
+  // .eq("id", dataPost[0]?.event);
+  if (!dataPayment) {
+    notFound();
+  }
+  const payment = await dataPayment[0];
+  console.log(dataPayment);
+
   const post = await dataPost[0];
 
   return (
     <section>
-      <PaymentStepper post={post} />
+      <PaymentStepper post={post} paymentData={payment} />
     </section>
   );
 }
