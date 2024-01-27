@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import PostItem from "../../post-item";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import LogoYape from "../../assets/Logo.Yape.webp";
