@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import PaymentStepper from "@/components/Stepper";
+import PaymentStepper from "@/components/PaymentStepper";
 
 export default async function DetallePago({
   params,
