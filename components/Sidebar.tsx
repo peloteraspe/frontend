@@ -43,7 +43,7 @@ export default function Sidebar() {
         data-sticky-for="768"
         data-sticky-wrap=""
       >
-        <div className="relative bg-gray-50 rounded-xl border border-gray-200 p-5">
+        {/* <div className="relative bg-gray-50 rounded-xl border border-gray-200 p-5">
           <div className="absolute top-5 right-5 leading-none">
             <button className="text-sm font-medium text-indigo-500 hover:underline">
               Limpiar filtros
@@ -51,7 +51,6 @@ export default function Sidebar() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-1 gap-6">
-            {/* Group 1 */}
             <div>
               <div className="text-sm text-gray-800 font-semibold mb-3">
                 Tipo de juego
@@ -85,7 +84,6 @@ export default function Sidebar() {
                 </li>
               </ul>
             </div>
-            {/* Group 2 */}
             <div>
               <div className="text-sm text-gray-800 font-semibold mb-3">
                 Fecha
@@ -120,7 +118,6 @@ export default function Sidebar() {
                 </li>
               </ul>
             </div>
-            {/* Group 3 */}
             <div>
               <div className="text-sm text-gray-800 font-semibold mb-3">
                 Costo
@@ -167,7 +164,6 @@ export default function Sidebar() {
                 </li>
               </ul>
             </div>
-            {/* Group 4 */}
             <div>
               <div className="text-sm text-gray-800 font-semibold mb-3">
                 Distrito
@@ -186,7 +182,6 @@ export default function Sidebar() {
                 )}
               />
             </div>
-            {/* Group 5 */}
             <div>
               <div className="text-sm text-gray-800 font-semibold mb-3">
                 Extras
@@ -227,7 +222,6 @@ export default function Sidebar() {
                 </li>
               </ul>
             </div>
-            {/* Group 6 */}
             <div>
               <div className="text-sm text-gray-800 font-semibold mb-3">
                 Duración
@@ -254,7 +248,7 @@ export default function Sidebar() {
               </ul>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </aside>
   );
