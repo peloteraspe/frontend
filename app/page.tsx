@@ -1,6 +1,4 @@
-import AuthButton from '../components/AuthButton';
 import Header from '@/components/Header';
-import Image from 'next/image';
 import PostsList from './posts-list';
 import Sidebar from '@/components/Sidebar';
 import { createClient } from '@/utils/supabase/server';
@@ -29,46 +27,8 @@ export default async function Index() {
     }
   }
   console.log(userProfile, 'userProfile');
-  if (
-    user &&
-    !userProfile &&
-    !userProfile?.playerPosition &&
-    !userProfile?.username
-  ) {
-    return (
-      <section>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="py-8">
-            <div className="md:flex md:justify-between" data-sticky-container>
-              {/* Main content */}
-              <div className="md:grow">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6">
-                  <div
-                    className="md:flex md:justify-between"
-                    data-sticky-container
-                  >
-                    <div className="md:grow">
-                      <div className="max-w-3xl mx-auto">
-                        <div className="text-center">
-                          <h1 className="text-4xl font-bold">
-                            ¡Bienvenida a Peloteras!
-                          </h1>
-                          <p className="mt-4 text-md">
-                            Para poder continuar, necesitamos que completes tu
-                            perfil.
-                          </p>
-                        </div>
-                        <UpdateProfile email={user.email} id={user.id} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
+  if (user && (!userProfile || !userProfile.playerPosition || !userProfile.username)) {
+    return <UpdateProfile user={user} />;
   }
   return (
     <>
