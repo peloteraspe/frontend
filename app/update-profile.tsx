@@ -1,9 +1,12 @@
 'use client';
 import { createClient } from '@/utils/supabase/client';
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
-const UpdateProfile = ({ email }: any) => {
+const UpdateProfile = ({ email, id }: any) => {
   const supabase = createClient();
+  const router = useRouter();
   const [formData, setFormData] = useState({
     username: '',
     playerPosition: 'Portera', // Default value, you can set it based on your requirements
@@ -16,24 +19,31 @@ const UpdateProfile = ({ email }: any) => {
     });
   };
 
-  const handleSubmit = (e: any) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     console.log('Form data submitted:', formData);
-    // Update user metadata
-    supabase.auth
-      .updateUser({
-        email,
-        data: {
-          username: formData.username,
-          playerPosition: formData.playerPosition,
-        },
-      })
-      .then((res) => {
-        console.log('User metadata updated successfully:', res);
-      })
-      .catch((err) => {
-        console.error('Error updating user metadata:', err);
-      });
+
+    // Update or insert into the 'profiles' table
+    const { data, error } = await supabase.from('profile').upsert(
+      {
+        user: id,
+        username: formData.username,
+        playerPosition: formData.playerPosition,
+      },
+      {
+        // Specify conflict handling options here if needed
+        // For example, specify the column to detect conflicts on:
+        // onConflict: 'id'
+      }
+    );
+
+    if (error) {
+      console.error('Error updating profile:', error);
+    } else {
+      console.log('Profile updated successfully:', data);
+      toast.success('Perfil actualizado');
+      router.push('/');
+    }
   };
 
   return (
