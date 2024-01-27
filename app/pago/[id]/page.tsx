@@ -6,7 +6,6 @@ export default async function DetallePago({ params }: any) {
   let data;
   try {
     data = await fetchData(params.id);
-    console.log(data, 'data');
   } catch (error: any) {
     // Handle the error, maybe show a custom error message or redirect
     console.error(error);
