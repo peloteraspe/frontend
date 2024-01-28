@@ -1,6 +1,6 @@
-import React from 'react';
-import { fetchData } from './fetchData';
-import PaymentStepper from '@/components/PaymentStepper';
+import React from "react";
+import { fetchData } from "./fetchData";
+import PaymentStepper from "@/components/PaymentStepper";
 
 export default async function DetallePago({ params }: any) {
   let data;
@@ -13,12 +13,12 @@ export default async function DetallePago({ params }: any) {
   }
 
   // Destructure the event and paymentMethod from the fetched data
-  const { event, paymentMethod } = data;
+  const { event, paymentMethod, user } = data;
 
   // Render your components using the fetched data
   return (
     <section>
-      <PaymentStepper post={event} paymentData={paymentMethod} />
+      <PaymentStepper post={event} paymentData={paymentMethod} user={user} />
     </section>
   );
 }

@@ -1,23 +1,57 @@
 "use client";
 import { useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
 import LogoYape from "../app/assets/Logo.Yape.webp";
 import { Stepper } from "./Stepper";
+import PaymentAmount from "./PaymentAmount";
 import OperationNumberModal from "./OperationNumberModal";
-import operationGuideImage from "../app/assets/donde-nro-operacion.png"; // Replace with your image path
+import operationGuideImage from "../app/assets/donde-nro-operacion.png";
 
 const PaymentStepper = (props: any) => {
-  const { post, paymentData } = props;
+  const supabase = createClient();
+  const { post, paymentData, user } = props;
   const [currentStep, setCurrentStep] = useState(1);
   const [operationNumber, setOperationNumber] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handlePaymentConfirmation = () => {
+  paymentData.QR = paymentData.QR.replace(/^"|"$/g, "");
+
+  // const handlePaymentConfirmation = () => {
+  //   setCurrentStep(4);
+  //   const registeredPlayer = {
+  //     operationNumber: operationNumber,
+  //     event: post.id,
+  //     user: user.id,
+  //   };
+  // };
+
+  const handlePaymentConfirmation = async () => {
     setCurrentStep(4);
-    // Here you can send the operation number to your backend to verify the payment
-    // Once the payment is verified, you can redirect the user to a success page
-    // or display a success message
+
+    const registeredPlayer = {
+      operationNumber: operationNumber,
+      event: post.id,
+      user: user.id,
+    };
+
+    // Update or insert into the 'profiles' table
+    const { data, error } = await supabase
+      .from("assistants")
+      .upsert(registeredPlayer, {
+        // Specify conflict handling options here if needed
+        // For example, specify the column to detect conflicts on:
+        // onConflict: 'id'
+      });
+
+    if (error) {
+      console.error("Error updating profile:", error);
+    } else {
+      setLoading(false);
+    }
   };
+
   const StepContent = () => {
     switch (currentStep) {
       case 1:
@@ -38,9 +72,7 @@ const PaymentStepper = (props: any) => {
                       Organizado por: {post.created_by}{" "}
                     </h2>
                   </div>
-                  <div className="border-indigo-600 rounded-2xl border-2 h-20 w-20 flex items-center justify-center">
-                    <h1 className="text-2xl">s/. {post.price}</h1>
-                  </div>
+                  <PaymentAmount price={post.price} />
                 </div>
 
                 <hr className="my-4" />
@@ -96,15 +128,22 @@ const PaymentStepper = (props: any) => {
                   Escanea el siguiente código QR para realizar tu pago:
                 </h2>
                 {/* Replace src with your dynamic QR code image source */}
-                <Image
-                  src="/path-to-qr-code.png"
+                {/* <Image
+                  src={paymentData.QR}
                   width={200}
                   height={200}
                   alt="QR Code"
+                /> */}
+                <img
+                  src={paymentData?.QR}
+                  alt="QR Code"
+                  width={200}
+                  height={200}
                 />
                 <h2 className="text-lg font-bold text-gray-800 mb-4">
-                  O realiza el pago a la siguiente cuenta: {paymentData?.number}
+                  O realiza el pago a la siguiente cuenta: {paymentData.number}
                 </h2>
+                <PaymentAmount price={post.price} />
                 <button
                   className="mt-4 btn w-full text-white bg-indigo-500 hover:bg-indigo-600"
                   onClick={() => setCurrentStep(3)}
@@ -124,7 +163,8 @@ const PaymentStepper = (props: any) => {
                 Ingresa el número de operación:
               </h2>
               <input
-                type="text"
+                type="number"
+                min={1}
                 value={operationNumber}
                 onChange={(e) => setOperationNumber(e.target.value)}
                 className="border p-2 text-center"
@@ -148,16 +188,31 @@ const PaymentStepper = (props: any) => {
           </div>
         );
       case 4:
-        return (
+        return loading ? (
           <div className="mb-4 step-content" id="step-4">
             {/* Final Step for Operation Verification */}
             <div className="flex flex-col items-center">
               <h2 className="text-lg font-bold text-gray-800 mb-4">
-                Verificando el número de operación...
+                Registrando tu asistencia...
               </h2>
               {/* You could add a spinner or any loading indicator here */}
-              <p>Por favor, espera mientras confirmamos tu pago.</p>
+              <p>Por favor, espera mientras confirmamos tu registro.</p>
               {/* Once the verification is complete, you can update the message or redirect the user */}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="mb-4 step-content" id="step-4">
+              <div className="flex flex-col items-center">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">
+                  ¡Ya estás registrada!
+                </h2>
+                <p>
+                  La reserva se completará después de validar el comprobante de
+                  pago. Si no coincide, se cancelará la reserva. Puedes ver el
+                  detalle de tu asistencia en la sección de "Mis eventos".
+                </p>
+              </div>
             </div>
           </div>
         );

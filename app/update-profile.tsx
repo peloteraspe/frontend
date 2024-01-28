@@ -1,15 +1,15 @@
-'use client';
-import { createClient } from '@/utils/supabase/client';
-import React, { useState } from 'react';
-import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
+"use client";
+import { createClient } from "@/utils/supabase/client";
+import React, { useState } from "react";
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 const UpdateProfile = ({ user }: any) => {
   const supabase = createClient();
   const router = useRouter();
   const [formData, setFormData] = useState({
-    username: '',
-    playerPosition: 'Portera', // Default value, you can set it based on your requirements
+    username: "",
+    playerPosition: "Portera", // Default value, you can set it based on your requirements
   });
   const [supabaseData, setSupabaseData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -23,10 +23,9 @@ const UpdateProfile = ({ user }: any) => {
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-    console.log('Form data submitted:', formData);
 
     // Update or insert into the 'profiles' table
-    const { data, error } = await supabase.from('profile').upsert(
+    const { data, error } = await supabase.from("profile").upsert(
       {
         user: user.id,
         username: formData.username,
@@ -40,13 +39,13 @@ const UpdateProfile = ({ user }: any) => {
     );
 
     if (error) {
-      console.error('Error updating profile:', error);
+      console.error("Error updating profile:", error);
     } else {
       setSupabaseData(data);
       setLoading(true);
       setTimeout(() => {
-        toast.success('Perfil actualizado');
-        router.refresh()
+        toast.success("Perfil actualizado");
+        router.refresh();
         setLoading(false);
       }, 5000);
     }
@@ -126,7 +125,7 @@ const UpdateProfile = ({ user }: any) => {
                             type="submit"
                             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                           >
-                            {loading ? 'Cargando...' : 'Actualizar perfil'}
+                            {loading ? "Cargando..." : "Actualizar perfil"}
                           </button>
                         </div>
                       </form>

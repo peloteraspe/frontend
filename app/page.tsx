@@ -1,9 +1,9 @@
-import Header from '@/components/Header';
-import PostsList from './posts-list';
-import Sidebar from '@/components/Sidebar';
-import { createClient } from '@/utils/supabase/server';
-import { cookies } from 'next/headers';
-import UpdateProfile from './update-profile';
+import Header from "@/components/Header";
+import PostsList from "./posts-list";
+import Sidebar from "@/components/Sidebar";
+import { createClient } from "@/utils/supabase/server";
+import { cookies } from "next/headers";
+import UpdateProfile from "./update-profile";
 
 export default async function Index() {
   const cookieStore = cookies();
@@ -15,19 +15,22 @@ export default async function Index() {
   let userProfile = null;
   if (user) {
     const { data, error } = await supabase
-      .from('profile')
-      .select('*')
-      .eq('user', user.id)
+      .from("profile")
+      .select("*")
+      .eq("user", user.id)
       .single();
 
     if (error) {
-      console.error('Error fetching user profile:', error);
+      console.error("Error fetching user profile:", error);
     } else {
       userProfile = data;
     }
   }
-  console.log(userProfile, 'userProfile');
-  if (user && (!userProfile || !userProfile.playerPosition || !userProfile.username)) {
+
+  if (
+    user &&
+    (!userProfile || !userProfile.playerPosition || !userProfile.username)
+  ) {
     return <UpdateProfile user={user} />;
   }
   return (
@@ -52,7 +55,7 @@ export default async function Index() {
 
       <footer className="w-full border-t border-t-foreground/10 p-8 flex justify-center text-center text-xs">
         <p>
-          Hecho por{' '}
+          Hecho por{" "}
           <a
             href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
             target="_blank"
@@ -60,8 +63,8 @@ export default async function Index() {
             rel="noreferrer"
           >
             Peloteras
-          </a>{' '}
-          con{' '}
+          </a>{" "}
+          con{" "}
           <span role="img" aria-label="Amor">
             ❤️
           </span>
