@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from "next/link";
 
 export default function AuthButton({
   username,
@@ -8,10 +8,9 @@ export default function AuthButton({
   isLogged: boolean;
 }) {
   const signOut = async () => {
-    console.log('Signing out');
     // Perform sign-out logic here, e.g., calling an API endpoint
     // For now, let's navigate to the sign-out route
-    window.location.href = '/auth/signout';
+    window.location.href = "/auth/signout";
   };
 
   return isLogged ? (
