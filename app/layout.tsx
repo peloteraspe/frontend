@@ -1,4 +1,5 @@
 import { Poppins } from "next/font/google";
+import { eastmanBold, eastmanExtrabold } from "./fonts";
 import "./css/style.css";
 import Image from "next/image";
 import { cookies } from "next/headers";
@@ -43,7 +44,7 @@ export default async function RootLayout({
     data: { user },
   } = await supabase.auth.getUser();
   return (
-    <html lang="en" className={`${poppins.variable} ${poppinsBold.variable}`}>
+    <html lang="en" className={`${poppins.variable} ${poppinsBold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}>
       <body>
         <main className="flex-1 w-full flex flex-col gap-20 items-center min-h-screen">
           <Navbar user={user} />
