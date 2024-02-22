@@ -27,6 +27,11 @@ module.exports = {
           DEFAULT: '#F0815B',
           hover: '#E86D3E',
         },
+        btnBg: {
+          light: '#54086F',
+          dark: '#470B62',
+          trans: '#c7b8cb',
+        }
       },
     },
   },
