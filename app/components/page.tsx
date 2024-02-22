@@ -1,9 +1,15 @@
-import React from 'react'
+import { ParagraphS } from '@/components/atoms/Typography';
+import Link from 'next/link';
+import React from 'react';
 
 const ComponentsPage = () => {
   return (
-    <div>page</div>
-  )
-}
+    <div>
+      <Link href="/components/typography">
+        <ParagraphS underline>Typography</ParagraphS>
+      </Link>
+    </div>
+  );
+};
 
-export default ComponentsPage
+export default ComponentsPage;
