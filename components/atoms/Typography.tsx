@@ -63,9 +63,9 @@ export const ParagraphM: FC<TypographyProps> = ({ children, fontWeight = 'font-n
 );
 
 export const ParagraphS: FC<TypographyProps> = ({ children, color = 'text-current', fontWeight = 'font-normal', underline = false }) => {
-  const underlineStyle = underline ? `hover:underline` : '';
+  const underlineText = underline ? `underline` : '';
   return (
-    <p className={`font-poppins text-sm leading-3 ${fontWeight} ${color} ${underlineStyle}`}>
+    <p className={`font-poppins text-sm leading-3 ${fontWeight} ${color} ${underlineText}`}>
       {children}
     </p>
   );
