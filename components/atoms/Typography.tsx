@@ -5,7 +5,6 @@ interface TypographyProps {
   color?: string;
   fontWeight?: string;
   underline?: boolean;
-  underlineOffset?: string;
 }
 
 export const TitleXL: FC<TypographyProps> = ({ children }) => (
@@ -63,8 +62,8 @@ export const ParagraphM: FC<TypographyProps> = ({ children, fontWeight = 'font-n
   </p>
 );
 
-export const ParagraphS: FC<TypographyProps> = ({ children, color = 'text-current', fontWeight = 'font-normal', underline = false, underlineOffset = 'underline-offset-auto' }) => {
-  const underlineStyle = underline ? `underline ${underlineOffset}` : '';
+export const ParagraphS: FC<TypographyProps> = ({ children, color = 'text-current', fontWeight = 'font-normal', underline = false }) => {
+  const underlineStyle = underline ? `hover:underline` : '';
   return (
     <p className={`font-poppins text-sm leading-3 ${fontWeight} ${color} ${underlineStyle}`}>
       {children}
