@@ -5,7 +5,7 @@ import React from 'react';
 const ComponentsPage = () => {
   return (
     <div>
-      <Link href="/components/typography">
+      <Link href="/components/Typography">
         <ParagraphS underline>Typography</ParagraphS>
       </Link>
     </div>
