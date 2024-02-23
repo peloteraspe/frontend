@@ -30,7 +30,7 @@ const getUnderlineClass = (underline?: boolean) => {
 
 export const Title2XL: FC<TypographyProps> = ({ children, fontWeight }) => (
   <h1
-    className={`font-eastman ${getFontWeightClass(
+    className={`font-eastman-extrabold ${getFontWeightClass(
       fontWeight
     )} text-6xl leading-none`}
   >
@@ -40,7 +40,7 @@ export const Title2XL: FC<TypographyProps> = ({ children, fontWeight }) => (
 
 export const TitleXL: FC<TypographyProps> = ({ children, fontWeight }) => (
   <h1
-    className={`font-eastman ${getFontWeightClass(
+    className={`font-eastman-extrabold ${getFontWeightClass(
       fontWeight
     )} text-5xl leading-none`}
   >
@@ -50,7 +50,7 @@ export const TitleXL: FC<TypographyProps> = ({ children, fontWeight }) => (
 
 export const TitleL: FC<TypographyProps> = ({ children, fontWeight }) => (
   <h1
-    className={`font-eastman ${getFontWeightClass(
+    className={`font-eastman-extrabold ${getFontWeightClass(
       fontWeight
     )} text-4xl leading-none`}
   >
@@ -60,7 +60,7 @@ export const TitleL: FC<TypographyProps> = ({ children, fontWeight }) => (
 
 export const TitleM: FC<TypographyProps> = ({ children, fontWeight }) => (
   <h1
-    className={`font-eastman ${getFontWeightClass(
+    className={`font-eastman-extrabold ${getFontWeightClass(
       fontWeight
     )} text-3xl leading-none`}
   >
@@ -70,7 +70,7 @@ export const TitleM: FC<TypographyProps> = ({ children, fontWeight }) => (
 
 export const TitleS: FC<TypographyProps> = ({ children, fontWeight }) => (
   <h1
-    className={`font-eastman ${getFontWeightClass(
+    className={`font-eastman-extrabold ${getFontWeightClass(
       fontWeight
     )} text-2xl leading-none`}
   >
