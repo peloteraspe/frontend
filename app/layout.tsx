@@ -1,13 +1,10 @@
 import { Poppins } from "next/font/google";
 import { eastmanBold, eastmanExtrabold } from "./fonts";
 import "./css/style.css";
-import Image from "next/image";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import AuthButton from "@/components/AuthButton";
-import { Navbar } from "@/components/Navbar";
-import { redirect } from "next/navigation";
 import { Toaster } from "react-hot-toast";
+import { NavBar } from "@/components/layout/navbar/NavBar";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -47,7 +44,8 @@ export default async function RootLayout({
     <html lang="en" className={`${poppins.variable} ${poppinsBold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}>
       <body>
         <main className="flex-1 w-full flex flex-col gap-20 items-center min-h-screen">
-          <Navbar user={user} />
+          {/* <Navbar user={user} /> */}
+          <NavBar user={user} />
           {children}
         </main>
       </body>

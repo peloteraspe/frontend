@@ -66,6 +66,7 @@ const UserMenu = ({ user }: any) => {
                       <MenuItem 
                         onClick={()=>{
                           toggleOpen();
+                          window.location.href = "/auth/signout";
                         }}>
                           Cerrar sesión
                       </MenuItem>
@@ -80,7 +81,7 @@ const UserMenu = ({ user }: any) => {
                   <button
                     className="px-4 py-[0.60rem] bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border"
                   >
-                    <ButtonM>Unirme a un evento</ButtonM>
+                    <ButtonM color='text-white'>Unirme a un evento</ButtonM>
                   </button>
                 </>
               )}
