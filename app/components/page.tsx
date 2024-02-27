@@ -1,6 +1,6 @@
-import { ParagraphS } from '@/components/atoms/Typography';
-import Link from 'next/link';
-import React from 'react';
+import Link from "next/link";
+import { ParagraphS } from "@/components/atoms/Typography";
+import React from "react";
 
 const ComponentsPage = () => {
   return (
@@ -9,11 +9,17 @@ const ComponentsPage = () => {
         <ParagraphS underline>Typography</ParagraphS>
       </Link>
 
-      <div className="mb-3">
+      <Link href="/components/Badge">
+        <ParagraphS underline>Badge</ParagraphS>
+      </Link>
+
+
+      <div className="mt-3">
         <Link href="/components/NavBar">
             <ParagraphS underline>Navbar</ParagraphS>
         </Link>
       </div>
+
     </div>
   );
 };
