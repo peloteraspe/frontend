@@ -21,98 +21,98 @@ const getFontWeightClass = (fontWeight?: string) => {
 };
 
 const getColorClass = (color?: string) => {
-  return color || 'text-current';
+  return color || 'text-black';
 };
 
 const getUnderlineClass = (underline?: boolean) => {
   return underline ? 'underline' : '';
 };
 
-export const Title2XL: FC<TypographyProps> = ({ children, fontWeight }) => (
+export const Title2XL: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h1
     className={`font-eastman ${getFontWeightClass(
       fontWeight
-    )} text-6xl leading-none`}
+    )} text-6xl leading-none ${getColorClass(color)}`}
   >
     {children}
   </h1>
 );
 
-export const TitleXL: FC<TypographyProps> = ({ children, fontWeight }) => (
+export const TitleXL: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h1
     className={`font-eastman ${getFontWeightClass(
       fontWeight
-    )} text-5xl leading-none`}
+    )} text-5xl leading-none ${getColorClass(color)}`}
   >
     {children}
   </h1>
 );
 
-export const TitleL: FC<TypographyProps> = ({ children, fontWeight }) => (
+export const TitleL: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h1
     className={`font-eastman ${getFontWeightClass(
       fontWeight
-    )} text-4xl leading-none`}
+    )} text-4xl leading-none ${getColorClass(color)}`}
   >
     {children}
   </h1>
 );
 
-export const TitleM: FC<TypographyProps> = ({ children, fontWeight }) => (
+export const TitleM: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h1
     className={`font-eastman ${getFontWeightClass(
       fontWeight
-    )} text-3xl leading-none`}
+    )} text-3xl leading-none ${getColorClass(color)}`}
   >
     {children}
   </h1>
 );
 
-export const TitleS: FC<TypographyProps> = ({ children, fontWeight }) => (
+export const TitleS: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h1
     className={`font-eastman ${getFontWeightClass(
       fontWeight
-    )} text-2xl leading-none`}
+    )} text-2xl leading-none ${getColorClass(color)}`}
   >
     {children}
   </h1>
 );
 
-export const SubtitleL: FC<TypographyProps> = ({ children, fontWeight }) => (
+export const SubtitleL: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h2
     className={`font-poppins text-2xl ${getFontWeightClass(
       fontWeight
-    )} leading-6`}
+    )} leading-6 ${getColorClass(color)}`}
   >
     {children}
   </h2>
 );
 
-export const SubtitleM: FC<TypographyProps> = ({ children, fontWeight }) => (
+export const SubtitleM: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h2
     className={`font-poppins text-xl ${getFontWeightClass(
       fontWeight
-    )} leading-6`}
+    )} leading-6 ${getColorClass(color)}`}
   >
     {children}
   </h2>
 );
 
-export const SubtitleS: FC<TypographyProps> = ({ children, fontWeight }) => (
+export const SubtitleS: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h2
     className={`font-poppins text-lg ${getFontWeightClass(
       fontWeight
-    )} leading-5`}
+    )} leading-5 ${getColorClass(color)}`}
   >
     {children}
   </h2>
 );
 
-export const ParagraphM: FC<TypographyProps> = ({ children, fontWeight }) => (
+export const ParagraphM: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <p
     className={`font-poppins text-base ${getFontWeightClass(
       fontWeight
-    )} leading-5`}
+    )} leading-5 ${getColorClass(color)}`}
   >
     {children}
   </p>
@@ -146,5 +146,3 @@ export const ButtonM: FC<TypographyProps> = ({
     {children}
   </p>
 );
-
-// ComponentsPage remains the same.

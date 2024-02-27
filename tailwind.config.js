@@ -31,7 +31,8 @@ module.exports = {
           light: '#54086F',
           dark: '#470B62',
           trans: '#c7b8cb',
-        }
+        },
+        'mulberry': '#54086F',
       },
     },
   },
