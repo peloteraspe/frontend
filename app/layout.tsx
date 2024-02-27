@@ -8,6 +8,7 @@ import AuthButton from "@/components/AuthButton";
 import { Navbar } from "@/components/Navbar";
 import { redirect } from "next/navigation";
 import { Toaster } from "react-hot-toast";
+import Footer from "@/components/layout/Footer";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -46,9 +47,10 @@ export default async function RootLayout({
   return (
     <html lang="en" className={`${poppins.variable} ${poppinsBold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}>
       <body>
-        <main className="flex-1 w-full flex flex-col gap-20 items-center min-h-screen">
+        <main className="flex-1 w-full flex flex-col items-center min-h-screen">
           <Navbar user={user} />
           {children}
+          <Footer />
         </main>
       </body>
       <Toaster />

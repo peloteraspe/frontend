@@ -31,7 +31,14 @@ module.exports = {
           light: '#54086F',
           dark: '#470B62',
           trans: '#c7b8cb',
+        },
+        bg: {
+          DEFAULT: '#F4F8FE',
+        },
+        violeta: {
+          DEFAULT: '#54086F',
         }
+        
       },
     },
   },
