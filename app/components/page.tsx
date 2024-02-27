@@ -8,6 +8,12 @@ const ComponentsPage = () => {
       <Link href="/components/Typography">
         <ParagraphS underline>Typography</ParagraphS>
       </Link>
+
+      <div className="mb-3">
+        <Link href="/components/NavBar">
+            <ParagraphS underline>Navbar</ParagraphS>
+        </Link>
+      </div>
     </div>
   );
 };
