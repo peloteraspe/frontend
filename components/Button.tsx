@@ -6,7 +6,7 @@ interface ButtonWrapperProps {
   width?: string | number;
   icon?: React.ReactNode;
   disabled?: boolean;
-  onClick?: () => void;
+  onClick?: any;
   bg?: string;
   border?: string;
   children?: React.ReactNode;
@@ -23,7 +23,7 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] font-semibold bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-md my-0 mx-2 flex justify-center items-center relative box-border ${
+      className={`${buttonWidth} px-3 py-[0.75rem] font-semibold bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-md my-0 flex justify-center items-center relative box-border ${
         disabled ? "cursor-auto" : "cursor-pointer"
       } `}
       onClick={onClick}

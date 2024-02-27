@@ -5,6 +5,7 @@ interface TypographyProps {
   color?: string;
   fontWeight?: string;
   underline?: boolean;
+  italic?: boolean;
 }
 
 const getFontWeightClass = (fontWeight?: string) => {
@@ -30,7 +31,7 @@ const getUnderlineClass = (underline?: boolean) => {
 
 export const Title2XL: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h1
-    className={`font-eastman ${getFontWeightClass(
+    className={`font-eastman-extrabold ${getFontWeightClass(
       fontWeight
     )} text-6xl leading-none ${getColorClass(color)}`}
   >
@@ -78,14 +79,14 @@ export const TitleS: FC<TypographyProps> = ({ children, fontWeight, color }) => 
   </h1>
 );
 
-export const SubtitleL: FC<TypographyProps> = ({ children, fontWeight, color }) => (
-  <h2
+export const SubtitleL: FC<TypographyProps> = ({ children, fontWeight, color, italic }) => (
+  <span
     className={`font-poppins text-2xl ${getFontWeightClass(
       fontWeight
-    )} leading-6 ${getColorClass(color)}`}
+    )} leading-8 ${getColorClass(color)} ${italic ? 'italic' : ''}`}
   >
     {children}
-  </h2>
+  </span>
 );
 
 export const SubtitleM: FC<TypographyProps> = ({ children, fontWeight, color }) => (

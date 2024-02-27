@@ -4,6 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import UpdateProfile from "./update-profile";
+import Hero from "@/components/layout/hero";
 
 export default async function Index() {
   const cookieStore = cookies();
@@ -36,7 +37,8 @@ export default async function Index() {
   return (
     <>
       {/* <div className="animate-in flex-1 flex flex-col gap-20 opacity-0 max-w-6xl px-3"> */}
-      <Header />
+      {/* <Header /> */}
+      <Hero />
       <section>
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="py-8 md:py-16">

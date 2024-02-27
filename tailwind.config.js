@@ -33,6 +33,7 @@ module.exports = {
           trans: '#c7b8cb',
         },
         'mulberry': '#54086F',
+        plum: '#744D7C'
       },
     },
   },
