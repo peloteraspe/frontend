@@ -20,6 +20,12 @@ const ComponentsPage = () => {
         </Link>
       </div>
 
+      <div className="mb-3">
+        <Link href="/components/SelectComponent">
+            <ParagraphS underline>SelectComponent</ParagraphS>
+        </Link>
+      </div>
+
     </div>
   );
 };
