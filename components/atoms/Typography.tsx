@@ -6,7 +6,6 @@ interface TypographyProps {
   fontWeight?: string;
   underline?: boolean;
   italic?: boolean;
-  className?: string; 
 }
 
 const getFontWeightClass = (fontWeight?: string) => {
@@ -110,11 +109,11 @@ export const SubtitleS: FC<TypographyProps> = ({ children, fontWeight, color }) 
   </h2>
 );
 
-export const ParagraphM: FC<TypographyProps> = ({ children, fontWeight, color, className }) => (
+export const ParagraphM: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <p
     className={`font-poppins text-base ${getFontWeightClass(
       fontWeight
-    )} leading-5 ${getColorClass(color)} ${className ?? ''}`}
+    )} leading-5 ${getColorClass(color)}`}
   >
     {children}
   </p>

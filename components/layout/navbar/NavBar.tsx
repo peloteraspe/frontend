@@ -12,7 +12,7 @@ export const NavBar = ({ user, simple = false }: any) => {
     <nav className="w-full flex justify-center">
       <div className="w-full lg:mx-32 flex justify-between items-center p-3 text-sm">
         <div
-          className="flex items-center gap-1 h-full"
+          className="flex items-center h-full cursor-pointer gap-2"
           onClick={() => router.push('/')}
         >
           <Image src="/logo.png" width={50} height={50} alt="Peloteras logo" />

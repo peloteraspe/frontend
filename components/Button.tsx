@@ -77,7 +77,7 @@ export const ButtonUnWrapperOutline: React.FC<ButtonWrapperProps> = ({
   
     return (
       <button
-        className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark rounded-md my-0 mx-2 flex justify-center items-center relative box-border ${
+        className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark rounded-md my-0 flex justify-center items-center relative box-border ${
           disabled ? "cursor-auto" : "cursor-pointer"
         } `}
         onClick={onClick}

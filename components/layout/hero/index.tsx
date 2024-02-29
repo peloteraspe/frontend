@@ -4,7 +4,7 @@ import React from 'react';
 
 const Hero = () => {
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 md:py-16 flex justify-between">
+    <div className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto px-4 sm:px-6 py-8 md:py-16 flex justify-between">
       <div className="flex flex-col gap-6 justify-center">
         <div>
           <Title2XL>Donde dominamos</Title2XL>

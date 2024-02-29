@@ -53,25 +53,6 @@ export default async function Index() {
           </div>
         </div>
       </section>
-      {/* </div> */}
-
-      <footer className="w-full border-t border-t-foreground/10 p-8 flex justify-center text-center text-xs">
-        <p>
-          Hecho por{" "}
-          <a
-            href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
-            target="_blank"
-            className="font-bold hover:underline"
-            rel="noreferrer"
-          >
-            Peloteras
-          </a>{" "}
-          con{" "}
-          <span role="img" aria-label="Amor">
-            ❤️
-          </span>
-        </p>
-      </footer>
     </>
   );
 }

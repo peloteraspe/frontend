@@ -42,9 +42,17 @@ export default async function RootLayout({
     data: { user },
   } = await supabase.auth.getUser();
   return (
-    <html lang="en" className={`${poppins.variable} ${poppinsBold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}>
-      <body>
-        <main className="flex-1 w-full flex flex-col gap-20 items-center min-h-screen">
+    <html
+      lang="en"
+      className={`${poppins.variable} ${poppinsBold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}
+    >
+      <body
+        className="bg-cover bg-center h-full w-full"
+        style={{
+          backgroundImage: "url('/assets/images/Hero.png')",
+        }}
+      >
+        <main className="flex-1 w-full flex flex-col items-center min-h-screen">
           <NavBar user={user} />
           {children}
           <Footer />
