@@ -1,3 +1,4 @@
+'use client'
 import React, { useState } from "react";
 import { ParagraphM } from "./atoms/Typography";
 
@@ -34,8 +35,8 @@ export default function Input({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
-    setFormValue && setFormValue(newValue); // If setFormValue is provided, call it with the new value
-    setInputError(false); // Reset error when input changes
+    setFormValue && setFormValue(newValue);
+    setInputError(false);
   };
 
   const handleBlur = () => {
@@ -78,8 +79,8 @@ export default function Input({
             disabled
               ? "bg-inputBg"
               : "py-2 px-3 bg-inputBg focus:outline-none h-[38px] text-sm "
-          } disabled:border-transparent transition duration-150 appearance-none border border-lightGray rounded-xl w-full text-black leading-tight hover:outline-none placeholder:text-lightGray ${
-            inputError ? "border-red-500" : ""
+          } transition duration-150 appearance-none rounded-xl w-full text-black leading-tight hover:outline-none placeholder:text-lightGray ${
+            inputError || error ? "border-red-500" : "border-transparent"
           }`}
           placeholder={placeholderText}
           onChange={handleChange}
@@ -99,7 +100,7 @@ export default function Input({
           </div>
         )}
       </div>
-      {inputError && <span className="text-sm text-red-500">{errorText}</span>}
+      {inputError || error ? <span className="text-sm text-red-500">{errorText}</span> : null}
     </label>
   );
 }
