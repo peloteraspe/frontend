@@ -8,6 +8,8 @@ module.exports = {
     extend: {
       fontFamily: {
         poppins: ['var(--font-poppins)', 'sans-serif'],
+        "poppins-bold": ['var(--font-poppins-bold)', 'sans-serif'],
+        "poppins-extrabold": ['var(--font-poppins-extrabold)', 'sans-serif'],
         "eastman-bold": ['var(--font-eastman-bold)', 'sans-serif'],
         "eastman-extrabold": ['var(--font-eastman-extrabold)', 'sans-serif'],
       },

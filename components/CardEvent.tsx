@@ -4,13 +4,13 @@ import {
   SubtitleS,
   TitleM,
   TitleS,
-} from "./atoms/Typography";
+} from './atoms/Typography';
 
-import Ball from "@/app/assets/images/ball.png";
-import Calendar from "@/app/assets/images/calendar.png";
-import DoubleBall from "@/app/assets/images/double-ball.png";
-import Image from "next/image";
-import Ubication from "@/app/assets/images/ubication.png";
+import Ball from '@/app/assets/images/ball.png';
+import Calendar from '@/app/assets/images/calendar.png';
+import DoubleBall from '@/app/assets/images/double-ball.png';
+import Image from 'next/image';
+import Ubication from '@/app/assets/images/ubication.png';
 
 interface CardEventProps {
   typeEvent: string;
@@ -36,34 +36,37 @@ const CardEvent: React.FC<CardEventProps> = ({
   button,
 }) => {
   return (
-    <div className="relative min-w-[714px] min-h-[157px] ">
-      {/* quantity */}
+    <div className="relative sm:min-w-[714px] w-[98vw] min-h-[157px] group sm:w-full">
       {quantity && (
-        <TitleS color="text-btnBg-light">
-          <div className="bg-white font-eastman-bold border-btnBg-light absolute top-0 right-0 border-2 rounded-xl z-10 w-[65px] h-[35px]">
-            <div className="absolute left-1 bottom-[0.4rem]">{quantity}</div>
-            <div className="absolute top-2  left-5 flex flex-col">
-              <span className="text-[8px]">quedan cupos</span>
+        <div className="bg-white font-eastman-bold border-btnBg-light absolute top-0 right-0 border-2 rounded-[14px] z-10 w-[75px] h-[37px]">
+          <div className="flex justify-center items-center w-full h-full gap-[1px]">
+            <TitleM fontWeight="bold" color="text-mulberry">
+              {quantity}
+            </TitleM>
+            <div className="flex flex-col items-center justify-center w-min">
+              <span className="text-[9px] leading-none font-eastman-bold text-mulberry uppercase">
+                cupos quedan
+              </span>
             </div>
           </div>
-        </TitleS>
+        </div>
       )}
-      <div className="card-info hover:bg-[#744D7C] hover:bg-opacity-20 grid grid-cols-3 absolute left-0 bottom-0 w-full h-[90%] shadow-md rounded-xl">
-        <div className="grid grid-cols-10 col-span-2">
-          <div className=" col-span-2 m-auto">
+      <div className="card-info hover:bg-[#744D7C] hover:bg-opacity-20 grid sm:grid-cols-3 absolute left-0 bottom-0 w-full h-[90%] shadow-md rounded-xl">
+        <div className="flex sm:flex-row flex-col gap-4">
+          <div className="m-auto sm:block hidden">
             {/* typeEvent */}
-            {typeEvent.toLowerCase().includes("pichanga") ? (
+            {typeEvent.toLowerCase().includes('pichanga') ? (
               <Image src={Ball} alt="ball" width={56} height={56} />
             ) : (
               <Image src={DoubleBall} alt="ball" width={56} height={56} />
             )}
           </div>
-          <div className="grid grid-cols-1 p-1 col-span-8 items-center uppercase">
+          <div className="p-1 w-full sm:w-fit justify-center uppercase h-full flex flex-col gap-2">
             <ParagraphS fontWeight="bold" color="text-btnBg-light">
               {/* levelText */}
               {levelText}
             </ParagraphS>
-            <div className=" flex justify-start items-center uppercase">
+            <div className="flex justify-start items-center uppercase">
               <ParagraphM fontWeight="bold" color="text-[#1F2937]">
                 {/* matchText */}
                 {matchText}
@@ -83,17 +86,18 @@ const CardEvent: React.FC<CardEventProps> = ({
                 {textLocation}
               </div>
             </SubtitleS>
-            <div className="flex justify-start gap-1">
+            <div className="flex justify-start gap-1 max-w-[92vw] sm:max-w-none overflow-scroll sm:overflow-hidden">
               {badge?.map((b) => b)}
             </div>
           </div>
         </div>
-        <div className="col-span-1 relative font-poppins font-semibold text-sm text-white min-w">
-          <div className="right-4 absolute top-9 ">{button}</div>
+        <div className="hidden sm:block font-poppins font-semibold text-sm text-white min-w">
+          <div className="absolute right-4 top-9 hidden group-hover:block">
+            {button}
+          </div>
         </div>
-        <div className="absolute bottom-2 right-4 uppercase">
+        <div className="absolute bottom-2 right-4 uppercase hidden sm:block">
           <TitleM fontWeight="bold" color="text-btnBg-light">
-            {/* price */}
             {price}
           </TitleM>
         </div>

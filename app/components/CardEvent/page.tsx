@@ -17,7 +17,7 @@ const CardEventPage = () => {
         button={
           <ButtonWrapper
             icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-            children="Anotarme al equipo"
+            children="Anotar a mi equipo"
           />
         }
         price="s/10.00"

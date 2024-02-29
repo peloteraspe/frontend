@@ -17,10 +17,24 @@ const poppins = Poppins({
   display: 'swap',
 });
 
+const poppinsSemibold = Poppins({
+  subsets: ['latin'],
+  variable: '--font-poppins-semibold',
+  weight: '600',
+  display: 'swap',
+});
+
 const poppinsBold = Poppins({
   subsets: ['latin'],
   variable: '--font-poppins-bold',
   weight: '700',
+  display: 'swap',
+});
+
+const poppinsExtrabold = Poppins({
+  subsets: ['latin'],
+  variable: '--font-poppins-extrabold',
+  weight: '800',
   display: 'swap',
 });
 
@@ -43,7 +57,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${poppins.variable} ${poppinsBold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}
+      className={`${poppins.variable} ${poppinsBold.variable} ${poppinsExtrabold.variable} ${poppinsSemibold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}
     >
       <body
         className="bg-cover bg-center h-full w-full"
