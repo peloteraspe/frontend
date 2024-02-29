@@ -13,19 +13,23 @@ const ComponentsPage = () => {
         <ParagraphS underline>Badge</ParagraphS>
       </Link>
 
-
       <div className="mt-3">
         <Link href="/components/NavBar">
-            <ParagraphS underline>Navbar</ParagraphS>
+          <ParagraphS underline>Navbar</ParagraphS>
         </Link>
       </div>
 
       <div className="mb-3">
         <Link href="/components/SelectComponent">
-            <ParagraphS underline>SelectComponent</ParagraphS>
+          <ParagraphS underline>SelectComponent</ParagraphS>
         </Link>
       </div>
 
+      <div className="mb-3">
+        <Link href="/components/CardEvent">
+          <ParagraphS underline>CardEvent</ParagraphS>
+        </Link>
+      </div>
     </div>
   );
 };
