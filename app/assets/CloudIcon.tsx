@@ -12,7 +12,8 @@ const CloudIcon: React.FC<CloudIconProps> = ({ color = "white" }) => {
         return "#54086F";
       case "btnBg-dark":
         return "#470B62";
-      // Agrega más casos según sea necesario para otros colores definidos en Tailwind CSS
+      case "grayIcon":
+        return "#ADB5BD";
       default:
         return color;
     }
