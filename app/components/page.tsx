@@ -36,6 +36,12 @@ const ComponentsPage = () => {
           <ParagraphS underline>Form</ParagraphS>
         </Link>
       </div>
+
+      <div className="mb-3">
+        <Link href="/components/Link-imageQR">
+            <ParagraphS underline>Link a partir de imagen con QR</ParagraphS>
+        </Link>
+      </div>
     </div>
   );
 };
