@@ -19,40 +19,58 @@ const PaymentStepper = (props: any) => {
   const [loading, setLoading] = useState(true);
   const [decodedQRLink, setDecodedQRLink] = useState<string | null>('');
 
+
   paymentData.QR = paymentData.QR.replace(/^"|"$/g, "");
 
   useEffect(() => {
-    decodeQRCode(paymentData.QR);
+    if (paymentData.QR) {
+        decodeQRCode(paymentData.QR);
+    }
   }, [paymentData.QR]);
 
 
   //obtener link a partir de imagen con QR 
   const decodeQRCode =  (imageQR: string) => {
-    const imgElement = document.createElement('img');
-    imgElement.src = imageQR;
-    imgElement.onload = () => {
+
+    if (!imageQR) {
+      setDecodedQRLink(null);
+      return;
+    }
+
+    const image = document.createElement('img');
+    image.src = imageQR;
+
+    image.onerror = () => {
+      setDecodedQRLink(null);
+    };
+
+    image.onload = () => {
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
-      if (context) {
-        canvas.width = imgElement.width;
-        canvas.height = imgElement.height;
-        context.drawImage(imgElement, 0, 0, imgElement.width, imgElement.height);
-        const imageData = context.getImageData(0, 0, imgElement.width, imgElement.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "dontInvert",
-        });
-        if (code) {
-          setDecodedQRLink(code.data);
-        } else {
-          setDecodedQRLink(null);
-        }
+      if (!context) {
+        setDecodedQRLink(null);
+        return;
       }
-    }
+
+      canvas.width = image.width;
+      canvas.height = image.height;
+      context.drawImage(image, 0, 0, image.width, image.height);
+      const imageData = context.getImageData(0, 0, image.width, image.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code) {
+        setDecodedQRLink(code.data);
+      } else {
+        setDecodedQRLink(null); 
+      }
+      
+    };
+
   }
 
   const handleQRClick = () => {
     window.location.href = `${decodedQRLink}`;
   };
+  //Dem0s0ft_2023#
   
   // const handlePaymentConfirmation = () => {
   //   setCurrentStep(4);
@@ -166,14 +184,18 @@ const PaymentStepper = (props: any) => {
                     Para pagar, escanea el código QR si estás en tu computadora, o simplemente toca la imagen si estás en tu teléfono móvil
                 </h2>
                 {/* Replace src with your dynamic QR code image source */}
-                <Image
-                  src={paymentData.QR}
-                  width={200}
-                  height={200}
-                  alt="QR Code"
-                  onClick={handleQRClick}
-                  className="cursor-pointer"
-                />
+                {decodedQRLink  ? (
+                  <Image
+                    src={paymentData.QR}
+                    width={200}
+                    height={200}
+                    alt="QR Code"
+                    onClick={handleQRClick}
+                    className="cursor-pointer"
+                  />
+                ) : (
+                  <div className="relative flex flex-col justify-center items-center gap-y-2 w-[220px] border border-gray-300 rounded shadow group p-2 mx-auto animate-pulse bg-gray-400 aspect-square max-w-full" />
+                )}
                 
                 {/* <img
                   src={paymentData?.QR}
