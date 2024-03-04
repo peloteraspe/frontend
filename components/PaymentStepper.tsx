@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
 import LogoYape from "../app/assets/Logo.Yape.webp";
@@ -7,6 +7,8 @@ import { Stepper } from "./Stepper";
 import PaymentAmount from "./PaymentAmount";
 import OperationNumberModal from "./OperationNumberModal";
 import operationGuideImage from "../app/assets/donde-nro-operacion.png";
+import jsQR from 'jsqr';
+import { ButtonM } from "./atoms/Typography";
 
 const PaymentStepper = (props: any) => {
   const supabase = createClient();
@@ -15,9 +17,61 @@ const PaymentStepper = (props: any) => {
   const [operationNumber, setOperationNumber] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [decodedQRLink, setDecodedQRLink] = useState<string | null>('');
+
 
   paymentData.QR = paymentData.QR.replace(/^"|"$/g, "");
 
+  useEffect(() => {
+    if (paymentData.QR) {
+        decodeQRCode(paymentData.QR);
+    }
+  }, [paymentData.QR]);
+
+
+  //obtener link a partir de imagen con QR 
+  const decodeQRCode =  (imageQR: string) => {
+
+    if (!imageQR) {
+      setDecodedQRLink(null);
+      return;
+    }
+
+    const image = document.createElement('img');
+    image.src = imageQR;
+
+    image.onerror = () => {
+      setDecodedQRLink(null);
+    };
+
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context) {
+        setDecodedQRLink(null);
+        return;
+      }
+
+      canvas.width = image.width;
+      canvas.height = image.height;
+      context.drawImage(image, 0, 0, image.width, image.height);
+      const imageData = context.getImageData(0, 0, image.width, image.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code) {
+        setDecodedQRLink(code.data);
+      } else {
+        setDecodedQRLink(null); 
+      }
+      
+    };
+
+  }
+
+  const handleQRClick = () => {
+    window.location.href = `${decodedQRLink}`;
+  };
+  //Dem0s0ft_2023#
+  
   // const handlePaymentConfirmation = () => {
   //   setCurrentStep(4);
   //   const registeredPlayer = {
@@ -60,7 +114,7 @@ const PaymentStepper = (props: any) => {
             <div className="mb-4 step-content" id="step-1">
               {/* <!-- Content for Introduction Step --> */}
               <div className="w-[350px] md:w-[450px] h-[500px] max-w-6xl mx-auto px-4 sm:px-2 mt-5">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">
+                <h2 className="text-base font-eastman-bold font-bold text-gray-800 mb-4">
                   Estas a punto de pagar por el siguiente evento:
                 </h2>
                 <div className="flex gap-3 items-center justify-between">
@@ -95,7 +149,8 @@ const PaymentStepper = (props: any) => {
                     className="btn w-full text-white bg-indigo-500 hover:bg-indigo-600 group shadow-sm"
                     onClick={() => setCurrentStep(2)}
                   >
-                    Realizar pago
+                    <ButtonM color='text-white'>Realizar pago</ButtonM>
+                   
                     <span className="tracking-normal text-indigo-200 group-hover:translate-x-0.5 transition-transform duration-150 ease-in-out ml-1">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -124,22 +179,30 @@ const PaymentStepper = (props: any) => {
             <div className="w-[350px] md:w-[450px] h-[500px] max-w-6xl mx-auto px-4 sm:px-2 mt-5">
               {/* Display QR Code for Payment */}
               <div className="flex flex-col items-center">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">
-                  Escanea el siguiente código QR para realizar tu pago:
+                
+                <h2 className="text-lg sm:w-full font-bold text-gray-800 flex-1 items-center mb-4">
+                    Para pagar, escanea el código QR si estás en tu computadora, o simplemente toca la imagen si estás en tu teléfono móvil
                 </h2>
                 {/* Replace src with your dynamic QR code image source */}
-                {/* <Image
-                  src={paymentData.QR}
-                  width={200}
-                  height={200}
-                  alt="QR Code"
-                /> */}
-                <img
+                {decodedQRLink  ? (
+                  <Image
+                    src={paymentData.QR}
+                    width={200}
+                    height={200}
+                    alt="QR Code"
+                    onClick={handleQRClick}
+                    className="cursor-pointer"
+                  />
+                ) : (
+                  <div className="relative flex flex-col justify-center items-center gap-y-2 w-[220px] border border-gray-300 rounded shadow group p-2 mx-auto animate-pulse bg-gray-400 aspect-square max-w-full" />
+                )}
+                
+                {/* <img
                   src={paymentData?.QR}
                   alt="QR Code"
                   width={200}
                   height={200}
-                />
+                /> */}
                 <h2 className="text-lg font-bold text-gray-800 mb-4">
                   O realiza el pago a la siguiente cuenta: {paymentData.number}
                 </h2>
@@ -148,7 +211,7 @@ const PaymentStepper = (props: any) => {
                   className="mt-4 btn w-full text-white bg-indigo-500 hover:bg-indigo-600"
                   onClick={() => setCurrentStep(3)}
                 >
-                  He realizado el pago
+                  <ButtonM color='text-white'>He realizado el pago</ButtonM>
                 </button>
               </div>
             </div>
@@ -182,7 +245,7 @@ const PaymentStepper = (props: any) => {
                 className="mt-4 btn w-full text-white bg-indigo-500 hover:bg-indigo-600"
                 onClick={handlePaymentConfirmation}
               >
-                Confirmar pago
+                <ButtonM color='text-white'>Confirmar pago</ButtonM>
               </button>
             </div>
           </div>
