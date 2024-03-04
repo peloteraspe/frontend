@@ -1,10 +1,10 @@
-import Header from "@/components/Header";
-import PostsList from "./posts-list";
-import Sidebar from "@/components/Sidebar";
-import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
-import UpdateProfile from "./update-profile";
-import Hero from "@/components/layout/hero";
+import Header from '@/components/Header';
+import PostsList from './posts-list';
+import Sidebar from '@/components/Sidebar';
+import { createClient } from '@/utils/supabase/server';
+import { cookies } from 'next/headers';
+import UpdateProfile from './update-profile';
+import Hero from '@/components/layout/hero';
 
 export default async function Index() {
   const cookieStore = cookies();
@@ -16,22 +16,19 @@ export default async function Index() {
   let userProfile = null;
   if (user) {
     const { data, error } = await supabase
-      .from("profile")
-      .select("*")
-      .eq("user", user.id)
+      .from('profile')
+      .select('*')
+      .eq('user', user.id)
       .single();
 
     if (error) {
-      console.error("Error fetching user profile:", error);
+      console.error('Error fetching user profile:', error);
     } else {
       userProfile = data;
     }
   }
 
-  if (
-    user &&
-    (!userProfile || !userProfile.playerPosition || !userProfile.username)
-  ) {
+  if (user && !userProfile) {
     return <UpdateProfile user={user} />;
   }
   return (
