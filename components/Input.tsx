@@ -9,6 +9,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   placeholderText?: string;
   errorText?: string;
   setFormValue?: (arg: string) => void;
+  onErrorChange?: (error: boolean) => void;
   type?: string;
   disabled?: boolean;
   max?: number;
@@ -23,6 +24,7 @@ export default function Input({
   placeholderText,
   errorText = "Error Text",
   setFormValue,
+  onErrorChange,
   disabled,
   type,
   max,
@@ -40,28 +42,35 @@ export default function Input({
   };
 
   const handleBlur = () => {
+    let error = false;
+  
     switch (type) {
       case "text":
         if (!/^[A-Za-z\s]+$/.test(inputValue)) {
-          setInputError(true);
+          error = true;
         }
         break;
       case "number":
         if (!/^\d+$/.test(inputValue)) {
-          setInputError(true);
+          error = true;
         }
         break;
       case "email":
         if (
           !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(inputValue)
         ) {
-          setInputError(true);
+          error = true;
         }
         break;
       default:
         break;
     }
+  
+    setInputError(error);
+    onErrorChange && onErrorChange(error);
+    console.log(error);
   };
+  
 
   return (
     <label className="w-full">
