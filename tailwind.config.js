@@ -37,6 +37,7 @@ module.exports = {
         'mulberry': '#54086F',
         plum: '#744D7C',
         inputBg: '#F1F3F5',
+        clear:'#C03C84',
       },
     },
   },
