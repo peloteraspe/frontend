@@ -190,7 +190,36 @@ useEffect(() => {
                 </ParagraphM>
               </div>
               <ul className="space-y-2">
-               
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="price"
+                    className="form-checkbox text-clear h-5 w-5 border-2 border-gray-400 rounded"
+                    />
+                      <span className="font-poppins text-base text-gray-600 ml-2">
+                        Sin experiencia
+                      </span>
+                  </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="price"
+                    className="form-checkbox text-clear h-5 w-5 border-2 border-gray-400 rounded"
+                  />
+                    <span className="font-poppins text-base text-gray-600 ml-2">
+                      Intermedio
+                    </span>
+                  </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="price"
+                    className="form-checkbox text-clear h-5 w-5 border-2 border-gray-400 rounded"
+                  />
+                    <span className="font-poppins text-base text-gray-600 ml-2">
+                      Avanzado
+                    </span>
+                  </label>
               </ul>
             </div>
 
