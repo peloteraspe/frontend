@@ -29,8 +29,7 @@ const Sidebar:FC<SidebarProps> = ({
   const searchParams = useSearchParams();
   const router = useRouter()
   const pathname = usePathname();
-  const urlSearchParams = new URLSearchParams(searchParams.toString());
-
+ 
 
   const [filters, setFilters] = useState<{priceRange: string[]}>({
     priceRange: [],
@@ -69,10 +68,12 @@ const Sidebar:FC<SidebarProps> = ({
     router.push(`${pathname}?${newQueryString}`, {
       scroll: false,
     });
-  }, [selectedValue]);
+  }, [selectedValue, router]);
 
+  
   useEffect(() => {
     const uncheckCheckboxes = () => {
+       const urlSearchParams = new URLSearchParams(searchParams.toString());
         const priceRangeParam = urlSearchParams.get('priceRange');
         if (priceRangeParam) {
             const priceRangeValues = priceRangeParam.split(',');
@@ -86,37 +87,25 @@ const Sidebar:FC<SidebarProps> = ({
     uncheckCheckboxes();
 
     return () => {
+      
       window.removeEventListener('popstate', uncheckCheckboxes);
     };
-}, [searchParams]);
+}, [searchParams, setFilters]);
 
 useEffect(() => {
+   const urlSearchParams = new URLSearchParams(searchParams.toString());
   const locationParam = urlSearchParams.get('location');
   if (locationParam) {
-      const selectedLocation = events.find(event => event.id === Number(locationParam));
-      if (selectedLocation) {
-          if (!selectedValue || selectedValue.value !== selectedLocation.id) {
-            setSelectedValue({ value: selectedLocation.id, label: selectedLocation.district });
+      const selected = events.find(event => event.id === Number(locationParam));
+      if (selected) {
+          if (!selectedValue || selectedValue.value !== selected.id) {
+            setSelectedValue({ value: selected.id, label: selected.district });
           }
       }
   } else {
       setSelectedValue(null);
   }
 
-  const handlePopState = () => {
-      const updatedSearchParams = new URLSearchParams(window.location.search);
-      const updatedLocationParam = updatedSearchParams.get('location');
-
-      if (!updatedLocationParam) {
-          setSelectedValue(null);
-      }
-  };
-
-  window.addEventListener('popstate', handlePopState);
-
-  return () => {
-      window.removeEventListener('popstate', handlePopState);
-  };
 }, [searchParams, events, setSelectedValue]);
 
 
@@ -199,27 +188,27 @@ useEffect(() => {
                       <span className="font-poppins text-base text-gray-600 ml-2">
                         Sin experiencia
                       </span>
-                  </label>
+                </label>
                 <label className="flex items-center">
                   <input
                     type="checkbox"
                     name="price"
                     className="form-checkbox text-clear h-5 w-5 border-2 border-gray-400 rounded"
-                  />
-                    <span className="font-poppins text-base text-gray-600 ml-2">
-                      Intermedio
-                    </span>
-                  </label>
+                    />
+                      <span className="font-poppins text-base text-gray-600 ml-2">
+                        Intermedio
+                      </span>
+                </label>
                 <label className="flex items-center">
                   <input
                     type="checkbox"
                     name="price"
                     className="form-checkbox text-clear h-5 w-5 border-2 border-gray-400 rounded"
-                  />
-                    <span className="font-poppins text-base text-gray-600 ml-2">
-                      Avanzado
-                    </span>
-                  </label>
+                    />
+                      <span className="font-poppins text-base text-gray-600 ml-2">
+                        Avanzado
+                      </span>
+                </label>
               </ul>
             </div>
 
