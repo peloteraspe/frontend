@@ -29,7 +29,8 @@ const Sidebar:FC<SidebarProps> = ({
   const searchParams = useSearchParams();
   const router = useRouter()
   const pathname = usePathname();
-  
+  const urlSearchParams = new URLSearchParams(searchParams.toString());
+
 
   const [filters, setFilters] = useState<{priceRange: string[]}>({
     priceRange: [],
@@ -72,7 +73,6 @@ const Sidebar:FC<SidebarProps> = ({
 
   useEffect(() => {
     const uncheckCheckboxes = () => {
-        const urlSearchParams = new URLSearchParams(searchParams.toString());
         const priceRangeParam = urlSearchParams.get('priceRange');
         if (priceRangeParam) {
             const priceRangeValues = priceRangeParam.split(',');
@@ -91,9 +91,7 @@ const Sidebar:FC<SidebarProps> = ({
 }, [searchParams]);
 
 useEffect(() => {
-  const urlSearchParams = new URLSearchParams(searchParams.toString());
   const locationParam = urlSearchParams.get('location');
-
   if (locationParam) {
       const selectedLocation = events.find(event => event.id === Number(locationParam));
       if (selectedLocation) {
