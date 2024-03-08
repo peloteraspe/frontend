@@ -1,6 +1,9 @@
+import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import Sidebar from '@/components/layout/sidebar/Sidebar'
 import { getAllEvents } from '@/lib/data/getAllEvents';
 import { getAllFeatures } from '@/lib/data/getAllFeatures';
+import { notFound } from 'next/navigation';
 
 
 interface IndexPageProps {
@@ -10,11 +13,19 @@ interface IndexPageProps {
 }
 
 const EventsPage = async ({searchParams}: IndexPageProps) => {
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
 
   const { priceRange, location } = searchParams
     
   const features = await getAllFeatures();
   const events  = await getAllEvents();
+
+  const { data: dataPost, error } = await supabase
+    .from('event')
+    .select('*')
+    .eq('id', Number(location));
+  
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -22,12 +33,26 @@ const EventsPage = async ({searchParams}: IndexPageProps) => {
             <div className="md:flex md:justify-between" data-sticky-container>
                 <Sidebar features={features} events={events}/>
                 <div className="md:grow" id="main-content">
-                    {priceRange} {', '}
-                    {location}
-              
+                    {priceRange} {' y'}
+                    
+                    {dataPost?.map((e)=>{
+                      return (
+                        <div  key={e.id}>
+                          {e.id}<br />
+                          {e.title}<br />
+                          lat: {e.location.lat}<br />
+                          long: {e.location.long}
+                        </div>
+                      )
+                    })}
                 </div>
             </div>
         </div>
+      {/* <Sidebar features={features} events={events}/>
+      <h2>
+        Events Page
+        {priceRange}
+      </h2> */}
     </div>
   )
 }

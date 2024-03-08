@@ -13,7 +13,6 @@ interface SidebarProps {
 interface Option {
   value: string;
   label: string;
-  active?: boolean
 }
 
 const priceRanges: Option[] = [
@@ -30,7 +29,6 @@ const Sidebar:FC<SidebarProps> = ({
   const searchParams = useSearchParams();
   const router = useRouter()
   const pathname = usePathname();
-
   
 
   const [filters, setFilters] = useState<{priceRange: string[]}>({
@@ -39,7 +37,6 @@ const Sidebar:FC<SidebarProps> = ({
 
   const createQueryString = (params: Record<string, string | number | null>): string => {
     const newSearchParams = new URLSearchParams(searchParams?.toString())
-  
     for (const [key, value] of Object.entries(params)) {
       if (value === null) {
         newSearchParams.delete(key);
@@ -56,16 +53,75 @@ const Sidebar:FC<SidebarProps> = ({
   useEffect(() => {
     const newQueryString = createQueryString({
       priceRange: filters.priceRange?.length ? filters.priceRange.join(',') : null,
-      location: selectedValue ? selectedValue.value : null,
     });
 
     router.push(`${pathname}?${newQueryString}`, {
       scroll: false,
     });
-  }, [filters, selectedValue, router]);
+  }, [filters]);
+
+  useEffect(() => {
+    const newQueryString = createQueryString({
+      location: selectedValue ? selectedValue.value : null,
+    })
+
+    router.push(`${pathname}?${newQueryString}`, {
+      scroll: false,
+    });
+  }, [selectedValue]);
+
+  useEffect(() => {
+    const uncheckCheckboxes = () => {
+        const urlSearchParams = new URLSearchParams(searchParams.toString());
+        const priceRangeParam = urlSearchParams.get('priceRange');
+        if (priceRangeParam) {
+            const priceRangeValues = priceRangeParam.split(',');
+            setFilters({ priceRange: priceRangeValues });
+        } else {
+            setFilters({ priceRange: [] });
+        }
+    };
+
+    window.addEventListener('popstate', uncheckCheckboxes);
+    uncheckCheckboxes();
+
+    return () => {
+      window.removeEventListener('popstate', uncheckCheckboxes);
+    };
+}, [searchParams]);
+
+useEffect(() => {
+  const urlSearchParams = new URLSearchParams(searchParams.toString());
+  const locationParam = urlSearchParams.get('location');
+
+  if (locationParam) {
+      const selectedLocation = events.find(event => event.id === Number(locationParam));
+      if (selectedLocation) {
+          if (!selectedValue || selectedValue.value !== selectedLocation.id) {
+            setSelectedValue({ value: selectedLocation.id, label: selectedLocation.district });
+          }
+      }
+  } else {
+      setSelectedValue(null);
+  }
+
+  const handlePopState = () => {
+      const updatedSearchParams = new URLSearchParams(window.location.search);
+      const updatedLocationParam = updatedSearchParams.get('location');
+
+      if (!updatedLocationParam) {
+          setSelectedValue(null);
+      }
+  };
+
+  window.addEventListener('popstate', handlePopState);
+
+  return () => {
+      window.removeEventListener('popstate', handlePopState);
+  };
+}, [searchParams, events, setSelectedValue]);
 
 
-  
 
   const handlePriceRangeChange = (value: string) => {
     setFilters((prevFilters) => ({
