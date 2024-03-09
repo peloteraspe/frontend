@@ -90,7 +90,7 @@ const Sidebar:FC<SidebarProps> = ({
             setSelectedPriceRange({ priceRange: priceRangeValues });
         } else {
           setSelectedPriceRange({ priceRange: [] });
-        }
+        } 
     };
 
     window.addEventListener('popstate', uncheckCheckboxes);
