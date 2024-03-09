@@ -57,7 +57,7 @@ const UserMenu = ({ user }: any) => {
                   {isOpen && (
                     <div className="absolute right-0 z-20 w-56 py-2 mt-2 rounded-md shadow-md bg-white overflow-hidden  top-12 text-sm flex flex-col cursor-pointer">
                       <Link href={'/'} className="mx-4 my-2 ">
-                        <p className="text-sm  font-semibold leading-none">Peloteras</p>
+                        <p className="text-sm  font-semibold leading-none">Peloteras </p>
                         <p className="text-sm leading-none text-muted-foreground">
                           peloteras@gmail.com
                         </p>
