@@ -1,5 +1,5 @@
 'use client';
-import { FC, useEffect, useState } from 'react';
+import { FC, useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import SelectComponent, { OptionSelect } from '@/components/SelectComponent';
 import {  ButtonM, ParagraphM, ParagraphS } from '../../atoms/Typography';
@@ -29,37 +29,47 @@ const Sidebar:FC<SidebarProps> = ({
   const searchParams = useSearchParams();
   const router = useRouter()
   const pathname = usePathname();
- 
+  const priceRangeParam = searchParams?.get("priceRange")
 
-  const [filters, setFilters] = useState<{priceRange: string[]}>({
-    priceRange: [],
-  });
-
-  const createQueryString = (params: Record<string, string | number | null>): string => {
-    const newSearchParams = new URLSearchParams(searchParams?.toString())
-    for (const [key, value] of Object.entries(params)) {
-      if (value === null) {
-        newSearchParams.delete(key);
-      } else {
-        newSearchParams.set(key, String(value));
-      }
-    }
   
-    return newSearchParams.toString();
-  };
 
-  const [selectedValue, setSelectedValue] = useState<OptionSelect | null>();
+    // Create query string
+    const createQueryString = useCallback(
+      (params: Record<string, string | number | null>) => {
+        const newSearchParams = new URLSearchParams(searchParams?.toString())
+  
+        for (const [key, value] of Object.entries(params)) {
+          if (value === null) {
+            newSearchParams.delete(key)
+          } else {
+            newSearchParams.set(key, String(value))
+          }
+        }
+  
+        return newSearchParams.toString()
+      },
+      [searchParams]
+    )
+
+  // priceRange filter
+  const [selectedPriceRange, setSelectedPriceRange] = useState<{priceRange: string[]}>({
+    priceRange:[]
+  });
 
   useEffect(() => {
     const newQueryString = createQueryString({
-      priceRange: filters.priceRange?.length ? filters.priceRange.join(',') : null,
+      priceRange: selectedPriceRange.priceRange?.length ? selectedPriceRange.priceRange.join(',') : null,
     });
 
     router.push(`${pathname}?${newQueryString}`, {
       scroll: false,
     });
-  }, [filters]);
+  }, [selectedPriceRange]);
 
+
+
+  // filter location
+  const [selectedValue, setSelectedValue] = useState<OptionSelect | null>();
   useEffect(() => {
     const newQueryString = createQueryString({
       location: selectedValue ? selectedValue.value : null,
@@ -77,9 +87,9 @@ const Sidebar:FC<SidebarProps> = ({
         const priceRangeParam = urlSearchParams.get('priceRange');
         if (priceRangeParam) {
             const priceRangeValues = priceRangeParam.split(',');
-            setFilters({ priceRange: priceRangeValues });
+            setSelectedPriceRange({ priceRange: priceRangeValues });
         } else {
-            setFilters({ priceRange: [] });
+          setSelectedPriceRange({ priceRange: [] });
         }
     };
 
@@ -90,10 +100,10 @@ const Sidebar:FC<SidebarProps> = ({
       
       window.removeEventListener('popstate', uncheckCheckboxes);
     };
-}, [searchParams, setFilters]);
+}, [searchParams, setSelectedPriceRange]);
 
 useEffect(() => {
-   const urlSearchParams = new URLSearchParams(searchParams.toString());
+  const urlSearchParams = new URLSearchParams(searchParams.toString());
   const locationParam = urlSearchParams.get('location');
   if (locationParam) {
       const selected = events.find(event => event.id === Number(locationParam));
@@ -103,7 +113,7 @@ useEffect(() => {
           }
       }
   } else {
-      setSelectedValue(null);
+    setSelectedValue(null);
   }
 
 }, [searchParams, events, setSelectedValue]);
@@ -111,7 +121,7 @@ useEffect(() => {
 
 
   const handlePriceRangeChange = (value: string) => {
-    setFilters((prevFilters) => ({
+    setSelectedPriceRange((prevFilters) => ({
       ...prevFilters,
       priceRange: prevFilters.priceRange.includes(value) 
       ? prevFilters.priceRange.filter((price) => price !== value) 
@@ -119,10 +129,6 @@ useEffect(() => {
     }));
   };
 
-  const handleClearFilters = () => {
-    setFilters({ priceRange: []});
-    setSelectedValue(null);
-  };
 
   return (
     <aside className="mb-8 md:mb-0 md:w-80 lg:w-92 md:ml-12 lg:ml-20 md:shrink-0 md:order-1">
@@ -134,7 +140,7 @@ useEffect(() => {
       >
         <div className="relative bg-gray-50 rounded-xl border border-gray-200 p-5">
           <div className="absolute top-5 right-5 leading-none">
-          <button className="hover:underline text-clear" onClick={handleClearFilters}>
+          <button className="hover:underline text-clear" onClick={() => {router.push(`${pathname}`)}}>
               <ButtonM color='text-clear'>Limpiar filtros</ButtonM>
             </button>
           </div>
@@ -254,10 +260,9 @@ useEffect(() => {
                     <input
                       type="checkbox"
                       name="price"
-
                       className="form-checkbox text-clear h-5 w-5 border-2 border-gray-400 rounded"
                       value={priceRange.value}
-                      checked={filters.priceRange.includes(priceRange.value)}
+                      checked={selectedPriceRange.priceRange.includes(priceRange.value)}
                       onChange={() => handlePriceRangeChange(priceRange.value)}
                     />
                     <span className="font-poppins text-base text-gray-600 ml-2">
