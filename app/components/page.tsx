@@ -36,6 +36,12 @@ const ComponentsPage = () => {
           <ParagraphS underline>Form</ParagraphS>
         </Link>
       </div>
+
+      <div className="mb-3">
+        <Link href="/components/events">
+          <ParagraphS underline>filters</ParagraphS>
+        </Link>
+      </div>
     </div>
   );
 };
