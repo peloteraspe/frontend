@@ -80,7 +80,7 @@ export default function Input({
               ? "bg-inputBg"
               : "py-2 px-3 bg-transparent focus:outline-none h-[38px] text-sm border border-primary"
           } transition duration-150 appearance-none rounded-xl w-full text-black leading-tight hover:outline-none placeholder:text-lightGray ${
-            inputError || error ? "border-red-500" : "border-transparent"
+            inputError || error ? "border-red-500" : "border-primary"
           }`}
           placeholder={placeholderText}
           onChange={handleChange}
