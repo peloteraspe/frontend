@@ -19,7 +19,7 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
   onClick,
   children,
 }) => {
-  const buttonWidth = width === "fit-content" ? "w-fit" : `w-${width}`;
+  const buttonWidth = width === "fit-content" ? "w-fit" : `w-full`;
 
   return (
     <button

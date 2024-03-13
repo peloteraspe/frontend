@@ -6,7 +6,7 @@ import SelectComponent, { OptionSelect } from '../SelectComponent';
 import Input from '../Input';
 
 export interface FormField {
-  type: 'text' | 'select';
+  type: string;
   name: string;
   label?: string;
   placeholder?: string;
@@ -19,24 +19,17 @@ export interface FormField {
 interface ReusableFormProps {
   defaultValues: FieldValues;
   fields: FormField[];
-  onSubmit: (data: FieldValues) => void; // This prop is for client-side submission logic
+  form: any; // This prop is for server-side submission logic
 }
 
-const Form: React.FC<ReusableFormProps> = ({
-  defaultValues,
-  fields,
-  onSubmit,
-}) => {
+const Form: React.FC<ReusableFormProps> = ({ defaultValues, fields, form }) => {
   const {
     register,
     handleSubmit,
-    setValue,
-    formState: { errors },
     control,
-  } = useForm({
-    defaultValues,
-  });
-
+    formState: { errors },
+    setValue,
+  } = form;
   const renderField = (field: FormField) => {
     switch (field.type) {
       case 'text':
@@ -76,12 +69,9 @@ const Form: React.FC<ReusableFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+    <>
       <div className="flex flex-col gap-4">{fields.map(renderField)}</div>
-      <button type="submit" className="mt-4">
-        Submit
-      </button>
-    </form>
+    </>
   );
 };
 

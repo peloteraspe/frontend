@@ -28,6 +28,7 @@ export default async function Index() {
     }
   }
 
+  console.log('userProfile', userProfile);
   if (user && !userProfile) {
     return <UpdateProfile user={user} />;
   }

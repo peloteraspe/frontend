@@ -1,8 +1,10 @@
-"use client";
+'use client';
 import Form, { FormField } from '@/components/organisms/Form';
 import React from 'react';
+import { useForm } from 'react-hook-form';
 
 const MyCustomForm: React.FC = () => {
+  const form = useForm();
   const formFields: FormField[] = [
     {
       type: 'text',
@@ -40,6 +42,7 @@ const MyCustomForm: React.FC = () => {
       defaultValues={{ firstName: '', lastName: '', favoriteColor: null }}
       fields={formFields}
       onSubmit={onSubmit}
+      form={form}
     />
   );
 };

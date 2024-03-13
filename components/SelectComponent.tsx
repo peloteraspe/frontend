@@ -31,8 +31,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
   const customStyles = {
     control: (provided: any, state: any) => ({
       ...provided,
-      background: '#F7F7F7',
-      border: '1px solid #54086F',
+      borderColor: '#54086F',
       borderRadius: '10px',
       color: '#000',
       boxShadow: 'none',
@@ -140,6 +139,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
           isMulti={isMulti}
           components={animatedComponents}
           styles={customStyles}
+          placeholder="Selecciona una opción"
         />
       </div>
     </label>
