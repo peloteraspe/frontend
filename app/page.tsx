@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/server';
 import { cookies } from 'next/headers';
 import UpdateProfile from './update-profile';
 import Hero from '@/components/layout/hero';
+import CardEventList from '@/components/cardEvents/CardEventList';
 
 export default async function Index() {
   const cookieStore = cookies();
@@ -44,7 +45,7 @@ export default async function Index() {
 
               {/* Main content */}
               <div className="md:grow" id="main-content">
-                <PostsList />
+                <CardEventList />
               </div>
             </div>
           </div>
