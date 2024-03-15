@@ -6,8 +6,10 @@ import {  ButtonM, ParagraphM, ParagraphS } from '../../atoms/Typography';
 import Link from 'next/link';
 
 interface SidebarProps {
-  features: any[],
-  events: any[]
+  typeEvents?: any[],
+  levels?: any[], 
+  events: any[], 
+  features: any[]
 }
 
 interface Option {

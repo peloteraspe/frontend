@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 import Sidebar from '@/components/layout/sidebar/Sidebar'
-import { getAllEvents } from '@/lib/data/getAllEvents';
-import { getAllFeatures } from '@/lib/data/getAllFeatures';
 import { notFound } from 'next/navigation';
+import { getFeatures } from '@/lib/data/getFeatures';
+import { getEvents } from '@/lib/data/getEvents';
 
 
 interface IndexPageProps {
@@ -18,8 +18,8 @@ const EventsPage = async ({searchParams}: IndexPageProps) => {
 
   const { priceRange, location } = searchParams
     
-  const features = await getAllFeatures();
-  const events  = await getAllEvents();
+  const features = await getFeatures();
+  const events  = await getEvents();
 
   const { data: dataPost, error } = await supabase
     .from('event')
