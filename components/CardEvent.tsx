@@ -65,7 +65,7 @@ const CardEvent: React.FC<CardEventProps> = ({
             )}
           </div>
         </div>
-        <div className="py-2 w-full sm:w-fit justify-center uppercase h-full flex flex-col gap-2 px-4 sm:px-0">
+        <div className="py-2 w-full sm:w-fit justify-center uppercase h-full flex flex-col gap-2.5 px-4 sm:px-0">
           <ParagraphS fontWeight="bold" color="text-btnBg-light">
             {/* levelText */}
             {levelText}
