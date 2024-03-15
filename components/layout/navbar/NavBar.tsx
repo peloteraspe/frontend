@@ -9,7 +9,7 @@ export const NavBar = ({ user, simple = false }: any) => {
   const router = useRouter();
 
   return (
-    <nav className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto flex justify-between w-full p-4">
+    <nav className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto flex justify-between w-full p-4 ">
       <div
         className="flex items-center h-full cursor-pointer gap-2"
         onClick={() => router.push('/')}
