@@ -33,13 +33,13 @@ const Badge = ({ badgeType, text, icon }: BadgeProps) => {
     <div>
       {icon ? (
         <>
-          <button className={`${style}`}>
+          <div className={`${style}`}>
             {icon && <CloudIcon color={cloudColor} />}
             {text}
-          </button>
+          </div>
         </>
       ) : (
-        <button className={`${style}`}>{text}</button>
+        <div className={`${style}`}>{text}</div>
       )}
     </div>
   );

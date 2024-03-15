@@ -37,16 +37,14 @@ export default async function Index() {
       {/* <div className="animate-in flex-1 flex flex-col gap-20 opacity-0 max-w-6xl px-3"> */}
       {/* <Header /> */}
       <Hero />
-      <section>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="py-8 md:py-16">
-            <div className="md:flex md:justify-between" data-sticky-container>
-              <Sidebar />
+      <section className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto px-4 sm:px-6 py-8 md:py-16 flex justify-between">
+        <div className="pb-8">
+          <div className="md:flex md:justify-between" data-sticky-container>
+            <Sidebar />
 
-              {/* Main content */}
-              <div className="md:grow" id="main-content">
-                <CardEventList />
-              </div>
+            {/* Main content */}
+            <div>
+              <CardEventList />
             </div>
           </div>
         </div>

@@ -7,7 +7,7 @@ const CardEventList = async() => {
   //let cardEvents;
   const cardEvents = await getAllEvents();
   return (
-    <div className="pb-8 md:pb-16 p-4">
+    <div className="pb-8 md:pb-16">
         <h2 className="text-3xl font-bold font-inter mb-10">Eventos deportivos:</h2>
         <div className="flex flex-col">
             <CardEventItem cardEvents={cardEvents}/>

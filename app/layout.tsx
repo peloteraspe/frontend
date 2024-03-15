@@ -59,6 +59,7 @@ export default async function RootLayout({
     <html
       lang="en"
       className={`${poppins.variable} ${poppinsBold.variable} ${poppinsExtrabold.variable} ${poppinsSemibold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}
+      suppressHydrationWarning
     >
       <body
         className="bg-cover bg-center h-full w-full"
