@@ -3,17 +3,14 @@ import { headers, cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 
-export const signIn = async (formData: FormData) => {
- ;
-  
-  const email = formData.get('email') as string;
+export const signIn = async (email: string) => {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
   const currentDomain =
     headers().get('origin') === 'http://localhost:3000'
       ? 'http://localhost:3000/auth/callback'
       : 'https://peloteras.com/auth/callback';
-
+  console.log(email, currentDomain, 'email and domain')
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {

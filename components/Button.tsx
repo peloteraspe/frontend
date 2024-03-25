@@ -19,12 +19,12 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
   onClick,
   children,
 }) => {
-  const buttonWidth = width === 'fit-content' ? 'w-fit' : `w-${width}`;
+  const buttonWidth = width === 'fit-content' ? 'w-fit' : `w-full`;
 
   return (
     <button
       className={`${buttonWidth} px-3 py-[0.75rem] font-semibold bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-md my-0 flex justify-center items-center relative box-border ${
-        disabled ? 'cursor-auto' : 'cursor-pointer'
+        disabled ? 'cursor-not-allowed' : 'cursor-pointer'
       } `}
       onClick={onClick}
       disabled={disabled}
