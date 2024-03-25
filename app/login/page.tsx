@@ -1,65 +1,57 @@
-import Link from 'next/link';
-import { headers, cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
-import { redirect } from 'next/navigation';
-import { NavBar } from '@/components/layout/navbar/NavBar';
+'use client';
+
 import { Title2XL } from '@/components/atoms/Typography';
 import { ButtonWrapper } from '@/components/Button';
+import Input from '@/components/Input';
+import { useState, useEffect } from 'react';
+import { signIn } from './auth';
+import toast from 'react-hot-toast';
 
 export default function Login({
   searchParams,
 }: {
   searchParams: { message: string };
 }) {
-  const signIn = async (formData: FormData) => {
-    'use server';
+  const [buttonText, setButtonText] = useState('Obtener enlace mágico');
+  const [emailValue, setEmailValue] = useState('');
+  const [emailError, setEmailError] = useState(false);
 
-    const email = formData.get('email') as string;
-    const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
-    const currentDomain =
-      headers().get('origin') === 'http://localhost:3000'
-        ? 'http://localhost:3000/auth/callback'
-        : 'https://peloteras.com/auth/callback';
+  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault(); // Prevent the default form submission
+    setButtonText('Cargando...'); 
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${currentDomain}`,
-      },
-    });
-
-    if (error) {
-      return redirect('/login?message=No puedes ingresar con ese correo');
+    if (!emailValue) {
+      // Verifica si el campo de correo electrónico está vacío
+      setEmailError(true); // Establece el estado de error en true
+      setButtonText('Obtener enlace mágico'); // Restablece el texto del botón
+      return; // Detiene la función si hay un error
     }
 
-    return redirect(
-      '/login?message=Revisa tu correo para ingresar a tu cuenta'
-    );
+    try {
+      console.log(emailValue, 'email');
+      const response = await signIn(emailValue);
+      console.log(response, 'response');
+      toast.success(
+        '¡Enlace enviado! Revisa tu correo para ingresar a tu cuenta'
+      );
+      setButtonText('Enlace mágico enviado');
+    } catch (error) {
+      console.error('Error during sign in:', error);
+      toast.error(
+        'Hubo un error al enviar el enlace. Por favor, inténtalo de nuevo.'
+      ); // Display error toast
+      setButtonText('Obtener enlace mágico'); // Reset button text on error
+    }
   };
 
-  const signUp = async (formData: FormData) => {
-    'use server';
+  const handleEmailErrorChange = (error: boolean) => {
+    setEmailError(error);
+    console.log(error);
+  };
 
-    const origin = headers().get('origin');
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${origin}/auth/callback`,
-      },
-    });
-
-    if (error) {
-      return redirect('/login?message=Could not authenticate user');
-    }
-
-    return redirect('/login?message=Check email to continue sign in process');
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmailValue(e.target.value);
+    setEmailError(false);
   };
 
   return (
@@ -71,19 +63,27 @@ export default function Login({
       <div className="flex flex-col items-center">
         <form
           className="flex flex-col gap-4 w-full"
-          action={signIn}
-          method="post"
+          onSubmit={handleSignIn} // Use onSubmit instead of action and method
         >
-          <label htmlFor="email">Correo electrónico</label>
-          <input
+          <Input
             className="form-input w-full ring-secondary focus:ring-secondary-dark"
+            labelText="Correo electrónico"
             type="email"
             name="email"
-            placeholder="Ingresa tu correo"
+            placeholderText="Ingresa tu correo"
+            value={emailValue}
+            setFormValue={setEmailValue}
+            onErrorChange={handleEmailErrorChange}
+            errorText="Debes ingresar un correo "
+            error={emailError}
+            onChange={handleEmailChange}
             required
           />
-          <div className="flex flex-col items-center">
-            <ButtonWrapper>Obtener enlace mágico</ButtonWrapper>
+          <div className="flex flex-col items-center w-80">
+            <ButtonWrapper width={'full'} disabled={emailError}>
+              {buttonText}
+            </ButtonWrapper>{' '}
+            {/* Use buttonText state for button text */}
           </div>
         </form>
       </div>

@@ -1,6 +1,6 @@
-'use client'
-import React, { useState } from "react";
-import { ParagraphM } from "./atoms/Typography";
+'use client';
+import React, { useState } from 'react';
+import { ParagraphM } from './atoms/Typography';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   required?: boolean;
@@ -9,6 +9,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   placeholderText?: string;
   errorText?: string;
   setFormValue?: (arg: string) => void;
+  onErrorChange?: (error: boolean) => void;
   type?: string;
   disabled?: boolean;
   max?: number;
@@ -21,15 +22,16 @@ export default function Input({
   error,
   labelText,
   placeholderText,
-  errorText = "Error Text",
+  errorText = 'Error Text',
   setFormValue,
+  onErrorChange,
   disabled,
   type,
   max,
   value,
   icon,
 }: InputProps) {
-  const [inputValue, setInputValue] = useState(value || "");
+  const [inputValue, setInputValue] = useState(value || '');
   const [inputError, setInputError] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,27 +42,33 @@ export default function Input({
   };
 
   const handleBlur = () => {
+    let error = false;
+
     switch (type) {
-      case "text":
+      case 'text':
         if (!/^[A-Za-z\s]+$/.test(inputValue)) {
-          setInputError(true);
+          error = true;
         }
         break;
-      case "number":
+      case 'number':
         if (!/^\d+$/.test(inputValue)) {
-          setInputError(true);
+          error = true;
         }
         break;
-      case "email":
+      case 'email':
         if (
           !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(inputValue)
         ) {
-          setInputError(true);
+          error = true;
         }
         break;
       default:
         break;
     }
+
+    setInputError(error);
+    onErrorChange && onErrorChange(error);
+    console.log(error);
   };
 
   return (
@@ -77,10 +85,10 @@ export default function Input({
         <input
           className={`${
             disabled
-              ? "bg-inputBg"
-              : "py-2 px-3 bg-inputBg focus:outline-none h-[38px] text-sm "
+              ? 'bg-inputBg'
+              : 'py-2 px-3 bg-inputBg focus:outline-none h-[44px] text-sm  focus:ring-2 focus:ring-secondary focus:ring-opacity-50'
           } transition duration-150 appearance-none rounded-xl w-full text-black leading-tight hover:outline-none placeholder:text-lightGray ${
-            inputError || error ? "border-red-500" : "border-transparent"
+            inputError || error ? 'border-red-500' : 'border-transparent'
           }`}
           placeholder={placeholderText}
           onChange={handleChange}
@@ -89,7 +97,7 @@ export default function Input({
           min={1}
           step={1}
           onInput={(e) => {
-            e.currentTarget.validity.valid || (e.currentTarget.value = "");
+            e.currentTarget.validity.valid || (e.currentTarget.value = '');
           }}
           max={max}
           value={inputValue}
@@ -100,7 +108,9 @@ export default function Input({
           </div>
         )}
       </div>
-      {inputError || error ? <span className="text-sm text-red-500">{errorText}</span> : null}
+      {inputError || error ? (
+        <span className="text-sm text-red-500">{errorText}</span>
+      ) : null}
     </label>
   );
 }
