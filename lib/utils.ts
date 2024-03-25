@@ -37,3 +37,8 @@ export const validateEnvironmentVariables = () => {
     );
   }
 };
+
+
+export const formattedPrice = (price: number) => {
+  return price.toLocaleString('es-PE', { style: 'currency', currency: 'PEN' });
+};
