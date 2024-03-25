@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 
 
-export async function getAllFeatures() {
+export async function getFeatures() {
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
 
