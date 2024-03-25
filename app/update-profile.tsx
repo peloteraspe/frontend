@@ -1,18 +1,23 @@
 "use client";
+
+import React, { useEffect, useState } from "react";
+import SelectComponent, { OptionSelect } from "@/components/SelectComponent";
+
 import { createClient } from "@/utils/supabase/client";
-import React, { useState } from "react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
 const UpdateProfile = ({ user }: any) => {
   const supabase = createClient();
   const router = useRouter();
+  const [selectedMultiOptions, setSelectedMultiOptions] = useState<
+    OptionSelect[] | null
+  >(null);
   const [formData, setFormData] = useState({
     username: "",
-    playerPosition: "Portera", // Default value, you can set it based on your requirements
   });
-  const [supabaseData, setSupabaseData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [posiciones, setPosiciones] = useState<OptionSelect[]>([]);
 
   const handleInputChange = (e: any) => {
     setFormData({
@@ -24,12 +29,11 @@ const UpdateProfile = ({ user }: any) => {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
-    // Update or insert into the 'profiles' table
-    const { data, error } = await supabase.from("profile").upsert(
+    //instertamos los datos pero como upsert nos devuelve null en la data procedemos a que si no hay fallos hacer una consulta con ese usuario recien creado.
+    const { error: profileError } = await supabase.from("profile").upsert(
       {
         user: user.id,
         username: formData.username,
-        playerPosition: formData.playerPosition,
       },
       {
         // Specify conflict handling options here if needed
@@ -37,19 +41,67 @@ const UpdateProfile = ({ user }: any) => {
         // onConflict: 'id'
       }
     );
-
-    if (error) {
-      console.error("Error updating profile:", error);
+    if (profileError) {
+      console.error("Error creating profile:", profileError);
     } else {
-      setSupabaseData(data);
-      setLoading(true);
-      setTimeout(() => {
-        toast.success("Perfil actualizado");
-        router.refresh();
-        setLoading(false);
-      }, 5000);
+      // Ahora si buscamos a ese usuario recien creado y si no hay ningun error procedemos con la asignacion de posiciones
+      const { data: profileData, error: profileDataError } = await supabase
+        .from("profile")
+        .select("*")
+        .eq("username", formData.username)
+        .single();
+      if (profileDataError) {
+        console.error("Error fetching updated profile:", profileDataError);
+      }
+      if (profileData !== null && profileData.id) {
+        const profileId = profileData?.id;
+        // obtenemos el id del usuario y insertamos en la tabla intermedia la relacion del usuario creado y las posiciones seleccionadas
+        const positionsIds = selectedMultiOptions?.map((e) => ({
+          profile_id: profileId,
+          position_id: e.value,
+        }));
+
+        const { error: positionError } = await supabase
+          .from("profile_position")
+          .upsert(positionsIds);
+
+        if (positionError) {
+          console.error("Error updating positions:", positionError);
+        } else {
+          setLoading(true);
+          setTimeout(() => {
+            toast.success("Perfil creado");
+            router.refresh();
+            setLoading(false);
+          }, 5000);
+        }
+      }
     }
   };
+
+  useEffect(() => {
+    // obtengo las posiciones y se las agrego a mi estado local para poder pasarselo al select multiple.
+    const fetchPosiciones = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("player_position")
+          .select("id, name");
+
+        if (error) {
+          console.error("Error fetching positions:", error);
+        } else {
+          const positionOptions = data.map((position: any) => ({
+            value: position.id,
+            label: position.name,
+          }));
+          setPosiciones(positionOptions);
+        }
+      } catch (error) {
+        console.error("Error fetching positions:", error);
+      }
+    };
+    fetchPosiciones();
+  }, []);
 
   return (
     <section>
@@ -106,18 +158,14 @@ const UpdateProfile = ({ user }: any) => {
                             Posición
                           </label>
                           <div className="mt-1">
-                            <select
-                              id="playerPosition"
-                              name="playerPosition"
-                              value={formData.playerPosition}
-                              onChange={handleInputChange}
-                              className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md cursor-pointer"
-                            >
-                              <option>Portera</option>
-                              <option>Defensa</option>
-                              <option>Mediocampista</option>
-                              <option>Delantera</option>
-                            </select>
+                            <SelectComponent
+                              options={posiciones}
+                              onChange={(value: any) =>
+                                setSelectedMultiOptions(value)
+                              }
+                              isMulti={true}
+                              value={selectedMultiOptions}
+                            />
                           </div>
                         </div>
                         <div className="mt-8">
