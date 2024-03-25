@@ -7,11 +7,7 @@ import { useState, useEffect } from 'react';
 import { signIn } from './auth';
 import toast from 'react-hot-toast';
 
-export default function Login({
-  searchParams,
-}: {
-  searchParams: { message: string };
-}) {
+export default function Login() {
   const [buttonText, setButtonText] = useState('Obtener enlace mágico');
   const [emailValue, setEmailValue] = useState('');
   const [emailError, setEmailError] = useState(false);
@@ -28,9 +24,7 @@ export default function Login({
     }
 
     try {
-      console.log(emailValue, 'email');
-      const response = await signIn(emailValue);
-      console.log(response, 'response');
+      await signIn(emailValue);
       toast.success(
         '¡Enlace enviado! Revisa tu correo para ingresar a tu cuenta'
       );
@@ -46,7 +40,6 @@ export default function Login({
 
   const handleEmailErrorChange = (error: boolean) => {
     setEmailError(error);
-    console.log(error);
   };
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,17 +75,10 @@ export default function Login({
           <div className="flex flex-col items-center w-80">
             <ButtonWrapper width={'full'} disabled={emailError}>
               {buttonText}
-            </ButtonWrapper>{' '}
-            {/* Use buttonText state for button text */}
+            </ButtonWrapper>
           </div>
         </form>
       </div>
-
-      {searchParams?.message && (
-        <p className="mt-4 p-4 bg-foreground/10 text-foreground text-center">
-          {searchParams.message}
-        </p>
-      )}
     </div>
   );
 }
