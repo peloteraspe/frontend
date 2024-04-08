@@ -38,7 +38,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
       color: "#000",
       boxShadow: "none",
       cursor: "pointer",
-      fontFamily: "Work Sans",
+      fontFamily: "inherit",
       "&:hover": {
         borderColor: "#54086F",
       },
@@ -96,7 +96,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
       ...provided,
       color: "#000",
       fontSize: "1.vw",
-      fontFamily: "Work Sans",
+      fontFamily: "Inherit",
       fontWeight: "600",
       textTransform: "normal",
       padding: "0 0.5em",
