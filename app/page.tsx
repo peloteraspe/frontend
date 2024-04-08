@@ -1,13 +1,13 @@
-import Header from '@/components/Header';
-import PostsList from './posts-list';
-import { createClient } from '@/utils/supabase/server';
-import { cookies } from 'next/headers';
-import UpdateProfile from './update-profile';
-import Hero from '@/components/layout/hero';
-import CardEventList from '@/components/cardEvents/CardEventList';
-import Sidebar from '@/components/layout/sidebar/Sidebar';
-import { getFeatures } from '@/lib/data/getFeatures';
-import { getEvents } from '@/lib/data/getEvents';
+import Header from "@/components/Header";
+import PostsList from "./posts-list";
+import { createClient } from "@/utils/supabase/server";
+import { cookies } from "next/headers";
+import UpdateProfile from "./signUp/signUpForm";
+import Hero from "@/components/layout/hero";
+import CardEventList from "@/components/cardEvents/CardEventList";
+import Sidebar from "@/components/layout/sidebar/Sidebar";
+import { getFeatures } from "@/lib/data/getFeatures";
+import { getEvents } from "@/lib/data/getEvents";
 
 export default async function Index() {
   const cookieStore = cookies();
@@ -19,13 +19,13 @@ export default async function Index() {
   let userProfile = null;
   if (user) {
     const { data, error } = await supabase
-      .from('profile')
-      .select('*')
-      .eq('user', user.id)
+      .from("profile")
+      .select("*")
+      .eq("user", user.id)
       .single();
 
     if (error) {
-      console.error('Error fetching user profile:', error);
+      console.error("Error fetching user profile:", error);
     } else {
       userProfile = data;
     }
@@ -48,7 +48,7 @@ export default async function Index() {
           <Sidebar features={features} events={events} />
 
           {/* Main content */}
-          <div className='w-full'>
+          <div className="w-full">
             <CardEventList />
           </div>
         </div>
