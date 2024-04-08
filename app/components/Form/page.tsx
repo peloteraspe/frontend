@@ -22,9 +22,6 @@ const MyCustomForm: React.FC = () => {
       type: 'select',
       name: 'favoriteColor',
       options: [
-        { value: 'red', label: 'Red' },
-        { value: 'green', label: 'Green' },
-        { value: 'blue', label: 'Blue' },
       ],
       isMulti: true,
       label: 'Favorite Color',

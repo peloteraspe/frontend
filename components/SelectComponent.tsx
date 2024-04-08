@@ -5,7 +5,7 @@ import { ParagraphM } from "./atoms/Typography";
 
 const animatedComponents = makeAnimated();
 export interface OptionSelect {
-  key: number;
+  key?: number;
   value: string | number;
   label: string;
 }
