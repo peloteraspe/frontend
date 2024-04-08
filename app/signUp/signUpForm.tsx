@@ -27,10 +27,9 @@ const UpdateProfile = ({ user }: any) => {
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-    setLoading(true); // Start loading
-    console.log('username:', username);
+    setLoading(true); 
     const reqProfile: ProfileRequestBody = {
-      user: user?.id, // Optional chaining for safety
+      user: user?.id,
       username: username,
       level_id: selectedLevelOptions
         ? levelFormatted(selectedLevelOptions)
@@ -39,7 +38,6 @@ const UpdateProfile = ({ user }: any) => {
     };
 
     try {
-      console.log('reqProfile:', reqProfile);
       await createProfile(reqProfile);
       toast.success('Profile updated successfully');
       router.push('/', { shallow: true });
