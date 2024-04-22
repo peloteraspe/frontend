@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import { ButtonM, ParagraphS } from '@/components/atoms/Typography';
-import { ChevronDownIcon } from '@heroicons/react/24/outline';
-import Image from 'next/image';
-import Link from 'next/link';
-import MenuItem from './MenuItem';
-import UserImage from './UserImage';
+import React, { useCallback, useEffect, useRef } from "react";
+import { ButtonM, ParagraphS } from "@/components/atoms/Typography";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import Image from "next/image";
+import Link from "next/link";
+import MenuItem from "./MenuItem";
+import UserImage from "./UserImage";
 
 const UserMenu = ({ user }: any) => {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -21,8 +21,8 @@ const UserMenu = ({ user }: any) => {
       }
     };
 
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
+    window.addEventListener("click", handleClickOutside);
+    return () => window.removeEventListener("click", handleClickOutside);
   }, []);
 
   return (
@@ -40,7 +40,7 @@ const UserMenu = ({ user }: any) => {
                 </Link>
 
                 <Link
-                  href="#"
+                  href="/profile"
                   className="font-poppins font-semibold text-sm text-mulberry"
                 >
                   Mi perfil
@@ -50,7 +50,7 @@ const UserMenu = ({ user }: any) => {
                   onClick={toggleOpen}
                   className="inline-flex items-center gap-2 justify-center text-xl rounded-full cursor-pointer transition"
                 >
-                  <UserImage src={''} />
+                  <UserImage src={""} />
                   <ChevronDownIcon
                     className="h-6 w-6 text-slate-400"
                     aria-hidden="true"
@@ -58,7 +58,7 @@ const UserMenu = ({ user }: any) => {
                 </div>
                 {isOpen && (
                   <div className="absolute right-0 z-20 w-56 py-2 mt-2 rounded-md shadow-md bg-white overflow-hidden  top-12 text-sm flex flex-col cursor-pointer">
-                    <Link href={'/'} className="mx-4 my-2 ">
+                    <Link href={"/"} className="mx-4 my-2 ">
                       <p className="text-sm  font-semibold leading-none">
                         {user.username}
                       </p>
@@ -70,7 +70,7 @@ const UserMenu = ({ user }: any) => {
                     <MenuItem
                       onClick={() => {
                         toggleOpen();
-                        window.location.href = '/auth/signout';
+                        window.location.href = "/auth/signout";
                       }}
                     >
                       Cerrar sesión
@@ -80,7 +80,7 @@ const UserMenu = ({ user }: any) => {
               </>
             ) : (
               <>
-                <Link href={'/login'}>
+                <Link href={"/login"}>
                   <span className="font-poppins font-semibold text-sm text-mulberry">
                     Inicia sesión
                   </span>
