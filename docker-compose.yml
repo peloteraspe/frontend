@@ -1,8 +1,6 @@
 version: "3.9"
 
 networks:
-  peloteras:
-    name: peloteras
   nginx-proxy:
     name: nginx-proxy
     external: true
@@ -10,7 +8,7 @@ networks:
 services:
   peloteras-front:
     container_name: peloteras-front
-    image: peloteras/frontend
+    image: peloteras/frontend:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -20,5 +18,4 @@ services:
     ports:
       - 3034:3000
     networks:
-      - peloteras
       - nginx-proxy
