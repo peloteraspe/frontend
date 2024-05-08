@@ -1,11 +1,11 @@
-import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
-import PostItem from '../../post-item';
-import { cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
-import Map from '@/components/Map';
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import PostItem from "../../post-item";
+import { cookies } from "next/headers";
+import { createClient } from "@/utils/supabase/server";
+import Map from "@/components/Map";
 
 export default async function SinglePost({
   params,
@@ -15,9 +15,9 @@ export default async function SinglePost({
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
   const { data: dataPost, error } = await supabase
-    .from('event')
-    .select('*')
-    .eq('id', params.id);
+    .from("event")
+    .select("*")
+    .eq("id", params.id);
   if (!dataPost) {
     notFound();
   }
@@ -29,6 +29,30 @@ export default async function SinglePost({
         <div className="pb-8 md:pb-16">
           <div className="md:flex md:justify-between" data-sticky-container>
             {/* Sidebar */}
+            <div className="mb-4 sm:hidden">
+              <Link className="text-indigo-500 font-medium" href="/">
+                <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-indigo-500 transition duration-150 ease-in-out">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth="1.5"
+                    stroke="currentColor"
+                    className="w-6 h-6"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
+                    />
+                  </svg>
+                  Todos los partidos
+                </span>{" "}
+              </Link>
+            </div>
+            <h1 className="text-4xl font-extrabold font-inter mb-10 sm:hidden">
+              {post.description.title}
+            </h1>
             <aside className="mb-8 md:mb-0 md:w-64 lg:w-72 md:ml-12 lg:ml-20 md:shrink-0 md:order-1">
               <div
                 data-sticky
@@ -45,9 +69,16 @@ export default async function SinglePost({
                       height={72}
                       alt={post.title}
                     /> */}
-                    <h2 className="text-lg font-bold text-gray-800">
-                      {post.title}
-                    </h2>
+                    <img
+                      src={post?.image}
+                      alt="foto de perfil"
+                      width={200}
+                      height={200}
+                    />
+                    <div className="text-mulberry font-semibold mb-4">
+                      {" "}
+                      por {post.created_by}
+                    </div>
                   </div>
 
                   <div className="flex justify-center md:justify-start mb-5">
@@ -128,7 +159,7 @@ export default async function SinglePost({
             <div className="md:grow">
               {/* Job description */}
               <div className="pb-8">
-                <div className="mb-4">
+                <div className="mb-4 hidden sm:block">
                   <Link className="text-indigo-500 font-medium" href="/">
                     <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-indigo-500 transition duration-150 ease-in-out">
                       <svg
@@ -146,10 +177,10 @@ export default async function SinglePost({
                         />
                       </svg>
                       Todos los partidos
-                    </span>{' '}
+                    </span>{" "}
                   </Link>
                 </div>
-                <h1 className="text-4xl font-extrabold font-inter mb-10">
+                <h1 className="text-4xl font-extrabold font-inter mb-10  hidden sm:block">
                   {post.description.title}
                 </h1>
                 {/* Job description */}
