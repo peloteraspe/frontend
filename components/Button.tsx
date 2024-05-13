@@ -1,3 +1,5 @@
+'use client';
+import { useRouter } from 'next/navigation';
 import React from 'react';
 
 interface ButtonWrapperProps {
@@ -10,6 +12,7 @@ interface ButtonWrapperProps {
   bg?: string;
   border?: string;
   children?: React.ReactNode;
+  navigateTo?: string;
 }
 
 export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
@@ -18,15 +21,27 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
   disabled,
   onClick,
   children,
+  navigateTo,
 }) => {
   const buttonWidth = width === 'fit-content' ? 'w-fit' : `w-full`;
+
+  const router = useRouter();
+
+  const handleClick = (e) => {
+    if (onClick) {
+      onClick(e);
+    }
+    if (navigateTo) {
+      router.push(navigateTo);
+    }
+  };
 
   return (
     <button
       className={`${buttonWidth} px-3 py-[0.75rem] font-semibold bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-md my-0 flex justify-center items-center relative box-border ${
         disabled ? 'cursor-not-allowed' : 'cursor-pointer'
       } `}
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
     >
       {children}

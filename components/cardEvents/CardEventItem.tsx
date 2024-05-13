@@ -18,7 +18,7 @@ const CardEventItem = ({ cardEvents }: CardEventItemProps) => {
     <div className="flex flex-col">
       {cardEvents?.map((event: any) => {
         return (
-          <div key={event.id} onClick={() => router.push(`/partidos/${event.id}`)}>
+          <div key={event.id} onClick={() => router.push(`/partidos/${event.id}`)} className='max-w-xl'>
             <CardEvent
               typeEvent={event.eventType.name}
               quantity={event.placesLeft}

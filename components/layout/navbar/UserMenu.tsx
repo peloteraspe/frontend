@@ -33,10 +33,10 @@ const UserMenu = ({ user }: any) => {
             {user ? (
               <>
                 <Link
-                  href="#"
+                  href={`/tickets/${user.id}`}
                   className="font-poppins font-semibold text-sm text-mulberry"
                 >
-                  Mis eventos
+                  Mis entradas
                 </Link>
 
                 <Link

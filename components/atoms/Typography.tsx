@@ -41,9 +41,9 @@ export const Title2XL: FC<TypographyProps> = ({ children, fontWeight, color }) =
 
 export const TitleXL: FC<TypographyProps> = ({ children, fontWeight, color }) => (
   <h1
-    className={`font-eastman ${getFontWeightClass(
-      fontWeight
-    )} text-5xl leading-none ${getColorClass(color)}`}
+  className={`font-eastman-extrabold ${getFontWeightClass(
+    fontWeight
+  )} sm:text-5xl text-4xl leading-none ${getColorClass(color)}`}
   >
     {children}
   </h1>
