@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -6,6 +5,10 @@ import PostItem from "../../post-item";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import Map from "@/components/Map";
+import Collapse from "@/components/Collapse";
+import { ButtonWrapper } from "@/components/Button";
+import arrowAnotarse from "../../assets/arrow-anotarse.svg";
+import Calendar from "@/app/assets/images/calendar.png";
 
 export default async function SinglePost({
   params,
@@ -21,6 +24,11 @@ export default async function SinglePost({
   if (!dataPost) {
     notFound();
   }
+
+  // const {
+  //   data: { user },
+  // } = await supabase.auth.getUser();
+
   const post = await dataPost[0];
 
   return (
@@ -30,8 +38,8 @@ export default async function SinglePost({
           <div className="md:flex md:justify-between" data-sticky-container>
             {/* Sidebar */}
             <div className="mb-4 sm:hidden">
-              <Link className="text-indigo-500 font-medium" href="/">
-                <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-indigo-500 transition duration-150 ease-in-out">
+              <Link className="text-[#54086F] font-medium" href="/">
+                <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-[#54086F] transition duration-150 ease-in-out">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
@@ -63,19 +71,13 @@ export default async function SinglePost({
                 <div className="relative bg-gray-50 rounded-xl border border-gray-200 p-5">
                   <div className="text-center mb-6">
                     {/* <Image
-                      className="inline-flex mb-2"
-                      src={post.image}
-                      width={72}
-                      height={72}
-                      alt={post.title}
-                    /> */}
-                    <img
-                      src={post?.image}
-                      alt="foto de perfil"
-                      width={200}
-                      height={200}
-                    />
-                    <div className="text-mulberry font-semibold mb-4">
+      className="inline-flex mb-2"
+      src={post.image}
+      width={72}
+      height={72}
+      alt={post.title}
+    /> */}
+                    <div className="text-[#54086F] font-bold mb-4">
                       {" "}
                       por {post.created_by}
                     </div>
@@ -84,21 +86,26 @@ export default async function SinglePost({
                   <div className="flex justify-center md:justify-start mb-5">
                     <ul className="inline-flex flex-col space-y-2">
                       <li className="flex items-center">
-                        <svg
-                          className="shrink-0 fill-gray-400 mr-3"
-                          width="14"
-                          height="14"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path d="M9.707 4.293a1 1 0 0 0-1.414 1.414L10.586 8H2V2h3a1 1 0 1 0 0-2H2a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8.586l-2.293 2.293a1 1 0 1 0 1.414 1.414l4-4a1 1 0 0 0 0-1.414l-4-4Z" />
-                        </svg>
-                        <span className="text-sm text-gray-600">
-                          {post.created_by}
+                        <Image
+                          className="mr-3"
+                          src={Calendar}
+                          alt="calendar"
+                          width={15}
+                        />
+                        <span className="text-sm text-[#54086F]">
+                          {new Date(post.start_time).toLocaleString("es-PE", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
                         </span>
                       </li>
                       <li className="flex items-center">
                         <svg
-                          className="shrink-0 fill-gray-400 mr-3"
+                          className="shrink-0 fill-[#54086F] mr-3"
                           width="14"
                           height="16"
                           xmlns="http://www.w3.org/2000/svg"
@@ -106,13 +113,13 @@ export default async function SinglePost({
                           <circle cx="7" cy="7" r="2" />
                           <path d="M6.3 15.7c-.1-.1-4.2-3.7-4.2-3.8C.7 10.7 0 8.9 0 7c0-3.9 3.1-7 7-7s7 3.1 7 7c0 1.9-.7 3.7-2.1 5-.1.1-4.1 3.7-4.2 3.8-.4.3-1 .3-1.4-.1Zm-2.7-5 3.4 3 3.4-3c1-1 1.6-2.2 1.6-3.6 0-2.8-2.2-5-5-5S2 4.2 2 7c0 1.4.6 2.7 1.6 3.7 0-.1 0-.1 0 0Z" />
                         </svg>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-[#54086F]">
                           {post.location_text}
                         </span>
                       </li>
                       <li className="flex items-center">
                         <svg
-                          className="shrink-0 fill-gray-400 mr-3"
+                          className="shrink-0 fill-[#54086F] mr-3"
                           width="16"
                           height="12"
                           xmlns="http://www.w3.org/2000/svg"
@@ -120,38 +127,28 @@ export default async function SinglePost({
                           <path d="M15 0H1C.4 0 0 .4 0 1v10c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V1c0-.6-.4-1-1-1Zm-1 10H2V2h12v8Z" />
                           <circle cx="8" cy="6" r="2" />
                         </svg>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-[#54086F]">
                           S/ {post.price}
                         </span>
                       </li>
                     </ul>
                   </div>
 
-                  <div className="max-w-xs mx-auto">
-                    <Link
-                      className="btn w-full text-white bg-indigo-500 hover:bg-indigo-600 group shadow-sm"
-                      href={`/pago/${post.id}`}
-                    >
-                      Anotarme
-                      <span className="tracking-normal text-indigo-200 group-hover:translate-x-0.5 transition-transform duration-150 ease-in-out ml-1">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth="1.5"
-                          stroke="currentColor"
-                          className="w-6 h-6"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
-                          />
-                        </svg>
-                      </span>
-                    </Link>
-                  </div>
+                  <ButtonWrapper
+                    navigateTo={`/pago/${post.id}`}
+                    icon={
+                      <Image
+                        src={arrowAnotarse}
+                        alt="arrow"
+                        width={24}
+                        height={24}
+                      />
+                    }
+                    children={"Anotarme"}
+                  />
                 </div>
+
+                <Collapse title="Participantes" content={""} />
               </div>
             </aside>
 
@@ -160,8 +157,8 @@ export default async function SinglePost({
               {/* Job description */}
               <div className="pb-8">
                 <div className="mb-4 hidden sm:block">
-                  <Link className="text-indigo-500 font-medium" href="/">
-                    <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-indigo-500 transition duration-150 ease-in-out">
+                  <Link className="text-[#54086F] font-medium" href="/">
+                    <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-[#54086F] transition duration-150 ease-in-out">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
@@ -185,24 +182,11 @@ export default async function SinglePost({
                 </h1>
                 {/* Job description */}
                 <div className="space-y-8 mb-8">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-3">
-                      Creado por
-                    </h3>
-                    <div className="text-gray-500 space-y-3">
-                      <p>
-                        {post.created_by} - {post.location_text}
-                      </p>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-3">
-                      Descripción
-                    </h3>
-                    <div className="text-gray-500 space-y-3">
-                      <p>{post.description.description}</p>
-                    </div>
-                  </div>
+                  <Collapse
+                    title="Descripción"
+                    content={post.description.description}
+                  />
+                  <Collapse title="Extras" content={""} />
                 </div>
                 <div className="mb-8">
                   <h3 className="text-xl font-bold text-gray-800 mb-3">
@@ -218,7 +202,7 @@ export default async function SinglePost({
                   <ul className="inline-flex space-x-3">
                     <li>
                       <a
-                        className="flex justify-center items-center text-indigo-500 bg-indigo-100 hover:text-white hover:bg-indigo-500 rounded-full transition duration-150 ease-in-out"
+                        className="flex justify-center items-center text-[#54086F] bg-indigo-100 hover:text-white hover:bg-[#54086F] rounded-full transition duration-150 ease-in-out"
                         href="#0"
                         aria-label="Twitter"
                       >
@@ -233,7 +217,7 @@ export default async function SinglePost({
                     </li>
                     <li>
                       <a
-                        className="flex justify-center items-center text-indigo-500 bg-indigo-100 hover:text-white hover:bg-indigo-500 rounded-full transition duration-150 ease-in-out"
+                        className="flex justify-center items-center text-[#54086F] bg-indigo-100 hover:text-white hover:bg-[#54086F] rounded-full transition duration-150 ease-in-out"
                         href="#0"
                         aria-label="Facebook"
                       >
@@ -248,7 +232,7 @@ export default async function SinglePost({
                     </li>
                     <li>
                       <a
-                        className="flex justify-center items-center text-indigo-500 bg-indigo-100 hover:text-white hover:bg-indigo-500 rounded-full transition duration-150 ease-in-out"
+                        className="flex justify-center items-center text-[#54086F] bg-indigo-100 hover:text-white hover:bg-[#54086F] rounded-full transition duration-150 ease-in-out"
                         href="#0"
                         aria-label="Telegram"
                       >
