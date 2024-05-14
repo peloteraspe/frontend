@@ -1,6 +1,6 @@
-'use client';
-import { useRouter } from 'next/navigation';
-import React from 'react';
+"use client";
+import { useRouter } from "next/navigation";
+import React from "react";
 
 interface ButtonWrapperProps {
   color?: string;
@@ -16,14 +16,14 @@ interface ButtonWrapperProps {
 }
 
 export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
-  width = 'fit-content',
+  width,
   icon,
   disabled,
   onClick,
   children,
   navigateTo,
 }) => {
-  const buttonWidth = width === 'fit-content' ? 'w-fit' : `w-full`;
+  const buttonWidth = width === "fit-content" ? "w-fit" : `w-full`;
 
   const router = useRouter();
 
@@ -38,15 +38,15 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] font-semibold bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-md my-0 flex justify-center items-center relative box-border ${
-        disabled ? 'cursor-not-allowed' : 'cursor-pointer'
+      className={`${buttonWidth} px-3 py-[0.75rem] font-semibold bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 flex justify-center items-center relative box-border ${
+        disabled ? "cursor-not-allowed" : "cursor-pointer"
       } `}
       onClick={handleClick}
       disabled={disabled}
     >
       {children}
       {icon && !children && (
-        <div style={{ minWidth: 'min-content' }}>{icon}</div>
+        <div style={{ minWidth: "min-content" }}>{icon}</div>
       )}
       {icon && children && <div className="ml-2">{icon}</div>}
     </button>
@@ -54,25 +54,25 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
 };
 
 export const ButtonWrapperOutline: React.FC<ButtonWrapperProps> = ({
-  bg = 'bg-transparent',
-  width = 'fit-content',
+  bg = "bg-transparent",
+  width = "fit-content",
   icon,
   disabled,
   onClick,
   children,
 }) => {
-  const buttonWidth = width === 'fit-content' ? 'w-fit' : `w-${width}`;
+  const buttonWidth = width === "fit-content" ? "w-fit" : `w-${width}`;
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light border-2 border-btnBg-light hover:border-btnBg-dark hover:text-btnBg-dark rounded-md my-0 mx-2 flex justify-center items-center relative box-border ${
-        disabled ? 'cursor-auto' : 'cursor-pointer'
+      className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light border-2 border-btnBg-light hover:border-btnBg-dark hover:text-btnBg-dark rounded-xl my-0 mx-2 flex justify-center items-center relative box-border ${
+        disabled ? "cursor-auto" : "cursor-pointer"
       } `}
       onClick={onClick}
       disabled={disabled}
     >
       {icon && !children && (
-        <div style={{ minWidth: 'min-content' }}>{icon}</div>
+        <div style={{ minWidth: "min-content" }}>{icon}</div>
       )}
       {icon && children && <div className="mr-2">{icon}</div>}
       {children}
@@ -81,25 +81,25 @@ export const ButtonWrapperOutline: React.FC<ButtonWrapperProps> = ({
 };
 
 export const ButtonUnWrapperOutline: React.FC<ButtonWrapperProps> = ({
-  bg = 'bg-transparent',
-  width = 'fit-content',
+  bg = "bg-transparent",
+  width = "fit-content",
   icon,
   disabled,
   onClick,
   children,
 }) => {
-  const buttonWidth = width === 'fit-content' ? 'w-fit' : `w-${width}`;
+  const buttonWidth = width === "fit-content" ? "w-fit" : `w-${width}`;
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark rounded-md my-0 flex justify-center items-center relative box-border ${
-        disabled ? 'cursor-auto' : 'cursor-pointer'
+      className={`${buttonWidth}  px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark rounded-xl my-0 flex justify-center items-center relative box-border ${
+        disabled ? "cursor-auto" : "cursor-pointer"
       } `}
       onClick={onClick}
       disabled={disabled}
     >
       {icon && !children && (
-        <div style={{ minWidth: 'min-content' }}>{icon}</div>
+        <div style={{ minWidth: "min-content" }}>{icon}</div>
       )}
       {icon && children && <div className="mr-2">{icon}</div>}
       {children}
@@ -109,25 +109,25 @@ export const ButtonUnWrapperOutline: React.FC<ButtonWrapperProps> = ({
 
 export const ButtonHover: React.FC<ButtonWrapperProps> = ({
   color,
-  bg = 'bg-transparent',
-  width = 'fit-content',
+  bg = "bg-transparent",
+  width = "fit-content",
   icon,
   disabled,
   onClick,
   children,
 }) => {
-  const buttonWidth = width === 'fit-content' ? 'w-fit' : `w-${width}`;
+  const buttonWidth = width === "fit-content" ? "w-fit" : `w-${width}`;
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold text-${color} hover:border-2 hover:border-${color} rounded-md my-0 mx-2 flex justify-center items-center relative box-border ${
-        disabled ? 'cursor-auto' : 'cursor-pointer'
+      className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold text-${color} hover:border-2 hover:border-${color} rounded-xl my-0 mx-2 flex justify-center items-center relative box-border ${
+        disabled ? "cursor-auto" : "cursor-pointer"
       } `}
       onClick={onClick}
       disabled={disabled}
     >
       {icon && !children && (
-        <div style={{ minWidth: 'min-content' }}>{icon}</div>
+        <div style={{ minWidth: "min-content" }}>{icon}</div>
       )}
       {icon && children && <div className="mr-2">{icon}</div>}
       {children}

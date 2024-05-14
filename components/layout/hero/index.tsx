@@ -1,6 +1,6 @@
-import { ButtonWrapper } from '@/components/Button';
-import { SubtitleL, Title2XL } from '@/components/atoms/Typography';
-import React from 'react';
+import { ButtonWrapper } from "@/components/Button";
+import { SubtitleL, Title2XL } from "@/components/atoms/Typography";
+import React from "react";
 
 const Hero = () => {
   return (
@@ -12,9 +12,9 @@ const Hero = () => {
         </div>
         <div>
           <SubtitleL>
-            Regístrate para{' '}
+            Regístrate para{" "}
             <SubtitleL fontWeight="bold" italic>
-              {' '}
+              {" "}
               ver y unirte a eventos deportivos
             </SubtitleL>
             , conectarte con más mujeres apasionadas y vivir la verdadera
@@ -22,7 +22,9 @@ const Hero = () => {
           </SubtitleL>
         </div>
         <div className="mt-8">
-          <ButtonWrapper>Unirme a un evento</ButtonWrapper>
+          <ButtonWrapper width={"fit-content"}>
+            Unirme a un evento
+          </ButtonWrapper>
         </div>
       </div>
       <div className="hidden lg:block w-full">
