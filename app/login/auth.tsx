@@ -6,13 +6,16 @@ import { redirect } from "next/navigation";
 export const signIn = async (email: string) => {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
-  // const currentDomain =
-  //   headers().get("origin") === "http://localhost:3000"
-  //     ? "http://localhost:3000/auth/callback"
-  //     : "https://www.peloteras.com";
+  const currentDomain =
+    headers().get("origin") === "http://localhost:3000"
+      ? "http://localhost:3000/auth/callback"
+      : "https://www.peloteras.com";
 
   const { error } = await supabase.auth.signInWithOtp({
     email,
+    options: {
+      emailRedirectTo: `${currentDomain}`,
+    },
   });
 
   if (error) {
