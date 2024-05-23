@@ -9,7 +9,7 @@ export const signIn = async (email: string) => {
   const currentDomain =
     headers().get("origin") === "http://localhost:3000"
       ? "http://localhost:3000/auth/callback"
-      : "https://peloteras.com/auth/callback";
+      : "https://www.peloteras.com/auth/callback";
 
   const { error } = await supabase.auth.signInWithOtp({
     email,
