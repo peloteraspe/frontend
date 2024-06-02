@@ -1,12 +1,19 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
+
 import LogoYape from "../app/assets/Logo.Yape.webp";
 import { Stepper } from "./Stepper";
 import PaymentAmount from "./PaymentAmount";
 import OperationNumberModal from "./OperationNumberModal";
 import operationGuideImage from "../app/assets/donde-nro-operacion.png";
+import { Title2XL } from "./atoms/Typography";
+import Link from "next/link";
+import Input from "./Input";
+import { ButtonWrapper } from "./Button";
+import { useRouter } from "next/navigation";
+import soccerBall from "../app/assets/soccer-ball.svg";
 
 const PaymentStepper = (props: any) => {
   const supabase = createClient();
@@ -15,6 +22,9 @@ const PaymentStepper = (props: any) => {
   const [operationNumber, setOperationNumber] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [promCode, setPromCode] = useState("");
+  const [promCodeError, setPromCodeError] = useState(false);
+  const router = useRouter();
 
   paymentData.QR = paymentData.QR.replace(/^"|"$/g, "");
 
@@ -27,13 +37,18 @@ const PaymentStepper = (props: any) => {
   //   };
   // };
 
+  useEffect(() => {
+    console.log(operationNumber);
+  }, [operationNumber]);
+
   const handlePaymentConfirmation = async () => {
-    setCurrentStep(4);
+    setCurrentStep(3);
 
     const registeredPlayer = {
       operationNumber: operationNumber,
       event: post.id,
       user: user.id,
+      state: "pending",
     };
 
     // Update or insert into the 'profiles' table
@@ -52,67 +67,90 @@ const PaymentStepper = (props: any) => {
     }
   };
 
+  const handleSetOperationNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setOperationNumber(e.target.value);
+  };
+
   const StepContent = () => {
     switch (currentStep) {
       case 1:
         return (
           <>
-            <div className="mb-4 step-content" id="step-1">
-              {/* <!-- Content for Introduction Step --> */}
-              <div className="w-[350px] md:w-[450px] h-[500px] max-w-6xl mx-auto px-4 sm:px-2 mt-5">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">
-                  Estas a punto de pagar por el siguiente evento:
-                </h2>
-                <div className="flex gap-3 items-center justify-between">
-                  <div className="flex flex-col">
-                    <h3 className="font-bold text-gray-800">
-                      Evento: {post.title}
-                    </h3>
-                    <h2 className=" font-bold text-gray-800">
-                      Organizado por: {post.created_by}{" "}
-                    </h2>
+            <div className="md:grow flex md:flex-row flex-col ">
+              <div className="pb-8 md:w-[55%] w-[90%] m-auto">
+                <Title2XL>Paga Ahora</Title2XL>
+                <div className="text-base flex gap-2 flex-col mt-4">
+                  <p>
+                    1. Para realizar tu pago, escanea el código QR que se
+                    muestra a continuación o utiliza el número:
+                  </p>
+                  <span className="font-bold text-[20px] text-[#54086F] ml-3">
+                    {" "}
+                    {paymentData?.number}
+                  </span>
+                  <p>2. Guarda el número de operación.</p>
+                  <div className="flex">
+                    <button
+                      className="text-[#0EA5E9] hover:underline"
+                      onClick={() => setShowModal(true)}
+                    >
+                      ¿Dónde encuentro mi número de operación?
+                    </button>
                   </div>
-                  <PaymentAmount price={post.price} />
-                </div>
-
-                <hr className="my-4" />
-                <h1 className="font-bold text-gray-800 text-center">
-                  {" "}
-                  Paga con yape
-                </h1>
-
-                <div className="flex flex-col items-center bg-[#742384] m-auto w-[150px] h-[150px] p-4 rounded-xl mb-4">
-                  <Image
-                    src={LogoYape}
-                    width={100}
-                    height={100}
-                    alt="yape logo"
+                  <img
+                    className="hidden md:block"
+                    src={paymentData?.QR}
+                    alt="QR Code"
+                    width={200}
+                    height={200}
                   />
                 </div>
-
-                <div className="max-w-xs mx-auto">
-                  <button
-                    className="btn w-full text-white bg-indigo-500 hover:bg-indigo-600 group shadow-sm"
-                    onClick={() => setCurrentStep(2)}
-                  >
-                    Realizar pago
-                    <span className="tracking-normal text-indigo-200 group-hover:translate-x-0.5 transition-transform duration-150 ease-in-out ml-1">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth="1.5"
-                        stroke="currentColor"
-                        className="w-6 h-6"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
-                        />
-                      </svg>
+              </div>
+              <div className="relative p-3 m-auto h-[50vh] md:h-[70vh] md:w-[35%] w-[90%] rounded-xl bg-[#F4F3F7] border-[#F4F3F7]">
+                <form
+                  className="flex flex-row gap-4 w-full justify-stretch"
+                  onSubmit={() => {}}
+                >
+                  <Input
+                    className="form-input w-full ring-secondary focus:ring-secondary-dark"
+                    type="text"
+                    name="promCode"
+                    placeholderText="Código de descuento"
+                    value={promCode}
+                    setFormValue={(value) => {
+                      setPromCode(value);
+                    }}
+                    error={false}
+                    required={false}
+                    bgColor="white"
+                  />
+                  <ButtonWrapper width={"full"}>{"Aplicar"}</ButtonWrapper>
+                </form>
+                <div className="text-base flex gap-2 flex-col mt-4">
+                  <div className="flex justify-between">
+                    <p>Entrada</p>
+                    <span className="font-bold text-[20px] text-[#54086F] ml-3">
+                      {"S/. "}
+                      {parseFloat(post?.price).toFixed(2)}
                     </span>
-                  </button>
+                  </div>
+
+                  <hr className="border-t border-gray-300 my-4" />
+                  <div className="flex justify-between">
+                    <p>Total</p>
+                    <span className="font-bold text-[20px] text-[#54086F] ml-3">
+                      {" S/. "}
+                      {parseFloat(post?.price).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                <div className="absolute bottom-3 left-0 right-0 mx-auto w-[95%]">
+                  <ButtonWrapper
+                    onClick={() => setCurrentStep(2)}
+                    width={"full"}
+                  >
+                    {"Ya realicé el pago"}
+                  </ButtonWrapper>
                 </div>
               </div>
             </div>
@@ -120,98 +158,125 @@ const PaymentStepper = (props: any) => {
         );
       case 2:
         return (
-          <div className="mb-4 step-content" id="step-2">
-            <div className="w-[350px] md:w-[450px] h-[500px] max-w-6xl mx-auto px-4 sm:px-2 mt-5">
-              {/* Display QR Code for Payment */}
-              <div className="flex flex-col items-center">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">
-                  Escanea el siguiente código QR para realizar tu pago:
-                </h2>
-                {/* Replace src with your dynamic QR code image source */}
-                {/* <Image
-                  src={paymentData.QR}
-                  width={200}
-                  height={200}
-                  alt="QR Code"
-                /> */}
-                <img
-                  src={paymentData?.QR}
-                  alt="QR Code"
-                  width={200}
-                  height={200}
-                />
-                <h2 className="text-lg font-bold text-gray-800 mb-4">
-                  O realiza el pago a la siguiente cuenta: {paymentData.number}
-                </h2>
-                <PaymentAmount price={post.price} />
-                <button
-                  className="mt-4 btn w-full text-white bg-indigo-500 hover:bg-indigo-600"
-                  onClick={() => setCurrentStep(3)}
+          <>
+            <div className="md:grow flex flex-col w-full justify-start">
+              <div className="pb-8 md:mx-8 mx-4 md:w-[40%] w-[90%]">
+                <Title2XL>Verificación</Title2XL>
+                <div className="text-base flex gap-2 flex-col mt-4">
+                  <p>
+                    Ingresa tu número de operación del pago realizado en la app
+                    de Yape
+                  </p>
+                  <Input
+                    className="form-input w-full ring-secondary focus:ring-secondary-dark"
+                    type="text"
+                    name="operationNumber"
+                    placeholderText="Número de operación"
+                    setFormValue={setOperationNumber}
+                    value={operationNumber}
+                    required={false}
+                    onChange={() => handleSetOperationNumber}
+                  />
+                  <div className="flex">
+                    <button
+                      className="text-[#0EA5E9] hover:underline"
+                      onClick={() => setShowModal(true)}
+                    >
+                      ¿Dónde encuentro mi número de operación?
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-row md:w-[50%] w-[90%] mx-auto gap-8 justify-between">
+                <ButtonWrapper
+                  onClick={() => setCurrentStep(1)}
+                  width={"full"}
+                  iconDirection="left"
+                  icon={
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth="1.5"
+                      stroke="currentColor"
+                      className="w-6 h-6"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
+                      />
+                    </svg>
+                  }
                 >
-                  He realizado el pago
-                </button>
+                  {"Regresar"}
+                </ButtonWrapper>
+                <ButtonWrapper
+                  onClick={handlePaymentConfirmation}
+                  width={"full"}
+                  disabled={operationNumber.length < 8}
+                >
+                  {"Finalizar"}
+                </ButtonWrapper>
               </div>
             </div>
-          </div>
+          </>
         );
       case 3:
-        return (
-          <div className="mb-4 step-content" id="step-3">
-            {/* Input for Operation Number */}
-            <div className="flex flex-col items-center">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">
-                Ingresa el número de operación:
-              </h2>
-              <input
-                type="number"
-                min={1}
-                value={operationNumber}
-                onChange={(e) => setOperationNumber(e.target.value)}
-                className="border p-2 text-center"
-                placeholder="Número de operación"
-              />
-              <div className="flex justify-center">
-                <button
-                  className="text-blue-500 hover:underline"
-                  onClick={() => setShowModal(true)}
-                >
-                  ¿Dónde encuentro mi número de operación?
-                </button>
-              </div>
-              <button
-                className="mt-4 btn w-full text-white bg-indigo-500 hover:bg-indigo-600"
-                onClick={handlePaymentConfirmation}
-              >
-                Confirmar pago
-              </button>
-            </div>
-          </div>
-        );
-      case 4:
         return loading ? (
           <div className="mb-4 step-content" id="step-4">
-            {/* Final Step for Operation Verification */}
             <div className="flex flex-col items-center">
+              <Image src={soccerBall} alt="arrow" width={24} height={24} />
               <h2 className="text-lg font-bold text-gray-800 mb-4">
                 Registrando tu asistencia...
               </h2>
-              {/* You could add a spinner or any loading indicator here */}
+
               <p>Por favor, espera mientras confirmamos tu registro.</p>
-              {/* Once the verification is complete, you can update the message or redirect the user */}
             </div>
           </div>
         ) : (
           <div>
             <div className="mb-4 step-content" id="step-4">
               <div className="flex flex-col items-center">
+                <Image src={soccerBall} alt="arrow" width={24} height={24} />
                 <h2 className="text-lg font-bold text-gray-800 mb-4">
                   ¡Ya estás registrada!
                 </h2>
+                <div className="flex">
+                  <button
+                    className="text-[#0EA5E9] hover:underline"
+                    onClick={() => router.push(`/tickets/${user.id}`)}
+                  >
+                    Ver estado de mi entrada
+                  </button>
+                </div>
                 <p>
                   La reserva se completará después de validar el comprobante de
-                  pago. Si no coincide, se cancelará la reserva. Puedes ver el
-                  detalle de tu asistencia en la sección de "Mis eventos".
+                  pago. Si no coincide, se cancelará la reserva.
                 </p>
+                <ButtonWrapper
+                  onClick={() => router.push(`/`)}
+                  width={"full"}
+                  iconDirection="left"
+                  icon={
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth="1.5"
+                      stroke="currentColor"
+                      className="w-6 h-6"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
+                      />
+                    </svg>
+                  }
+                >
+                  {"Volver al inicio"}
+                </ButtonWrapper>
               </div>
             </div>
           </div>
@@ -222,9 +287,33 @@ const PaymentStepper = (props: any) => {
   };
 
   return (
-    <div className="w-[350px] md:w-[500px] h-[600px]">
-      <Stepper step={currentStep} setCurrentStep={setCurrentStep} />
-      <StepContent />
+    <div className="w-full">
+      <div className="w-full px-4 mb-4 mx-4 hidden sm:block">
+        <Link className="text-[#54086F] font-medium" href="/">
+          <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-[#54086F] transition duration-150 ease-in-out">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.5"
+              stroke="currentColor"
+              className="w-6 h-6"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
+              />
+            </svg>
+            Todos los partidos
+          </span>{" "}
+        </Link>
+      </div>
+      {/* <Stepper step={currentStep} setCurrentStep={setCurrentStep} /> */}
+      <div className="w-full">
+        <StepContent />
+      </div>
+
       <OperationNumberModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}

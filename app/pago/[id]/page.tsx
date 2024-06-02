@@ -17,7 +17,7 @@ export default async function DetallePago({ params }: any) {
 
   // Render your components using the fetched data
   return (
-    <section>
+    <section className="w-full">
       <PaymentStepper post={event} paymentData={paymentMethod} user={user} />
     </section>
   );

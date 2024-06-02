@@ -13,6 +13,7 @@ interface ButtonWrapperProps {
   border?: string;
   children?: React.ReactNode;
   navigateTo?: string;
+  iconDirection?: "left" | "right";
 }
 
 export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
@@ -22,8 +23,12 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
   onClick,
   children,
   navigateTo,
+  iconDirection = "right",
 }) => {
   const buttonWidth = width === "fit-content" ? "w-fit" : `w-full`;
+  const buttonDisabled = disabled
+    ? "cursor-not-allowed bg-gray-500"
+    : "cursor-pointer bg-btnBg-light hover:bg-btnBg-dark hover:shadow";
 
   const router = useRouter();
 
@@ -38,17 +43,26 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] font-semibold bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 flex justify-center items-center relative box-border ${
-        disabled ? "cursor-not-allowed" : "cursor-pointer"
-      } `}
+      className={`${buttonWidth} px-3 py-[0.75rem] font-semibold  text-white rounded-xl my-0 flex justify-center items-center relative box-border ${buttonDisabled} `}
       onClick={handleClick}
       disabled={disabled}
     >
-      {children}
+      {icon && iconDirection === "left" && children && (
+        <>
+          <div className="mr-2">{icon}</div>
+          {children}
+        </>
+      )}
+      {icon && iconDirection === "right" && children && (
+        <>
+          {children}
+          <div className="ml-2">{icon}</div>
+        </>
+      )}
+      {!icon && children && <>{children}</>}
       {icon && !children && (
         <div style={{ minWidth: "min-content" }}>{icon}</div>
       )}
-      {icon && children && <div className="ml-2">{icon}</div>}
     </button>
   );
 };
@@ -126,11 +140,15 @@ export const ButtonHover: React.FC<ButtonWrapperProps> = ({
       onClick={onClick}
       disabled={disabled}
     >
+      {icon && children && (
+        <div className="mr-2">
+          {icon} {children}
+        </div>
+      )}
+
       {icon && !children && (
         <div style={{ minWidth: "min-content" }}>{icon}</div>
       )}
-      {icon && children && <div className="mr-2">{icon}</div>}
-      {children}
     </button>
   );
 };

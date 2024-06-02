@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 export const Stepper = ({
   step,
@@ -19,10 +19,10 @@ export const Stepper = ({
             <li>
               <span
                 onClick={() => setCurrentStep(1)}
-                className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                className={`flex items-center justify-center w-10 h-10 rounded-full text-md font-semibold ${
                   step >= 1
-                    ? 'bg-indigo-500 text-white'
-                    : 'bg-slate-100  text-slate-500 '
+                    ? "bg-[#54086F] text-white"
+                    : "bg-slate-100  text-slate-500 "
                 }`}
               >
                 1
@@ -31,10 +31,10 @@ export const Stepper = ({
             <li>
               <span
                 onClick={() => setCurrentStep(2)}
-                className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                className={`flex items-center justify-center w-10 h-10 rounded-full text-md font-semibold ${
                   step >= 2
-                    ? 'bg-indigo-500 text-white'
-                    : 'bg-slate-100  text-slate-500 '
+                    ? "bg-[#54086F] text-white"
+                    : "bg-slate-100  text-slate-500 "
                 }`}
               >
                 2
@@ -42,28 +42,27 @@ export const Stepper = ({
             </li>
             <li>
               <span
-                onClick={() => setCurrentStep(3)}
-                className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                className={`flex items-center justify-center w-10 h-10 rounded-full text-md font-semibold ${
                   step >= 3
-                    ? 'bg-indigo-500 text-white'
-                    : 'bg-slate-100  text-slate-500 '
+                    ? "bg-[#54086F] text-white"
+                    : "bg-slate-100  text-slate-500 "
                 }`}
               >
                 3
               </span>
             </li>
-            <li>
+            {/* <li>
               <span
                 onClick={() => setCurrentStep(4)}
-                className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                className={`flex items-center justify-center w-6 h-6 rounded-full text-md font-semibold ${
                   step >= 4
-                    ? 'bg-indigo-500 text-white'
+                    ? 'bg-[#54086F] text-white'
                     : 'bg-slate-100  text-slate-500 '
                 }`}
               >
                 4
               </span>
-            </li>
+            </li> */}
           </ul>
         </div>
       </div>
