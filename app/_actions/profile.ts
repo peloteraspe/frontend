@@ -11,7 +11,7 @@ export async function createProfile(requestBody: ProfileRequestBody) {
       },
       body: JSON.stringify(requestBody),
     });
-
+    console.log("response", response);
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || response.statusText);
@@ -20,6 +20,7 @@ export async function createProfile(requestBody: ProfileRequestBody) {
   } catch (error: any) {
     console.log(error);
     console.error("Error fetching events:", error.message);
+    throw error;
   }
 }
 

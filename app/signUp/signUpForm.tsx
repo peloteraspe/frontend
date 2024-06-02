@@ -1,49 +1,83 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import SelectComponent, { OptionSelect } from "@/components/SelectComponent";
-import { createClient } from "@/utils/supabase/client";
-import toast from "react-hot-toast";
-import { useRouter } from "next/navigation"; // Corrected import
-import { ParagraphM, Title2XL } from "@/components/atoms/Typography";
-import Input from "@/components/Input";
-import { ButtonWrapper } from "@/components/Button";
-import { ProfileRequestBody } from "@/utils/interfaces";
-import { createProfile } from "../_actions/profile";
-import { levelFormatted, playerPositionsFormatted } from "@/utils/data";
+'use client';
+import React, { useEffect, useState } from 'react';
+import SelectComponent, { OptionSelect } from '@/components/SelectComponent';
+import { createClient } from '@/utils/supabase/client';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation'; // Corrected import
+import { ParagraphM, Title2XL } from '@/components/atoms/Typography';
+import Input from '@/components/Input';
+import { ButtonWrapper } from '@/components/Button';
+import { ProfileRequestBody } from '@/utils/interfaces';
+import { createProfile } from '../_actions/profile';
+import { levelFormatted, playerPositionsFormatted } from '@/utils/data';
+import { useForm } from 'react-hook-form';
 
 const UpdateProfile = ({ user }: any) => {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    control,
+  } = useForm();
   const supabase = createClient();
   const router = useRouter();
   const [selectedMultiOptions, setSelectedMultiOptions] = useState<
     OptionSelect[]
   >([]);
-  const [buttonText, setButtonText] = useState("Crear cuenta");
+  const [buttonText, setButtonText] = useState('Crear cuenta');
   const [loading, setLoading] = useState(false);
   const [posiciones, setPosiciones] = useState<OptionSelect[]>([]);
   const [levelOption, setLevelOption] = useState<OptionSelect[]>([]);
   const [selectedLevelOptions, setSelectedLevelOptions] =
     useState<OptionSelect>();
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState('');
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
+  // const submit = async (e: any) => {
+  // e.preventDefault();
+  // setLoading(true);
+  // const reqProfile: ProfileRequestBody = {
+  //   user: user?.id,
+  //   username: username,
+  //   level_id: selectedLevelOptions
+  //     ? levelFormatted(selectedLevelOptions)
+  //     : -1,
+  //   player_position: playerPositionsFormatted(selectedMultiOptions),
+  // };
+
+  // try {
+  //   await createProfile(reqProfile);
+  //   toast.success('Profile updated successfully');
+  //   window.location.reload();
+  // } catch (error) {
+  //   console.error('Error updating profile:', error);
+  //   toast.error('Failed to update profile');
+  // } finally {
+  //   setLoading(false); // End loading
+  // }
+  // };
+
+  const submit = async (data: any) => {
     setLoading(true);
     const reqProfile: ProfileRequestBody = {
       user: user?.id,
-      username: username,
-      level_id: selectedLevelOptions
-        ? levelFormatted(selectedLevelOptions)
-        : -1,
-      player_position: playerPositionsFormatted(selectedMultiOptions),
+      username: data.username,
+      level_id: data.level_id && levelFormatted(data.level_id),
+      player_position: playerPositionsFormatted(data.player_position),
     };
 
     try {
       await createProfile(reqProfile);
-      toast.success("Profile updated successfully");
+      toast.success('Perfil actualizado exitosamente');
       window.location.reload();
     } catch (error) {
-      console.error("Error updating profile:", error);
-      toast.error("Failed to update profile");
+      console.log('Error updating profile:', error);
+      if (error.toString().includes('profile_username_key')) {
+        toast.error(
+          'El nombre de usuario ya está en uso, por favor elige otro.'
+        );
+      } else {
+        toast.error('No se pudo actualizar el perfil');
+      }
     } finally {
       setLoading(false); // End loading
     }
@@ -54,11 +88,11 @@ const UpdateProfile = ({ user }: any) => {
     const fetchPosiciones = async () => {
       try {
         const { data, error } = await supabase
-          .from("player_position")
-          .select("id, name");
+          .from('player_position')
+          .select('id, name');
 
         if (error) {
-          console.error("Error fetching positions:", error);
+          console.error('Error fetching positions:', error);
           // Consider adding user feedback here, e.g., using a toast notification
         } else {
           const positionOptions = data.map((position) => ({
@@ -69,7 +103,7 @@ const UpdateProfile = ({ user }: any) => {
           setPosiciones(positionOptions);
         }
       } catch (error) {
-        console.error("Error fetching positions:", error);
+        console.error('Error fetching positions:', error);
         // Consider adding user feedback here, e.g., using a toast notification
       }
     };
@@ -77,10 +111,10 @@ const UpdateProfile = ({ user }: any) => {
     // Fetch player levels from the database and update state
     const fetchLevels = async () => {
       try {
-        const { data, error } = await supabase.from("level").select("id, name");
+        const { data, error } = await supabase.from('level').select('id, name');
 
         if (error) {
-          console.error("Error fetching levels:", error);
+          console.error('Error fetching levels:', error);
           // Consider adding user feedback here, e.g., using a toast notification
         } else {
           const lvlOptions = data.map((level) => ({
@@ -91,7 +125,7 @@ const UpdateProfile = ({ user }: any) => {
           setLevelOption(lvlOptions);
         }
       } catch (error) {
-        console.error("Error fetching levels:", error);
+        console.error('Error fetching levels:', error);
         // Consider adding user feedback here, e.g., using a toast notification
       }
     };
@@ -109,17 +143,19 @@ const UpdateProfile = ({ user }: any) => {
       </div>
 
       <div className="flex flex-col items-center">
-        <form className="flex flex-col gap-4 w-full" onSubmit={handleSubmit}>
+        <form
+          className="flex flex-col gap-4 w-full"
+          onSubmit={handleSubmit(submit)}
+        >
           <Input
-            className="form-input w-full ring-secondary focus:ring-secondary-dark"
-            labelText="Crea un nombre"
+            label="Crea un nombre"
             type="text"
-            name="username"
-            placeholderText="ejm: pelotera123"
-            value={username}
-            setFormValue={setUsername}
-            errorText="Debes ingresar un nombre"
             required
+            register={register}
+            errors={errors}
+            error={errors.username}
+            name="username"
+            bgColor="bg-white ring-secondary focus:ring-secondary-dark border-mulberry"
           />
 
           <label className="w-full">
@@ -131,9 +167,9 @@ const UpdateProfile = ({ user }: any) => {
             </div>
             <SelectComponent
               options={posiciones}
-              onChange={(value: any) => setSelectedMultiOptions(value)}
               isMulti={true}
-              value={selectedMultiOptions}
+              control={control}
+              name="player_position"
             />
           </label>
 
@@ -146,14 +182,14 @@ const UpdateProfile = ({ user }: any) => {
             </div>
             <SelectComponent
               options={levelOption}
-              onChange={(value: any) => setSelectedLevelOptions(value)}
-              value={selectedLevelOptions}
+              control={control}
+              name="level_id"
             />
           </label>
 
           <div className="flex flex-col items-center w-80">
-            <ButtonWrapper width={"full"} disabled={loading}>
-              {loading ? "Actualizando..." : buttonText}
+            <ButtonWrapper width={'full'} disabled={loading}>
+              {loading ? 'Actualizando...' : buttonText}
             </ButtonWrapper>
           </div>
         </form>
