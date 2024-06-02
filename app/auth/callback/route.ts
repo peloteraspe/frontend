@@ -11,8 +11,8 @@ export async function GET(request: Request) {
 
   const currentDomain =
     headers().get('origin') === 'http://localhost:3000'
-      ? 'http://localhost:3000/auth/callback'
-      : 'https://www.peloteras.com/auth/callback';
+      ? 'http://localhost:3000'
+      : 'https://www.peloteras.com';
 
   const code = new URL(request.url).searchParams.get('code');
   if (code) {
