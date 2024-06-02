@@ -1,11 +1,11 @@
-"use client";
-import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
-import { ButtonM, ParagraphM } from "@/components/atoms/Typography";
-import SelectComponent, { OptionSelect } from "@/components/SelectComponent";
-import { updateProfile } from "../_actions/profile";
-import { UserProfileUpdate } from "@/utils/interfaces";
-import toast from "react-hot-toast";
+'use client';
+import { useEffect, useState } from 'react';
+import { ButtonM, ParagraphM } from '@/components/atoms/Typography';
+import SelectComponent, { OptionSelect } from '@/components/SelectComponent';
+import { UserProfileUpdate } from '@/utils/interfaces';
+import toast from 'react-hot-toast';
+import { useForm } from 'react-hook-form';
+import Input from '@/components/Input';
 
 interface ProfileUpdateFormProps {
   userProfile: string;
@@ -30,12 +30,20 @@ const ProfileUpdateForm = ({
   updateProfile,
   userId,
 }: ProfileUpdateFormProps) => {
-  const supabase = createClient();
-  const [formData, setFormData] = useState({
-    username: userProfile,
-    level_id: levelsData,
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+    control,
+    setValue
+  } = useForm({
+    defaultValues: {
+      username: userProfile,
+      level_id: levelsData.value,
+      positions: positionsData,
+    },
   });
-
   const [positions, setPositions] = useState<OptionSelect[] | null>(
     positionsData
   );
@@ -43,45 +51,43 @@ const ProfileUpdateForm = ({
   const [levels, setLevels] = useState<OptionSelect | null>(levelsData);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleInputChange = (e: any) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
   const getKey = (name: string) => {
     const result = levelsOptions.find((level) => level.label === name);
     return result ? result.value : undefined;
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const submit = async (data: any) => {
     setIsLoading(true);
-
     try {
       const updateData: UserProfileUpdate = {
-        username: formData.username,
-        level_id: getKey(levels.label),
+        username: data.username,
+        level_id: getKey(data.level_id),
         player_position: positions.map((pos) => pos.value as number),
       };
 
       await updateProfile(userId, updateData);
-      toast.success("¡Se actualizó tu perfil con éxito!");
+      toast.success('¡Se actualizó tu perfil con éxito!');
     } catch (error) {
-      toast.error("Hubo un error al actualizar tu perfil: " + error.message);
+      toast.error('Hubo un error al actualizar tu perfil: ' + error.message);
     } finally {
       setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    setValue('positions', positionsData);
+  }, [positionsData]);
+
+  useEffect(() => {
+    setValue('level_id', levelsData ? levelsData[0].value : '');
+  }, [levelsData]);
+
   return (
-    <form className="flex flex-col space-y-8" onSubmit={handleSubmit}>
+    <form className="flex flex-col space-y-8" onSubmit={handleSubmit(submit)}>
       <div className="flex flex-1 items-center justify-center space-x-4 md:justify-end">
         <button
           className="px-4 py-[0.60rem] bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border"
-          style={{ minWidth: "120px" }}
+          style={{ minWidth: '120px' }}
           disabled={isLoading}
         >
           {isLoading ? (
@@ -97,22 +103,16 @@ const ProfileUpdateForm = ({
             <div className="max-w-sm mt-2">
               <div className="p-6">
                 <div className="mb-8">
-                  <label htmlFor="username">
-                    <ParagraphM fontWeight="semibold">
-                      Crea un nombre
-                    </ParagraphM>
-                  </label>
-                  <div className="relative mt-2">
-                    <input
-                      type="text"
-                      name="username"
-                      id="username"
-                      value={formData.username}
-                      onChange={handleInputChange}
-                      className="p-2 rounded-xl w-full text-black leading-tight hover:outline-none placeholder:text-lightGray border border-[#54086F] focus:border-[#54086F] hover:border-[#54086F]"
-                      placeholder="Ej. pelotera123"
-                    />
-                  </div>
+                  <Input
+                    label="Nombre de usuario"
+                    type="text"
+                    required
+                    register={register}
+                    errors={errors}
+                    error={errors.username}
+                    name="username"
+                    bgColor="bg-white ring-secondary focus:ring-secondary-dark border-mulberry"
+                  />
                 </div>
 
                 <div className="mb-8">
@@ -123,13 +123,15 @@ const ProfileUpdateForm = ({
                   </label>
                   <div className="relative mt-2">
                     <SelectComponent
-                      options={playerPositionOptions.map((position: any) => ({
-                        value: position.value,
-                        label: position.label,
-                      }))}
-                      value={positions}
+                      options={
+                        playerPositionOptions?.map((pos) => ({
+                          value: pos.value,
+                          label: pos.label,
+                        })) || []
+                      }
+                      control={control}
+                      name="positions"
                       isMulti={true}
-                      onChange={(selected: any) => setPositions(selected)}
                     />
                   </div>
                 </div>
@@ -142,12 +144,9 @@ const ProfileUpdateForm = ({
                   </label>
                   <div className="relative mt-2">
                     <SelectComponent
-                      options={levelsOptions.map((level: any) => ({
-                        value: level.value,
-                        label: level.label,
-                      }))}
-                      value={levels}
-                      onChange={(selected: any) => setLevels(selected)}
+                      options={levelsOptions || []}
+                      control={control}
+                      name="level_id"
                     />
                   </div>
                 </div>

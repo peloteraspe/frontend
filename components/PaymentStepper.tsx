@@ -1,45 +1,40 @@
-"use client";
-import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
-import Image from "next/image";
+'use client';
+import { useCallback, useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import Image from 'next/image';
 
-import LogoYape from "../app/assets/Logo.Yape.webp";
-import { Stepper } from "./Stepper";
-import PaymentAmount from "./PaymentAmount";
-import OperationNumberModal from "./OperationNumberModal";
-import operationGuideImage from "../app/assets/donde-nro-operacion.png";
-import { Title2XL } from "./atoms/Typography";
-import Link from "next/link";
-import Input from "./Input";
-import { ButtonWrapper } from "./Button";
-import { useRouter } from "next/navigation";
-import soccerBall from "../app/assets/soccer-ball.svg";
+import LogoYape from '../app/assets/Logo.Yape.webp';
+import { Stepper } from './Stepper';
+import PaymentAmount from './PaymentAmount';
+import OperationNumberModal from './OperationNumberModal';
+import operationGuideImage from '../app/assets/donde-nro-operacion.png';
+import { Title2XL } from './atoms/Typography';
+import Link from 'next/link';
+import Input from './Input';
+import { ButtonWrapper } from './Button';
+import { useRouter } from 'next/navigation';
+import soccerBall from '../app/assets/soccer-ball.svg';
+import { useForm } from 'react-hook-form';
 
 const PaymentStepper = (props: any) => {
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm();
+
   const supabase = createClient();
   const { post, paymentData, user } = props;
   const [currentStep, setCurrentStep] = useState(1);
-  const [operationNumber, setOperationNumber] = useState("");
+  const [operationNumber, setOperationNumber] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [promCode, setPromCode] = useState("");
+  const [promCode, setPromCode] = useState('');
   const [promCodeError, setPromCodeError] = useState(false);
   const router = useRouter();
 
-  paymentData.QR = paymentData.QR.replace(/^"|"$/g, "");
-
-  // const handlePaymentConfirmation = () => {
-  //   setCurrentStep(4);
-  //   const registeredPlayer = {
-  //     operationNumber: operationNumber,
-  //     event: post.id,
-  //     user: user.id,
-  //   };
-  // };
-
-  useEffect(() => {
-    console.log(operationNumber);
-  }, [operationNumber]);
+  paymentData.QR = paymentData.QR.replace(/^"|"$/g, '');
 
   const handlePaymentConfirmation = async () => {
     setCurrentStep(3);
@@ -48,12 +43,12 @@ const PaymentStepper = (props: any) => {
       operationNumber: operationNumber,
       event: post.id,
       user: user.id,
-      state: "pending",
+      state: 'pending',
     };
 
     // Update or insert into the 'profiles' table
     const { data, error } = await supabase
-      .from("assistants")
+      .from('assistants')
       .upsert(registeredPlayer, {
         // Specify conflict handling options here if needed
         // For example, specify the column to detect conflicts on:
@@ -61,15 +56,21 @@ const PaymentStepper = (props: any) => {
       });
 
     if (error) {
-      console.error("Error updating profile:", error);
+      console.error('Error updating profile:', error);
     } else {
       setLoading(false);
     }
   };
 
-  const handleSetOperationNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setOperationNumber(e.target.value);
-  };
+  const handleSetOperationNumber = useCallback(
+    (e) => {
+      const newValue = e.target.value;
+      if (operationNumber !== newValue) {
+        setOperationNumber(newValue);
+      }
+    },
+    [operationNumber]
+  );
 
   const StepContent = () => {
     switch (currentStep) {
@@ -85,7 +86,7 @@ const PaymentStepper = (props: any) => {
                     muestra a continuación o utiliza el número:
                   </p>
                   <span className="font-bold text-[20px] text-[#54086F] ml-3">
-                    {" "}
+                    {' '}
                     {paymentData?.number}
                   </span>
                   <p>2. Guarda el número de operación.</p>
@@ -109,28 +110,27 @@ const PaymentStepper = (props: any) => {
               <div className="relative p-3 m-auto h-[50vh] md:h-[70vh] md:w-[35%] w-[90%] rounded-xl bg-[#F4F3F7] border-[#F4F3F7]">
                 <form
                   className="flex flex-row gap-4 w-full justify-stretch"
-                  onSubmit={() => {}}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    setPromCodeError(true);
+                  }}
                 >
                   <Input
-                    className="form-input w-full ring-secondary focus:ring-secondary-dark"
-                    type="text"
-                    name="promCode"
-                    placeholderText="Código de descuento"
-                    value={promCode}
-                    setFormValue={(value) => {
-                      setPromCode(value);
-                    }}
-                    error={false}
-                    required={false}
-                    bgColor="white"
+                    label="Código promocional"
+                    name="operationNumber"
+                    placeholder="Ingresa tu código promocional"
+                    register={register}
+                    required
+                    errors={errors}
+                    bgColor='bg-white'
                   />
-                  <ButtonWrapper width={"full"}>{"Aplicar"}</ButtonWrapper>
+                  <ButtonWrapper width={'full'}>{'Aplicar'}</ButtonWrapper>
                 </form>
                 <div className="text-base flex gap-2 flex-col mt-4">
                   <div className="flex justify-between">
                     <p>Entrada</p>
                     <span className="font-bold text-[20px] text-[#54086F] ml-3">
-                      {"S/. "}
+                      {'S/. '}
                       {parseFloat(post?.price).toFixed(2)}
                     </span>
                   </div>
@@ -139,7 +139,7 @@ const PaymentStepper = (props: any) => {
                   <div className="flex justify-between">
                     <p>Total</p>
                     <span className="font-bold text-[20px] text-[#54086F] ml-3">
-                      {" S/. "}
+                      {' S/. '}
                       {parseFloat(post?.price).toFixed(2)}
                     </span>
                   </div>
@@ -147,9 +147,9 @@ const PaymentStepper = (props: any) => {
                 <div className="absolute bottom-3 left-0 right-0 mx-auto w-[95%]">
                   <ButtonWrapper
                     onClick={() => setCurrentStep(2)}
-                    width={"full"}
+                    width={'full'}
                   >
-                    {"Ya realicé el pago"}
+                    {'Ya realicé el pago'}
                   </ButtonWrapper>
                 </div>
               </div>
@@ -168,14 +168,12 @@ const PaymentStepper = (props: any) => {
                     de Yape
                   </p>
                   <Input
-                    className="form-input w-full ring-secondary focus:ring-secondary-dark"
-                    type="text"
+                    label="Número de operación"
                     name="operationNumber"
-                    placeholderText="Número de operación"
-                    setFormValue={setOperationNumber}
-                    value={operationNumber}
+                    placeholder="Ingresa tu número de operación"
+                    register={register}
                     required={false}
-                    onChange={() => handleSetOperationNumber}
+                    errors={{}}
                   />
                   <div className="flex">
                     <button
@@ -190,7 +188,7 @@ const PaymentStepper = (props: any) => {
               <div className="flex flex-row md:w-[50%] w-[90%] mx-auto gap-8 justify-between">
                 <ButtonWrapper
                   onClick={() => setCurrentStep(1)}
-                  width={"full"}
+                  width={'full'}
                   iconDirection="left"
                   icon={
                     <svg
@@ -209,14 +207,14 @@ const PaymentStepper = (props: any) => {
                     </svg>
                   }
                 >
-                  {"Regresar"}
+                  {'Regresar'}
                 </ButtonWrapper>
                 <ButtonWrapper
                   onClick={handlePaymentConfirmation}
-                  width={"full"}
+                  width={'full'}
                   disabled={operationNumber.length < 8}
                 >
-                  {"Finalizar"}
+                  {'Finalizar'}
                 </ButtonWrapper>
               </div>
             </div>
@@ -256,7 +254,7 @@ const PaymentStepper = (props: any) => {
                 </p>
                 <ButtonWrapper
                   onClick={() => router.push(`/`)}
-                  width={"full"}
+                  width={'full'}
                   iconDirection="left"
                   icon={
                     <svg
@@ -275,7 +273,7 @@ const PaymentStepper = (props: any) => {
                     </svg>
                   }
                 >
-                  {"Volver al inicio"}
+                  {'Volver al inicio'}
                 </ButtonWrapper>
               </div>
             </div>
@@ -306,7 +304,7 @@ const PaymentStepper = (props: any) => {
               />
             </svg>
             Todos los partidos
-          </span>{" "}
+          </span>{' '}
         </Link>
       </div>
       {/* <Stepper step={currentStep} setCurrentStep={setCurrentStep} /> */}

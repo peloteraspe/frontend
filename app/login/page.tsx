@@ -1,50 +1,40 @@
 'use client';
-
+import { useForm } from 'react-hook-form';
 import { Title2XL } from '@/components/atoms/Typography';
 import { ButtonWrapper } from '@/components/Button';
 import Input from '@/components/Input';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { signIn } from './auth';
 import toast from 'react-hot-toast';
 
 export default function Login() {
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors }
+  } = useForm();
+  const emailValue = watch('email');
   const [buttonText, setButtonText] = useState('Obtener enlace mágico');
-  const [emailValue, setEmailValue] = useState('');
-  const [emailError, setEmailError] = useState(false);
 
-  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); // Prevent the default form submission
-    setButtonText('Cargando...'); 
+  const handleSignIn = async (data) => {
+    setButtonText('Cargando...');
 
-    if (!emailValue) {
-      // Verifica si el campo de correo electrónico está vacío
-      setEmailError(true); // Establece el estado de error en true
-      setButtonText('Obtener enlace mágico'); // Restablece el texto del botón
-      return; // Detiene la función si hay un error
+    if (!data.email) {
+      toast.error('Debes ingresar un correo válido.');
+      setButtonText('Obtener enlace mágico');
+      return;
     }
 
     try {
-      await signIn(emailValue);
-      toast.success(
-        '¡Enlace enviado! Revisa tu correo para ingresar a tu cuenta'
-      );
+      await signIn(data.email);
+      toast.success('¡Enlace enviado! Revisa tu correo para ingresar a tu cuenta');
       setButtonText('Enlace mágico enviado');
     } catch (error) {
       console.error('Error during sign in:', error);
-      toast.error(
-        'Hubo un error al enviar el enlace. Por favor, inténtalo de nuevo.'
-      ); // Display error toast
-      setButtonText('Obtener enlace mágico'); // Reset button text on error
+      toast.error('Hubo un error al enviar el enlace. Por favor, inténtalo de nuevo.');
+      setButtonText('Obtener enlace mágico');
     }
-  };
-
-  const handleEmailErrorChange = (error: boolean) => {
-    setEmailError(error);
-  };
-
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmailValue(e.target.value);
-    setEmailError(false);
   };
 
   return (
@@ -54,26 +44,19 @@ export default function Login() {
         <Title2XL color="text-mulberry">Peloteras</Title2XL>
       </div>
       <div className="flex flex-col items-center">
-        <form
-          className="flex flex-col gap-4 w-full"
-          onSubmit={handleSignIn} // Use onSubmit instead of action and method
-        >
+        <form className="flex flex-col gap-4 w-full" onSubmit={handleSubmit(handleSignIn)}>
           <Input
-            className="form-input w-full ring-secondary focus:ring-secondary-dark"
-            labelText="Correo electrónico"
-            type="email"
+            register={register}
+            errors={errors}
             name="email"
-            placeholderText="Ingresa tu correo"
-            value={emailValue}
-            setFormValue={setEmailValue}
-            onErrorChange={handleEmailErrorChange}
-            errorText="Debes ingresar un correo "
-            error={emailError}
-            onChange={handleEmailChange}
+            label="Correo electrónico"
+            type="email"
+            placeholder="Ingresa tu correo"
             required
+            error={errors.email}
           />
           <div className="flex flex-col items-center w-80">
-            <ButtonWrapper width={'full'} disabled={emailError}>
+            <ButtonWrapper width={'full'} disabled={!emailValue}>
               {buttonText}
             </ButtonWrapper>
           </div>
