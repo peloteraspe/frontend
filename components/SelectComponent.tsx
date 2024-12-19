@@ -1,8 +1,8 @@
-import React from 'react';
-import Select from 'react-select';
-import makeAnimated from 'react-select/animated';
-import { Controller } from 'react-hook-form';
-import { ParagraphM } from './atoms/Typography';
+import React from "react";
+import Select from "react-select";
+import makeAnimated from "react-select/animated";
+import { Controller } from "react-hook-form";
+import { ParagraphM } from "./atoms/Typography";
 
 const animatedComponents = makeAnimated();
 
@@ -30,7 +30,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
   required = false,
   isMulti = false,
 }) => {
-  console.log('isMulti', isMulti);
+  console.log("isMulti", isMulti);
   return (
     <div className="w-full">
       {labelText && (
@@ -46,7 +46,9 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
         control={control}
         render={({ field: { onChange, onBlur, value, ref } }) => {
           const selectedValue = isMulti
-            ? options.filter((option) => value.map((v) => v.value).includes(option.value))
+            ? options.filter((option) =>
+                value?.map((v) => v.value).includes(option.value)
+              )
             : options.find((option) => option.value === value);
           return (
             <Select
@@ -65,13 +67,13 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
               styles={{
                 control: (base) => ({
                   ...base,
-                  borderColor: 'purple',
-                  '&:hover': { borderColor: 'darkpurple' },
-                  boxShadow: 'none',
+                  borderColor: "purple",
+                  "&:hover": { borderColor: "darkpurple" },
+                  boxShadow: "none",
                 }),
               }}
               placeholder="Select option"
-              noOptionsMessage={() => 'No options'}
+              noOptionsMessage={() => "No options"}
             />
           );
         }}
