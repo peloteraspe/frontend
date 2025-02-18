@@ -2,7 +2,8 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 
 export async function fetchData(id: any) {
-  const cookieStore = cookies();
+  // Await cookies() to get the actual cookies object
+  const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
 
   // Fetch the event data

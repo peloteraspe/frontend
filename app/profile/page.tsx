@@ -19,7 +19,8 @@ const loadProfilePosition = async (userId: any) => {
 };
 
 const ProfilePage = async () => {
-  const cookieStore = cookies();
+  // Await cookies() so that cookieStore is the resolved cookies object.
+  const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
 
   const {
@@ -33,7 +34,6 @@ const ProfilePage = async () => {
   const { player_position, username, level } = await getProfile(user.id);
 
   const playerPositionOptions = await fetchPlayersPosition();
-
   const levelsOptions = await fetchLevels();
   const playerPositionOptionsFormatted = formatProfileData(
     playerPositionOptions
@@ -44,7 +44,6 @@ const ProfilePage = async () => {
 
   return (
     <div className="container max-w-screen-xl grid items-center p-4 space-y-12 mt-8">
-      {/* <div className="container max-w-screen-xl grid items-center space-y-12 p-8 gap-8 pb-8 pt-6 md:py-8 mt-12"> */}
       <div className="flex flex-col space-y-12 p-6 md:mx-12">
         <div className="flex flex-col space-y-6">
           <div className="mb-4 text-xl sm:text-2xl md:text-3xl lg:text-4xl text-center sm:text-left font-extrabold">
@@ -60,7 +59,6 @@ const ProfilePage = async () => {
             userId={user.id}
           />
         </div>
-
         <div className="flex flex-col space-y-6 py-12">
           <div className="mb-10 text-xl sm:text-2xl md:text-3xl lg:text-4xl text-center sm:text-left">
             <Title2XL fontWeight="extrabold">Mi equipo</Title2XL>

@@ -10,7 +10,8 @@ import { getFeatures } from "@/lib/data/getFeatures";
 import { getEvents } from "@/lib/data/getEvents";
 
 export default async function Index() {
-  const cookieStore = cookies();
+  // Await cookies() so that cookieStore holds the resolved cookies object.
+  const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const {
     data: { user },

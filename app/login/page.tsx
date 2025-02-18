@@ -12,7 +12,7 @@ export default function Login() {
     register,
     handleSubmit,
     watch,
-    formState: { errors }
+    formState: { errors },
   } = useForm();
   const emailValue = watch('email');
   const [buttonText, setButtonText] = useState('Obtener enlace mágico');
@@ -28,11 +28,15 @@ export default function Login() {
 
     try {
       await signIn(data.email);
-      toast.success('¡Enlace enviado! Revisa tu correo para ingresar a tu cuenta');
+      toast.success(
+        '¡Enlace enviado! Revisa tu correo para ingresar a tu cuenta'
+      );
       setButtonText('Enlace mágico enviado');
     } catch (error) {
       console.error('Error during sign in:', error);
-      toast.error('Hubo un error al enviar el enlace. Por favor, inténtalo de nuevo.');
+      toast.error(
+        'Hubo un error al enviar el enlace. Por favor, inténtalo de nuevo.'
+      );
       setButtonText('Obtener enlace mágico');
     }
   };
@@ -44,7 +48,10 @@ export default function Login() {
         <Title2XL color="text-mulberry">Peloteras</Title2XL>
       </div>
       <div className="flex flex-col items-center">
-        <form className="flex flex-col gap-4 w-full" onSubmit={handleSubmit(handleSignIn)}>
+        <form
+          className="flex flex-col gap-4 w-full"
+          onSubmit={handleSubmit(handleSignIn)}
+        >
           <Input
             register={register}
             errors={errors}
@@ -52,7 +59,7 @@ export default function Login() {
             label="Correo electrónico"
             type="email"
             placeholder="Ingresa tu correo"
-            required
+            required={true}
             error={errors.email}
           />
           <div className="flex flex-col items-center w-80">

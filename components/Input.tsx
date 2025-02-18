@@ -1,4 +1,23 @@
 import { ParagraphM } from './atoms/Typography';
+
+interface InputProps {
+  // Allow both controlled (labelText) and react-hook-form (label) props.
+  labelText?: string;
+  label?: string;
+  placeholderText?: string;
+  value?: string; // made optional
+  setFormValue?: React.Dispatch<React.SetStateAction<string>>; // made optional
+  required?: boolean;
+  errorText?: string;
+  // Form specific props are now optional.
+  register?: any;
+  name?: string;
+  errors?: any;
+  icon?: React.ReactNode;
+  bgColor?: string;
+  [x: string]: any;
+}
+
 const Input = ({
   label,
   register,
@@ -8,16 +27,7 @@ const Input = ({
   icon,
   bgColor = 'bg-inputBg',
   ...rest
-}: {
-  label?: string;
-  register: any;
-  required: boolean;
-  name: string;
-  errors: any;
-  icon?: React.ReactNode;
-  bgColor?: string;
-  [x: string]: any;
-}) => {
+}: InputProps) => {
   return (
     <label className="w-full">
       {label && (
@@ -31,7 +41,7 @@ const Input = ({
       <div className="relative">
         <input
           {...register(name, { required })}
-          className={`py-2 px-3 focus:outline-none h-[44px] text-sm focus:ring-2 focus:ring-secondary focus:ring-opacity-50 transition duration-150 appearance-none rounded-xl w-full text-black leading-tight hover:outline-none placeholder:text-lightGray ${
+          className={`... ${
             errors[name] ? 'border-red-500' : 'border-mulberry'
           } ${bgColor}`}
           {...rest}

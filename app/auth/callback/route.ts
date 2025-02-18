@@ -3,20 +3,17 @@ import { NextResponse } from 'next/server';
 import { cookies, headers } from 'next/headers';
 
 export async function GET(request: Request) {
-  // The `/auth/callback` route is required for the server-side auth flow implemented
-  // by the Auth Helpers package. It exchanges an auth code for the user's session.
-  // https://supabase.com/docs/guides/auth/auth-helpers/nextjs#managing-sign-in-with-code-exchange
-  // const requestUrl = new URL(request.url);
-  // const code = requestUrl.searchParams.get('code');
-
+  // Await the headers promise to get the actual headers object
+  const h = await headers();
+  
   const currentDomain =
-    headers().get('origin') === 'http://localhost:3000'
+    h.get('origin') === 'http://localhost:3000'
       ? 'http://localhost:3000'
       : 'https://www.peloteras.com';
 
   const code = new URL(request.url).searchParams.get('code');
   if (code) {
-    const cookieStore = cookies();
+    const cookieStore = await cookies(); // Await cookies() here
     const supabase = createClient(cookieStore);
     await supabase.auth.exchangeCodeForSession(code);
   }

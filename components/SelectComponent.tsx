@@ -1,8 +1,8 @@
-import React from "react";
-import Select from "react-select";
-import makeAnimated from "react-select/animated";
-import { Controller } from "react-hook-form";
-import { ParagraphM } from "./atoms/Typography";
+import React from 'react';
+import Select from 'react-select';
+import makeAnimated from 'react-select/animated';
+import { Controller } from 'react-hook-form';
+import { ParagraphM } from './atoms/Typography';
 
 const animatedComponents = makeAnimated();
 
@@ -14,12 +14,15 @@ export interface OptionSelect {
 
 interface SelectComponentProps {
   options: OptionSelect[];
-  control: any;
-  name: string;
+  control?: any; // Optional, for react-hook-form usage
+  name?: string; // Optional, for react-hook-form usage
   labelText?: string;
   required?: boolean;
   isMulti?: boolean;
   isSearchable?: boolean;
+  // Add controlled component props:
+  onChange?: (value: any) => void;
+  value?: any;
 }
 
 const SelectComponent: React.FC<SelectComponentProps> = ({
@@ -29,8 +32,10 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
   labelText,
   required = false,
   isMulti = false,
+  onChange, // controlled prop
+  value, // controlled prop
+  ...rest
 }) => {
-  console.log("isMulti", isMulti);
   return (
     <div className="w-full">
       {labelText && (
@@ -41,43 +46,72 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
           </ParagraphM>
         </div>
       )}
-      <Controller
-        name={name}
-        control={control}
-        render={({ field: { onChange, onBlur, value, ref } }) => {
-          const selectedValue = isMulti
-            ? options.filter((option) =>
-                value?.map((v) => v.value).includes(option.value)
-              )
-            : options.find((option) => option.value === value);
-          return (
-            <Select
-              ref={ref}
-              options={options}
-              isMulti={isMulti}
-              components={animatedComponents}
-              classNamePrefix="select"
-              value={selectedValue}
-              onChange={(selected: any) => {
-                onChange(
-                  isMulti ? selected.map((item) => item.value) : selected?.value
-                );
-              }}
-              onBlur={onBlur}
-              styles={{
-                control: (base) => ({
-                  ...base,
-                  borderColor: "purple",
-                  "&:hover": { borderColor: "darkpurple" },
-                  boxShadow: "none",
-                }),
-              }}
-              placeholder="Select option"
-              noOptionsMessage={() => "No options"}
-            />
-          );
-        }}
-      />
+      {control && name ? (
+        // If react-hook-form props are provided, use Controller:
+        <Controller
+          name={name}
+          control={control}
+          render={({
+            field: { onChange: rhfOnChange, onBlur, value: rhfValue, ref },
+          }) => {
+            const selectedValue = isMulti
+              ? options.filter((option) =>
+                  rhfValue?.map((v: any) => v).includes(option.value)
+                )
+              : options.find((option) => option.value === rhfValue);
+            return (
+              <Select
+                ref={ref}
+                options={options}
+                isMulti={isMulti}
+                components={animatedComponents}
+                classNamePrefix="select"
+                value={selectedValue}
+                onChange={(selected: any) => {
+                  rhfOnChange(
+                    isMulti
+                      ? selected.map((item: any) => item.value)
+                      : selected?.value
+                  );
+                }}
+                onBlur={onBlur}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    borderColor: 'purple',
+                    '&:hover': { borderColor: 'darkpurple' },
+                    boxShadow: 'none',
+                  }),
+                }}
+                placeholder="Select option"
+                noOptionsMessage={() => 'No options'}
+                {...rest}
+              />
+            );
+          }}
+        />
+      ) : (
+        // Otherwise, use controlled props:
+        <Select
+          options={options}
+          isMulti={isMulti}
+          components={animatedComponents}
+          classNamePrefix="select"
+          value={value}
+          onChange={onChange}
+          styles={{
+            control: (base) => ({
+              ...base,
+              borderColor: 'purple',
+              '&:hover': { borderColor: 'darkpurple' },
+              boxShadow: 'none',
+            }),
+          }}
+          placeholder="Select option"
+          noOptionsMessage={() => 'No options'}
+          {...rest}
+        />
+      )}
     </div>
   );
 };

@@ -3,11 +3,13 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 
 export async function fetchPlayersPosition() {
-  const cookieStore = cookies();
+  // Await cookies() so that cookieStore is the resolved cookies object
+  const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const { data: positionsData, error: positionsError } = await supabase
     .from("player_position")
     .select("id, name");
+
   if (positionsError || !positionsData) {
     throw new Error("Player position not found");
   }
@@ -16,14 +18,15 @@ export async function fetchPlayersPosition() {
 }
 
 export async function fetchLevels() {
-  const cookieStore = cookies();
+  // Await cookies() here as well
+  const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const { data: levelData, error: levelError } = await supabase
     .from("level")
     .select("*");
 
   if (levelError || !levelData) {
-    throw new Error("level not found");
+    throw new Error("Level not found");
   }
 
   return levelData;

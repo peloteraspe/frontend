@@ -6,6 +6,7 @@ import CardEventItem from "./CardEventItem";
 const CardEventList = async() => {
   //let cardEvents;
   const cardEvents = await getAllEvents();
+  console.log(cardEvents, 'cardEvents');
   return (
     <div className="pb-8 md:pb-16">
         <h2 className="text-3xl font-bold font-inter mb-10">Eventos deportivos:</h2>
