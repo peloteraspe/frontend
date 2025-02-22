@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
 export const signIn = async (email: string) => {
-  const cookieStore = await cookies(); // Await cookies() here
+  const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
 
   const hdrs = await headers();
@@ -15,17 +15,15 @@ export const signIn = async (email: string) => {
 
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: {
-      emailRedirectTo: currentDomain,
-    },
+    options: { emailRedirectTo: currentDomain },
   });
 
   if (error) {
     console.log("SignIn Error:", error);
-    return redirect("/login?message=No puedes ingresar con ese correo");
+    return { error: "No puedes ingresar con ese correo" };
   }
 
-  return redirect("/login?message=Revisa tu correo para ingresar a tu cuenta");
+  return { message: "Revisa tu correo para ingresar a tu cuenta" };
 };
 
 export const signUp = async (formData: FormData) => {

@@ -3,9 +3,10 @@ import { useForm } from 'react-hook-form';
 import { Title2XL } from '@/components/atoms/Typography';
 import { ButtonWrapper } from '@/components/Button';
 import Input from '@/components/Input';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { signIn } from './auth';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 export default function Login() {
   const {
@@ -16,27 +17,30 @@ export default function Login() {
   } = useForm();
   const emailValue = watch('email');
   const [buttonText, setButtonText] = useState('Obtener enlace mágico');
+  const router = useRouter();
 
   const handleSignIn = async (data) => {
     setButtonText('Cargando...');
-
+  
     if (!data.email) {
       toast.error('Debes ingresar un correo válido.');
       setButtonText('Obtener enlace mágico');
       return;
     }
-
+  
     try {
-      await signIn(data.email);
-      toast.success(
-        '¡Enlace enviado! Revisa tu correo para ingresar a tu cuenta'
-      );
+      const result = await signIn(data.email);
+      if (result.error) {
+        toast.error(result.error);
+        router.push(`/login?message=${encodeURIComponent(result.error)}`);
+      } else {
+        toast.success(result.message);
+        router.push(`/login?message=${encodeURIComponent(result.message)}`);
+      }
       setButtonText('Enlace mágico enviado');
     } catch (error) {
       console.error('Error during sign in:', error);
-      toast.error(
-        'Hubo un error al enviar el enlace. Por favor, inténtalo de nuevo.'
-      );
+      toast.error('Hubo un error al enviar el enlace. Por favor, inténtalo de nuevo.');
       setButtonText('Obtener enlace mágico');
     }
   };
