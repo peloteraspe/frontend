@@ -25,7 +25,7 @@ const Input = ({
   name,
   errors,
   icon,
-  bgColor = 'bg-inputBg',
+  bgColor = 'bg-transparent',
   ...rest
 }: InputProps) => {
   return (
@@ -43,7 +43,7 @@ const Input = ({
           {...register(name, { required })}
           className={`... ${
             errors[name] ? 'border-red-500' : 'border-mulberry'
-          } ${bgColor}`}
+          } ${bgColor} w-full h-12 px-4 rounded-lg border-2 focus:outline-none focus:border-mulberry focus:ring-0`}
           {...rest}
         />
         {icon && (
