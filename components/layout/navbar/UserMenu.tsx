@@ -6,7 +6,11 @@ import Link from "next/link";
 import MenuItem from "./MenuItem";
 import UserImage from "./UserImage";
 
-const UserMenu = ({ user }: any) => {
+type UserLite = { id: string; email?: string | null; username?: string | null } | null;
+
+interface UserMenuProps { user?: UserLite }
+
+const UserMenu: React.FC<UserMenuProps> = ({ user = null }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -46,8 +50,11 @@ const UserMenu = ({ user }: any) => {
                   Mi perfil
                 </Link>
 
-                <div
+                <button
+                  type="button"
                   onClick={toggleOpen}
+                  aria-haspopup="menu"
+                  aria-expanded={isOpen}
                   className="inline-flex items-center gap-2 justify-center text-xl rounded-full cursor-pointer transition"
                 >
                   <UserImage src={""} />
@@ -55,7 +62,7 @@ const UserMenu = ({ user }: any) => {
                     className="h-6 w-6 text-slate-400"
                     aria-hidden="true"
                   />
-                </div>
+                </button>
                 {isOpen && (
                   <div className="absolute right-0 z-20 w-56 py-2 mt-2 rounded-md shadow-md bg-white overflow-hidden  top-12 text-sm flex flex-col cursor-pointer">
                     <Link href={"/"} className="mx-4 my-2 ">
@@ -67,14 +74,11 @@ const UserMenu = ({ user }: any) => {
                       </p>
                     </Link>
                     <hr className="-mx-1 my-1 h-px bg-muted" />
-                    <MenuItem
-                      onClick={() => {
-                        toggleOpen();
-                        window.location.href = "/auth/signout";
-                      }}
-                    >
-                      Cerrar sesión
-                    </MenuItem>
+                    <Link href="/auth/signout" onClick={() => toggleOpen()}>
+                      <MenuItem onClick={() => {}}>
+                        Cerrar sesión
+                      </MenuItem>
+                    </Link>
                   </div>
                 )}
               </>

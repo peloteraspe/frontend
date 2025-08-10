@@ -23,3 +23,11 @@ export async function middleware(request: NextRequest) {
     })
   }
 }
+
+// Avoid running middleware on static files and certain paths
+export const config = {
+  matcher: [
+    // Run for all paths except the ones starting with these:
+    '/((?!_next/|api/auth|static/|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|map|txt)).*)',
+  ],
+}

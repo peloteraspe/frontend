@@ -1,4 +1,5 @@
 import { Poppins } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
 import { eastmanBold, eastmanExtrabold } from './fonts';
 import './css/style.css';
 import { cookies } from 'next/headers';
@@ -39,10 +40,29 @@ const poppinsExtrabold = Poppins({
   display: 'swap',
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: 'Peloteras',
   description: 'Donde las mujeres jugamos fútbol',
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    url: defaultUrl,
+    title: 'Peloteras',
+    description: 'Donde las mujeres jugamos fútbol',
+    siteName: 'Peloteras',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Peloteras',
+    description: 'Donde las mujeres jugamos fútbol',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#F0815B',
 };
 
 export default async function RootLayout({
@@ -59,7 +79,7 @@ export default async function RootLayout({
 
   return (
     <html
-      lang="en"
+      lang="es"
       className={`${poppins.variable} ${poppinsBold.variable} ${poppinsExtrabold.variable} ${poppinsSemibold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}
       suppressHydrationWarning
     >
@@ -74,8 +94,9 @@ export default async function RootLayout({
           {children}
           <Footer />
         </main>
+        {/* Place global toasts inside <body> to keep valid HTML structure */}
+        <Toaster />
       </body>
-      <Toaster />
     </html>
   );
 }

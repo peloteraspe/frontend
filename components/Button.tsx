@@ -5,10 +5,10 @@ import React from "react";
 interface ButtonWrapperProps {
   color?: string;
   hovered?: string;
-  width?: string | number;
+  width?: 'fit-content' | 'full' | number;
   icon?: React.ReactNode;
   disabled?: boolean;
-  onClick?: any;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   bg?: string;
   border?: string;
   children?: React.ReactNode;
@@ -25,14 +25,14 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
   navigateTo,
   iconDirection = "right",
 }) => {
-  const buttonWidth = width === "fit-content" ? "w-fit" : `w-full`;
+  const buttonWidth = width === "fit-content" ? "w-fit" : width === 'full' || width === undefined ? 'w-full' : typeof width === 'number' ? `w-[${width}px]` : 'w-full';
   const buttonDisabled = disabled
     ? "cursor-not-allowed bg-gray-500"
     : "cursor-pointer bg-btnBg-light hover:bg-btnBg-dark hover:shadow";
 
   const router = useRouter();
 
-  const handleClick = (e) => {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (onClick) {
       onClick(e);
     }
@@ -75,7 +75,7 @@ export const ButtonWrapperOutline: React.FC<ButtonWrapperProps> = ({
   onClick,
   children,
 }) => {
-  const buttonWidth = width === "fit-content" ? "w-fit" : `w-${width}`;
+  const buttonWidth = width === "fit-content" ? "w-fit" : width === 'full' ? 'w-full' : typeof width === 'number' ? `w-[${width}px]` : 'w-full';
 
   return (
     <button
@@ -102,7 +102,7 @@ export const ButtonUnWrapperOutline: React.FC<ButtonWrapperProps> = ({
   onClick,
   children,
 }) => {
-  const buttonWidth = width === "fit-content" ? "w-fit" : `w-${width}`;
+  const buttonWidth = width === "fit-content" ? "w-fit" : width === 'full' ? 'w-full' : typeof width === 'number' ? `w-[${width}px]` : 'w-full';
 
   return (
     <button
@@ -121,8 +121,15 @@ export const ButtonUnWrapperOutline: React.FC<ButtonWrapperProps> = ({
   );
 };
 
+const colorClassMap: Record<string, { text: string; border: string }> = {
+  primary: { text: 'text-primary', border: 'border-primary' },
+  mulberry: { text: 'text-mulberry', border: 'border-mulberry' },
+  plum: { text: 'text-plum', border: 'border-plum' },
+  white: { text: 'text-white', border: 'border-white' },
+};
+
 export const ButtonHover: React.FC<ButtonWrapperProps> = ({
-  color,
+  color = 'mulberry',
   bg = "bg-transparent",
   width = "fit-content",
   icon,
@@ -130,11 +137,12 @@ export const ButtonHover: React.FC<ButtonWrapperProps> = ({
   onClick,
   children,
 }) => {
-  const buttonWidth = width === "fit-content" ? "w-fit" : `w-${width}`;
+  const buttonWidth = width === "fit-content" ? "w-fit" : width === 'full' ? 'w-full' : typeof width === 'number' ? `w-[${width}px]` : 'w-full';
+  const colorClasses = colorClassMap[color] || colorClassMap.mulberry;
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold text-${color} hover:border-2 hover:border-${color} rounded-xl my-0 mx-2 flex justify-center items-center relative box-border ${
+      className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold ${colorClasses.text} hover:border-2 ${colorClasses.border} rounded-xl my-0 mx-2 flex justify-center items-center relative box-border ${
         disabled ? "cursor-auto" : "cursor-pointer"
       } `}
       onClick={onClick}
