@@ -13,12 +13,6 @@ const ComponentsPage = () => {
         <ParagraphS underline>Badge</ParagraphS>
       </Link>
 
-      <div className="mt-3">
-        <Link href="/components/NavBar">
-          <ParagraphS underline>Navbar</ParagraphS>
-        </Link>
-      </div>
-
       <div className="mb-3">
         <Link href="/components/SelectComponent">
           <ParagraphS underline>SelectComponent</ParagraphS>
