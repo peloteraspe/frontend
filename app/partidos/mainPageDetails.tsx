@@ -1,14 +1,15 @@
-"use client";
-import Link from "next/link";
-import Image from "next/image";
-import { notFound } from "next/navigation";
-import React, { useEffect, useState } from "react";
-import Map from "@/components/Map";
-import Collapse from "@/components/Collapse";
-import { ButtonWrapper } from "@/components/Button";
-import arrowAnotarse from "@/app/assets/arrow-anotarse.svg";
-import Calendar from "@/app/assets/images/calendar.png";
-import { getEventById } from "@/app/_actions/event";
+'use client';
+import Link from 'next/link';
+import Image from 'next/image';
+import { notFound } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import Map from '@/components/Map';
+import Collapse from '@/components/Collapse';
+import { ButtonWrapper } from '@/components/Button';
+import arrowAnotarse from '@/app/assets/arrow-anotarse.svg';
+import Calendar from '@/app/assets/images/calendar.png';
+import { getEventById } from '@/app/_actions/event';
+import SoccerField from '../components/SoccerField';
 
 interface MainPageDetailsProps {
   id: string;
@@ -24,7 +25,7 @@ const MainPageDetails: React.FC<MainPageDetailsProps> = ({ id }) => {
     async function fetchEventData() {
       try {
         const data = await getEventById(id);
-        console.log(data, "data");
+        console.log(data, 'data');
         if (data) {
           setPost(data);
           setLoading(false);
@@ -32,8 +33,8 @@ const MainPageDetails: React.FC<MainPageDetailsProps> = ({ id }) => {
           notFound();
         }
       } catch (err) {
-        console.error("Failed to fetch event:", err);
-        setError(err.message || "An error occurred");
+        console.error('Failed to fetch event:', err);
+        setError(err.message || 'An error occurred');
         setLoading(false);
       }
     }
@@ -65,19 +66,12 @@ const MainPageDetails: React.FC<MainPageDetailsProps> = ({ id }) => {
               />
             </svg>
             Todos los partidos
-          </span>{" "}
+          </span>{' '}
         </Link>
-      </div>{" "}
-      <h1 className="text-4xl font-extrabold font-inter mb-10 sm:hidden">
-        {post.event.title}
-      </h1>
+      </div>{' '}
+      <h1 className="text-4xl font-extrabold font-inter mb-10 sm:hidden">{post.event.title}</h1>
       <aside className="mb-8 md:mb-0 md:w-64 lg:w-72 md:ml-12 lg:ml-20 md:shrink-0 md:order-1">
-        <div
-          data-sticky
-          data-margin-top="32"
-          data-sticky-for="768"
-          data-sticky-wrap
-        >
+        <div data-sticky data-margin-top="32" data-sticky-for="768" data-sticky-wrap>
           <div className="relative bg-gray-50 rounded-xl border border-gray-200 p-5">
             <div className="text-center mb-6">
               {/* <Image
@@ -87,28 +81,20 @@ const MainPageDetails: React.FC<MainPageDetailsProps> = ({ id }) => {
   height={72}
   alt={post.title}
   /> */}
-              <div className="text-[#54086F] font-bold mb-4">
-                {" "}
-                por {post.event.created_by}
-              </div>
+              <div className="text-[#54086F] font-bold mb-4"> por {post.event.created_by}</div>
             </div>
 
             <div className="flex justify-center md:justify-start mb-5">
               <ul className="inline-flex flex-col space-y-2">
                 <li className="flex items-center">
-                  <Image
-                    className="mr-3"
-                    src={Calendar}
-                    alt="calendar"
-                    width={15}
-                  />
+                  <Image className="mr-3" src={Calendar} alt="calendar" width={15} />
                   <span className="text-sm text-[#54086F]">
-                    {new Date(post.event.start_time).toLocaleString("es-PE", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
+                    {new Date(post.event.start_time).toLocaleString('es-PE', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
                       hour12: true,
                     })}
                   </span>
@@ -123,9 +109,7 @@ const MainPageDetails: React.FC<MainPageDetailsProps> = ({ id }) => {
                     <circle cx="7" cy="7" r="2" />
                     <path d="M6.3 15.7c-.1-.1-4.2-3.7-4.2-3.8C.7 10.7 0 8.9 0 7c0-3.9 3.1-7 7-7s7 3.1 7 7c0 1.9-.7 3.7-2.1 5-.1.1-4.1 3.7-4.2 3.8-.4.3-1 .3-1.4-.1Zm-2.7-5 3.4 3 3.4-3c1-1 1.6-2.2 1.6-3.6 0-2.8-2.2-5-5-5S2 4.2 2 7c0 1.4.6 2.7 1.6 3.7 0-.1 0-.1 0 0Z" />
                   </svg>
-                  <span className="text-sm text-[#54086F]">
-                    {post.event.location_text}
-                  </span>
+                  <span className="text-sm text-[#54086F]">{post.event.location_text}</span>
                 </li>
                 <li className="flex items-center">
                   <svg
@@ -137,19 +121,15 @@ const MainPageDetails: React.FC<MainPageDetailsProps> = ({ id }) => {
                     <path d="M15 0H1C.4 0 0 .4 0 1v10c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V1c0-.6-.4-1-1-1Zm-1 10H2V2h12v8Z" />
                     <circle cx="8" cy="6" r="2" />
                   </svg>
-                  <span className="text-sm text-[#54086F]">
-                    S/ {post.event.price}
-                  </span>
+                  <span className="text-sm text-[#54086F]">S/ {post.event.price}</span>
                 </li>
               </ul>
             </div>
 
             <ButtonWrapper
               navigateTo={`/pago/${post.event.id}`}
-              icon={
-                <Image src={arrowAnotarse} alt="arrow" width={24} height={24} />
-              }
-              children={"Anotarme"}
+              icon={<Image src={arrowAnotarse} alt="arrow" width={24} height={24} />}
+              children={'Anotarme'}
             />
           </div>
 
@@ -158,7 +138,7 @@ const MainPageDetails: React.FC<MainPageDetailsProps> = ({ id }) => {
             content={post.assistants.map((assistant: any) => {
               return (
                 <>
-                  <ol style={{ listStyleType: "decimal" }}>
+                  <ol style={{ listStyleType: 'decimal' }}>
                     <li>{assistant.username}</li>
                   </ol>
                 </>
@@ -189,19 +169,24 @@ const MainPageDetails: React.FC<MainPageDetailsProps> = ({ id }) => {
                   />
                 </svg>
                 Todos los partidos
-              </span>{" "}
+              </span>{' '}
             </Link>
           </div>
           <h1 className="text-4xl font-extrabold font-inter mb-10  hidden sm:block">
             {post.event.description.title}
           </h1>
+
+          <SoccerField
+            minUsers={post.event.min_users}
+            maxUsers={post.event.max_users}
+            onSelect={(pos) => {
+              console.log('Posición seleccionada:', pos);
+            }}
+          />
           {/* Job description */}
           <div className="space-y-8 mb-8">
-            <Collapse
-              title="Descripción"
-              content={post.event.description.description}
-            />
-            <Collapse title="Extras" content={""} />
+            <Collapse title="Descripción" content={post.event.description.description} />
+            <Collapse title="Extras" content={''} />
           </div>
           <div className="mb-8">
             <h3 className="text-xl font-bold text-gray-800 mb-3">Ubicación</h3>
@@ -209,9 +194,7 @@ const MainPageDetails: React.FC<MainPageDetailsProps> = ({ id }) => {
           </div>
           {/* Social share */}
           <div className="flex items-center justify-end space-x-4">
-            <div className="text-xl font-nycd text-gray-400">
-              Compartir partido
-            </div>
+            <div className="text-xl font-nycd text-gray-400">Compartir partido</div>
             <ul className="inline-flex space-x-3">
               <li>
                 <a
