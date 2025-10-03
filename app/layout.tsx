@@ -1,7 +1,7 @@
 import { Poppins } from 'next/font/google';
 import type { Metadata, Viewport } from 'next';
 import { eastmanBold, eastmanExtrabold } from './fonts';
-import './css/style.css';
+import '../global.css';
 import { Toaster } from 'react-hot-toast';
 import { NavBar } from '@/components/layout/navbar/NavBar';
 import Footer from '@/components/layout/Footer';

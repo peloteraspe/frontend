@@ -3,18 +3,13 @@ import SelectComponent, { OptionSelect } from '@/components/SelectComponent';
 import { useState } from 'react';
 import { options } from '@/utils/data';
 const SelectForm = () => {
-  const [selectedSingleOption, setSelectedSingleOption] =
-    useState<OptionSelect | null>();
-  const [selectedMultiOptions, setSelectedMultiOptions] = useState<
-    OptionSelect[] | null
-  >(null);
+  const [selectedSingleOption, setSelectedSingleOption] = useState<OptionSelect | null>();
+  const [selectedMultiOptions, setSelectedMultiOptions] = useState<OptionSelect[] | null>(null);
 
   return (
     <div className="max-w-lg mx-auto mt-8">
       <div className="mb-4">
-        <label className="block text-gray-700 text-sm font-bold mb-2">
-          Selecciona una opción
-        </label>
+        <label className="block text-gray-700 text-sm font-bold mb-2">Selecciona una opción</label>
         <SelectComponent
           options={options}
           onChange={(value: any) => setSelectedSingleOption(value)}
@@ -40,9 +35,7 @@ const SelectForm = () => {
         />
         {selectedMultiOptions && (
           <div>
-            <p className="text-sm text-gray-600  font-medium ">
-              Valores seleccionados:
-            </p>
+            <p className="text-sm text-gray-600  font-medium ">Valores seleccionados:</p>
             <ul className="list-disc pl-4">
               {selectedMultiOptions.map((option) => (
                 <li key={option.value}>{option.label}</li>

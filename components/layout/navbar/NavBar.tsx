@@ -5,7 +5,7 @@ import UserMenu from './UserMenu';
 import { useAuth } from '@/app/provider/AuthProvider';
 
 export const NavBar = ({ simple = false }: { simple?: boolean }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   return (
     <nav className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto flex justify-between w-full p-4">
@@ -19,7 +19,7 @@ export const NavBar = ({ simple = false }: { simple?: boolean }) => {
           Peloteras
         </span>
       </Link>
-      {!simple && <UserMenu user={user} />}
+      {!simple && !loading && <UserMenu user={user} />}
     </nav>
   );
 };

@@ -1,50 +1,46 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
-import { useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { Title2XL } from '@/components/atoms/Typography';
-import Form from '@/components/organisms/FormComponent';
 import toast from 'react-hot-toast';
-import { resendConfirmation, signInWithPassword } from './auth';
 import { checkIfUserExists } from './utils';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../provider/AuthProvider';
 
-export default function Login() {
-  const {
-    handleSubmit,
-    watch,
-    formState: { errors },
-  } = useForm();
+import Form, { type FormField } from '@/components/organisms/Form';
 
-  const emailValue = watch('email') || '';
+type LoginValues = {
+  email: string;
+  password?: string;
+};
+
+export default function Login() {
   const [buttonText, setButtonText] = useState('Continuar');
   const [isExistingUser, setIsExistingUser] = useState<boolean | null>(null);
   const router = useRouter();
   const { refreshProfile } = useAuth();
+  const [isPending, startTransition] = useTransition();
 
-  const handleCheckUser = async (data: any) => {
+  useEffect(() => {
+    router.prefetch('/');
+  }, [router]);
+
+  const handleCheckUser = async (data: LoginValues) => {
     setButtonText('Verificando...');
-
     if (!data.email) {
       toast.error('Debes ingresar un correo válido.');
       setButtonText('Continuar');
       return;
     }
-
     try {
       const exists = await checkIfUserExists(data.email);
       setIsExistingUser(exists);
-
       if (exists) {
-        console.log('registered', data.email);
         toast.success('Cuenta encontrada, ingresa tu contraseña.');
         setButtonText('Ingresar');
       } else {
-        console.log('not-registered', data.email);
         toast('Completa tus datos por primera vez.');
-        router.push(`/signUp?email=${data.email}`);
-        return;
+        router.push(`/signUp?email=${encodeURIComponent(data.email)}`);
       }
     } catch (error) {
       console.error('Error verificando usuario:', error);
@@ -53,22 +49,20 @@ export default function Login() {
     }
   };
 
-  const handleSignIn = async (data: any) => {
+  const handleSignIn = async (data: LoginValues) => {
     if (!isExistingUser) return;
     setButtonText('Cargando...');
-
     try {
       const supabase = (await import('@/utils/supabase/client')).createClient();
-      const { data: sdata, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: data.email,
-        password: data.password,
+        password: data.password || '',
       });
 
       if (error) {
         const msg = (error.message || '').toLowerCase();
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
           toast.error('Tu correo no está confirmado.');
-
           const { error: rerr } = await supabase.auth.resend({
             type: 'signup',
             email: data.email,
@@ -76,11 +70,9 @@ export default function Login() {
           });
           if (rerr) toast.error(rerr.message ?? 'No se pudo reenviar el correo');
           else toast.success('Te enviamos un correo para confirmar tu cuenta.');
-
           setButtonText('Ingresar');
           return;
         }
-
         if (msg.includes('invalid') || msg.includes('credentials')) {
           toast.error('Correo o contraseña incorrectos.');
         } else {
@@ -91,9 +83,13 @@ export default function Login() {
       }
 
       toast.success('¡Bienvenida de vuelta!');
-      await refreshProfile?.();
-      router.push('/');
-    } catch (e) {
+      startTransition(() => {
+        router.replace('/');
+      });
+
+      // actualiza perfil en background (sin await); el onAuthStateChange también disparará la carga
+      refreshProfile?.();
+    } catch {
       toast.error('Error inesperado al ingresar.');
     } finally {
       setButtonText('Ingresar');
@@ -104,6 +100,36 @@ export default function Login() {
     console.log('google-sign-in: not-implemented');
   };
 
+  const fields: FormField<LoginValues>[] = [
+    {
+      name: 'email',
+      label: 'Correo electrónico',
+      type: 'email',
+      placeholder: 'pelotera@gmail.com',
+      validation: {
+        required: 'Este campo es requerido',
+        pattern: {
+          value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+          message: 'Correo inválido',
+        },
+      },
+    },
+    ...(isExistingUser
+      ? [
+          {
+            name: 'password' as const,
+            label: 'Contraseña',
+            type: 'password' as const,
+            placeholder: '••••••••',
+            validation: {
+              required: 'Este campo es requerido',
+              minLength: { value: 6, message: 'Mínimo 6 caracteres' },
+            },
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="flex flex-col justify-center items-center w-full gap-8 min-h-[calc(100vh-6rem)] px-4">
       <div className="flex flex-col items-center">
@@ -112,28 +138,13 @@ export default function Login() {
       </div>
 
       <div className="w-full max-w-[420px]">
-        <Form
-          fields={[
-            {
-              name: 'email',
-              label: 'Correo electrónico',
-              type: 'email' as const,
-              placeholder: 'pelotera@gmail.com',
-            },
-            ...(isExistingUser
-              ? [
-                  {
-                    name: 'password',
-                    label: 'Contraseña',
-                    type: 'password' as const,
-                    placeholder: '••••••••',
-                    required: true,
-                  },
-                ]
-              : []),
-          ]}
+        <Form<LoginValues>
+          defaultValues={{ email: '', password: '' }}
+          fields={fields}
           onSubmit={isExistingUser === null ? handleCheckUser : handleSignIn}
-          buttonText={buttonText}
+          submitLabel={buttonText}
+          className="flex flex-col gap-4"
+          disableSubmitIfEmailInvalid
         />
 
         <div className="mt-4 flex items-center gap-3">

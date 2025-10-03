@@ -7,21 +7,27 @@ import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import Input from '@/components/Input';
 
+export type OptionSelectNumber = { value: number; label: string };
+
 interface ProfileUpdateFormProps {
   userProfile: string;
-  positionsData: any[];
-  levelsData: any;
-  levelsOptions: any[];
-  playerPositionOptions: any[];
+
   updateProfile(userId: string, updates: UserProfileUpdate): Promise<void>;
   userId: string;
+
+  levelsData: OptionSelectNumber | null;
+  levelsOptions: OptionSelectNumber[];
+  playerPositionOptions: OptionSelectNumber[];
+  positionsData: OptionSelectNumber[];
 }
 
-const validate = (values: any) => {
-  const errors: any = {};
+type FormValues = {
+  username: string;
+  level_id: OptionSelectNumber | null;
+  positions: OptionSelectNumber[];
 };
 
-const ProfileUpdateForm = ({
+export default function ProfileUpdateForm({
   userProfile,
   positionsData,
   levelsData,
@@ -29,61 +35,52 @@ const ProfileUpdateForm = ({
   playerPositionOptions,
   updateProfile,
   userId,
-}: ProfileUpdateFormProps) => {
+}: ProfileUpdateFormProps) {
+  const [isLoading, setIsLoading] = useState(false);
+
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
     control,
-    setValue
-  } = useForm({
+    reset,
+  } = useForm<FormValues>({
     defaultValues: {
-      username: userProfile,
-      level_id: levelsData.value,
-      positions: positionsData,
+      username: userProfile ?? '',
+      level_id: levelsData ?? null,
+      positions: positionsData ?? [],
     },
   });
-  const [positions, setPositions] = useState<OptionSelect[] | null>(
-    positionsData
-  );
 
-  const [levels, setLevels] = useState<OptionSelect | null>(levelsData);
-  const [isLoading, setIsLoading] = useState(false);
+  // Si los props iniciales cambian (p.ej. al refetchear), reseteamos el form
+  useEffect(() => {
+    reset({
+      username: userProfile ?? '',
+      level_id: levelsData ?? null,
+      positions: positionsData ?? [],
+    });
+  }, [userProfile, positionsData, levelsData, reset]);
 
-  const getKey = (name: string) => {
-    const result = levelsOptions.find((level) => level.label === name);
-    return result ? result.value : undefined;
-  };
-
-  const submit = async (data: any) => {
+  const submit = async (data: FormValues) => {
     setIsLoading(true);
     try {
       const updateData: UserProfileUpdate = {
         username: data.username,
-        level_id: getKey(data.level_id),
-        player_position: positions.map((pos) => pos.value as number),
+        level_id: data.level_id?.value,
+        player_position: data.positions.map((p) => p.value),
       };
 
       await updateProfile(userId, updateData);
       toast.success('¡Se actualizó tu perfil con éxito!');
-    } catch (error) {
-      toast.error('Hubo un error al actualizar tu perfil: ' + error.message);
+    } catch (error: any) {
+      toast.error('Hubo un error al actualizar tu perfil: ' + (error?.message ?? String(error)));
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    setValue('positions', positionsData);
-  }, [positionsData]);
-
-  useEffect(() => {
-    setValue('level_id', levelsData ? levelsData[0].value : '');
-  }, [levelsData]);
-
   return (
-    <form className="flex flex-col space-y-8" onSubmit={handleSubmit(submit)}>
+    <form className="flex flex-col space-y-8" onSubmit={handleSubmit(submit)} noValidate>
       <div className="flex flex-1 items-center justify-center space-x-4 md:justify-end">
         <button
           className="px-4 py-[0.60rem] bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border"
@@ -97,56 +94,57 @@ const ProfileUpdateForm = ({
           )}
         </button>
       </div>
+
       <div className="sm:col-span-1 lg:col-span-6">
         <div className="flex justify-center items-center">
           <div className="md:p-6 rounded-md shadow-lg bg-white w-full xl:w-full mb-6">
             <div className="max-w-sm mt-2">
               <div className="p-6">
+                {/* Username */}
                 <div className="mb-8">
                   <Input
                     label="Nombre de usuario"
                     type="text"
                     required
-                    register={register}
-                    errors={errors}
-                    error={errors.username}
-                    name="username"
+                    placeholder="Tu usuario"
+                    // RHF inyecta handlers/ref aquí
+                    {...register('username', {
+                      required: 'Este campo es requerido',
+                      maxLength: 50,
+                    })}
+                    // Error visual
+                    errorText={errors.username?.message as string | undefined}
                     bgColor="bg-white ring-secondary focus:ring-secondary-dark border-mulberry"
                   />
                 </div>
 
+                {/* Positions (multi) */}
                 <div className="mb-8">
                   <label htmlFor="positions">
-                    <ParagraphM fontWeight="semibold">
-                      ¿En qué posición prefieres jugar?
-                    </ParagraphM>
+                    <ParagraphM fontWeight="semibold">¿En qué posición prefieres jugar?</ParagraphM>
                   </label>
                   <div className="relative mt-2">
                     <SelectComponent
-                      options={
-                        playerPositionOptions?.map((pos) => ({
-                          value: pos.value,
-                          label: pos.label,
-                        })) || []
-                      }
+                      options={playerPositionOptions ?? []}
                       control={control}
+                      isSearchable={false}
                       name="positions"
-                      isMulti={true}
+                      isMulti
                     />
                   </div>
                 </div>
 
+                {/* Level (single) */}
                 <div className="mb-4">
                   <label htmlFor="level_id">
-                    <ParagraphM fontWeight="semibold">
-                      ¿Cuál es tu nivel?
-                    </ParagraphM>
+                    <ParagraphM fontWeight="semibold">¿Cuál es tu nivel?</ParagraphM>
                   </label>
                   <div className="relative mt-2">
                     <SelectComponent
-                      options={levelsOptions || []}
+                      options={levelsOptions ?? []}
                       control={control}
                       name="level_id"
+                      isSearchable={false}
                     />
                   </div>
                 </div>
@@ -157,5 +155,4 @@ const ProfileUpdateForm = ({
       </div>
     </form>
   );
-};
-export default ProfileUpdateForm;
+}

@@ -9,7 +9,7 @@ import { ButtonWrapper } from '@/components/Button';
 import arrowAnotarse from '@/app/assets/arrow-anotarse.svg';
 import Calendar from '@/app/assets/images/calendar.png';
 import { getEventById } from '@/app/_actions/event';
-import SoccerField from '../components/SoccerField';
+import SoccerField from '../../components/SoccerField';
 
 interface MainPageDetailsProps {
   id: string;

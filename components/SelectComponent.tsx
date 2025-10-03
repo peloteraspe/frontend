@@ -1,29 +1,197 @@
+'use client';
+
 import React from 'react';
-import Select from 'react-select';
+import Select, { type Props as RSProps, type StylesConfig, ThemeConfig } from 'react-select';
 import makeAnimated from 'react-select/animated';
-import { Controller } from 'react-hook-form';
+import { Controller, type Control } from 'react-hook-form';
 import { ParagraphM } from './atoms/Typography';
 
-const animatedComponents = makeAnimated();
-
 export interface OptionSelect {
-  key?: number;
+  key?: number | string;
   value: string | number;
   label: string;
 }
 
-interface SelectComponentProps {
-  options: OptionSelect[];
-  control?: any; // Optional, for react-hook-form usage
-  name?: string; // Optional, for react-hook-form usage
+type CommonProps = {
   labelText?: string;
   required?: boolean;
+  errorText?: string;
   isMulti?: boolean;
   isSearchable?: boolean;
-  // Add controlled component props:
+  bgColor?: string; // para igualar con Input (por si lo usas)
+  className?: string;
+};
+
+type ControlledProps = {
+  /** Control RHF + name: modo RHF */
+  control?: Control<any>;
+  name?: string;
+  /** onChange/value: modo controlado externo */
   onChange?: (value: any) => void;
   value?: any;
-}
+};
+
+type SelectComponentProps = CommonProps &
+  ControlledProps & {
+    options: OptionSelect[];
+    /** props adicionales de react-select si los necesitas */
+    selectProps?: RSProps;
+  };
+
+const animatedComponents = makeAnimated();
+
+/**
+ * Paleta / constantes visuales para mantener consistencia con Input
+ */
+const MULBERRY = '#5b1c70';
+const MULBERRY_DARK = '#4a175f';
+const BORDER_DEFAULT = MULBERRY;
+const BORDER_ERROR = '#ef4444';
+const TEXT_DEFAULT = '#111827';
+const TEXT_MUTED = '#6b7280';
+const BG_WHITE = '#ffffff';
+const BG_FOCUS = 'transparent'; // mantenemos blanco; sin sombras
+const HOVER_BG = 'rgba(91, 28, 112, 0.08)'; // morado 8%
+const SELECTED_BG = MULBERRY;
+const SELECTED_TEXT = '#ffffff';
+const RADIUS = 8; // ~ rounded-lg
+const HEIGHT = 48; // 12 * 4
+const BORDER_WIDTH = 2;
+
+const buildStyles = (
+  hasError?: boolean,
+  isDisabled?: boolean,
+  bg?: string,
+  isMulti?: boolean
+): StylesConfig =>
+  ({
+    control: (base, state) => ({
+      ...base,
+      minHeight: HEIGHT,
+      alignItems: 'center',
+      // paddingTop: isMulti ? 6 : 0,
+      flexWrap: isMulti ? 'wrap' : 'nowrap',
+      // paddingBottom: isMulti ? 6 : 0,
+      // height: isMulti ? 'auto' : 48,
+      borderWidth: BORDER_WIDTH,
+      borderRadius: RADIUS,
+      backgroundColor: bg ?? BG_WHITE,
+      borderColor: hasError ? BORDER_ERROR : state.isFocused ? MULBERRY : BORDER_DEFAULT,
+      boxShadow: 'none',
+      '&:hover': {
+        borderColor: hasError ? BORDER_ERROR : MULBERRY_DARK,
+      },
+      // Para alinear contenido con tu Input
+      paddingLeft: 8,
+      paddingRight: 8,
+      opacity: isDisabled ? 0.6 : 1,
+      cursor: isDisabled ? 'not-allowed' : 'default',
+    }),
+    valueContainer: (base) => ({
+      ...base,
+      padding: 0,
+      gap: 4,
+      flexWrap: isMulti ? 'wrap' : 'nowrap',
+    }),
+    input: (base) => ({
+      ...base,
+      margin: 0,
+      padding: 0,
+      lineHeight: '24px',
+      caretColor: '#5b1c70',
+    }),
+    placeholder: (base) => ({
+      ...base,
+      color: TEXT_MUTED,
+      margin: 0,
+    }),
+    singleValue: (base) => ({
+      ...base,
+      color: TEXT_DEFAULT,
+    }),
+    multiValue: (base) => ({
+      ...base,
+      backgroundColor: HOVER_BG,
+      borderRadius: 9999,
+      margin: 2,
+    }),
+    multiValueLabel: (base) => ({
+      ...base,
+      color: MULBERRY,
+      fontWeight: 600,
+      paddingRight: 4,
+    }),
+    multiValueRemove: (base) => ({
+      ...base,
+      color: MULBERRY,
+      ':hover': {
+        backgroundColor: 'transparent',
+        color: MULBERRY_DARK,
+      },
+    }),
+    indicatorsContainer: (base) => ({
+      ...base,
+      color: MULBERRY,
+      alignSelf: 'center',
+    }),
+
+    dropdownIndicator: (base, state) => ({
+      ...base,
+      color: state.isFocused ? MULBERRY_DARK : MULBERRY,
+      ':hover': { color: MULBERRY_DARK },
+    }),
+    clearIndicator: (base) => ({
+      ...base,
+      color: MULBERRY,
+      ':hover': { color: MULBERRY_DARK },
+    }),
+    indicatorSeparator: () => ({
+      display: 'none',
+    }),
+    menu: (base) => ({
+      ...base,
+      borderRadius: RADIUS,
+      overflow: 'hidden',
+      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+      marginTop: 6,
+    }),
+    menuList: (base) => ({
+      ...base,
+      paddingTop: 6,
+      paddingBottom: 6,
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isSelected ? SELECTED_BG : state.isFocused ? HOVER_BG : 'transparent',
+      color: state.isSelected ? SELECTED_TEXT : TEXT_DEFAULT,
+      cursor: 'pointer',
+      ':active': {
+        backgroundColor: state.isSelected ? SELECTED_BG : HOVER_BG,
+      },
+      paddingTop: 10,
+      paddingBottom: 10,
+    }),
+  } as StylesConfig);
+
+const buildTheme: ThemeConfig = (theme) => ({
+  ...theme,
+  colors: {
+    ...theme.colors,
+    primary: MULBERRY,
+    primary25: HOVER_BG, // hover
+    primary50: HOVER_BG,
+    primary75: HOVER_BG,
+    neutral0: BG_WHITE,
+    neutral20: BORDER_DEFAULT, // borde
+    neutral30: MULBERRY_DARK, // borde hover
+    neutral40: MULBERRY,
+    neutral50: TEXT_MUTED, // placeholder
+    neutral60: MULBERRY,
+    neutral70: MULBERRY_DARK,
+    neutral80: TEXT_DEFAULT,
+  },
+  borderRadius: RADIUS,
+});
 
 const SelectComponent: React.FC<SelectComponentProps> = ({
   options,
@@ -32,12 +200,61 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
   labelText,
   required = false,
   isMulti = false,
-  onChange, // controlled prop
-  value, // controlled prop
-  ...rest
+  isSearchable = true,
+  onChange,
+  value,
+  errorText,
+  bgColor,
+  className,
+  selectProps,
 }) => {
+  const hasError = Boolean(errorText);
+
+  const renderSelect = (
+    selectValue: any,
+    selectOnChange: (v: any) => void,
+    isDisabled?: boolean
+  ) => (
+    <Select
+      components={animatedComponents}
+      options={options}
+      isMulti={isMulti}
+      isSearchable={isSearchable}
+      value={
+        isMulti
+          ? // si value son ids/values, mapear a objetos; si ya vienen objetos, respétalos
+            Array.isArray(selectValue)
+            ? selectValue.every((v) => typeof v === 'object')
+              ? selectValue
+              : options.filter((opt) => selectValue.includes(opt.value))
+            : []
+          : // single: si viene id, mapea; si viene objeto, úsalo
+          typeof selectValue === 'object'
+          ? selectValue
+          : options.find((opt) => opt.value === selectValue) ?? null
+      }
+      onChange={(selected: any) => {
+        // devolvemos el “value” (id/valor) para RHF o parent
+        if (isMulti) {
+          const arr = Array.isArray(selected) ? selected : [];
+          selectOnChange(arr.map((o) => o.value));
+        } else {
+          selectOnChange(selected ? selected.value : null);
+        }
+      }}
+      placeholder="Selecciona una opción"
+      noOptionsMessage={() => 'Sin opciones'}
+      isDisabled={isDisabled}
+      styles={buildStyles(hasError, isDisabled, bgColor, isMulti)}
+      theme={buildTheme}
+      className={className}
+      classNamePrefix="rs" // por si quieres añadir CSS escoped adicional
+      {...selectProps}
+    />
+  );
+
   return (
-    <div className="w-full">
+    <label className="w-full">
       {labelText && (
         <div className="mb-1">
           <ParagraphM fontWeight="semibold">
@@ -46,73 +263,25 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
           </ParagraphM>
         </div>
       )}
+
       {control && name ? (
-        // If react-hook-form props are provided, use Controller:
         <Controller
           name={name}
           control={control}
-          render={({
-            field: { onChange: rhfOnChange, onBlur, value: rhfValue, ref },
-          }) => {
-            const selectedValue = isMulti
-              ? options.filter((option) =>
-                  rhfValue?.map((v: any) => v).includes(option.value)
-                )
-              : options.find((option) => option.value === rhfValue);
-            return (
-              <Select
-                ref={ref}
-                options={options}
-                isMulti={isMulti}
-                components={animatedComponents}
-                classNamePrefix="select"
-                value={selectedValue}
-                onChange={(selected: any) => {
-                  rhfOnChange(
-                    isMulti
-                      ? selected.map((item: any) => item.value)
-                      : selected?.value
-                  );
-                }}
-                onBlur={onBlur}
-                styles={{
-                  control: (base) => ({
-                    ...base,
-                    borderColor: 'purple',
-                    '&:hover': { borderColor: 'darkpurple' },
-                    boxShadow: 'none',
-                  }),
-                }}
-                placeholder="Select option"
-                noOptionsMessage={() => 'No options'}
-                {...rest}
-              />
-            );
-          }}
+          render={({ field: { value: rhfValue, onChange: rhfOnChange }, fieldState }) =>
+            renderSelect(rhfValue, rhfOnChange, selectProps?.isDisabled)
+          }
         />
       ) : (
-        // Otherwise, use controlled props:
-        <Select
-          options={options}
-          isMulti={isMulti}
-          components={animatedComponents}
-          classNamePrefix="select"
-          value={value}
-          onChange={onChange}
-          styles={{
-            control: (base) => ({
-              ...base,
-              borderColor: 'purple',
-              '&:hover': { borderColor: 'darkpurple' },
-              boxShadow: 'none',
-            }),
-          }}
-          placeholder="Select option"
-          noOptionsMessage={() => 'No options'}
-          {...rest}
-        />
+        renderSelect(value, (v) => onChange?.(v), selectProps?.isDisabled)
       )}
-    </div>
+
+      {hasError && (
+        <span className="text-sm text-red-500 mt-1 inline-block">
+          {errorText || 'Este campo es requerido'}
+        </span>
+      )}
+    </label>
   );
 };
 
