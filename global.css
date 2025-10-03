@@ -1,0 +1,102 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+
+/* Additional styles */
+@import './app/css/additional-styles/utility-patterns.css';
+@import './app/css/additional-styles/range-slider.css';
+@import './app/css/additional-styles/toggle-switch.css';
+@import './app/css/additional-styles/theme.css';
+
+@import 'tailwindcss/utilities';
+
+/* Additional Tailwind directives: https://tailwindcss.com/docs/functions-and-directives/#responsive */
+@layer utilities {
+  .rtl {
+    direction: rtl;
+  }
+}
+
+* {
+  /* antiali */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* For most browsers */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* For Firefox */
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* opcional: afina tamaños del input interno */
+.rs__value-container {
+  padding: 0 0.25rem !important;
+}
+.rs__multi-value {
+  margin: 2px !important;
+}
+
+.rs__input input {
+  caret-color: #5b1c70 !important;
+}
+
+.rs--no-caret .rs__input input {
+  caret-color: transparent !important;
+}
+
+/* Color del caret (cursor) */
+.rs__input {
+  caret-color: #5b1c70 !important; /* morado */
+}
+
+/* Para ocultarlo cuando quieras */
+.rs--no-caret .rs__input {
+  caret-color: transparent !important;
+}
+
+/* Centrado vertical del placeholder/valor */
+.rs__control,
+.rs__value-container {
+  display: flex;
+  align-items: center;
+}
+
+.rs__placeholder,
+.rs__single-value {
+  line-height: 24px !important;
+  display: flex;
+  align-items: center;
+}
+
+/* Chips multi un poco más compactos */
+.rs__value-container {
+  padding: 0 0.25rem !important;
+}
+.rs__multi-value {
+  margin: 2px !important;
+}
+
+.rs__input input {
+  caret-color: #5b1c70 !important;
+}
+.rs--no-caret .rs__input input {
+  caret-color: transparent !important;
+}
+
+.rs__single-value,
+.rs__placeholder {
+  user-select: none;
+}
+
+.rs__control *::selection,
+.rs__single-value::selection,
+.rs__placeholder::selection,
+.rs__input input::selection {
+  background: transparent !important;
+  color: inherit !important;
+}

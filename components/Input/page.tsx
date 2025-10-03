@@ -100,7 +100,6 @@ export default function InputPage() {
               type="email"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              required={false}
               errorText="Error text"
             />
           </div>

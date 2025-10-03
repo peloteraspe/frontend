@@ -1,20 +1,30 @@
-"use client";
-import { useRouter } from "next/navigation";
-import React from "react";
+'use client';
+import { useRouter } from 'next/navigation';
+import React from 'react';
 
-interface ButtonWrapperProps {
+type WidthProp = 'fit-content' | 'full' | number;
+
+interface BaseProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   color?: string;
   hovered?: string;
-  width?: 'fit-content' | 'full' | number;
+  width?: WidthProp;
   icon?: React.ReactNode;
   disabled?: boolean;
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   bg?: string;
   border?: string;
-  children?: React.ReactNode;
   navigateTo?: string;
-  iconDirection?: "left" | "right";
+  iconDirection?: 'left' | 'right';
+  htmlType?: 'button' | 'submit' | 'reset'; // alias por si lo usas así
 }
+
+export interface ButtonWrapperProps extends BaseProps {}
+
+const getWidthClass = (width?: WidthProp) => {
+  if (width === 'fit-content') return 'w-fit';
+  if (width === 'full' || width === undefined) return 'w-full';
+  if (typeof width === 'number') return `w-[${width}px]`;
+  return 'w-full';
+};
 
 export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
   width,
@@ -23,71 +33,93 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
   onClick,
   children,
   navigateTo,
-  iconDirection = "right",
+  iconDirection = 'right',
+  className,
+  type, // nativo
+  htmlType, // alias
+  ...rest
 }) => {
-  const buttonWidth = width === "fit-content" ? "w-fit" : width === 'full' || width === undefined ? 'w-full' : typeof width === 'number' ? `w-[${width}px]` : 'w-full';
-  const buttonDisabled = disabled
-    ? "cursor-not-allowed bg-gray-500"
-    : "cursor-pointer bg-btnBg-light hover:bg-btnBg-dark hover:shadow";
-
   const router = useRouter();
+  const buttonWidth = getWidthClass(width);
+
+  const isSubmit = (htmlType ?? type ?? 'button') === 'submit';
+
+  const baseEnabled = 'cursor-pointer bg-btnBg-light hover:bg-btnBg-dark hover:shadow';
+  const baseDisabled = 'cursor-not-allowed bg-gray-500';
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (onClick) {
-      onClick(e);
-    }
-    if (navigateTo) {
-      router.push(navigateTo);
-    }
+    // Si es submit, dejamos que el <form> maneje el envío
+    if (isSubmit) return;
+
+    if (onClick) onClick(e);
+    if (navigateTo) router.push(navigateTo);
   };
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] font-semibold  text-white rounded-xl my-0 flex justify-center items-center relative box-border ${buttonDisabled} `}
+      type={(htmlType as any) ?? (type as any) ?? 'button'}
+      className={[
+        buttonWidth,
+        'px-3 py-[0.75rem] font-semibold text-white rounded-xl my-0 flex justify-center items-center relative box-border',
+        disabled ? baseDisabled : baseEnabled,
+        className ?? '',
+      ].join(' ')}
       onClick={handleClick}
       disabled={disabled}
+      {...rest}
     >
-      {icon && iconDirection === "left" && children && (
+      {icon && iconDirection === 'left' && children && (
         <>
           <div className="mr-2">{icon}</div>
           {children}
         </>
       )}
-      {icon && iconDirection === "right" && children && (
+      {icon && iconDirection === 'right' && children && (
         <>
           {children}
           <div className="ml-2">{icon}</div>
         </>
       )}
       {!icon && children && <>{children}</>}
-      {icon && !children && (
-        <div style={{ minWidth: "min-content" }}>{icon}</div>
-      )}
+      {icon && !children && <div style={{ minWidth: 'min-content' }}>{icon}</div>}
     </button>
   );
 };
 
 export const ButtonWrapperOutline: React.FC<ButtonWrapperProps> = ({
-  bg = "bg-transparent",
-  width = "fit-content",
+  bg = 'bg-transparent',
+  width = 'fit-content',
   icon,
   disabled,
   onClick,
   children,
+  className,
+  type,
+  htmlType,
+  ...rest
 }) => {
-  const buttonWidth = width === "fit-content" ? "w-fit" : width === 'full' ? 'w-full' : typeof width === 'number' ? `w-[${width}px]` : 'w-full';
+  const buttonWidth = getWidthClass(width);
+  const isSubmit = (htmlType ?? type ?? 'button') === 'submit';
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isSubmit) return;
+    onClick?.(e);
+  };
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light border-2 border-btnBg-light hover:border-btnBg-dark hover:text-btnBg-dark rounded-xl my-0 mx-2 flex justify-center items-center relative box-border ${
-        disabled ? "cursor-auto" : "cursor-pointer"
-      } `}
-      onClick={onClick}
+      type={(htmlType as any) ?? (type as any) ?? 'button'}
+      className={[
+        buttonWidth,
+        `px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light border-2 border-btnBg-light hover:border-btnBg-dark hover:text-btnBg-dark rounded-xl my-0 mx-2 flex justify-center items-center relative box-border`,
+        disabled ? 'cursor-auto' : 'cursor-pointer',
+        className ?? '',
+      ].join(' ')}
+      onClick={handleClick}
       disabled={disabled}
+      {...rest}
     >
-      {icon && !children && (
-        <div style={{ minWidth: "min-content" }}>{icon}</div>
-      )}
+      {icon && !children && <div style={{ minWidth: 'min-content' }}>{icon}</div>}
       {icon && children && <div className="mr-2">{icon}</div>}
       {children}
     </button>
@@ -95,26 +127,39 @@ export const ButtonWrapperOutline: React.FC<ButtonWrapperProps> = ({
 };
 
 export const ButtonUnWrapperOutline: React.FC<ButtonWrapperProps> = ({
-  bg = "bg-transparent",
-  width = "fit-content",
+  bg = 'bg-transparent',
+  width = 'fit-content',
   icon,
   disabled,
   onClick,
   children,
+  className,
+  type,
+  htmlType,
+  ...rest
 }) => {
-  const buttonWidth = width === "fit-content" ? "w-fit" : width === 'full' ? 'w-full' : typeof width === 'number' ? `w-[${width}px]` : 'w-full';
+  const buttonWidth = getWidthClass(width);
+  const isSubmit = (htmlType ?? type ?? 'button') === 'submit';
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isSubmit) return;
+    onClick?.(e);
+  };
 
   return (
     <button
-      className={`${buttonWidth}  px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark rounded-xl my-0 flex justify-center items-center relative box-border ${
-        disabled ? "cursor-auto" : "cursor-pointer"
-      } `}
-      onClick={onClick}
+      type={(htmlType as any) ?? (type as any) ?? 'button'}
+      className={[
+        buttonWidth,
+        `px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark rounded-xl my-0 flex justify-center items-center relative box-border`,
+        disabled ? 'cursor-auto' : 'cursor-pointer',
+        className ?? '',
+      ].join(' ')}
+      onClick={handleClick}
       disabled={disabled}
+      {...rest}
     >
-      {icon && !children && (
-        <div style={{ minWidth: "min-content" }}>{icon}</div>
-      )}
+      {icon && !children && <div style={{ minWidth: 'min-content' }}>{icon}</div>}
       {icon && children && <div className="mr-2">{icon}</div>}
       {children}
     </button>
@@ -130,33 +175,46 @@ const colorClassMap: Record<string, { text: string; border: string }> = {
 
 export const ButtonHover: React.FC<ButtonWrapperProps> = ({
   color = 'mulberry',
-  bg = "bg-transparent",
-  width = "fit-content",
+  bg = 'bg-transparent',
+  width = 'fit-content',
   icon,
   disabled,
   onClick,
   children,
+  className,
+  type,
+  htmlType,
+  ...rest
 }) => {
-  const buttonWidth = width === "fit-content" ? "w-fit" : width === 'full' ? 'w-full' : typeof width === 'number' ? `w-[${width}px]` : 'w-full';
+  const buttonWidth = getWidthClass(width);
   const colorClasses = colorClassMap[color] || colorClassMap.mulberry;
+  const isSubmit = (htmlType ?? type ?? 'button') === 'submit';
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isSubmit) return;
+    onClick?.(e);
+  };
 
   return (
     <button
-      className={`${buttonWidth} px-3 py-[0.75rem] ${bg} font-semibold ${colorClasses.text} hover:border-2 ${colorClasses.border} rounded-xl my-0 mx-2 flex justify-center items-center relative box-border ${
-        disabled ? "cursor-auto" : "cursor-pointer"
-      } `}
-      onClick={onClick}
+      type={(htmlType as any) ?? (type as any) ?? 'button'}
+      className={[
+        buttonWidth,
+        `px-3 py-[0.75rem] ${bg} font-semibold ${colorClasses.text} hover:border-2 ${colorClasses.border} rounded-xl my-0 mx-2 flex justify-center items-center relative box-border`,
+        disabled ? 'cursor-auto' : 'cursor-pointer',
+        className ?? '',
+      ].join(' ')}
+      onClick={handleClick}
       disabled={disabled}
+      {...rest}
     >
       {icon && children && (
         <div className="mr-2">
           {icon} {children}
         </div>
       )}
-
-      {icon && !children && (
-        <div style={{ minWidth: "min-content" }}>{icon}</div>
-      )}
+      {icon && !children && <div style={{ minWidth: 'min-content' }}>{icon}</div>}
+      {!icon && children && <>{children}</>}
     </button>
   );
 };

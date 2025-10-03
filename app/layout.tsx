@@ -1,12 +1,11 @@
 import { Poppins } from 'next/font/google';
 import type { Metadata, Viewport } from 'next';
 import { eastmanBold, eastmanExtrabold } from './fonts';
-import './css/style.css';
-import { cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
+import '../global.css';
 import { Toaster } from 'react-hot-toast';
 import { NavBar } from '@/components/layout/navbar/NavBar';
 import Footer from '@/components/layout/Footer';
+import AuthProvider from './provider/AuthProvider';
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -65,18 +64,7 @@ export const viewport: Viewport = {
   themeColor: '#F0815B',
 };
 
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // Await cookies() to get the actual cookies object
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="es"
@@ -89,13 +77,15 @@ export default async function RootLayout({
           backgroundImage: "url('/assets/images/Hero.png')",
         }}
       >
-        <main className="flex-1 w-full flex flex-col items-center min-h-screen">
-          <NavBar user={user} />
-          {children}
-          <Footer />
-        </main>
-        {/* Place global toasts inside <body> to keep valid HTML structure */}
-        <Toaster />
+        <AuthProvider>
+          <main className="flex-1 w-full flex flex-col items-center min-h-screen">
+            <NavBar />
+            {children}
+            <Footer />
+          </main>
+
+          <Toaster />
+        </AuthProvider>
       </body>
     </html>
   );

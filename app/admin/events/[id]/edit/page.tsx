@@ -1,10 +1,13 @@
+// app/admin/events/[id]/edit/page.tsx
 import { getEventById } from '@/lib/data/getEventById';
 import EventForm from '../../_components/EventForm';
 import { deleteEvent, updateEvent } from '../../_actions';
 import { redirect } from 'next/navigation';
 
-export default async function EditEventPage({ params }: { params: { id: string } }) {
-  const event = await getEventById(params.id);
+export default async function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
+  const event = await getEventById(id);
   if (!event) {
     redirect('/admin/events');
   }
@@ -18,12 +21,12 @@ export default async function EditEventPage({ params }: { params: { id: string }
       capacity: Number(fd.get('capacity') || 0),
       locationText: String(fd.get('locationText') || ''),
     };
-    await updateEvent(params.id, input);
+    await updateEvent(id, input);
   }
 
   async function handleDelete() {
     'use server';
-    await deleteEvent(params.id);
+    await deleteEvent(id);
     redirect('/admin/events');
   }
 
