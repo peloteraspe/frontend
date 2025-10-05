@@ -19,7 +19,7 @@ import { redirect } from 'next/navigation';
 //   });
 
 //   if (error) {
-//     console.log('SignIn Error:', error);
+//     // Log authentication error properly
 //     return { error: 'No puedes ingresar con ese correo' };
 //   }
 

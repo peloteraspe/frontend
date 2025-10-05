@@ -1,6 +1,7 @@
 "use server";
 
 import { ProfileRequestBody, UserProfileUpdate } from "@/utils/interfaces";
+import { log } from "@/lib/logger";
 
 export async function createProfile(requestBody: ProfileRequestBody) {
   try {
@@ -11,15 +12,16 @@ export async function createProfile(requestBody: ProfileRequestBody) {
       },
       body: JSON.stringify(requestBody),
     });
-    console.log("response", response);
+    
+    log.apiCall("POST", `/profile`, response.status, { userId: requestBody.user });
+    
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || response.statusText);
     }
     return data;
   } catch (error: any) {
-    console.log(error);
-    console.error("Error fetching events:", error.message);
+    log.error("Error creating profile", "PROFILE_ACTION", error, { userId: requestBody.user });
     throw error;
   }
 }
@@ -29,6 +31,8 @@ export async function getProfile(userId: string) {
 
   try {
     const response = await fetch(url, { method: "GET" });
+    
+    log.apiCall("GET", `/profile/${userId}`, response.status);
 
     const data = await response.json();
 
@@ -38,9 +42,11 @@ export async function getProfile(userId: string) {
 
     return data;
   } catch (error) {
-    console.error(
-      "Error fetching profile:",
-      error instanceof Error ? error.message : "Unknown error"
+    log.error(
+      "Error fetching profile", 
+      "PROFILE_ACTION",
+      error instanceof Error ? error : new Error("Unknown error"),
+      { userId }
     );
     throw error;
   }
@@ -61,6 +67,8 @@ export async function updateProfile(
       body: JSON.stringify(updates),
     });
 
+    log.apiCall("PATCH", `/profile/${userId}`, response.status);
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -69,9 +77,11 @@ export async function updateProfile(
 
     return data;
   } catch (error) {
-    console.error(
-      "Error updating profile:",
-      error instanceof Error ? error.message : "Unknown error"
+    log.error(
+      "Error updating profile",
+      "PROFILE_ACTION", 
+      error instanceof Error ? error : new Error("Unknown error"),
+      { userId, updates }
     );
     throw error;
   }

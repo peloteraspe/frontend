@@ -1,6 +1,6 @@
 // app/admin/events/[id]/edit/page.tsx
 import { getEventById } from '@/lib/data/getEventById';
-import EventForm from '../../_components/EventForm';
+import { EventForm } from '@/components/DynamicComponents';
 import { deleteEvent, updateEvent } from '../../_actions';
 import { redirect } from 'next/navigation';
 

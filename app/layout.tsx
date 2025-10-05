@@ -76,6 +76,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         style={{
           backgroundImage: "url('/assets/images/Hero.png')",
         }}
+        suppressHydrationWarning
       >
         <AuthProvider>
           <main className="flex-1 w-full flex flex-col items-center min-h-screen">
@@ -85,6 +86,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </main>
 
           <Toaster />
+          
+          {/* Auth debugger for development */}
+          {/* Debug components removed */}
         </AuthProvider>
       </body>
     </html>

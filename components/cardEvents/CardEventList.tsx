@@ -1,12 +1,13 @@
 
 import { getAllEvents } from "@/app/_actions/event";
 import CardEventItem from "./CardEventItem";
+import { log } from "@/lib/logger";
 
 
 const CardEventList = async() => {
   //let cardEvents;
   const cardEvents = await getAllEvents();
-  console.log(cardEvents, 'cardEvents');
+  log.debug("Retrieved events for card list", "CARD_EVENT_LIST", { eventCount: cardEvents?.length });
   return (
     <div className="pb-8 md:pb-16">
         <h2 className="text-3xl font-bold font-inter mb-10">Eventos deportivos:</h2>

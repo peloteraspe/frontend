@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
+import { log } from "@/lib/logger";
 
 export async function getFeatures() {
     // Await cookies() to obtain the resolved cookies object.
@@ -11,7 +12,7 @@ export async function getFeatures() {
       .select("*");
     
     if (featuresError || !features) {
-        console.error("Error fetching data from Supabase:", featuresError.message);
+        log.database("SELECT getFeatures", "features", featuresError);
         throw new Error("Failed to fetch data");
     }
 

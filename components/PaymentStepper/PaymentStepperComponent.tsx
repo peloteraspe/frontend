@@ -2,18 +2,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
-import LogoYape from '../app/assets/Logo.Yape.webp';
-import { Stepper } from './Stepper';
-import PaymentAmount from './PaymentAmount';
-import OperationNumberModal from './OperationNumberModal';
-import operationGuideImage from '../app/assets/donde-nro-operacion.png';
-import { Title2XL } from './atoms/Typography';
+import LogoYape from '../../app/assets/Logo.Yape.webp';
+import { Stepper } from '../Stepper';
+import PaymentAmount from '../PaymentAmount';
+import OperationNumberModal from '../OperationNumberModal';
+import operationGuideImage from '../../app/assets/donde-nro-operacion.png';
+import { Title2XL } from '../atoms/Typography';
 import Link from 'next/link';
-import Input from './Input';
-import { ButtonWrapper } from './Button';
+import Input from '../Input';
+import { ButtonWrapper } from '../Button';
 import { useRouter } from 'next/navigation';
-import soccerBall from '../app/assets/soccer-ball.svg';
+import soccerBall from '../../app/assets/soccer-ball.svg';
 import { useForm } from 'react-hook-form';
+import { log } from "@/lib/logger";
 
 type FormValues = {
   promCode?: string;
@@ -74,10 +75,8 @@ const PaymentStepper = (props: any) => {
       state: 'pending',
     };
 
-    const { error } = await supabase.from('assistants').upsert(registeredPlayer);
-
-    if (error) {
-      console.error('Error guardando asistencia:', error);
+    const { error } = await supabase.from('assistants').upsert(registeredPlayer);    if (error) {
+      log.database('UPSERT assistants', 'assistants', error, registeredPlayer);
       setError('operationNumber', {
         type: 'manual',
         message: 'No pudimos registrar tu número. Intenta nuevamente.',

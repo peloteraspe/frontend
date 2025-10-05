@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
+import { log } from "@/lib/logger";
 
 export type Assistant = {
   id: string;
@@ -22,24 +23,21 @@ export type AssistantsQuery = {
   offset?: number;
 };
 
-export async function getAssistants(
-  state?: Assistant['state'],
-  opts: AssistantsQuery = {}
-): Promise<Assistant[]> {
+export async function getAssistants(eventId: string) {
+  // Await cookies() to get the actual cookies object
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
-  const { search, limit, offset } = opts;
-  let query = supabase
+
+  const { data, error } = await supabase
     .from('assistants')
-    .select('id, operationNumber, state, event, user', { count: 'exact' });
-  if (state) query = query.eq('state', state);
-  if (search && search.trim()) query = query.ilike('operationNumber', `%${search.trim()}%`);
-  if (typeof offset === 'number' && typeof limit === 'number') query = query.range(offset, offset + limit - 1);
-  const { data, error } = await query.order('id', { ascending: false });
+    .select('*')
+    .eq('event', eventId);
+
   if (error) {
-    console.error('Error fetching assistants:', error.message);
+    log.database('SELECT assistants', 'assistants', error, { eventId });
     return [];
   }
+
   return (data as any) || [];
 }
 
@@ -47,18 +45,31 @@ export async function getAssistantsWithDetails(
   state?: Assistant['state'],
   opts: AssistantsQuery = {}
 ): Promise<AssistantDetails[]> {
-  const items = await getAssistants(state, opts);
-  if (!items.length) return [];
-
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  // Note: This function needs to be updated to use proper getAssistants call
+  const cookieStoreDetails = await cookies();
+  const supabaseDetails = createClient(cookieStoreDetails);
+  
+  let query = supabaseDetails.from('assistants').select('*');
+  if (state) query = query.eq('state', state);
+  if (opts.search) query = query.ilike('operationNumber', `%${opts.search}%`);
+  if (opts.limit) query = query.limit(opts.limit);
+  if (opts.offset) query = query.range(opts.offset, opts.offset + (opts.limit || 10) - 1);
+  
+  const { data: items, error } = await query;
+  
+  if (error) {
+    log.database('SELECT assistants with details', 'assistants', error, { state, opts });
+    return [];
+  }
+  
+  if (!items || !items.length) return [];
 
   const eventIds = Array.from(new Set(items.map((i) => i.event).filter(Boolean)));
   const userIds = Array.from(new Set(items.map((i) => i.user).filter(Boolean)));
 
   let eventsMap = new Map<string, { id: string; title?: string; formattedDateTime?: string; price?: number | string }>();
   if (eventIds.length) {
-    const { data: events } = await supabase
+    const { data: events } = await supabaseDetails
       .from('event')
       .select('id, title, formattedDateTime, price')
       .in('id', eventIds as any);
@@ -69,7 +80,7 @@ export async function getAssistantsWithDetails(
 
   let profilesMap = new Map<string, { user: string; username?: string }>();
   if (userIds.length) {
-    const { data: profiles } = await supabase
+    const { data: profiles } = await supabaseDetails
       .from('profile')
       .select('user, username')
       .in('user', userIds as any);
@@ -92,13 +103,19 @@ export async function getAssistantsWithDetails(
 }
 
 export async function getAssistantsCounts() {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const cookieStoreCounts = await cookies();
+  const supabaseCounts = createClient(cookieStoreCounts);
 
   const countFor = async (state?: Assistant['state']) => {
-    let q = supabase.from('assistants').select('*', { count: 'exact', head: true });
+    let q = supabaseCounts.from('assistants').select('*', { count: 'exact', head: true });
     if (state) q = q.eq('state', state);
-    const { count } = await q;
+    const { count, error } = await q;
+    
+    if (error) {
+      log.database('COUNT assistants', 'assistants', error, { state });
+      return 0;
+    }
+    
     return count || 0;
   };
 

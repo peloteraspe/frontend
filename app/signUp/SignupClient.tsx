@@ -4,8 +4,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { createClient } from '@/utils/supabase/client';
+
 import toast from 'react-hot-toast';
+import { log } from '@/lib/logger';
+import { createClient } from '@/utils/supabase/client';
 
 import { Title2XL, ParagraphM } from '@/components/atoms/Typography';
 import Input from '@/components/Input';
@@ -47,23 +49,92 @@ export default function SignupClient() {
 
   const [positions, setPositions] = useState<OptionSelect[]>([]);
   const [levels, setLevels] = useState<OptionSelect[]>([]);
-  const [selectedPositions, setSelectedPositions] = useState<OptionSelect[]>([]);
-  const [selectedLevel, setSelectedLevel] = useState<OptionSelect | undefined>(undefined);
+  const [selectedPositions, setSelectedPositions] = useState<(string | number)[]>([]);
+  const [selectedLevel, setSelectedLevel] = useState<string | number | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+  const [countdownInterval, setCountdownInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const load = async () => {
-      const [{ data: posData }, { data: lvlData }] = await Promise.all([
-        supabase.from('player_position').select('id, name'),
-        supabase.from('level').select('id, name'),
-      ]);
-
-      setPositions((posData ?? []).map((p) => ({ key: p.id, value: p.id, label: p.name })));
-      setLevels((lvlData ?? []).map((l) => ({ key: l.id, value: l.id, label: l.name })));
+    const loadData = async () => {
+      try {
+        console.log('🚀 SignupClient: useEffect triggered, starting data load...');
+        log.info('Loading positions and levels data for signup form', 'signup-form');
+        
+        // Fetch data from API endpoints
+        console.log('📊 Making API calls to fetch positions and levels...');
+        
+        const [positionsResponse, levelsResponse] = await Promise.all([
+          fetch('/api/positions'),
+          fetch('/api/levels')
+        ]);
+        
+        console.log('📊 API responses:', { positionsResponse, levelsResponse });
+        
+        if (!positionsResponse.ok) {
+          throw new Error(`Failed to fetch positions: ${positionsResponse.status}`);
+        }
+        
+        if (!levelsResponse.ok) {
+          throw new Error(`Failed to fetch levels: ${levelsResponse.status}`);
+        }
+        
+        const positionsData = await positionsResponse.json();
+        const levelsData = await levelsResponse.json();
+        
+        console.log('📊 Parsed JSON data:', { positionsData, levelsData });
+        
+        const formattedPositions = positionsData.data || [];
+        const formattedLevels = levelsData.data || [];
+        
+        console.log('✅ Data formatted and setting state:', { formattedPositions, formattedLevels });
+        log.debug('Positions loaded', 'signup-form', { count: formattedPositions.length, positions: formattedPositions });
+        log.debug('Levels loaded', 'signup-form', { count: formattedLevels.length, levels: formattedLevels });
+        
+        setPositions(formattedPositions);
+        setLevels(formattedLevels);
+        console.log('✅ State updated with API data');
+        
+      } catch (error) {
+        log.error('Failed to load signup data', 'signup-form', error);
+        
+        // Use fallback data if API calls fail
+        const fallbackPositions = [
+          { key: 1, value: 1, label: 'Portera' },
+          { key: 2, value: 2, label: 'Defensa' },
+          { key: 3, value: 3, label: 'Mediocampo' },
+          { key: 4, value: 4, label: 'Delantera' }
+        ];
+        
+        const fallbackLevels = [
+          { key: 1, value: 1, label: 'Principiante' },
+          { key: 2, value: 2, label: 'Intermedio' },
+          { key: 3, value: 3, label: 'Avanzado' }
+        ];
+        
+        log.warn('Using fallback data for signup form', 'signup-form', { 
+          positionsCount: fallbackPositions.length, 
+          levelsCount: fallbackLevels.length 
+        });
+        
+        setPositions(fallbackPositions);
+        setLevels(fallbackLevels);
+      }
     };
-    load();
-  }, [supabase]);
+    
+    loadData();
+  }, []);
+
+  // Cleanup countdown interval on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+    };
+  }, [countdownInterval]);
 
   const handleStep1 = async (data: { username: string; password: string }) => {
     if (!canSubmitStep1) return;
@@ -105,14 +176,41 @@ export default function SignupClient() {
       await createProfile({
         user: userId,
         username, // del paso 1
-        level_id: Number(selectedLevel.value),
+        level_id: Number(selectedLevel),
         player_position: selectedPositions
-          .map((p) => Number(p.value))
+          .map((p) => Number(p))
           .filter((n) => Number.isFinite(n)),
       });
-      toast.success('Cuenta creada 🎉');
-      await refreshProfile();
-      window.location.href = '/login';
+      
+      log.info('Profile created successfully', 'signup-form', { userId, username });
+      
+      // Show success state
+      setIsSuccess(true);
+      setLoading(false);
+      toast.success('¡Cuenta creada exitosamente! 🎉');
+      
+      // Refresh profile in background
+      try {
+        await refreshProfile();
+        log.debug('Profile refreshed after signup', 'signup-form');
+      } catch (refreshError) {
+        log.warn('Profile refresh failed after signup', 'signup-form', refreshError);
+      }
+      
+      // Start countdown and redirect
+      const interval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            // Use Next.js router for better navigation
+            window.location.href = '/login?signup=success';
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      setCountdownInterval(interval);
     } catch (err: any) {
       console.error(err);
       if (String(err).includes('profile_username_key')) {
@@ -132,7 +230,41 @@ export default function SignupClient() {
         <Title2XL color="text-mulberry">Peloteras</Title2XL>
       </div>
 
-      {step === 1 ? (
+      {isSuccess ? (
+        <div className="w-full max-w-[420px] text-center">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
+            <div className="text-6xl mb-4">🎉</div>
+            <h3 className="text-xl font-semibold text-green-800 mb-2">
+              ¡Cuenta creada exitosamente!
+            </h3>
+            <p className="text-green-700 mb-4">
+              Tu perfil ha sido configurado correctamente. Ya puedes comenzar a jugar con nosotras.
+            </p>
+            <div className="bg-green-100 rounded-lg p-4">
+              <p className="text-green-800 font-medium">
+                Redirigiendo al login en {countdown} segundos...
+              </p>
+              <div className="mt-2">
+                <div className="w-full bg-green-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-600 h-2 rounded-full transition-all duration-1000"
+                    style={{ width: `${((5 - countdown) / 5) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              if (countdownInterval) clearInterval(countdownInterval);
+              window.location.href = '/login?signup=success';
+            }}
+            className="w-full h-11 rounded-xl bg-mulberry text-white hover:bg-mulberry/90 transition-colors"
+          >
+            Ir al login ahora
+          </button>
+        </div>
+      ) : step === 1 ? (
         <div className="w-full max-w-[420px]">
           <p className="text-center text-slate-700 mb-6">
             Completa tus datos por primera vez para que tengas una experiencia personalizada
@@ -201,9 +333,10 @@ export default function SignupClient() {
                 options={positions}
                 isMulti
                 name="player_position"
-                // no está conectado a RHF; usamos estado local
-                // @ts-ignore
-                onChange={(opts: OptionSelect[]) => setSelectedPositions(opts)}
+                value={selectedPositions}
+                onChange={(values: string[] | number[]) => {
+                  setSelectedPositions(values);
+                }}
               />
             </label>
 
@@ -216,8 +349,10 @@ export default function SignupClient() {
               <SelectComponent
                 options={levels}
                 name="level_id"
-                // @ts-ignore
-                onChange={(opt: OptionSelect) => setSelectedLevel(opt)}
+                value={selectedLevel}
+                onChange={(value: string | number | null) => {
+                  setSelectedLevel(value);
+                }}
               />
             </label>
 

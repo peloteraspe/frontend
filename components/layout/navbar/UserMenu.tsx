@@ -12,9 +12,10 @@ type UserLite = { id: string; email?: string | null; username?: string | null } 
 
 interface UserMenuProps {
   user?: UserLite;
+  loading?: boolean;
 }
 
-const UserMenu: React.FC<UserMenuProps> = ({ user = null }) => {
+const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { signOut } = useAuth();
@@ -43,7 +44,19 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null }) => {
       <div className="flex flex-row items-center gap-3">
         <div className="flex flex-1 items-center justify-end">
           <div className="flex items-center space-x-8">
-            {user ? (
+            {loading ? (
+              // Show login options while loading to prevent empty navbar
+              <>
+                <Link href={'/login'}>
+                  <span className="font-poppins font-semibold text-sm text-mulberry">
+                    Inicia sesión
+                  </span>
+                </Link>
+                <button className="px-4 py-[0.60rem] bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border">
+                  <ButtonM color="text-white">Unirme a un evento</ButtonM>
+                </button>
+              </>
+            ) : user ? (
               <>
                 <Link
                   href={`/tickets/${user.id}`}

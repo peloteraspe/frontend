@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { log } from "@/lib/logger";
 
 export default async function getAllPosts() {
   // Await cookies() so that cookieStore is the resolved cookies object.
@@ -10,7 +11,7 @@ export default async function getAllPosts() {
   const { data, error } = await supabase.from("event").select("*");
 
   if (error) {
-    console.error("Error fetching data from Supabase:", error.message);
+    log.database("SELECT getAllPosts", "event", error);
     throw new Error("Failed to fetch data");
   }
 

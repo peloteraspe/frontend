@@ -1,8 +1,12 @@
 import { TitleXL } from '@/components/atoms/Typography';
 import CardEventItem from '@/components/cardEvents/CardEventItem';
+import { log } from "@/lib/logger";
 
 const fetchEvents = async (userId) => {
   const res = await fetch(`${process.env.BACKEND_URL}/event?userId=${userId}`);
+  
+  log.apiCall("GET", `/event?userId=${userId}`, res.status);
+  
   if (!res.ok) {
     throw new Error('Failed to fetch events');
   }

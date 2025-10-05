@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
+import { log } from "@/lib/logger";
 
 export async function getEvents() {
   // Await cookies() to get the resolved cookies object.
@@ -8,7 +9,7 @@ export async function getEvents() {
   const { data, error } = await supabase.from("event").select("*");
 
   if (error) {
-    console.error("Error fetching data from Supabase:", error.message);
+    log.database("SELECT getEvents", "event", error);
     throw new Error("Failed to fetch data");
   }
 

@@ -14,12 +14,18 @@ export const NavBar = ({ simple = false }: { simple?: boolean }) => {
         className="flex items-center h-full cursor-pointer gap-2"
         aria-label="Ir al inicio"
       >
-        <Image src="/logo.png" width={50} height={50} alt="Peloteras logo" />
+        <Image 
+          src="/logo.png" 
+          width={50} 
+          height={50} 
+          alt="Peloteras logo"
+          style={{ width: 'auto', height: 'auto' }}
+        />
         <span className="font-eastman-extrabold text-2xl text-mulberry uppercase hidden sm:block">
           Peloteras
         </span>
       </Link>
-      {!simple && !loading && <UserMenu user={user} />}
+      {!simple && <UserMenu user={user} loading={loading} />}
     </nav>
   );
 };

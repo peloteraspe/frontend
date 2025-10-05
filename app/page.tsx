@@ -1,13 +1,13 @@
-import Header from "@/components/Header";
 import PostsList from "./posts-list";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import UpdateProfile from "./signUp/signUpForm";
 import Hero from "@/components/layout/hero";
+import { Sidebar } from "@/components/DynamicComponents";
 import CardEventList from "@/components/cardEvents/CardEventList";
-import Sidebar from "@/components/layout/sidebar/Sidebar";
 import { getFeatures } from "@/lib/data/getFeatures";
 import { getEvents } from "@/lib/data/getEvents";
+import { log } from "@/lib/logger";
 
 export default async function Index() {
   // Await cookies() so that cookieStore holds the resolved cookies object.
@@ -26,7 +26,7 @@ export default async function Index() {
       .single();
 
     if (error) {
-      console.error("Error fetching user profile:", error);
+      log.database("SELECT user profile", "profile", error, { userId: user.id });
     } else {
       userProfile = data;
     }

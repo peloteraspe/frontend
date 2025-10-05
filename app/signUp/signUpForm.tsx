@@ -18,6 +18,8 @@ type FormValues = {
 };
 
 const UpdateProfile = ({ user }: { user: { id: string } }) => {
+  console.log('UpdateProfile component rendered with user:', user);
+  
   const supabase = createClient();
 
   const {
@@ -39,39 +41,34 @@ const UpdateProfile = ({ user }: { user: { id: string } }) => {
   const [buttonText, setButtonText] = useState('Crear cuenta');
   const [loading, setLoading] = useState(false);
 
-  // Cargar opciones desde Supabase
+  console.log('Current state:', { positions: positions.length, levels: levels.length });
+
+  // Load test data immediately without Supabase for now
   useEffect(() => {
-    const fetchPosiciones = async () => {
-      const { data, error } = await supabase.from('player_position').select('id, name');
-      if (error) {
-        console.error('Error fetching positions:', error);
-        return;
-      }
-      const options = (data ?? []).map((p) => ({
-        key: p.id,
-        value: p.id,
-        label: p.name,
-      }));
-      setPositions(options);
-    };
-
-    const fetchLevels = async () => {
-      const { data, error } = await supabase.from('level').select('id, name');
-      if (error) {
-        console.error('Error fetching levels:', error);
-        return;
-      }
-      const options = (data ?? []).map((l) => ({
-        key: l.id,
-        value: l.id,
-        label: l.name,
-      }));
-      setLevels(options);
-    };
-
-    fetchPosiciones();
-    fetchLevels();
-  }, [supabase]);
+    console.log('useEffect running - setting test data');
+    
+    // Set test data directly
+    const testPositions = [
+      { key: 1, value: 1, label: 'Portera' },
+      { key: 2, value: 2, label: 'Defensa' },
+      { key: 3, value: 3, label: 'Mediocampo' },
+      { key: 4, value: 4, label: 'Delantera' }
+    ];
+    
+    const testLevels = [
+      { key: 1, value: 1, label: 'Principiante' },
+      { key: 2, value: 2, label: 'Intermedio' },
+      { key: 3, value: 3, label: 'Avanzado' }
+    ];
+    
+    console.log('Setting test positions:', testPositions);
+    console.log('Setting test levels:', testLevels);
+    
+    setPositions(testPositions);
+    setLevels(testLevels);
+    
+    console.log('Test data set complete');
+  }, []);
 
   // Helper de conversión segura a number
   const toNumber = (v: unknown): number | undefined => {
@@ -138,18 +135,30 @@ const UpdateProfile = ({ user }: { user: { id: string } }) => {
                 <span className="text-red-500"> *</span>
               </ParagraphM>
             </div>
-            <SelectComponent options={positions} isMulti control={control} name="player_position" />
+            {positions.length > 0 ? (
+              <SelectComponent options={positions} isMulti control={control} name="player_position" />
+            ) : (
+              <div className="p-3 border border-gray-300 rounded bg-gray-50">
+                Cargando posiciones...
+              </div>
+            )}
           </label>
 
           {/* Level (single) */}
           <label className="w-full">
             <div className="mb-1">
               <ParagraphM fontWeight="semibold">
-                Nivel de juego
+                ¿Cuál es tu nivel?
                 <span className="text-red-500"> *</span>
               </ParagraphM>
             </div>
-            <SelectComponent options={levels} control={control} name="level_id" />
+            {levels.length > 0 ? (
+              <SelectComponent options={levels} control={control} name="level_id" />
+            ) : (
+              <div className="p-3 border border-gray-300 rounded bg-gray-50">
+                Cargando niveles...
+              </div>
+            )}
           </label>
 
           <div className="flex flex-col items-center w-80">

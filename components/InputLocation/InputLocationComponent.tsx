@@ -2,6 +2,7 @@
 
 import { Autocomplete, LoadScript } from "@react-google-maps/api";
 import React, { useState } from "react";
+import { log } from "@/lib/logger";
 
 const InputLocation: React.FC = () => {
   const [autocomplete, setAutocomplete] =
@@ -14,9 +15,11 @@ const InputLocation: React.FC = () => {
   const onPlaceChanged = () => {
     if (autocomplete !== null) {
       const place = autocomplete.getPlace();
-      console.log("place:", place);
-    } else {
-      console.log("Selecciona un distrito del listado");
+      if (place && place.place_id) {
+        log.debug("Place selected", "INPUT_LOCATION", { placeId: place.place_id, address: place.formatted_address });
+      } else {
+        log.warn("No valid place selected from autocomplete", "INPUT_LOCATION");
+      }
     }
   };
 

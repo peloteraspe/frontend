@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { Suspense, useEffect, useState, useTransition } from 'react';
 import { Title2XL } from '@/components/atoms/Typography';
 import toast from 'react-hot-toast';
-import { checkIfUserExists } from './utils';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../provider/AuthProvider';
+import { log } from "@/lib/logger";
 
 import Form, { type FormField } from '@/components/organisms/Form';
 
@@ -14,53 +14,96 @@ type LoginValues = {
   password?: string;
 };
 
-export default function Login() {
+function LoginContent() {
   const [buttonText, setButtonText] = useState('Continuar');
   const [isExistingUser, setIsExistingUser] = useState<boolean | null>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { refreshProfile } = useAuth();
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     router.prefetch('/');
-  }, [router]);
+    
+    // Check if user is coming from successful signup
+    if (searchParams.get('signup') === 'success') {
+      toast.success('¡Cuenta creada exitosamente! 🎉 Ahora puedes iniciar sesión.');
+      log.info('User arrived from successful signup', 'login');
+      
+      // Clean up the URL parameter
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('signup');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
 
-  const handleCheckUser = async (data: LoginValues) => {
-    setButtonText('Verificando...');
-    if (!data.email) {
-      toast.error('Debes ingresar un correo válido.');
-      setButtonText('Continuar');
-      return;
+    // Check for OAuth errors
+    const error = searchParams.get('error');
+    if (error) {
+      console.error('❌ OAuth error from callback:', error);
+      toast.error('Error de autenticación: ' + decodeURIComponent(error));
+      
+      // Clean up the URL parameter
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('error');
+      window.history.replaceState({}, '', newUrl.toString());
     }
+  }, [router, searchParams]);
+
+  const handleCheckUser = (data: LoginValues) => {
+    console.log('🔍 handleCheckUser called with:', data);
+    
     try {
-      const exists = await checkIfUserExists(data.email);
-      setIsExistingUser(exists);
-      if (exists) {
-        toast.success('Cuenta encontrada, ingresa tu contraseña.');
-        setButtonText('Ingresar');
-      } else {
-        toast('Completa tus datos por primera vez.');
-        router.push(`/signUp?email=${encodeURIComponent(data.email)}`);
+      if (!data.email) {
+        toast.error('Debes ingresar un correo válido.');
+        return;
       }
+      
+      console.log('✅ Email valid, setting isExistingUser to true');
+      
+      // Skip the user existence check and just show password field
+      setIsExistingUser(true);
+      toast.success('Ingresa tu contraseña para continuar.');
+      setButtonText('Ingresar');
+      console.log('🔄 State updated - isExistingUser: true, buttonText: Ingresar');
+      
     } catch (error) {
-      console.error('Error verificando usuario:', error);
-      toast.error('Hubo un error. Inténtalo de nuevo.');
-      setButtonText('Continuar');
+      console.error('❌ Error in handleCheckUser:', error);
+      toast.error('Error al procesar el email');
     }
+  };
+
+  // Direct form handlers
+  const handleDirectEmailSubmit = (email: string) => {
+    console.log('🔍 handleDirectEmailSubmit called with:', email);
+    handleCheckUser({ email });
+  };
+
+  const handleDirectLoginSubmit = (email: string, password: string) => {
+    console.log('🔍 handleDirectLoginSubmit called with:', { email, password });
+    handleSignIn({ email, password });
   };
 
   const handleSignIn = async (data: LoginValues) => {
     if (!isExistingUser) return;
+    console.log('🚀 Starting login process for:', data.email);
     setButtonText('Cargando...');
+    
     try {
+      console.log('📡 Creating Supabase client...');
       const supabase = (await import('@/utils/supabase/client')).createClient();
+      
+      console.log('🔐 Attempting sign in with password...');
       const { error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password || '',
       });
+      
+      console.log('🔐 Sign in response:', { error });
 
       if (error) {
         const msg = (error.message || '').toLowerCase();
+
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
           toast.error('Tu correo no está confirmado.');
           const { error: rerr } = await supabase.auth.resend({
@@ -70,34 +113,81 @@ export default function Login() {
           });
           if (rerr) toast.error(rerr.message ?? 'No se pudo reenviar el correo');
           else toast.success('Te enviamos un correo para confirmar tu cuenta.');
-          setButtonText('Ingresar');
           return;
         }
-        if (msg.includes('invalid') || msg.includes('credentials')) {
-          toast.error('Correo o contraseña incorrectos.');
-        } else {
-          toast.error(error.message || 'No se pudo iniciar sesión.');
+        
+        if (msg.includes('invalid') || msg.includes('credentials') || msg.includes('user not found')) {
+          // User doesn't exist, redirect to signup
+          toast('Parece que no tienes cuenta. Te llevaremos al registro.');
+          router.push(`/signUp?email=${encodeURIComponent(data.email)}`);
+          return;
         }
-        setButtonText('Ingresar');
+        
+        toast.error(error.message || 'No se pudo iniciar sesión.');
         return;
       }
 
+      console.log('✅ Login successful, showing success message');
       toast.success('¡Bienvenida de vuelta!');
-      startTransition(() => {
-        router.replace('/');
-      });
+      
+      // Don't wait for profile refresh, let AuthProvider handle it
+      console.log('🏠 Navigating to home page');
+      router.push('/');
 
-      // actualiza perfil en background (sin await); el onAuthStateChange también disparará la carga
-      refreshProfile?.();
-    } catch {
+    } catch (err) {
+      console.error('❌ Login error:', err);
       toast.error('Error inesperado al ingresar.');
     } finally {
-      setButtonText('Ingresar');
+      console.log('🔧 Resetting button text to "Ingresar"');
+      // Small delay to ensure user sees the success message
+      setTimeout(() => {
+        setButtonText('Ingresar');
+      }, 1000);
     }
   };
 
-  const handleGoogleClick = () => {
-    console.log('google-sign-in: not-implemented');
+  const handleGoogleClick = async () => {
+    console.log('🔍 Google sign-in clicked');
+    log.debug('Google sign-in initiated', 'LOGIN_PAGE');
+    
+    setIsGoogleLoading(true);
+    
+    try {
+      const { createClient } = await import('@/utils/supabase/client');
+      const supabase = createClient();
+      
+      console.log('🔑 Initiating Google OAuth...');
+      toast.loading('Redirigiendo a Google...');
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      if (error) {
+        console.error('❌ Google OAuth error:', error);
+        toast.dismiss();
+        toast.error('Error al iniciar sesión con Google: ' + error.message);
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      console.log('✅ Google OAuth initiated successfully');
+      log.info('Google OAuth redirect initiated', 'LOGIN_PAGE');
+      // The redirect will happen automatically, so we don't need to reset loading state
+      
+    } catch (error) {
+      console.error('❌ Unexpected error during Google sign-in:', error);
+      toast.dismiss();
+      toast.error('Error inesperado al iniciar sesión con Google');
+      setIsGoogleLoading(false);
+    }
   };
 
   const fields: FormField<LoginValues>[] = [
@@ -120,7 +210,7 @@ export default function Login() {
             name: 'password' as const,
             label: 'Contraseña',
             type: 'password' as const,
-            placeholder: '••••••••',
+            placeholder: 'Tu contraseña',
             validation: {
               required: 'Este campo es requerido',
               minLength: { value: 6, message: 'Mínimo 6 caracteres' },
@@ -130,9 +220,19 @@ export default function Login() {
       : []),
   ];
 
+  // Debug log to see what fields are being generated
+  console.log('🔧 Fields array:', fields.map(f => ({ name: f.name, type: f.type })));
+
   return (
     <div className="flex flex-col justify-center items-center w-full gap-8 min-h-[calc(100vh-6rem)] px-4">
-      <div className="flex flex-col items-center">
+      {/* Debug indicator */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-100 border border-blue-400 px-4 py-2 rounded-lg text-sm z-50">
+          <strong>Login Debug:</strong> isExistingUser: {String(isExistingUser)} | Button: "{buttonText}" | Fields: {fields.length}
+        </div>
+      )}
+      
+      <div className="text-center">
         <Title2XL>Bienvenida a</Title2XL>
         <Title2XL color="text-mulberry">Peloteras</Title2XL>
       </div>
@@ -141,49 +241,70 @@ export default function Login() {
         <Form<LoginValues>
           defaultValues={{ email: '', password: '' }}
           fields={fields}
-          onSubmit={isExistingUser === null ? handleCheckUser : handleSignIn}
-          submitLabel={buttonText}
-          className="flex flex-col gap-4"
-          disableSubmitIfEmailInvalid
+          onSubmit={isExistingUser ? handleSignIn : handleCheckUser}
+          submitLabel={isPending ? 'Procesando...' : buttonText}
+          disableSubmitIfEmailInvalid={true}
         />
+      </div>
 
-        <div className="mt-4 flex items-center gap-3">
-          <div className="h-px bg-slate-200 flex-1" />
-          <span className="text-xs text-slate-500 whitespace-nowrap">o continúa con</span>
-          <div className="h-px bg-slate-200 flex-1" />
+      <div className="w-full max-w-[420px]">
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-gray-300" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="bg-white px-2 text-gray-500">o continúa con</span>
+          </div>
         </div>
 
         <button
-          type="button"
           onClick={handleGoogleClick}
-          className="mt-4 w-full h-11 rounded-xl border border-[#5b1c70]/40 text-[#5b1c70] font-medium hover:bg-[#5b1c70]/5 transition flex items-center justify-center gap-2"
+          className="w-full mt-4 flex justify-center items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={isPending || isGoogleLoading}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 48 48">
-            <path
-              fill="#FFC107"
-              d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12
-              s5.373-12,12-12c3.059,0,5.84,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24
-              s8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
-            />
-            <path
-              fill="#FF3D00"
-              d="M6.306,14.691l6.571,4.819C14.297,16.108,18.799,13,24,13c3.059,0,5.84,1.154,7.961,3.039l5.657-5.657
-              C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"
-            />
-            <path
-              fill="#4CAF50"
-              d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.136,35.091,26.715,36,24,36
-              c-5.202,0-9.707-3.118-11.313-7.49l-6.553,5.047C9.464,39.556,16.135,44,24,44z"
-            />
-            <path
-              fill="#1976D2"
-              d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.094,5.571
-              c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.985,39.007,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
-            />
-          </svg>
-          Continuar con Google
+          {isGoogleLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+              Redirigiendo...
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+              Google
+            </>
+          )}
         </button>
       </div>
     </div>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col justify-center items-center w-full gap-8 min-h-[calc(100vh-6rem)] px-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-mulberry"></div>
+        <p className="text-gray-600">Cargando...</p>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

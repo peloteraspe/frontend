@@ -26,76 +26,124 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true);
 
   const hydrateFromSession = async () => {
+    console.log('🔄 AuthProvider: Starting session hydration...');
     setLoading(true);
+    
     try {
-      const {
-        data: { user: u },
-      } = await supabase.auth.getUser();
+      // First, get the current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('📊 Session check:', { 
+        hasSession: !!session,
+        error: sessionError?.message,
+        accessToken: session?.access_token ? 'present' : 'missing',
+        expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'no expiry'
+      });
 
-      if (!u) {
+      // If no session, try to get user directly (checks localStorage)
+      if (!session) {
+        console.log('❌ No session found, checking localStorage for user...');
+        const { data: { user: directUser }, error: directUserError } = await supabase.auth.getUser();
+        
+        if (directUser && !directUserError) {
+          console.log('✅ User found in localStorage:', directUser.id);
+          const userData = {
+            id: directUser.id,
+            email: directUser.email,
+            username: directUser.user_metadata?.username ?? null,
+          };
+          setUser(userData);
+          return;
+        } else {
+          console.log('❌ No user found anywhere');
+          setUser(null);
+          return;
+        }
+      }
+
+      // We have a session, get the user
+      const { data: { user: sessionUser }, error: userError } = await supabase.auth.getUser();
+      
+      console.log('👤 User from session:', { 
+        user: !!sessionUser, 
+        id: sessionUser?.id, 
+        email: sessionUser?.email,
+        error: userError?.message
+      });
+
+      if (!sessionUser || userError) {
+        console.log('❌ Could not get user from session');
         setUser(null);
         return;
       }
 
-      setUser({
-        id: u.id,
-        email: u.email,
-        username: u.user_metadata?.username ?? null,
-      });
+      const userData = {
+        id: sessionUser.id,
+        email: sessionUser.email,
+        username: sessionUser.user_metadata?.username ?? null,
+      };
 
-      const { data: profile } = await supabase
-        .from('profile')
-        .select('username')
-        .eq('user', u.id)
-        .maybeSingle();
+      setUser(userData);
+      console.log('✅ User set successfully:', userData);
 
-      if (profile?.username) {
-        setUser((prev) => (prev ? { ...prev, username: profile.username } : prev));
+      // Try to get profile data
+      try {
+        const { data: profile } = await supabase
+          .from('profile')
+          .select('username')
+          .eq('user', sessionUser.id)
+          .maybeSingle();
+
+        if (profile?.username) {
+          setUser((prev) => (prev ? { ...prev, username: profile.username } : prev));
+          console.log('✅ Profile loaded:', profile.username);
+        }
+      } catch (profileErr) {
+        console.warn('⚠️ Profile fetch failed:', profileErr);
       }
     } catch (err) {
-      console.error('hydrateFromSession error:', err);
+      console.error('❌ Session hydration error:', err);
+      setUser(null);
     } finally {
       setLoading(false);
+      console.log('🔄 Session hydration complete');
     }
   };
 
   useEffect(() => {
+    console.log('🚀 AuthProvider: Initializing...');
+    
+    // Initial session check
     hydrateFromSession();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const u = session?.user;
-
-      if (!u) {
+    // Listen to auth state changes
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔔 Auth state change:', { event, hasSession: !!session });
+      
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        console.log('📤 User signed out');
         setUser(null);
         setLoading(false);
         return;
       }
 
-      setUser({
-        id: u.id,
-        email: u.email,
-        username: u.user_metadata?.username ?? null,
-      });
-      setLoading(false);
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        const u = session.user;
+        const userData = {
+          id: u.id,
+          email: u.email,
+          username: u.user_metadata?.username ?? null,
+        };
 
-      try {
-        const { data: profile } = await supabase
-          .from('profile')
-          .select('username')
-          .eq('user', u.id)
-          .maybeSingle();
-
-        if (profile?.username) {
-          setUser((prev) => (prev ? { ...prev, username: profile.username } : prev));
-        }
-      } catch (err) {
-        console.error('onAuthStateChange profile refine error:', err);
+        setUser(userData);
+        setLoading(false);
+        console.log('✅ User updated from auth event:', userData);
       }
     });
 
-    return () => sub.subscription.unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   const refreshProfile = async () => {
     await hydrateFromSession();

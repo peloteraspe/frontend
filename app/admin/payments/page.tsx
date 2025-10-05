@@ -1,28 +1,7 @@
 // app/admin/payments/page.tsx
 import { getAssistantsCounts, getAssistantsWithDetails } from '@/lib/data/getAssistants';
-import { revalidatePath } from 'next/cache';
+import { approveAssistant, rejectAssistant } from './_actions';
 import Badge from '@/components/Badge';
-import CopyButton from '@/components/CopyButton';
-
-async function approve(id: string) {
-  'use server';
-  const { cookies } = await import('next/headers');
-  const { createClient } = await import('@/utils/supabase/server');
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  await supabase.from('assistants').update({ state: 'approved' }).eq('id', id);
-  revalidatePath('/admin/payments');
-}
-
-async function reject(id: string) {
-  'use server';
-  const { cookies } = await import('next/headers');
-  const { createClient } = await import('@/utils/supabase/server');
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  await supabase.from('assistants').update({ state: 'rejected' }).eq('id', id);
-  revalidatePath('/admin/payments');
-}
 
 export default async function AdminPaymentsPage({
   searchParams,
@@ -84,14 +63,14 @@ export default async function AdminPaymentsPage({
         </thead>
         <tbody>
           {items.map((a) => {
-            const approveAction = approve.bind(null, a.id);
-            const rejectAction = reject.bind(null, a.id);
+            const approveAction = approveAssistant.bind(null, a.id);
+            const rejectAction = rejectAssistant.bind(null, a.id);
             return (
               <tr key={a.id} className="border-t">
                 <td className="px-4 py-2">{a.id}</td>
                 <td className="px-4 py-2 flex items-center gap-2">
                   <span>{a.operationNumber}</span>
-                  <CopyButton text={a.operationNumber} />
+                  {/* TODO: Add copy functionality */}
                 </td>
                 <td className="px-4 py-2">
                   {a.state === 'approved' ? (

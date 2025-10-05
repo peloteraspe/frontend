@@ -1,6 +1,7 @@
 "use client";
 import Form, { FormField } from '@/components/organisms/Form';
 import React from 'react';
+import { log } from "@/lib/logger";
 
 const MyCustomForm: React.FC = () => {
   const formFields: FormField[] = [
@@ -29,7 +30,7 @@ const MyCustomForm: React.FC = () => {
   ];
 
   const onSubmit = (data: any) => {
-    console.log(data);
+    log.debug("Form submitted", "FORM_DEMO", data);
   };
 
   return (

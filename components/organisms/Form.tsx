@@ -112,14 +112,38 @@ export default function Form<T extends FieldValues = FieldValues>({
     );
   };
 
+  const handleFormSubmit = handleSubmit(async (data) => {
+    try {
+      console.log('🔧 Form component: handleSubmit called with:', data);
+      await onSubmit(data);
+      console.log('✅ Form component: onSubmit completed successfully');
+    } catch (error) {
+      console.error('❌ Form component: onSubmit error:', error);
+      // Don't re-throw to prevent unhandled promise rejection
+    }
+  });
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className={className}>
+    <form 
+      onSubmit={(e) => {
+        console.log('🔧 Form component: form onSubmit event triggered');
+        e.preventDefault();
+        e.stopPropagation();
+        handleFormSubmit(e);
+        return false;
+      }} 
+      noValidate 
+      className={className}
+    >
       <div className="flex flex-col gap-4">{fields.map((f) => renderField(f))}</div>
 
       <button
         type="submit"
-        className="mt-4 px-4 py-2 rounded bg-mulberry text-white disabled:opacity-60"
+        className="w-full mt-4 px-4 py-2 rounded bg-mulberry text-white disabled:opacity-60"
         disabled={submitDisabled}
+        onClick={(e) => {
+          console.log('🔧 Form component: submit button clicked');
+        }}
       >
         {submitLabel}
       </button>
