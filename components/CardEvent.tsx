@@ -1,14 +1,8 @@
-import {
-  ParagraphM,
-  ParagraphS,
-  SubtitleS,
-  TitleM,
-  TitleS,
-} from './atoms/Typography';
+import { ParagraphM, ParagraphS, SubtitleS, TitleM, TitleS } from './atoms/Typography';
 
 import Ball from '@/app/assets/images/ball.png';
 import Calendar from '@/app/assets/images/calendar.png';
-import DoubleBall from '@/app/assets/images/double-ball.png';
+import DoubleBall from './assets/images/double-ball.png';
 import Image from 'next/image';
 import Ubication from '@/app/assets/images/ubication.png';
 
@@ -95,9 +89,7 @@ const CardEvent: React.FC<CardEventProps> = ({
           </div>
         </div>
         <div className="hidden sm:block font-poppins font-semibold text-sm text-white min-w">
-          <div className="absolute right-4 top-9 hidden group-hover:block">
-            {button}
-          </div>
+          <div className="absolute right-4 top-9 hidden group-hover:block">{button}</div>
         </div>
         <div className="absolute bottom-5 right-4 uppercase hidden sm:block">
           <TitleM fontWeight="bold" color="text-btnBg-light">

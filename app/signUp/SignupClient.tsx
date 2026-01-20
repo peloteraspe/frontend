@@ -6,16 +6,16 @@ import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 
 import toast from 'react-hot-toast';
-import { log } from '@/lib/logger';
-import { createClient } from '@/utils/supabase/client';
+import { log } from '../../src/shared/lib/logger';
+import { createClient } from '@core/api/client';
 
 import { Title2XL, ParagraphM } from '@/components/atoms/Typography';
 import Input from '@/components/Input';
 import SelectComponent, { OptionSelect } from '@/components/SelectComponent';
 import { ButtonWrapper } from '@/components/Button';
 
-import { createProfile } from '../_actions/profile';
-import { useAuth } from '../provider/AuthProvider';
+import { createProfile } from '../../src/modules/users/api/profile.server';
+import { useAuth } from '../../src/core/auth/AuthProvider';
 
 type Step = 1 | 2;
 
@@ -62,68 +62,76 @@ export default function SignupClient() {
       try {
         console.log('🚀 SignupClient: useEffect triggered, starting data load...');
         log.info('Loading positions and levels data for signup form', 'signup-form');
-        
+
         // Fetch data from API endpoints
         console.log('📊 Making API calls to fetch positions and levels...');
-        
+
         const [positionsResponse, levelsResponse] = await Promise.all([
           fetch('/api/positions'),
-          fetch('/api/levels')
+          fetch('/api/levels'),
         ]);
-        
+
         console.log('📊 API responses:', { positionsResponse, levelsResponse });
-        
+
         if (!positionsResponse.ok) {
           throw new Error(`Failed to fetch positions: ${positionsResponse.status}`);
         }
-        
+
         if (!levelsResponse.ok) {
           throw new Error(`Failed to fetch levels: ${levelsResponse.status}`);
         }
-        
+
         const positionsData = await positionsResponse.json();
         const levelsData = await levelsResponse.json();
-        
+
         console.log('📊 Parsed JSON data:', { positionsData, levelsData });
-        
+
         const formattedPositions = positionsData.data || [];
         const formattedLevels = levelsData.data || [];
-        
-        console.log('✅ Data formatted and setting state:', { formattedPositions, formattedLevels });
-        log.debug('Positions loaded', 'signup-form', { count: formattedPositions.length, positions: formattedPositions });
-        log.debug('Levels loaded', 'signup-form', { count: formattedLevels.length, levels: formattedLevels });
-        
+
+        console.log('✅ Data formatted and setting state:', {
+          formattedPositions,
+          formattedLevels,
+        });
+        log.debug('Positions loaded', 'signup-form', {
+          count: formattedPositions.length,
+          positions: formattedPositions,
+        });
+        log.debug('Levels loaded', 'signup-form', {
+          count: formattedLevels.length,
+          levels: formattedLevels,
+        });
+
         setPositions(formattedPositions);
         setLevels(formattedLevels);
         console.log('✅ State updated with API data');
-        
       } catch (error) {
         log.error('Failed to load signup data', 'signup-form', error);
-        
+
         // Use fallback data if API calls fail
         const fallbackPositions = [
           { key: 1, value: 1, label: 'Portera' },
           { key: 2, value: 2, label: 'Defensa' },
           { key: 3, value: 3, label: 'Mediocampo' },
-          { key: 4, value: 4, label: 'Delantera' }
+          { key: 4, value: 4, label: 'Delantera' },
         ];
-        
+
         const fallbackLevels = [
           { key: 1, value: 1, label: 'Principiante' },
           { key: 2, value: 2, label: 'Intermedio' },
-          { key: 3, value: 3, label: 'Avanzado' }
+          { key: 3, value: 3, label: 'Avanzado' },
         ];
-        
-        log.warn('Using fallback data for signup form', 'signup-form', { 
-          positionsCount: fallbackPositions.length, 
-          levelsCount: fallbackLevels.length 
+
+        log.warn('Using fallback data for signup form', 'signup-form', {
+          positionsCount: fallbackPositions.length,
+          levelsCount: fallbackLevels.length,
         });
-        
+
         setPositions(fallbackPositions);
         setLevels(fallbackLevels);
       }
     };
-    
+
     loadData();
   }, []);
 
@@ -177,18 +185,16 @@ export default function SignupClient() {
         user: userId,
         username, // del paso 1
         level_id: Number(selectedLevel),
-        player_position: selectedPositions
-          .map((p) => Number(p))
-          .filter((n) => Number.isFinite(n)),
+        player_position: selectedPositions.map((p) => Number(p)).filter((n) => Number.isFinite(n)),
       });
-      
+
       log.info('Profile created successfully', 'signup-form', { userId, username });
-      
+
       // Show success state
       setIsSuccess(true);
       setLoading(false);
       toast.success('¡Cuenta creada exitosamente! 🎉');
-      
+
       // Refresh profile in background
       try {
         await refreshProfile();
@@ -196,10 +202,10 @@ export default function SignupClient() {
       } catch (refreshError) {
         log.warn('Profile refresh failed after signup', 'signup-form', refreshError);
       }
-      
+
       // Start countdown and redirect
       const interval = setInterval(() => {
-        setCountdown(prev => {
+        setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(interval);
             // Use Next.js router for better navigation
@@ -209,7 +215,7 @@ export default function SignupClient() {
           return prev - 1;
         });
       }, 1000);
-      
+
       setCountdownInterval(interval);
     } catch (err: any) {
       console.error(err);
@@ -246,7 +252,7 @@ export default function SignupClient() {
               </p>
               <div className="mt-2">
                 <div className="w-full bg-green-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-green-600 h-2 rounded-full transition-all duration-1000"
                     style={{ width: `${((5 - countdown) / 5) * 100}%` }}
                   ></div>

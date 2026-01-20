@@ -8,7 +8,7 @@ import { ParagraphM, Title2XL } from '@/components/atoms/Typography';
 import Input from '@/components/Input';
 import { ButtonWrapper } from '@/components/Button';
 import { ProfileRequestBody } from '@/utils/interfaces';
-import { createProfile } from '../_actions/profile';
+import { createProfile } from '../../src/modules/users/api/profile.server';
 import { useForm } from 'react-hook-form';
 
 type FormValues = {
@@ -19,7 +19,7 @@ type FormValues = {
 
 const UpdateProfile = ({ user }: { user: { id: string } }) => {
   console.log('UpdateProfile component rendered with user:', user);
-  
+
   const supabase = createClient();
 
   const {
@@ -46,27 +46,27 @@ const UpdateProfile = ({ user }: { user: { id: string } }) => {
   // Load test data immediately without Supabase for now
   useEffect(() => {
     console.log('useEffect running - setting test data');
-    
+
     // Set test data directly
     const testPositions = [
       { key: 1, value: 1, label: 'Portera' },
       { key: 2, value: 2, label: 'Defensa' },
       { key: 3, value: 3, label: 'Mediocampo' },
-      { key: 4, value: 4, label: 'Delantera' }
+      { key: 4, value: 4, label: 'Delantera' },
     ];
-    
+
     const testLevels = [
       { key: 1, value: 1, label: 'Principiante' },
       { key: 2, value: 2, label: 'Intermedio' },
-      { key: 3, value: 3, label: 'Avanzado' }
+      { key: 3, value: 3, label: 'Avanzado' },
     ];
-    
+
     console.log('Setting test positions:', testPositions);
     console.log('Setting test levels:', testLevels);
-    
+
     setPositions(testPositions);
     setLevels(testLevels);
-    
+
     console.log('Test data set complete');
   }, []);
 
@@ -136,7 +136,12 @@ const UpdateProfile = ({ user }: { user: { id: string } }) => {
               </ParagraphM>
             </div>
             {positions.length > 0 ? (
-              <SelectComponent options={positions} isMulti control={control} name="player_position" />
+              <SelectComponent
+                options={positions}
+                isMulti
+                control={control}
+                name="player_position"
+              />
             ) : (
               <div className="p-3 border border-gray-300 rounded bg-gray-50">
                 Cargando posiciones...

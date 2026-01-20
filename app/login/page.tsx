@@ -4,8 +4,8 @@ import { Suspense, useEffect, useState, useTransition } from 'react';
 import { Title2XL } from '@/components/atoms/Typography';
 import toast from 'react-hot-toast';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '../provider/AuthProvider';
-import { log } from "@/lib/logger";
+import { useAuth } from '../../src/core/auth/AuthProvider';
+import { log } from '../../src/shared/lib/logger';
 
 import Form, { type FormField } from '@/components/organisms/Form';
 
@@ -25,12 +25,12 @@ function LoginContent() {
 
   useEffect(() => {
     router.prefetch('/');
-    
+
     // Check if user is coming from successful signup
     if (searchParams.get('signup') === 'success') {
       toast.success('¡Cuenta creada exitosamente! 🎉 Ahora puedes iniciar sesión.');
       log.info('User arrived from successful signup', 'login');
-      
+
       // Clean up the URL parameter
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('signup');
@@ -42,7 +42,7 @@ function LoginContent() {
     if (error) {
       console.error('❌ OAuth error from callback:', error);
       toast.error('Error de autenticación: ' + decodeURIComponent(error));
-      
+
       // Clean up the URL parameter
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('error');
@@ -52,21 +52,20 @@ function LoginContent() {
 
   const handleCheckUser = (data: LoginValues) => {
     console.log('🔍 handleCheckUser called with:', data);
-    
+
     try {
       if (!data.email) {
         toast.error('Debes ingresar un correo válido.');
         return;
       }
-      
+
       console.log('✅ Email valid, setting isExistingUser to true');
-      
+
       // Skip the user existence check and just show password field
       setIsExistingUser(true);
       toast.success('Ingresa tu contraseña para continuar.');
       setButtonText('Ingresar');
       console.log('🔄 State updated - isExistingUser: true, buttonText: Ingresar');
-      
     } catch (error) {
       console.error('❌ Error in handleCheckUser:', error);
       toast.error('Error al procesar el email');
@@ -88,17 +87,17 @@ function LoginContent() {
     if (!isExistingUser) return;
     console.log('🚀 Starting login process for:', data.email);
     setButtonText('Cargando...');
-    
+
     try {
       console.log('📡 Creating Supabase client...');
-      const supabase = (await import('@/utils/supabase/client')).createClient();
-      
+      const supabase = (await import('@core/api/client')).createClient();
+
       console.log('🔐 Attempting sign in with password...');
       const { error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password || '',
       });
-      
+
       console.log('🔐 Sign in response:', { error });
 
       if (error) {
@@ -115,25 +114,28 @@ function LoginContent() {
           else toast.success('Te enviamos un correo para confirmar tu cuenta.');
           return;
         }
-        
-        if (msg.includes('invalid') || msg.includes('credentials') || msg.includes('user not found')) {
+
+        if (
+          msg.includes('invalid') ||
+          msg.includes('credentials') ||
+          msg.includes('user not found')
+        ) {
           // User doesn't exist, redirect to signup
           toast('Parece que no tienes cuenta. Te llevaremos al registro.');
           router.push(`/signUp?email=${encodeURIComponent(data.email)}`);
           return;
         }
-        
+
         toast.error(error.message || 'No se pudo iniciar sesión.');
         return;
       }
 
       console.log('✅ Login successful, showing success message');
       toast.success('¡Bienvenida de vuelta!');
-      
+
       // Don't wait for profile refresh, let AuthProvider handle it
       console.log('🏠 Navigating to home page');
       router.push('/');
-
     } catch (err) {
       console.error('❌ Login error:', err);
       toast.error('Error inesperado al ingresar.');
@@ -149,24 +151,21 @@ function LoginContent() {
   const handleGoogleClick = async () => {
     console.log('🔍 Google sign-in clicked');
     log.debug('Google sign-in initiated', 'LOGIN_PAGE');
-    
+
     setIsGoogleLoading(true);
-    
+
     try {
-      const { createClient } = await import('@/utils/supabase/client');
+      const { createClient } = await import('@core/api/client');
       const supabase = createClient();
-      
+
       console.log('🔑 Initiating Google OAuth...');
       toast.loading('Redirigiendo a Google...');
-      
+      const next = encodeURIComponent('/profile');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
+          redirectTo: `${window.location.origin}/auth/callback?next=${next}`,
+          queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });
 
@@ -181,7 +180,6 @@ function LoginContent() {
       console.log('✅ Google OAuth initiated successfully');
       log.info('Google OAuth redirect initiated', 'LOGIN_PAGE');
       // The redirect will happen automatically, so we don't need to reset loading state
-      
     } catch (error) {
       console.error('❌ Unexpected error during Google sign-in:', error);
       toast.dismiss();
@@ -221,17 +219,21 @@ function LoginContent() {
   ];
 
   // Debug log to see what fields are being generated
-  console.log('🔧 Fields array:', fields.map(f => ({ name: f.name, type: f.type })));
+  console.log(
+    '🔧 Fields array:',
+    fields.map((f) => ({ name: f.name, type: f.type }))
+  );
 
   return (
     <div className="flex flex-col justify-center items-center w-full gap-8 min-h-[calc(100vh-6rem)] px-4">
       {/* Debug indicator */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-100 border border-blue-400 px-4 py-2 rounded-lg text-sm z-50">
-          <strong>Login Debug:</strong> isExistingUser: {String(isExistingUser)} | Button: "{buttonText}" | Fields: {fields.length}
+          <strong>Login Debug:</strong> isExistingUser: {String(isExistingUser)} | Button: "
+          {buttonText}" | Fields: {fields.length}
         </div>
       )}
-      
+
       <div className="text-center">
         <Title2XL>Bienvenida a</Title2XL>
         <Title2XL color="text-mulberry">Peloteras</Title2XL>
@@ -298,12 +300,14 @@ function LoginContent() {
 
 export default function Login() {
   return (
-    <Suspense fallback={
-      <div className="flex flex-col justify-center items-center w-full gap-8 min-h-[calc(100vh-6rem)] px-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-mulberry"></div>
-        <p className="text-gray-600">Cargando...</p>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex flex-col justify-center items-center w-full gap-8 min-h-[calc(100vh-6rem)] px-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-mulberry"></div>
+          <p className="text-gray-600">Cargando...</p>
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

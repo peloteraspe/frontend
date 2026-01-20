@@ -4,9 +4,15 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/app/provider/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { Title2XL } from '@/components/atoms/Typography';
-import ProfileUpdateForm from './ProfileUpdateForm';
+import ProfileUpdateForm from '@modules/users/ui/ProfileUpdateForm';
 import { PlusIcon } from '@heroicons/react/24/outline';
-import { fetchProfile, fetchLevels, fetchPlayersPosition, updateProfile } from './fetchClientData';
+import {
+  fetchProfile,
+  fetchLevels,
+  fetchPlayersPosition,
+  updateProfile,
+} from '@modules/users/api/profile.client';
+import TeamSection from '@modules/teams/ui/TeamSection';
 
 export type OptionSelectNumber = { value: number; label: string };
 
@@ -32,7 +38,7 @@ export default function ProfilePage() {
 
   const loadProfileData = async () => {
     if (!user || isLoadingData) return;
-    
+
     try {
       setIsLoadingData(true);
       setIsLoading(true);
@@ -40,18 +46,18 @@ export default function ProfilePage() {
 
       // Fetch all data in parallel
       const [profileResult, positionsResult, levelsResult] = await Promise.all([
-        fetchProfile(user!.id).catch(err => {
+        fetchProfile(user!.id).catch((err) => {
           console.error('Error fetching profile:', err);
           return null;
         }),
-        fetchPlayersPosition().catch(err => {
+        fetchPlayersPosition().catch((err) => {
           console.error('Error fetching positions:', err);
           return [];
         }),
-        fetchLevels().catch(err => {
+        fetchLevels().catch((err) => {
           console.error('Error fetching levels:', err);
           return [];
-        })
+        }),
       ]);
 
       setProfileData(profileResult);
@@ -107,7 +113,7 @@ export default function ProfilePage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4 text-red-600">Error al cargar el perfil</h1>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button 
+          <button
             onClick={loadProfileData}
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
           >
@@ -123,7 +129,7 @@ export default function ProfilePage() {
   const levelOptions = levels || [];
 
   const currentLevelOption = findCurrentOptionByLabel(levelOptions, profileData?.level);
-  const currentPositionOption = profileData?.player_position?.[0]?.name 
+  const currentPositionOption = profileData?.player_position?.[0]?.name
     ? findCurrentOptionByLabel(positionOptions, profileData.player_position[0].name)
     : null;
 
@@ -152,7 +158,8 @@ export default function ProfilePage() {
           <div className="text-stone-900">
             <Title2XL fontWeight="extrabold">Mi Equipo</Title2XL>
           </div>
-          <div className="flex items-center justify-between p-6 border border-gray-200 rounded-2xl">
+          <TeamSection currentUserId={user.id} />
+          {/* <div className="flex items-center justify-between p-6 border border-gray-200 rounded-2xl">
             <div className="flex items-center">
               <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mr-4">
                 <span className="text-gray-500 text-sm">👥</span>
@@ -165,7 +172,7 @@ export default function ProfilePage() {
               <PlusIcon className="h-4 mr-1" />
               <span className="text-sm font-semibold">Crear equipo</span>
             </button>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

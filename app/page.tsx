@@ -1,13 +1,12 @@
-import PostsList from "./posts-list";
-import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
-import UpdateProfile from "./signUp/signUpForm";
-import Hero from "@/components/layout/hero";
-import { Sidebar } from "@/components/DynamicComponents";
-import CardEventList from "@/components/cardEvents/CardEventList";
-import { getFeatures } from "@/lib/data/getFeatures";
-import { getEvents } from "@/lib/data/getEvents";
-import { log } from "@/lib/logger";
+import { createClient } from '@core/api/server';
+import { cookies } from 'next/headers';
+import UpdateProfile from './signUp/signUpForm';
+import Hero from '@/components/layout/hero';
+import { Sidebar } from '@/components/DynamicComponents';
+import CardEventList from '@/components/cardEvents/CardEventList';
+// import { getFeatures } from '@/lib/data/getFeatures';
+// import { getEvents } from '@/lib/data/getEvents';
+import { log } from '../src/shared/lib/logger';
 
 export default async function Index() {
   // Await cookies() so that cookieStore holds the resolved cookies object.
@@ -19,14 +18,10 @@ export default async function Index() {
 
   let userProfile = null;
   if (user) {
-    const { data, error } = await supabase
-      .from("profile")
-      .select("*")
-      .eq("user", user.id)
-      .single();
+    const { data, error } = await supabase.from('profile').select('*').eq('user', user.id).single();
 
     if (error) {
-      log.database("SELECT user profile", "profile", error, { userId: user.id });
+      log.database('SELECT user profile', 'profile', error, { userId: user.id });
     } else {
       userProfile = data;
     }
@@ -45,10 +40,7 @@ export default async function Index() {
       {/* <Header /> */}
       <Hero />
       <section className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto px-4 sm:px-6 py-8 md:py-16 flex justify-between w-full">
-        <div
-          className="md:flex md:justify-between w-full"
-          data-sticky-container
-        >
+        <div className="md:flex md:justify-between w-full" data-sticky-container>
           {/* <Sidebar features={features} events={events} /> */}
 
           {/* Main content */}

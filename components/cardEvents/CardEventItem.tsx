@@ -5,7 +5,7 @@ import Badge from '@/components/Badge';
 import Image from 'next/image';
 import { ButtonWrapper } from '../Button';
 import CardEvent from '../CardEvent';
-import { formattedPrice } from '@/lib/utils';
+import { formattedPrice } from '../../src/shared/lib/utils';
 import { useRouter } from 'next/navigation';
 
 interface CardEventItemProps {
@@ -18,7 +18,11 @@ const CardEventItem = ({ cardEvents }: CardEventItemProps) => {
     <div className="flex flex-col">
       {cardEvents?.map((event: any) => {
         return (
-          <div key={event.id} onClick={() => router.push(`/partidos/${event.id}`)} className='max-w-xl'>
+          <div
+            key={event.id}
+            onClick={() => router.push(`/partidos/${event.id}`)}
+            className="max-w-xl"
+          >
             <CardEvent
               typeEvent={event.eventType.name}
               quantity={event.placesLeft}
@@ -28,22 +32,13 @@ const CardEventItem = ({ cardEvents }: CardEventItemProps) => {
               textLocation={event.locationText}
               button={
                 <ButtonWrapper
-                  icon={
-                    <Image
-                      src={ArrowRight}
-                      alt="arrow"
-                      width={24}
-                      height={24}
-                    />
-                  }
+                  icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
                   onClick={(e: any) => {
                     e.stopPropagation();
                     router.push(`/pago/${event.id}`);
                   }}
                   children={
-                    event.eventType.name.includes('libre')
-                      ? 'Anotarme'
-                      : 'Anotar a mi equipo'
+                    event.eventType.name.includes('libre') ? 'Anotarme' : 'Anotar a mi equipo'
                   }
                 />
               }

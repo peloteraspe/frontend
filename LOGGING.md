@@ -14,7 +14,7 @@ This project uses a centralized logging system that replaces all `console.log` a
 ### Basic Logging
 
 ```typescript
-import { log } from '@/lib/logger';
+import { log } from ''../../../src/shared/lib/logger'';
 
 // Debug information (development only)
 log.debug('Processing user data', 'USER_SERVICE', { userId: 123 });
@@ -72,12 +72,14 @@ LOG_AUTH_EVENTS=true
 ## Development vs Production
 
 ### Development Mode
+
 - Uses `console.*` methods for immediate feedback
 - Shows all log levels (DEBUG and above)
 - Includes stack traces for errors
 - Human-readable format
 
 ### Production Mode
+
 - Outputs structured JSON for log aggregation
 - Shows INFO level and above (hides DEBUG)
 - Ready for integration with services like:
@@ -91,14 +93,16 @@ LOG_AUTH_EVENTS=true
 All previous `console.log` and `console.error` statements have been replaced:
 
 ### Before
+
 ```typescript
 console.log('User data:', userData);
 console.error('API Error:', error);
 ```
 
 ### After
+
 ```typescript
-import { log } from '@/lib/logger';
+import { log } from ''../../../src/shared/lib/logger'';
 
 log.debug('User data retrieved', 'USER_SERVICE', userData);
 log.error('API request failed', 'API_CLIENT', error);
@@ -117,7 +121,7 @@ private sendToLoggingService(entry: LogEntry): void {
       extra: entry.data
     });
   }
-  
+
   // Example: Custom analytics
   if (entry.context === 'AUTH') {
     analytics.track('auth_event', entry.data);
@@ -145,14 +149,17 @@ private sendToLoggingService(entry: LogEntry): void {
 ## Troubleshooting
 
 ### No logs appearing
+
 - Check `LOG_LEVEL` environment variable
-- Verify import: `import { log } from '@/lib/logger'`
+- Verify import: `import { log } from ''../../../src/shared/lib/logger''`
 - Ensure you're using the right log level for your environment
 
 ### Too many logs in production
+
 - Set `LOG_LEVEL=INFO` or higher in production
 - Use feature flags to disable specific log types
 
 ### Missing context in logs
+
 - Always include a context parameter: `log.info('message', 'CONTEXT')`
 - Use consistent context naming (UPPERCASE with underscores)

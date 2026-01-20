@@ -1,5 +1,8 @@
 // app/admin/payments/page.tsx
-import { getAssistantsCounts, getAssistantsWithDetails } from '@/lib/data/getAssistants';
+import {
+  getAssistantsCounts,
+  getAssistantsWithDetails,
+} from '../../../src/shared/lib/data/getAssistants';
 import { approveAssistant, rejectAssistant } from './_actions';
 import Badge from '@/components/Badge';
 

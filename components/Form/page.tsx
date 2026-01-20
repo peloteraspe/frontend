@@ -1,7 +1,7 @@
-"use client";
+'use client';
 import Form, { FormField } from '@/components/organisms/Form';
 import React from 'react';
-import { log } from "@/lib/logger";
+import { log } from '../../src/shared/lib/logger';
 
 const MyCustomForm: React.FC = () => {
   const formFields: FormField[] = [
@@ -22,15 +22,14 @@ const MyCustomForm: React.FC = () => {
     {
       type: 'select',
       name: 'favoriteColor',
-      options: [
-      ],
+      options: [],
       isMulti: true,
       label: 'Favorite Color',
     },
   ];
 
   const onSubmit = (data: any) => {
-    log.debug("Form submitted", "FORM_DEMO", data);
+    log.debug('Form submitted', 'FORM_DEMO', data);
   };
 
   return (

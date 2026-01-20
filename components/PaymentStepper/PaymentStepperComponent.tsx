@@ -14,7 +14,7 @@ import { ButtonWrapper } from '../Button';
 import { useRouter } from 'next/navigation';
 import soccerBall from '../../app/assets/soccer-ball.svg';
 import { useForm } from 'react-hook-form';
-import { log } from "@/lib/logger";
+import { log } from "'../../../src/shared/lib/logger'";
 
 type FormValues = {
   promCode?: string;
@@ -75,7 +75,8 @@ const PaymentStepper = (props: any) => {
       state: 'pending',
     };
 
-    const { error } = await supabase.from('assistants').upsert(registeredPlayer);    if (error) {
+    const { error } = await supabase.from('assistants').upsert(registeredPlayer);
+    if (error) {
       log.database('UPSERT assistants', 'assistants', error, registeredPlayer);
       setError('operationNumber', {
         type: 'manual',

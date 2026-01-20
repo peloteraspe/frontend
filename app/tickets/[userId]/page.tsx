@@ -1,12 +1,12 @@
 import { TitleXL } from '@/components/atoms/Typography';
 import CardEventItem from '@/components/cardEvents/CardEventItem';
-import { log } from "@/lib/logger";
+import { log } from "'../../../src/shared/lib/logger'";
 
 const fetchEvents = async (userId) => {
   const res = await fetch(`${process.env.BACKEND_URL}/event?userId=${userId}`);
-  
-  log.apiCall("GET", `/event?userId=${userId}`, res.status);
-  
+
+  log.apiCall('GET', `/event?userId=${userId}`, res.status);
+
   if (!res.ok) {
     throw new Error('Failed to fetch events');
   }
@@ -25,12 +25,10 @@ const Tickets = async ({ params }) => {
 
   const currentDate = new Date();
   const upcomingEvents = events.filter(
-    (event) =>
-      new Date(event.formattedDateTime.split('|')[1].trim()) > currentDate
+    (event) => new Date(event.formattedDateTime.split('|')[1].trim()) > currentDate
   );
   const pastEvents = events.filter(
-    (event) =>
-      new Date(event.formattedDateTime.split('|')[1].trim()) <= currentDate
+    (event) => new Date(event.formattedDateTime.split('|')[1].trim()) <= currentDate
   );
 
   return (
