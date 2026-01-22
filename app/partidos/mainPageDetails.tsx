@@ -3,12 +3,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
-import { Map, SoccerField } from '@/components/DynamicComponents';
-import Collapse from '@/components/Collapse';
-import { ButtonWrapper } from '@/components/Button';
+import SoccerField from '@src/core/ui/SoccerField';
+import Map from '@src/core/ui/Map';
+import Collapse from '@src/core/ui/Collapse';
+import { ButtonWrapper } from '@src/core/ui/Button';
 import arrowAnotarse from '@/app/assets/arrow-anotarse.svg';
 import Calendar from '@/app/assets/images/calendar.png';
-import { getEventById } from '@/app/_actions/event';
+import { getEventById } from '@shared/lib/data/getEventById';
 
 interface MainPageDetailsProps {
   id: string;

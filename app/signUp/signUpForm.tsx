@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import SelectComponent, { OptionSelect } from '@/components/SelectComponent';
-import { createClient } from '@/utils/supabase/client';
+import { getBrowserSupabase } from '@src/core/api/supabase.browser';
 import toast from 'react-hot-toast';
-import { ParagraphM, Title2XL } from '@/components/atoms/Typography';
-import Input from '@/components/Input';
-import { ButtonWrapper } from '@/components/Button';
-import { ProfileRequestBody } from '@/utils/interfaces';
+import { ParagraphM, Title2XL } from '@src/core/ui/Typography';
+import { ButtonWrapper } from '@src/core/ui/Button';
+import { ProfileRequestBody } from '@modules/users/model/types';
 import { createProfile } from '../../src/modules/users/api/profile.server';
 import { useForm } from 'react-hook-form';
+import SelectComponent, { OptionSelect } from '@src/core/ui/SelectComponent';
+import Input from '@src/core/ui/Input';
 
 type FormValues = {
   username: string;
@@ -20,7 +20,7 @@ type FormValues = {
 const UpdateProfile = ({ user }: { user: { id: string } }) => {
   console.log('UpdateProfile component rendered with user:', user);
 
-  const supabase = createClient();
+  const supabase = getBrowserSupabase();
 
   const {
     register,

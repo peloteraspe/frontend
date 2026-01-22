@@ -1,10 +1,9 @@
 // src/modules/teams/api/services/teams.service.ts
-import { createClient } from '@core/api/server';
+import { getServerSupabase } from '@src/core/api/supabase.server';
 import { cookies } from 'next/headers';
 
 export async function getSupabase() {
-  const cookieStore = await cookies();
-  return createClient(cookieStore);
+  return await getServerSupabase();
 }
 
 export async function createTeamRecord(name: string, ownerId: string, imageUrl: string | null) {

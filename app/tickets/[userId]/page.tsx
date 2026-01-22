@@ -1,6 +1,6 @@
-import { TitleXL } from '@/components/atoms/Typography';
-import CardEventItem from '@/components/cardEvents/CardEventItem';
-import { log } from "'../../../src/shared/lib/logger'";
+import { TitleXL } from '@src/core/ui/Typography';
+import { log } from '@src/core/lib/logger';
+import CardEventItem from '@src/modules/events/ui/cardEvents/CardEventItem';
 
 const fetchEvents = async (userId) => {
   const res = await fetch(`${process.env.BACKEND_URL}/event?userId=${userId}`);

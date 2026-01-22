@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useAuth } from '@/app/provider/AuthProvider';
+import { useAuth } from '@core/auth/AuthProvider';
 import { useRouter } from 'next/navigation';
-import { Title2XL } from '@/components/atoms/Typography';
+import { Title2XL } from '@src/core/ui/Typography';
 import ProfileUpdateForm from '@modules/users/ui/ProfileUpdateForm';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import {

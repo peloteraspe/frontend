@@ -6,23 +6,24 @@ import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 
 import toast from 'react-hot-toast';
-import { log } from '../../src/shared/lib/logger';
-import { createClient } from '@core/api/client';
+import { log } from '../../src/core/lib/logger';
+import { getBrowserSupabase } from '@src/core/api/supabase.browser';
 
-import { Title2XL, ParagraphM } from '@/components/atoms/Typography';
-import Input from '@/components/Input';
-import SelectComponent, { OptionSelect } from '@/components/SelectComponent';
-import { ButtonWrapper } from '@/components/Button';
+import { Title2XL, ParagraphM } from '@src/core/ui/Typography';
+import Input from '@src/core/ui/Input';
+
+import { ButtonWrapper } from '@src/core/ui/Button';
 
 import { createProfile } from '../../src/modules/users/api/profile.server';
 import { useAuth } from '../../src/core/auth/AuthProvider';
+import SelectComponent, { OptionSelect } from '@src/core/ui/SelectComponent';
 
 type Step = 1 | 2;
 
 export default function SignupClient() {
   const sp = useSearchParams();
   const prefilledEmail = (sp.get('email') || '').trim();
-  const supabase = createClient();
+  const supabase = getBrowserSupabase();
   const { refreshProfile } = useAuth();
 
   const [step, setStep] = useState<Step>(1);

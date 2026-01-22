@@ -1,9 +1,8 @@
 import { cookies } from 'next/headers';
-import { createClient } from '@core/api/server';
+import { getServerSupabase } from '@src/core/api/supabase.server';
 
 export async function getUserIdFromToken(token: string) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
   const {
     data: { user },
     error,
@@ -12,8 +11,7 @@ export async function getUserIdFromToken(token: string) {
 }
 
 export async function getCurrentUserId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
   const {
     data: { user },
     error,

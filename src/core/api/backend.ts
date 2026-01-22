@@ -18,3 +18,9 @@ export async function backendFetch(input: string, init?: RequestInit, ms = 8000)
     clearTimeout(to);
   }
 }
+
+export async function backendJson<T>(path: string, init?: RequestInit, ms = 8000): Promise<T> {
+  const res = await backendFetch(backendUrl(path), init, ms);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as T;
+}

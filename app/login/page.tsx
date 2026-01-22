@@ -1,13 +1,13 @@
 'use client';
 
 import { Suspense, useEffect, useState, useTransition } from 'react';
-import { Title2XL } from '@/components/atoms/Typography';
+import { Title2XL } from '@src/core/ui/Typography';
 import toast from 'react-hot-toast';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '../../src/core/auth/AuthProvider';
-import { log } from '../../src/shared/lib/logger';
+import { useAuth } from '@core/auth/AuthProvider';
+import { log } from '../../src/core/lib/logger';
 
-import Form, { type FormField } from '@/components/organisms/Form';
+import Form, { type FormField } from '@src/core/ui/Form';
 
 type LoginValues = {
   email: string;
@@ -90,7 +90,7 @@ function LoginContent() {
 
     try {
       console.log('📡 Creating Supabase client...');
-      const supabase = (await import('@core/api/client')).createClient();
+      const supabase = (await import('@src/core/api/supabase.browser')).getBrowserSupabase();
 
       console.log('🔐 Attempting sign in with password...');
       const { error } = await supabase.auth.signInWithPassword({
@@ -155,8 +155,8 @@ function LoginContent() {
     setIsGoogleLoading(true);
 
     try {
-      const { createClient } = await import('@core/api/client');
-      const supabase = createClient();
+      const { getBrowserSupabase } = await import('@src/core/api/supabase.browser');
+      const supabase = getBrowserSupabase();
 
       console.log('🔑 Initiating Google OAuth...');
       toast.loading('Redirigiendo a Google...');

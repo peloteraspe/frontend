@@ -1,9 +1,9 @@
-import { createClient } from '@/utils/supabase/client';
-import { log } from "'../../../src/shared/lib/logger'";
+import { getBrowserSupabase } from '@src/core/api/supabase.browser';
+import { log } from '@src/core/lib/logger';
 
 export const checkIfUserExists = async (email: string): Promise<boolean> => {
   console.log('checkIfUserExists started for:', email);
-  const supabase = createClient();
+  const supabase = getBrowserSupabase();
 
   try {
     // Use a more reliable method - try to sign in with a dummy password

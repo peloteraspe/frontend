@@ -15,12 +15,14 @@
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],
-    "ignoreDeprecations": "6.0",
+    "ignoreDeprecations": "5.0",
     "paths": {
-      "@app/*": ["./src/app/*"],
-      "@modules/*": ["./src/modules/*"],
+      "@app/*": ["./app/*"],              // opcional si tu app sigue en root/app
+      "@src/*": ["./src/*"],
       "@core/*": ["./src/core/*"],
-      "@shared/*": ["./src/shared/*"]
+      "@modules/*": ["./src/modules/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@components/*": ["./components/*"] // temporal mientras migras components/
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

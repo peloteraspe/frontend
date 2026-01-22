@@ -1,7 +1,7 @@
 'use server';
 
 import { ProfileRequestBody, UserProfileUpdate } from '@modules/users/model/types';
-import { log } from '../../../shared/lib/logger';
+import { log } from '../../../core/lib/logger';
 
 export async function createProfile(requestBody: ProfileRequestBody) {
   try {

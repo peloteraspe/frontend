@@ -3,8 +3,8 @@
 export async function fetchProfile(userId: string) {
   try {
     // Get the session token from Supabase client
-    const { createClient } = await import('@core/api/client');
-    const supabase = createClient();
+    const { getBrowserSupabase } = await import('@src/core/api/supabase.browser');
+    const supabase = getBrowserSupabase();
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -70,8 +70,8 @@ export async function fetchLevels() {
 export async function updateProfile(userId: string, updates: any) {
   try {
     // Get the session token from Supabase client
-    const { createClient } = await import('@core/api/client');
-    const supabase = createClient();
+    const { getBrowserSupabase } = await import('@src/core/api/supabase.browser');
+    const supabase = getBrowserSupabase();
     const {
       data: { session },
     } = await supabase.auth.getSession();

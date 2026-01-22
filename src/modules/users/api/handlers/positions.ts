@@ -1,13 +1,12 @@
 // src/modules/users/api/handlers/positions.ts
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { createClient } from '@core/api/server';
-import { log } from '@shared/lib/logger';
+import { getServerSupabase } from '@src/core/api/supabase.server';
+import { log } from '@src/core/lib/logger';
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = await getServerSupabase();
 
     log.info('API: Fetching player positions', 'api/positions');
 

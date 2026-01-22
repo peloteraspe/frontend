@@ -4,7 +4,7 @@ import {
   getAssistantsWithDetails,
 } from '../../../src/shared/lib/data/getAssistants';
 import { approveAssistant, rejectAssistant } from './_actions';
-import Badge from '@/components/Badge';
+import Badge from '@src/core/ui/Badge';
 
 export default async function AdminPaymentsPage({
   searchParams,

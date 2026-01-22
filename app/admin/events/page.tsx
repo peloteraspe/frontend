@@ -1,4 +1,4 @@
-import { getEvents } from '@/lib/data/getEvents';
+import { getEvents } from '@shared/lib/data/getEvents';
 import Link from 'next/link';
 
 export default async function AdminEventsPage() {
@@ -6,7 +6,9 @@ export default async function AdminEventsPage() {
   return (
     <div className="rounded-md bg-white shadow overflow-x-auto">
       <div className="p-4 flex justify-end">
-        <Link href="/admin/events/new" className="px-3 py-2 rounded-md bg-mulberry text-white">Crear evento</Link>
+        <Link href="/admin/events/new" className="px-3 py-2 rounded-md bg-mulberry text-white">
+          Crear evento
+        </Link>
       </div>
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50">
@@ -27,8 +29,15 @@ export default async function AdminEventsPage() {
               <td className="px-4 py-2">{e.placesLeft ?? e.capacity}</td>
               <td className="px-4 py-2 text-right">
                 <div className="flex gap-3 justify-end">
-                  <a href={`/partidos/${e.id}`} className="text-mulberry hover:underline">Ver</a>
-                  <Link href={`/admin/events/${e.id}/edit`} className="text-mulberry hover:underline">Editar</Link>
+                  <a href={`/partidos/${e.id}`} className="text-mulberry hover:underline">
+                    Ver
+                  </a>
+                  <Link
+                    href={`/admin/events/${e.id}/edit`}
+                    className="text-mulberry hover:underline"
+                  >
+                    Editar
+                  </Link>
                 </div>
               </td>
             </tr>

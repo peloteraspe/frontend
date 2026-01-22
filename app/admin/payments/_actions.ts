@@ -2,13 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
-import { log } from '../../../src/shared/lib/logger';
+import { getServerSupabase } from '@src/core/api/supabase.server';
+import { log } from '../../../src/core/lib/logger';
 
 export async function approveAssistant(id: string) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = await getServerSupabase();
 
     const { error } = await supabase.from('assistants').update({ state: 'approved' }).eq('id', id);
 
@@ -29,8 +28,7 @@ export async function approveAssistant(id: string) {
 
 export async function rejectAssistant(id: string) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = await getServerSupabase();
 
     const { error } = await supabase.from('assistants').update({ state: 'rejected' }).eq('id', id);
 

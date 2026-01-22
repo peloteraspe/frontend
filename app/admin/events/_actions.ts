@@ -1,7 +1,7 @@
-"use server";
+'use server';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
+import { getServerSupabase } from '@src/core/api/supabase.server';
 
 export type EventInput = {
   title: string;
@@ -14,8 +14,7 @@ export type EventInput = {
 };
 
 export async function createEvent(input: EventInput) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
   const { error } = await supabase.from('event').insert({
     title: input.title,
     price: input.price,
@@ -30,25 +29,26 @@ export async function createEvent(input: EventInput) {
 }
 
 export async function updateEvent(id: string, input: EventInput) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const { error } = await supabase.from('event').update({
-    title: input.title,
-    price: input.price,
-    formattedDateTime: input.date,
-    level_id: input.level_id,
-    eventType_id: input.eventType_id,
-    capacity: input.capacity,
-    locationText: input.locationText,
-  }).eq('id', id);
+  const supabase = await getServerSupabase();
+  const { error } = await supabase
+    .from('event')
+    .update({
+      title: input.title,
+      price: input.price,
+      formattedDateTime: input.date,
+      level_id: input.level_id,
+      eventType_id: input.eventType_id,
+      capacity: input.capacity,
+      locationText: input.locationText,
+    })
+    .eq('id', id);
   if (error) throw new Error(error.message);
   revalidatePath('/admin/events');
   revalidatePath(`/admin/events/${id}/edit`);
 }
 
 export async function deleteEvent(id: string) {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
   const { error } = await supabase.from('event').delete().eq('id', id);
   if (error) throw new Error(error.message);
   revalidatePath('/admin/events');

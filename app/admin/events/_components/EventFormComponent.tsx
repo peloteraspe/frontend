@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
-import Input from '@/components/Input';
-import { ButtonWrapper } from '@/components/Button';
+import Input from '@src/core/ui/Input';
+import { ButtonWrapper } from '@src/core/ui/Button';
 
 type Props = {
   initial?: Partial<{

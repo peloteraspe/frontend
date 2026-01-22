@@ -1,7 +1,7 @@
 // src/modules/teams/api/handlers/players.search.ts
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createClient } from '@core/api/server';
+import { getServerSupabase } from '@src/core/api/supabase.server';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -10,8 +10,7 @@ export async function GET(req: Request) {
 
   if (q.length < 2) return NextResponse.json({ data: [] });
 
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
 
   const { data, error } = await supabase
     .from('users_view') //review this table name

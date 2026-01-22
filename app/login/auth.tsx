@@ -1,6 +1,6 @@
 'use server';
 import { headers, cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
+import { getServerSupabase } from '@src/core/api/supabase.server';
 import { redirect } from 'next/navigation';
 
 // export const signIn = async (email: string) => {
@@ -57,8 +57,7 @@ export const signUp = async (formData: FormData) => {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
 
   const { error } = await supabase.auth.signUp({
     email,
@@ -75,8 +74,7 @@ export const signUp = async (formData: FormData) => {
 };
 
 export const signInWithPassword = async (email: string, password?: string) => {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
@@ -89,8 +87,7 @@ export const signInWithPassword = async (email: string, password?: string) => {
 };
 
 export const resendConfirmation = async (email: string) => {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
 
   const hdrs = await headers();
   const origin = hdrs.get('origin') ?? 'http://localhost:3000';

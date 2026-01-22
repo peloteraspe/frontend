@@ -1,6 +1,6 @@
 'use server';
 
-import { log } from '../../../shared/lib/logger';
+import { log } from '../../../core/lib/logger';
 
 export async function getAllEvents() {
   try {

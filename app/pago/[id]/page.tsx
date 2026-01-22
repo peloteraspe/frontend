@@ -1,6 +1,6 @@
-import React from "react";
-import { fetchData } from "./fetchData";
-import { PaymentStepper } from "@/components/DynamicComponents";
+import React from 'react';
+import { fetchData } from './fetchData';
+import PaymentStepper from '@modules/payments/ui/PaymentStepper/PaymentStepperComponent';
 
 export default async function DetallePago({ params }: any) {
   let data;

@@ -1,7 +1,7 @@
 // src/modules/auth/api/handlers/signout.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createClient } from '@core/api/server';
+import { getServerSupabase } from '@src/core/api/supabase.server';
 
 export const runtime = 'nodejs';
 
@@ -10,7 +10,7 @@ function redirectTo(path: string, req: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = createClient(await cookies());
+  const supabase = await getServerSupabase();
 
   try {
     await supabase.auth.signOut();

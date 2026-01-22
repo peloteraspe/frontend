@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
-import { log } from "'../../../src/shared/lib/logger'";
+import { getServerSupabase } from '@src/core/api/supabase.server';
+import { log } from '@src/core/lib/logger';
 
 export type Assistant = {
   id: string;
@@ -25,8 +25,7 @@ export type AssistantsQuery = {
 
 export async function getAssistants(eventId: string) {
   // Await cookies() to get the actual cookies object
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
 
   const { data, error } = await supabase.from('assistants').select('*').eq('event', eventId);
 
@@ -42,9 +41,7 @@ export async function getAssistantsWithDetails(
   state?: Assistant['state'],
   opts: AssistantsQuery = {}
 ): Promise<AssistantDetails[]> {
-  // Note: This function needs to be updated to use proper getAssistants call
-  const cookieStoreDetails = await cookies();
-  const supabaseDetails = createClient(cookieStoreDetails);
+  const supabaseDetails = await getServerSupabase();
 
   let query = supabaseDetails.from('assistants').select('*');
   if (state) query = query.eq('state', state);
@@ -103,8 +100,7 @@ export async function getAssistantsWithDetails(
 }
 
 export async function getAssistantsCounts() {
-  const cookieStoreCounts = await cookies();
-  const supabaseCounts = createClient(cookieStoreCounts);
+  const supabaseCounts = await getServerSupabase();
 
   const countFor = async (state?: Assistant['state']) => {
     let q = supabaseCounts.from('assistants').select('*', { count: 'exact', head: true });

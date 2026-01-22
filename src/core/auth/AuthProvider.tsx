@@ -2,7 +2,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { createClient } from '@core/api/client';
+import { getBrowserSupabase } from '@src/core/api/supabase.browser';
 
 type UserLite = { id: string; email?: string | null; username?: string | null } | null;
 
@@ -21,7 +21,7 @@ const Ctx = createContext<AuthCtx>({
 });
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => getBrowserSupabase(), []);
   const [user, setUser] = useState<UserLite>(null);
   const [loading, setLoading] = useState(true);
 

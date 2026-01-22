@@ -1,11 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ButtonM, ParagraphM } from '@/components/atoms/Typography';
-import SelectComponent, { OptionSelect } from '@/components/SelectComponent';
+import { ButtonM, ParagraphM } from '@src/core/ui/Typography';
+import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 import { UserProfileUpdate } from '@modules/users/model/types';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
-import Input from '@/components/Input';
+import Input from '@core/ui/Input';
 
 export type OptionSelectNumber = { value: number; label: string };
 

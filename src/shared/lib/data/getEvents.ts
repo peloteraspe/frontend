@@ -1,11 +1,9 @@
-import { createClient } from '@/utils/supabase/server';
+import { getServerSupabase } from '@src/core/api/supabase.server';
 import { cookies } from 'next/headers';
-import { log } from "'../../../src/shared/lib/logger'";
+import { log } from '@src/core/lib/logger';
 
 export async function getEvents() {
-  // Await cookies() to get the resolved cookies object.
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase.from('event').select('*');
 
   if (error) {

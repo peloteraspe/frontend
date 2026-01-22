@@ -1,4 +1,4 @@
-import { Title2XL } from '@/components/atoms/Typography';
+import { Title2XL } from '@src/core/ui/Typography';
 
 const Tickets = () => {
   return (

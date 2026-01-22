@@ -1,17 +1,17 @@
-import { createClient } from '@core/api/server';
+import { getServerSupabase } from '@src/core/api/supabase.server';
 import { cookies } from 'next/headers';
 import UpdateProfile from './signUp/signUpForm';
-import Hero from '@/components/layout/hero';
-import { Sidebar } from '@/components/DynamicComponents';
-import CardEventList from '@/components/cardEvents/CardEventList';
+
+import CardEventList from '@modules/events/ui/cardEvents/CardEventList';
 // import { getFeatures } from '@/lib/data/getFeatures';
 // import { getEvents } from '@/lib/data/getEvents';
-import { log } from '../src/shared/lib/logger';
+import { log } from '../src/core/lib/logger';
+import MainSection from '@src/modules/home/ui/MainSection';
 
 export default async function Index() {
   // Await cookies() so that cookieStore holds the resolved cookies object.
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+
+  const supabase = await getServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -38,7 +38,7 @@ export default async function Index() {
     <>
       {/* <div className="animate-in flex-1 flex flex-col gap-20 opacity-0 max-w-6xl px-3"> */}
       {/* <Header /> */}
-      <Hero />
+      <MainSection />
       <section className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto px-4 sm:px-6 py-8 md:py-16 flex justify-between w-full">
         <div className="md:flex md:justify-between w-full" data-sticky-container>
           {/* <Sidebar features={features} events={events} /> */}
