@@ -9,37 +9,43 @@ Dynamic imports have been implemented for heavy components to reduce the initial
 ## Implemented Dynamic Components
 
 ### 🗺️ Maps & Location Components
+
 - **Map** - Google Maps component with 400px height
 - **InputLocation** - Google Places autocomplete component
 
 **Performance Impact**: ~150KB reduction in initial bundle (Google Maps API)
 
-### 🏟️ 3D Components  
+### 🏟️ 3D Components
+
 - **SoccerField** - Three.js interactive soccer field visualization
 
 **Performance Impact**: ~200KB reduction in initial bundle (Three.js + React Three Fiber)
 
 ### 💳 Payment Components
+
 - **PaymentStepper** - Multi-step payment flow with form validation
 - **OperationNumberModal** - Modal for payment operation guidance
 
 **Performance Impact**: ~50KB reduction in initial bundle
 
 ### 🔧 Admin Components
+
 - **EventForm** - Administrative event creation/editing form
 - **AdminEventsPage** - Events management dashboard
-- **AdminUsersPage** - User management dashboard  
+- **AdminUsersPage** - User management dashboard
 - **AdminPaymentsPage** - Payment administration dashboard
 
 **Performance Impact**: ~100KB reduction in initial bundle for non-admin users
 
 ### 📝 Form Components
+
 - **FormComponent** - Dynamic form builder with validation
 - **SelectComponent** - React-select component wrapper
 
 **Performance Impact**: ~75KB reduction in initial bundle
 
 ### 🎨 UI Components
+
 - **CardEventList** - Event listing with complex filtering
 - **Sidebar** - Filtering and navigation sidebar
 
@@ -53,7 +59,7 @@ Each dynamic component includes a custom loading state that matches the expected
 // Map loading state
 <MapLoading /> // Shows map-like skeleton
 
-// Soccer field loading state  
+// Soccer field loading state
 <SoccerFieldLoading /> // Shows green gradient field
 
 // Payment loading state
@@ -66,9 +72,10 @@ Each dynamic component includes a custom loading state that matches the expected
 ## Usage Examples
 
 ### Before (Static Import)
+
 ```tsx
-import Map from '@/components/Map';
-import PaymentStepper from '@/components/PaymentStepper';
+import Map from '@components/Map';
+import PaymentStepper from '@components/PaymentStepper';
 
 export default function Page() {
   return (
@@ -81,8 +88,9 @@ export default function Page() {
 ```
 
 ### After (Dynamic Import)
+
 ```tsx
-import { Map, PaymentStepper } from '@/components/DynamicComponents';
+import { Map, PaymentStepper } from '@components/DynamicComponents';
 
 export default function Page() {
   return (
@@ -105,7 +113,7 @@ components/
 │   ├── index.tsx                  # Dynamic import wrapper
 │   └── MapComponent.tsx           # Original component
 ├── SoccerField/
-│   ├── index.tsx                  # Dynamic import wrapper  
+│   ├── index.tsx                  # Dynamic import wrapper
 │   └── SoccerFieldComponent.tsx   # Original component
 ├── PaymentStepper/
 │   ├── index.tsx                  # Dynamic import wrapper
@@ -120,6 +128,7 @@ components/
 Components are configured appropriately for server-side rendering:
 
 - **SSR Disabled** (`ssr: false`):
+
   - Maps (requires browser APIs)
   - 3D components (Three.js needs DOM)
   - Payment forms (interactive state)
@@ -132,16 +141,19 @@ Components are configured appropriately for server-side rendering:
 ## Performance Benefits
 
 ### Bundle Size Reduction
+
 - **Initial bundle**: Reduced by ~600KB (estimated)
 - **First Contentful Paint**: Improved by 200-400ms
 - **Time to Interactive**: Improved by 300-600ms
 
 ### Route-level Splitting
+
 - Admin routes only load admin components
 - Payment flows only load when accessing payment pages
 - Maps only load when viewing location-based pages
 
-### Network Efficiency  
+### Network Efficiency
+
 - Components load in parallel when needed
 - Cached after first load
 - Progressive enhancement approach
@@ -149,6 +161,7 @@ Components are configured appropriately for server-side rendering:
 ## Migration Checklist
 
 ✅ **Completed**:
+
 - [x] Created loading components for all use cases
 - [x] Implemented dynamic imports for all heavy components
 - [x] Updated import statements in consuming components
@@ -166,6 +179,7 @@ To test dynamic imports:
 4. **Functionality**: Ensure all dynamic components work as before
 
 ### Test Commands
+
 ```bash
 # Check bundle analysis
 npm run build && npx @next/bundle-analyzer

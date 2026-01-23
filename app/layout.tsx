@@ -3,9 +3,9 @@ import type { Metadata, Viewport } from 'next';
 import { eastmanBold, eastmanExtrabold } from './fonts';
 import '../global.css';
 import { Toaster } from 'react-hot-toast';
-import { NavBar } from '@/components/layout/navbar/NavBar';
-import Footer from '@/components/layout/Footer';
-import AuthProvider from './provider/AuthProvider';
+import { NavBar } from '@app/_components/NavBar';
+import Footer from '@src/core/ui/Footer';
+import AuthProvider from '@core/auth/AuthProvider';
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -86,7 +86,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </main>
 
           <Toaster />
-          
+
           {/* Auth debugger for development */}
           {/* Debug components removed */}
         </AuthProvider>
