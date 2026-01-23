@@ -1,23 +1,19 @@
-"use client";
-import { GoogleMap, Marker, useLoadScript } from "@react-google-maps/api";
-import React from "react";
-
-interface MapProps {
-  lat: number;
-  lng: number;
-}
+'use client';
+import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
+import React from 'react';
+import { MapProps } from './Map.types';
 
 const Map: React.FC<MapProps> = ({ lat, lng }) => {
   const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "",
-    libraries: ["places"],
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '',
+    libraries: ['places'],
   });
   return (
     <div>
       {isLoaded && (
         <div>
           <GoogleMap
-            mapContainerStyle={{ width: "100%", height: "400px" }}
+            mapContainerStyle={{ width: '100%', height: '400px' }}
             center={{ lat, lng }}
             zoom={10}
           >

@@ -1,20 +1,18 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { parseOauthCallbackParams } from '@core/auth/parse-oauth-callback';
 
 export default function AuthCallback() {
   const router = useRouter();
-  const sp = useSearchParams();
   const didRun = useRef(false);
 
   useEffect(() => {
     if (didRun.current) return;
     didRun.current = true;
 
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    const { error, error_description, next } = parseOauthCallbackParams(url);
+    const { error, error_description, next } = parseOauthCallbackParams(window.location.href);
 
     if (error) {
       const msg = encodeURIComponent(error_description || error);
@@ -23,7 +21,7 @@ export default function AuthCallback() {
     }
 
     router.replace(next || '/');
-  }, [router, sp]);
+  }, [router]);
 
   return (
     <div className="min-h-screen grid place-items-center p-4">
@@ -32,9 +30,7 @@ export default function AuthCallback() {
         <p className="text-gray-700">Procesando autenticación…</p>
 
         {process.env.NODE_ENV === 'development' && (
-          <p className="mt-3 text-xs text-gray-500">
-            {typeof window !== 'undefined' ? window.location.search : ''}
-          </p>
+          <p className="mt-3 text-xs text-gray-500">{window.location.search}</p>
         )}
       </div>
     </div>

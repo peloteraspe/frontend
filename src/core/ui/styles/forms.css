@@ -1,0 +1,60 @@
+.form-input:focus,
+.form-textarea:focus,
+.form-multiselect:focus,
+.form-select:focus,
+.form-checkbox:focus,
+.form-radio:focus {
+  @apply focus:ring-2 focus:ring-indigo-200;
+}
+
+.form-checkbox:focus,
+.form-radio:focus {
+  @apply focus:ring-0;
+}
+
+/* Base form styles */
+.form-input,
+.form-textarea,
+.form-multiselect,
+.form-select,
+.form-checkbox,
+.form-radio {
+  @apply bg-white border border-gray-300 focus:border-indigo-500;
+}
+
+.form-input,
+.form-textarea,
+.form-multiselect,
+.form-select,
+.form-checkbox {
+  @apply rounded;
+}
+
+.form-input,
+.form-textarea,
+.form-multiselect,
+.form-select {
+  @apply text-sm px-3 py-2;
+}
+
+.form-input,
+.form-textarea {
+  @apply placeholder-gray-400;
+}
+
+.form-select {
+  @apply pr-10;
+}
+
+.form-checkbox,
+.form-radio {
+  @apply text-indigo-500 border-2 rounded-sm;
+}
+
+/* Remove default search input decorations */
+input[type='search']::-webkit-search-decoration,
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-results-button,
+input[type='search']::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+}

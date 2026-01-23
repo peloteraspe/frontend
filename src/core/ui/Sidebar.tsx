@@ -208,7 +208,7 @@ const Sidebar: FC<SidebarProps> = ({ features, events }) => {
                 </div>
                 <div className="px-1 ml-2">
                   <ParagraphS fontWeight="bold" color="text-mulberry" underline>
-                    <Link href={`/partidos/${selectedValue?.value}`}>Mi ubicación</Link>
+                    <Link href={`/events/${selectedValue?.value}`}>Mi ubicación</Link>
                   </ParagraphS>
                 </div>
               </div>

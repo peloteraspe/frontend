@@ -1,12 +1,11 @@
-import { cookies } from 'next/headers';
-import { getServerSupabase } from '@src/core/api/supabase.server';
+import { getServerSupabase } from '@core/api/supabase.server';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
 import { redirect } from 'next/navigation';
-import SubNav from './_components/SubNav';
+import SubNav from '@modules/admin/ui/SubNav';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies();
   const supabase = await getServerSupabase();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();

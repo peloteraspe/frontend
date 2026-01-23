@@ -15,7 +15,7 @@ export const NavBar = ({ simple = false }: { simple?: boolean }) => {
         aria-label="Ir al inicio"
       >
         <Image
-          src="/logo.png"
+          src="/assets/logo.png"
           width={50}
           height={50}
           alt="Peloteras logo"

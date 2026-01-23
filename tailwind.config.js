@@ -3,15 +3,16 @@ module.exports = {
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       fontFamily: {
         poppins: ['var(--font-poppins)', 'sans-serif'],
-        "poppins-bold": ['var(--font-poppins-bold)', 'sans-serif'],
-        "poppins-extrabold": ['var(--font-poppins-extrabold)', 'sans-serif'],
-        "eastman-bold": ['var(--font-eastman-bold)', 'sans-serif'],
-        "eastman-extrabold": ['var(--font-eastman-extrabold)', 'sans-serif'],
+        'poppins-bold': ['var(--font-poppins-bold)', 'sans-serif'],
+        'poppins-extrabold': ['var(--font-poppins-extrabold)', 'sans-serif'],
+        'eastman-bold': ['var(--font-eastman-bold)', 'sans-serif'],
+        'eastman-extrabold': ['var(--font-eastman-extrabold)', 'sans-serif'],
       },
       colors: {
         primary: {
@@ -34,10 +35,10 @@ module.exports = {
           dark: '#470B62',
           trans: '#c7b8cb',
         },
-        'mulberry': '#54086F',
+        mulberry: '#54086F',
         plum: '#744D7C',
         inputBg: '#F1F3F5',
-        clear:'#C03C84',
+        clear: '#C03C84',
       },
     },
   },

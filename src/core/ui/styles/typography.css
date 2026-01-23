@@ -1,0 +1,42 @@
+/* Typography */
+.h1 {
+  @apply text-5xl font-extrabold;
+}
+
+.h2 {
+  @apply text-4xl font-extrabold;
+}
+
+.h3 {
+  @apply text-3xl font-extrabold;
+}
+
+.h4 {
+  @apply text-2xl font-extrabold;
+}
+
+@screen md {
+  .h1 {
+    @apply text-6xl;
+  }
+
+  .h2 {
+    @apply text-5xl;
+  }
+}
+
+/* Buttons */
+.btn,
+.btn-sm {
+  @apply text-sm font-medium inline-flex items-center justify-center
+         rounded-full leading-5 whitespace-nowrap
+         transition duration-150 ease-in-out;
+}
+
+.btn {
+  @apply px-5 py-2.5;
+}
+
+.btn-sm {
+  @apply px-4 py-2;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import ArrowRight from '@/app/assets/images/arrow-right.png';
+import ArrowRight from '@core/assets/images/arrow-right.png';
 import Badge from '@src/core/ui/Badge';
 import Image from 'next/image';
 import CardEvent from '../CardEvent';
@@ -21,7 +21,7 @@ const CardEventItem = ({ cardEvents }: CardEventItemProps) => {
         return (
           <div
             key={event.id}
-            onClick={() => router.push(`/partidos/${event.id}`)}
+            onClick={() => router.push(`/events/${event.id}`)}
             className="max-w-xl"
           >
             <CardEvent
@@ -36,7 +36,7 @@ const CardEventItem = ({ cardEvents }: CardEventItemProps) => {
                   icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
                   onClick={(e: any) => {
                     e.stopPropagation();
-                    router.push(`/pago/${event.id}`);
+                    router.push(`/payments/${event.id}`);
                   }}
                   children={
                     event.eventType.name.includes('libre') ? 'Anotarme' : 'Anotar a mi equipo'

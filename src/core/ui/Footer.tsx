@@ -1,5 +1,5 @@
 import React from 'react';
-import Logo from '../../app/assets/Logo.svg';
+import Logo from '@core/assets/Logo-text.svg';
 import Image from 'next/image';
 import { ButtonUnWrapperOutline } from './Button';
 import InstagramIcon from '@shared/ui/icons/social/InstagramIcon';

@@ -1,10 +1,10 @@
 import { ParagraphM, ParagraphS, SubtitleS, TitleM, TitleS } from '../../../core/ui/Typography';
 
-import Ball from '@/app/assets/images/ball.png';
-import Calendar from '@/app/assets/images/calendar.png';
-import DoubleBall from './assets/images/double-ball.png';
+import Ball from '@core/assets/images/ball.png';
+import Calendar from '@core/assets/images/calendar.png';
+import DoubleBall from '@core/assets/images/double-ball.png';
 import Image from 'next/image';
-import Ubication from '@/app/assets/images/ubication.png';
+import Ubication from '@core/assets/images/ubication.png';
 
 interface CardEventProps {
   typeEvent: string;

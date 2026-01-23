@@ -1,11 +1,14 @@
-import { Title2XL } from '@src/core/ui/Typography';
+import { redirect } from 'next/navigation';
+import { getServerSupabase } from '@core/api/supabase.server';
+import TicketsPage from '@modules/tickets/ui/TicketsPage';
 
-const Tickets = () => {
-  return (
-    <div className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto flex justify-between w-full p-4 mt-12">
-      <Title2XL>Mis entradas</Title2XL>
-    </div>
-  );
-};
+export default async function Page() {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default Tickets;
+  if (!user) redirect('/login');
+
+  return <TicketsPage userId={user.id} />;
+}
