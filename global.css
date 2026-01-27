@@ -1,12 +1,5 @@
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
-@import './src/core/ui/styles/index.css';
-
-/* @import './app/css/additional-styles/utility-patterns.css';
-@import './app/css/additional-styles/range-slider.css';
-@import './app/css/additional-styles/toggle-switch.css';
-@import './app/css/additional-styles/theme.css'; */
-
 @import 'tailwindcss/utilities';
 
 /* Additional Tailwind directives: https://tailwindcss.com/docs/functions-and-directives/#responsive */

@@ -1,1 +1,3 @@
-export { GET, POST, runtime } from '@modules/auth/api/handlers/signout';
+export const runtime = 'nodejs';
+
+export { GET, POST } from '@modules/auth/api/handlers/signout';

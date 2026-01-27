@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { log } from '@src/core/lib/logger';
 
-export const runtime = 'nodejs';
-
 export async function GET(request: NextRequest) {
   const supabase = await getServerSupabase();
 
