@@ -1,11 +1,16 @@
+// app/events/[id]/page.tsx
 import EventDetailsPage from '@modules/events/ui/eventDetails/EventDetailsPage';
 
-type Props = { params: { id: string } };
+type Props = {
+  params: Promise<{ id: string }>;
+};
 
 export default async function Page({ params }: Props) {
+  const { id } = await params;
+
   return (
     <section className="max-w-6xl mx-auto px-4 sm:px-6">
-      <EventDetailsPage id={params.id} />
+      <EventDetailsPage id={id} />
     </section>
   );
 }
