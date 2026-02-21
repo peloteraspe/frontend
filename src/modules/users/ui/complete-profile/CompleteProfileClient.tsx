@@ -10,6 +10,7 @@ import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 
 import { fetchLevelsOptions, fetchPositionsOptions } from '@modules/users/api/lookups.client';
 import { createProfile } from '@modules/users/api/profile.server';
+import { checkUsernameAvailabilityAction } from '@modules/users/actions/createProfile.actions';
 import type { ProfileRequestBody } from '@modules/users/model/types';
 
 type FormValues = {
@@ -69,6 +70,15 @@ export default function CompleteProfileClient({ userId }: { userId: string }) {
 
       if (!username || username.length < 3) {
         toast.error('El nombre debe tener al menos 3 caracteres.');
+        return;
+      }
+      const usernameCheck = await checkUsernameAvailabilityAction(username);
+      if (!usernameCheck.available) {
+        toast.error(
+          usernameCheck.reason === 'error'
+            ? 'No se pudo verificar el nombre de usuario. Intenta de nuevo.'
+            : 'El nombre de usuario ya está en uso, elige otro.'
+        );
         return;
       }
       if (!levelId) {

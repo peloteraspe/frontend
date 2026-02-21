@@ -4,7 +4,13 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { getBrowserSupabase } from '@src/core/api/supabase.browser';
 
-type UserLite = { id: string; email?: string | null; username?: string | null } | null;
+type UserLite = {
+  id: string;
+  email?: string | null;
+  username?: string | null;
+  emailConfirmed?: boolean;
+  eventsVerified?: boolean;
+} | null;
 
 type AuthCtx = {
   user: UserLite;
@@ -19,6 +25,10 @@ const Ctx = createContext<AuthCtx>({
   refreshProfile: async () => {},
   signOut: async () => {},
 });
+
+function isEventsVerified(value: unknown) {
+  return value === true || value === 'true';
+}
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
@@ -58,6 +68,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             id: directUser.id,
             email: directUser.email,
             username: directUser.user_metadata?.username ?? null,
+            emailConfirmed: Boolean(directUser.email_confirmed_at),
+            eventsVerified: isEventsVerified(directUser.user_metadata?.events_verified),
           };
           setUser(userData);
           return;
@@ -91,6 +103,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         id: sessionUser.id,
         email: sessionUser.email,
         username: sessionUser.user_metadata?.username ?? null,
+        emailConfirmed: Boolean(sessionUser.email_confirmed_at),
+        eventsVerified: isEventsVerified(sessionUser.user_metadata?.events_verified),
       };
 
       setUser(userData);
@@ -143,6 +157,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           id: u.id,
           email: u.email,
           username: u.user_metadata?.username ?? null,
+          emailConfirmed: Boolean(u.email_confirmed_at),
+          eventsVerified: isEventsVerified(u.user_metadata?.events_verified),
         };
 
         setUser(userData);

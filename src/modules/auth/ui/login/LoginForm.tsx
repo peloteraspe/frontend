@@ -1,167 +1,198 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 
-import Form, { type FormField } from '@core/ui/Form';
-import { Title2XL } from '@core/ui/Typography';
+import Input from '@core/ui/Input';
+import { log } from '@core/lib/logger';
 import GoogleButton from './google-button';
 
-import { log } from '@core/lib/logger';
-import { LoginValues } from './ types';
+type LoginValues = {
+  email: string;
+  password: string;
+};
 
 export default function LoginForm() {
-  const [buttonText, setButtonText] = useState('Continuar');
-  const [isExistingUser, setIsExistingUser] = useState<boolean | null>(null);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    clearErrors,
+    formState: { errors },
+  } = useForm<LoginValues>({
+    defaultValues: { email: '', password: '' },
+  });
 
   useEffect(() => {
     router.prefetch('/');
 
     const error = searchParams.get('error');
-    if (error) {
-      toast.error('Error de autenticación: ' + decodeURIComponent(error));
+    const message = searchParams.get('message');
+    const signup = searchParams.get('signup');
+
+    if (error) toast.error('Error de autenticacion: ' + decodeURIComponent(error));
+    if (message === 'link_expired') {
+      toast.error('El enlace de correo expiro. Solicita uno nuevo.');
+    } else if (message) {
+      toast(message);
+    }
+    if (signup === 'success') toast.success('Cuenta creada. Ahora inicia sesion.');
+
+    if (error || message || signup) {
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('error');
-      window.history.replaceState({}, '', newUrl.toString());
-    }
-
-    const message = searchParams.get('message');
-    if (message) {
-      toast(message);
-      const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('message');
+      newUrl.searchParams.delete('signup');
       window.history.replaceState({}, '', newUrl.toString());
     }
   }, [router, searchParams]);
 
-  const handleCheckUser = (data: LoginValues) => {
-    if (!data.email) {
-      toast.error('Debes ingresar un correo válido.');
-      return;
-    }
-    setIsExistingUser(true);
-    toast.success('Ingresa tu contraseña para continuar.');
-    setButtonText('Ingresar');
-  };
-
-  const handleSignIn = async (data: LoginValues) => {
-    if (!isExistingUser) return;
-    setButtonText('Cargando...');
+  const onSubmit = async (data: LoginValues) => {
+    setIsSubmitting(true);
+    setAuthError(null);
+    clearErrors('password');
 
     try {
       const { getBrowserSupabase } = await import('@core/api/supabase.browser');
       const supabase = getBrowserSupabase();
 
       const { error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password || '',
+        email: data.email.trim(),
+        password: data.password,
       });
 
       if (error) {
         const msg = (error.message || '').toLowerCase();
 
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
-          toast.error('Tu correo no está confirmado.');
+          setAuthError('Tu correo no esta confirmado. Revisa tu bandeja o reenvia la confirmacion.');
 
-          const { error: rerr } = await supabase.auth.resend({
+          const { error: resendError } = await supabase.auth.resend({
             type: 'signup',
-            email: data.email,
+            email: data.email.trim(),
             options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
           });
 
-          if (rerr) toast.error(rerr.message ?? 'No se pudo reenviar el correo');
+          if (resendError) toast.error(resendError.message || 'No se pudo reenviar el correo.');
           else toast.success('Te enviamos un correo para confirmar tu cuenta.');
           return;
         }
 
-        if (
-          msg.includes('invalid') ||
-          msg.includes('credentials') ||
-          msg.includes('user not found')
-        ) {
-          toast('Parece que no tienes cuenta. Te llevaremos al registro.');
-          router.push(`/signUp?email=${encodeURIComponent(data.email)}`);
+        if (msg.includes('invalid') || msg.includes('credentials')) {
+          const text = 'Correo o contrasena incorrectos.';
+          setAuthError(text);
+          setError('password', { type: 'manual', message: text });
           return;
         }
 
-        toast.error(error.message || 'No se pudo iniciar sesión.');
+        if (msg.includes('user not found')) {
+          setAuthError('No encontramos una cuenta con ese correo.');
+          return;
+        }
+
+        setAuthError(error.message || 'No se pudo iniciar sesion.');
         return;
       }
 
-      toast.success('¡Bienvenida de vuelta!');
+      toast.success('Bienvenida de vuelta.');
       router.push('/');
     } catch (err) {
-      toast.error('Error inesperado al ingresar.');
+      setAuthError('Error inesperado al iniciar sesion.');
+      toast.error('Error inesperado al iniciar sesion.');
       log.error('Login error', 'LOGIN_PAGE', err);
     } finally {
-      setTimeout(() => setButtonText('Ingresar'), 500);
+      setIsSubmitting(false);
     }
   };
 
-  const fields: FormField<LoginValues>[] = [
-    {
-      name: 'email',
-      label: 'Correo electrónico',
-      type: 'email',
-      placeholder: 'pelotera@gmail.com',
-      validation: {
-        required: 'Este campo es requerido',
-        pattern: {
-          value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-          message: 'Correo inválido',
-        },
-      },
-    },
-    ...(isExistingUser
-      ? [
-          {
-            name: 'password' as const,
-            label: 'Contraseña',
-            type: 'password' as const,
-            placeholder: 'Tu contraseña',
-            validation: {
-              required: 'Este campo es requerido',
-              minLength: { value: 6, message: 'Mínimo 6 caracteres' },
-            },
-          },
-        ]
-      : []),
-  ];
-
   return (
-    <div className="flex flex-col justify-center items-center w-full gap-8 min-h-[calc(100vh-6rem)] px-4">
-      <div className="text-center">
-        <Title2XL>Bienvenida a</Title2XL>
-        <Title2XL color="text-mulberry">Peloteras</Title2XL>
+    <div className="w-full max-w-[560px] mx-auto px-4 pt-8 pb-12 md:pt-12">
+      <div className="text-center mb-8">
+        <h1 className="mt-4 font-eastman-extrabold text-4xl md:text-5xl leading-tight text-slate-900">
+          Bienvenida
+        </h1>
+        <p className="mt-3 text-slate-600 text-base">
+          Ingresa en segundos para ver partidos, entradas y tu perfil.
+        </p>
       </div>
 
-      <div className="w-full max-w-[420px]">
-        <Form<LoginValues>
-          defaultValues={{ email: '', password: '' }}
-          fields={fields}
-          onSubmit={isExistingUser ? handleSignIn : handleCheckUser}
-          submitLabel={isPending ? 'Procesando...' : buttonText}
-          disableSubmitIfEmailInvalid
-        />
-      </div>
-
-      <div className="w-full max-w-[420px]">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-white px-2 text-gray-500">o continúa con</span>
-          </div>
+      <div className="bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-5 md:p-7 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
+        <div className="mb-6 grid grid-cols-2 rounded-2xl bg-slate-100 p-1.5 text-sm">
+          <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2.5 shadow-sm">
+            Iniciar sesion
+          </span>
+          <Link
+            href="/signUp"
+            className="rounded-xl text-slate-600 text-center py-2.5 hover:text-slate-900 transition-colors"
+          >
+            Crear cuenta
+          </Link>
         </div>
 
-        <GoogleButton disabled={isPending || isGoogleLoading} />
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
+          <Input
+            label="Correo electronico"
+            type="email"
+            placeholder="pelotera@gmail.com"
+            autoComplete="email"
+            required
+            {...register('email', {
+              required: 'Este campo es requerido',
+              pattern: {
+                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                message: 'Correo invalido',
+              },
+            })}
+            errorText={errors.email?.message}
+          />
+
+          <Input
+            label="Contrasena"
+            type="password"
+            placeholder="Tu contrasena"
+            autoComplete="current-password"
+            required
+            {...register('password', {
+              required: 'Este campo es requerido',
+              minLength: { value: 6, message: 'Minimo 6 caracteres' },
+            })}
+            errorText={errors.password?.message}
+          />
+
+          {authError && <p className="text-sm text-red-600" aria-live="polite">{authError}</p>}
+
+          <button
+            type="submit"
+            disabled={isSubmitting || isGoogleLoading}
+            className="h-11 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
+          >
+            {isSubmitting ? 'Ingresando...' : 'Iniciar sesion'}
+          </button>
+
+          <GoogleButton
+            disabled={isSubmitting || isGoogleLoading}
+            isLoading={isGoogleLoading}
+            onLoadingChange={setIsGoogleLoading}
+          />
+        </form>
+
+        <div className="mt-5 flex items-center justify-start gap-2 text-sm">
+          <Link
+            href="/auth/forgot-password"
+            className="font-medium text-mulberry hover:text-mulberry/80 transition-colors"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -9,13 +10,17 @@ import { getBrowserSupabase } from '@core/api/supabase.browser';
 import { log } from '@core/lib/logger';
 import { useAuth } from '@core/auth/AuthProvider';
 
-import { Title2XL, ParagraphM } from '@core/ui/Typography';
+import { ParagraphM } from '@core/ui/Typography';
 import Input from '@core/ui/Input';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 
 import type { Step, SignupStep1Values } from './signup.types';
 import { fetchLevelsOptions, fetchPositionsOptions } from '@modules/users/api/lookups.client';
-import { createProfileAction } from '@modules/users/actions/createProfile.actions';
+import {
+  checkUsernameAvailabilityAction,
+  createProfileAction,
+} from '@modules/users/actions/createProfile.actions';
+import GoogleButton from '@modules/auth/ui/login/google-button';
 
 export default function SignupClient() {
   const sp = useSearchParams();
@@ -26,11 +31,15 @@ export default function SignupClient() {
 
   const [step, setStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [signupEmail, setSignupEmail] = useState(prefilledEmail);
 
   const {
     register,
     handleSubmit,
     watch,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<SignupStep1Values>({
     defaultValues: { username: '', password: '' },
@@ -39,10 +48,7 @@ export default function SignupClient() {
   const username = watch('username');
   const password = watch('password');
 
-  const isValidEmail = useMemo(
-    () => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prefilledEmail),
-    [prefilledEmail]
-  );
+  const isValidEmail = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail), [signupEmail]);
 
   const canSubmitStep1 =
     isValidEmail && (username?.trim().length ?? 0) >= 3 && (password?.length ?? 0) >= 6;
@@ -53,9 +59,7 @@ export default function SignupClient() {
   const [selectedLevel, setSelectedLevel] = useState<string | number | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [countdown, setCountdown] = useState(5);
-  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
   // load options
   useEffect(() => {
@@ -83,9 +87,7 @@ export default function SignupClient() {
 
     load();
 
-    return () => {
-      if (countdownRef.current) clearInterval(countdownRef.current);
-    };
+    return () => {};
   }, []);
 
   const handleStep1 = async (data: SignupStep1Values) => {
@@ -93,12 +95,25 @@ export default function SignupClient() {
     setLoading(true);
 
     try {
+      const normalizedUsername = data.username.trim();
+      const usernameCheck = await checkUsernameAvailabilityAction(normalizedUsername);
+      if (!usernameCheck.available) {
+        const message =
+          usernameCheck.reason === 'error'
+            ? 'No se pudo verificar el nombre de usuario. Intenta de nuevo.'
+            : 'El nombre de usuario ya está en uso, elige otro.';
+        setError('username', { type: 'manual', message });
+        toast.error(message);
+        return;
+      }
+      clearErrors('username');
+
       const { data: sign, error } = await supabase.auth.signUp({
-        email: prefilledEmail,
+        email: signupEmail.trim(),
         password: data.password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: { username: data.username },
+          data: { username: normalizedUsername, events_verified: false },
         },
       });
 
@@ -107,9 +122,46 @@ export default function SignupClient() {
         return;
       }
 
-      const uid = sign.user?.id ?? null;
-      setUserId(uid);
-      setStep(2);
+      let { error: verificationEmailError } = await supabase.auth.signInWithOtp({
+        email: signupEmail.trim(),
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: `${window.location.origin}/auth/recovery?next=${encodeURIComponent('/auth/verify-events')}`,
+        },
+      });
+      if (verificationEmailError) {
+        log.warn('Could not send events verification email on signup', 'signup', verificationEmailError);
+      }
+
+      let currentUser = sign.user ?? null;
+      let hasSession = Boolean(sign.session);
+
+      if (!hasSession) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: signupEmail.trim(),
+          password: data.password,
+        });
+        if (!signInError && signInData.user) {
+          currentUser = signInData.user;
+          hasSession = true;
+        }
+      }
+
+      if (hasSession && currentUser) {
+        setUserId(currentUser.id);
+        setStep(2);
+        toast.success('Cuenta creada. Te enviamos un correo para verificar eventos.');
+        return;
+      }
+
+      if (currentUser?.id) {
+        setUserId(currentUser.id);
+        setStep(2);
+        toast('Cuenta creada. Revisa tu correo para verificar eventos.');
+        return;
+      }
+
+      toast.error('Cuenta creada, pero no pudimos continuar. Inicia sesion para completar tu perfil.');
     } catch (e) {
       toast.error('Error creando la cuenta');
       log.error('Signup step 1 failed', 'signup', e);
@@ -118,40 +170,63 @@ export default function SignupClient() {
     }
   };
 
-  const handleStep2 = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleStep2 = async () => {
     if (!userId) return toast.error('No se encontró el usuario recién creado.');
     if (!selectedLevel) return toast.error('Selecciona un nivel.');
 
     setLoading(true);
     try {
+      const normalizedUsername = (username || '').trim();
+      if (normalizedUsername.length < 3) {
+        setStep(1);
+        setError('username', {
+          type: 'manual',
+          message: 'El nombre de usuario es requerido para continuar.',
+        });
+        toast.error('Completa tu nombre de usuaria para continuar.');
+        return;
+      }
+
+      const usernameCheck = await checkUsernameAvailabilityAction(normalizedUsername);
+      if (!usernameCheck.available) {
+        if (usernameCheck.reason === 'error') {
+          toast.error('No se pudo verificar el nombre de usuario. Intenta de nuevo.');
+          return;
+        }
+        setError('username', {
+          type: 'manual',
+          message: 'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.',
+        });
+        setStep(1);
+        toast.error('Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.');
+        return;
+      }
+      clearErrors('username');
+
       await createProfileAction({
         user: userId,
-        username,
+        username: normalizedUsername,
         level_id: Number(selectedLevel),
         player_position: selectedPositions.map(Number).filter((n) => Number.isFinite(n)),
       });
 
-      setIsSuccess(true);
-      toast.success('¡Cuenta creada exitosamente! 🎉');
-
-      // refresh profile (best effort)
+      toast.success('Cuenta creada. Bienvenida.');
       refreshProfile().catch(() => undefined);
-
-      // redirect countdown
-      countdownRef.current = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            if (countdownRef.current) clearInterval(countdownRef.current);
-            window.location.href = '/login?signup=success';
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      window.location.href = '/';
     } catch (err: any) {
+      const errorMessage = String(err?.message || err || '');
+      if (errorMessage.includes('profile_user_fkey')) {
+        toast.error('No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesion.');
+        window.location.href = '/login?message=Completa tu perfil al iniciar sesion';
+        return;
+      }
       if (String(err).includes('profile_username_key')) {
-        toast.error('El nombre de usuario ya está en uso, elige otro.');
+        setError('username', {
+          type: 'manual',
+          message: 'El nombre de usuario ya está en uso, elige otro.',
+        });
+        setStep(1);
+        toast.error('Ese nombre de usuario ya está en uso, elige otro.');
       } else {
         toast.error('No se pudo crear el perfil.');
       }
@@ -160,53 +235,52 @@ export default function SignupClient() {
     }
   };
 
+  const emailError =
+    signupEmail.length > 0 && !isValidEmail ? 'Ingresa un correo valido.' : undefined;
+
   return (
-    <div className="flex flex-col justify-center items-center w-full gap-8 min-h-[calc(100vh-6rem)] px-4">
-      <div className="text-center">
-        <Title2XL>Bienvenida a</Title2XL>
-        <Title2XL color="text-mulberry">Peloteras</Title2XL>
+    <div className="w-full max-w-[560px] mx-auto px-4 pt-4 pb-8 md:pt-6">
+      <div className="text-center mb-4">
+        <h1 className="mt-3 font-eastman-extrabold text-3xl md:text-4xl leading-tight text-slate-900">
+          Crea tu cuenta
+        </h1>
+        <p className="mt-2 text-slate-600 text-sm">
+          Completa tus datos y empieza a jugar.
+        </p>
       </div>
 
-      {isSuccess ? (
-        <div className="w-full max-w-[420px] text-center">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6">
-            <div className="text-6xl mb-4">🎉</div>
-            <h3 className="text-xl font-semibold text-green-800 mb-2">
-              ¡Cuenta creada exitosamente!
-            </h3>
-            <p className="text-green-700 mb-4">Tu perfil ha sido configurado correctamente.</p>
-            <div className="bg-green-100 rounded-lg p-4">
-              <p className="text-green-800 font-medium">
-                Redirigiendo al login en {countdown} segundos...
-              </p>
-            </div>
+      {step === 1 ? (
+        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
+          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm">
+            <Link
+              href="/login"
+              className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
+            >
+              Iniciar sesion
+            </Link>
+            <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
+              Crear cuenta
+            </span>
           </div>
 
-          <button
-            onClick={() => {
-              if (countdownRef.current) clearInterval(countdownRef.current);
-              window.location.href = '/login?signup=success';
-            }}
-            className="w-full h-11 rounded-xl bg-mulberry text-white hover:bg-mulberry/90"
-          >
-            Ir al login ahora
-          </button>
-        </div>
-      ) : step === 1 ? (
-        <div className="w-full max-w-[420px]">
-          <p className="text-center text-slate-700 mb-6">
+          <p className="text-slate-600 text-sm mb-4">
             Completa tus datos por primera vez para que tengas una experiencia personalizada
           </p>
 
-          <form onSubmit={handleSubmit(handleStep1)} className="flex flex-col gap-4" noValidate>
-            <div>
-              <label className="text-sm font-semibold">Correo</label>
-              <input
-                value={prefilledEmail}
-                readOnly
-                className="mt-1 h-11 w-full rounded-xl border px-4 text-[15px] bg-slate-50 border-slate-300"
-              />
-            </div>
+          <form onSubmit={handleSubmit(handleStep1)} className="flex flex-col gap-3" noValidate>
+            <Input
+              label="Correo electronico"
+              type="email"
+              required
+              name="email"
+              autoComplete="email"
+              inputMode="email"
+              placeholder="pelotera@gmail.com"
+              value={signupEmail}
+              onChange={(e) => setSignupEmail(e.target.value)}
+              className="h-11"
+              errorText={emailError}
+            />
 
             <Input
               label="Crea un nombre"
@@ -218,9 +292,32 @@ export default function SignupClient() {
                 required: 'Este campo es requerido',
                 minLength: { value: 3, message: 'Mínimo 3 caracteres' },
                 maxLength: { value: 50, message: 'Máximo 50 caracteres' },
+                onBlur: async (e) => {
+                  const rawValue = String(e?.target?.value ?? '').trim();
+                  if (rawValue.length < 3) return;
+                  setIsCheckingUsername(true);
+                  const result = await checkUsernameAvailabilityAction(rawValue);
+                  setIsCheckingUsername(false);
+                  if (!result.available) {
+                    setError('username', {
+                      type: 'manual',
+                      message:
+                        result.reason === 'error'
+                          ? 'No se pudo validar el nombre ahora.'
+                          : 'El nombre de usuario ya está en uso.',
+                    });
+                    return;
+                  }
+                  clearErrors('username');
+                },
               })}
+              autoComplete="nickname"
+              className="h-11"
               errorText={errors.username?.message as string | undefined}
             />
+            {isCheckingUsername && (
+              <p className="text-xs text-slate-500 -mt-2">Verificando disponibilidad...</p>
+            )}
 
             <Input
               label="Contraseña"
@@ -232,25 +329,66 @@ export default function SignupClient() {
                 required: 'Este campo es requerido',
                 minLength: { value: 6, message: 'Mínimo 6 caracteres' },
               })}
+              autoComplete="new-password"
+              className="h-11"
               errorText={errors.password?.message as string | undefined}
             />
 
             <button
               type="submit"
-              className="h-11 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
-              disabled={loading || !canSubmitStep1}
+              className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
+              disabled={loading || isGoogleLoading || !canSubmitStep1}
             >
               {loading ? 'Creando...' : 'Continuar'}
             </button>
+
+            <div className="relative mt-1">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase tracking-wide">
+                <span className="bg-white px-3 text-gray-500">o continua con</span>
+              </div>
+            </div>
+
+            <GoogleButton
+              disabled={loading || isGoogleLoading}
+              isLoading={isGoogleLoading}
+              onLoadingChange={setIsGoogleLoading}
+            />
           </form>
         </div>
       ) : (
-        <div className="w-full max-w-[420px]">
-          <p className="text-center text-slate-700 mb-6">
+        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
+          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm">
+            <Link
+              href="/login"
+              className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
+            >
+              Iniciar sesion
+            </Link>
+            <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
+              Crear cuenta
+            </span>
+          </div>
+
+          <p className="text-slate-600 text-sm mb-4">
             Completa tus datos por primera vez para que tengas una experiencia personalizada
           </p>
 
-          <form onSubmit={handleStep2} className="flex flex-col gap-4" noValidate>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleStep2();
+            }}
+            className="flex flex-col gap-3"
+            noValidate
+          >
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs text-slate-500">Nombre de usuaria</p>
+              <p className="text-sm font-semibold text-slate-900">{username}</p>
+            </div>
+
             <label className="w-full">
               <div className="mb-1">
                 <ParagraphM fontWeight="semibold">
@@ -282,7 +420,7 @@ export default function SignupClient() {
 
             <button
               type="submit"
-              className="h-11 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
+              className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
               disabled={loading}
             >
               {loading ? 'Guardando...' : 'Crear cuenta'}

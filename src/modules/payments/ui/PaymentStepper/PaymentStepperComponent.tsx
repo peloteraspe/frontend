@@ -13,6 +13,8 @@ import soccerBall from '@core/assets/soccer-ball.svg';
 import { useForm } from 'react-hook-form';
 import { log } from '@src/core/lib/logger';
 import { Title2XL } from '@src/core/ui/Typography';
+import toast from 'react-hot-toast';
+import { useAuth } from '@core/auth/AuthProvider';
 
 type FormValues = {
   promCode?: string;
@@ -44,6 +46,7 @@ const PaymentStepper = (props: any) => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { user: authUser } = useAuth();
 
   // limpiar comillas del QR
   paymentData.QR = paymentData.QR.replace(/^"|"$/g, '');
@@ -54,6 +57,15 @@ const PaymentStepper = (props: any) => {
   };
 
   const handlePaymentConfirmation = async () => {
+    if (!authUser?.eventsVerified) {
+      setError('operationNumber', {
+        type: 'manual',
+        message: 'Verifica tu identidad para completar la inscripcion al evento.',
+      });
+      toast.error('Verifica tu identidad para completar la inscripcion.');
+      return;
+    }
+
     const op = getValues('operationNumber');
     // Seguridad extra: valida en handler también
     if (!/^\d{8}$/.test(op)) {

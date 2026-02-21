@@ -13,8 +13,18 @@ export type EventInput = {
   locationText?: string;
 };
 
+function isEventsVerified(value: unknown) {
+  return value === true || value === 'true';
+}
+
 export async function createEvent(input: EventInput) {
   const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!isEventsVerified(user?.user_metadata?.events_verified)) {
+    throw new Error('Debes verificar tu identidad para crear eventos.');
+  }
   const { error } = await supabase.from('event').insert({
     title: input.title,
     price: input.price,
@@ -30,6 +40,12 @@ export async function createEvent(input: EventInput) {
 
 export async function updateEvent(id: string, input: EventInput) {
   const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!isEventsVerified(user?.user_metadata?.events_verified)) {
+    throw new Error('Debes verificar tu identidad para editar eventos.');
+  }
   const { error } = await supabase
     .from('event')
     .update({
@@ -49,6 +65,12 @@ export async function updateEvent(id: string, input: EventInput) {
 
 export async function deleteEvent(id: string) {
   const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!isEventsVerified(user?.user_metadata?.events_verified)) {
+    throw new Error('Debes verificar tu identidad para eliminar eventos.');
+  }
   const { error } = await supabase.from('event').delete().eq('id', id);
   if (error) throw new Error(error.message);
   revalidatePath('/admin/events');

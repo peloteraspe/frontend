@@ -3,11 +3,14 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import React from 'react';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 import SoccerField from '@core/ui/SoccerField';
 import Map from '@core/ui/Map';
 import Collapse from '@core/ui/Collapse';
 import { ButtonWrapper } from '@core/ui/Button';
+import { useAuth } from '@core/auth/AuthProvider';
 
 import arrowAnotarse from '@core/assets/images/arrow-anotarse.svg';
 import Calendar from '@core/assets/images/calendar.png';
@@ -18,10 +21,24 @@ type Props = {
 
 export default function EventDetailsClient({ data }: Props) {
   const post = data;
+  const router = useRouter();
+  const { user } = useAuth();
 
   if (!post) return <div>No se encuentra el evento</div>;
 
   const event = post.event ?? post; // por si a veces viene plano
+
+  const handleJoinClick = () => {
+    if (!user) {
+      router.push('/login?message=Inicia sesion para inscribirte a un evento');
+      return;
+    }
+    if (!user.eventsVerified) {
+      toast.error('Verifica tu identidad para poder inscribirte a este evento.');
+      return;
+    }
+    router.push(`/payments/${event.id}`);
+  };
 
   return (
     <div className="md:flex md:justify-between" data-sticky-container>
@@ -102,7 +119,7 @@ export default function EventDetailsClient({ data }: Props) {
             </div>
 
             <ButtonWrapper
-              navigateTo={`/payments/${event.id}`}
+              onClick={handleJoinClick}
               icon={<Image src={arrowAnotarse} alt="arrow" width={24} height={24} />}
             >
               Anotarme
