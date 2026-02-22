@@ -1,8 +1,7 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { getBrowserSupabase } from '@src/core/api/supabase.browser';
 import Image from 'next/image';
-import LogoYape from '../../app/assets/Logo.Yape.webp';
 import OperationNumberModal from '../OperationNumberModal';
 import operationGuideImage from '@core/assets/images/donde-nro-operacion.png';
 import Link from 'next/link';
