@@ -20,12 +20,48 @@ export default function ComingSoonLanding() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
   const canSubmit = useMemo(
     () => !loading && normalizedEmail.length > 0,
     [loading, normalizedEmail]
   );
+  const shareText = 'Me uní a Peloteras para jugar más seguido. Súmate aquí:';
+  const shareUrl = useMemo(() => {
+    if (typeof window === 'undefined') return 'https://peloteras.com';
+    const base = window.location.origin;
+    return `${base}/?utm_source=share&utm_medium=social&utm_campaign=coming_soon`;
+  }, []);
+  const encodedShareText = encodeURIComponent(`${shareText} ${shareUrl}`);
+
+  const handleNativeShare = async () => {
+    setShareMessage(null);
+    try {
+      if (!navigator.share) {
+        setShareMessage('Tu navegador no permite compartir directo. Usa copiar enlace.');
+        return;
+      }
+
+      await navigator.share({
+        title: 'Peloteras',
+        text: shareText,
+        url: shareUrl,
+      });
+    } catch {
+      setShareMessage('No se pudo abrir compartir. Puedes copiar el enlace.');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    setShareMessage(null);
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareMessage('Enlace copiado.');
+    } catch {
+      setShareMessage('No se pudo copiar. Comparte manualmente: ' + shareUrl);
+    }
+  };
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -155,12 +191,52 @@ export default function ComingSoonLanding() {
                   aria-live="polite"
                   className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900"
                 >
-                  <p className="font-semibold">✅ {success}</p>
+                  <p className="font-semibold">{success}</p>
                   <p className="mt-1 text-emerald-800/90">
-                    ¿Quieres ayudarnos a llegar a más peloteras? Compártelo en tus stories 💜⚽
+                    ¿Quieres ayudarnos a llegar a más peloteras? Compártelo en tus stories.
                   </p>
                 </div>
               )}
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Comparte Peloteras</p>
+              <p className="mt-1 text-xs text-slate-600">Invita a más jugadoras desde aquí.</p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleNativeShare}
+                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100"
+                >
+                  Compartir
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100"
+                >
+                  Copiar enlace
+                </button>
+                <a
+                  href={`https://wa.me/?text=${encodedShareText}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 inline-flex items-center"
+                >
+                  WhatsApp
+                </a>
+                <a
+                  href={`https://twitter.com/intent/tweet?text=${encodedShareText}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 inline-flex items-center"
+                >
+                  X
+                </a>
+              </div>
+
+              {shareMessage && <p className="mt-2 text-xs text-slate-600">{shareMessage}</p>}
             </div>
 
           </div>
