@@ -97,6 +97,16 @@ export default function ComingSoonLanding() {
     }
   };
 
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (error) {
+      const candidate = value.trim().toLowerCase();
+      if (candidate.length === 0 || isValidEmail(candidate)) {
+        setError(null);
+      }
+    }
+  };
+
   return (
     <section className="relative w-full min-h-[calc(100vh-180px)] overflow-hidden">
       {/* Background */}
@@ -141,7 +151,7 @@ export default function ComingSoonLanding() {
                   id={inputId}
                   type="email"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => handleEmailChange(event.target.value)}
                   placeholder="tu@email.com"
                   autoComplete="email"
                   inputMode="email"
