@@ -42,19 +42,19 @@ const poppinsExtrabold = Poppins({
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: 'Peloteras',
-  description: 'Donde las mujeres jugamos fútbol',
+  description: 'Donde las mujeres jugamos',
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
     url: defaultUrl,
     title: 'Peloteras',
-    description: 'Donde las mujeres jugamos fútbol',
+    description: 'Donde las mujeres jugamos',
     siteName: 'Peloteras',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Peloteras',
-    description: 'Donde las mujeres jugamos fútbol',
+    description: 'Donde las mujeres jugamos',
   },
 };
 
