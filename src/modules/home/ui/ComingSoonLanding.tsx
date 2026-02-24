@@ -34,6 +34,29 @@ export default function ComingSoonLanding() {
     return `${base}/?utm_source=share&utm_medium=social&utm_campaign=coming_soon`;
   }, []);
   const encodedShareText = encodeURIComponent(`${shareText} ${shareUrl}`);
+  const valuePoints = [
+    {
+      title: 'Encuentra partidos en minutos',
+      description:
+        'Publicamos fechas, horarios, sede y nivel para que sepas rápido dónde jugar.',
+    },
+    {
+      title: 'Arma equipo sin chats infinitos',
+      description:
+        'Confirma asistencia, completa cupos y organiza a tu equipo desde un solo lugar.',
+    },
+    {
+      title: 'Juega con más seguridad',
+      description:
+        'Toda la información del evento queda clara antes de salir de casa: costo, reglas y ubicación.',
+    },
+  ];
+
+  const howItWorks = [
+    'Explora partidos por fecha, zona y nivel.',
+    'Únete al evento y confirma tu asistencia.',
+    'Recibe recordatorios y llega lista para jugar.',
+  ];
 
   const handleNativeShare = async () => {
     setShareMessage(null);
@@ -88,7 +111,7 @@ export default function ComingSoonLanding() {
         return;
       }
 
-      setSuccess(data?.message || '¡Listo! Te avisaremos cuando abramos el acceso.');
+      setSuccess(data?.message || '¡Listo! Te avisaremos apenas lancemos Peloteras.');
       setEmail('');
     } catch {
       setError('No se pudo guardar tu correo. Revisa tu conexión e intenta de nuevo.');
@@ -118,27 +141,54 @@ export default function ComingSoonLanding() {
       <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-10 md:px-8 md:py-16">
         <Image src={Logo} alt="Peloteras logo" className="mx-auto h-10 w-auto" />
 
-        {/* Hero */}
-        <header className="mx-auto max-w-4xl text-center">
-          <h1 className="font-eastman-extrabold text-5xl leading-[0.95] text-slate-900 sm:text-6xl md:text-7xl">
-            El deporte femenino
-            <span className="block text-[#54086F]">se organiza mejor aquí</span>
+        <header className="mx-auto max-w-5xl text-center">
+          <p className="font-eastman-bold text-sm uppercase tracking-[0.2em] text-[#54086F]">
+            Donde las mujeres jugamos
+          </p>
+          <h1 className="mt-3 font-eastman-extrabold text-5xl leading-[0.95] text-slate-900 sm:text-6xl md:text-7xl">
+            Organiza tus partidos
+            <span className="block text-[#54086F]">sin perder tiempo</span>
           </h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-base text-slate-700 sm:text-lg">
-            Estamos preparando el acceso a la demo para que encontrar partidos, armar equipo y jugar
-            sea simple. Súmate a la lista y entra primero.
+          <p className="mx-auto mt-6 max-w-3xl text-base text-slate-700 sm:text-lg">
+            Peloteras es una plataforma para encontrar partidos de fútbol femenino, unirte fácil y
+            coordinar tu equipo con información clara antes de jugar.
           </p>
         </header>
 
-        <div className="mx-auto grid w-full max-w-5xl gap-6">
-          {/* Form card */}
+        <div className="mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-2">
           <div className="rounded-3xl border border-white/60 bg-white/85 p-6 shadow-[0_30px_80px_-40px_rgba(84,8,111,0.55)] backdrop-blur-sm md:p-8">
             <h2 className="font-eastman-bold text-2xl text-slate-900 md:text-3xl">
-              Lista de espera
+              Qué podrás hacer en Peloteras
+            </h2>
+            <ul className="mt-5 space-y-4">
+              {valuePoints.map((point) => (
+                <li key={point.title} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-900 md:text-base">{point.title}</p>
+                  <p className="mt-1 text-sm text-slate-600">{point.description}</p>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Cómo funciona</p>
+              <ol className="mt-3 space-y-2">
+                {howItWorks.map((step, index) => (
+                  <li key={step} className="flex gap-3 text-sm text-slate-700">
+                    <span className="font-eastman-bold text-[#54086F]">{index + 1}.</span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/60 bg-white/85 p-6 shadow-[0_30px_80px_-40px_rgba(84,8,111,0.55)] backdrop-blur-sm md:p-8">
+            <h2 className="font-eastman-bold text-2xl text-slate-900 md:text-3xl">
+              Aviso de lanzamiento
             </h2>
             <p className="mt-2 text-sm text-slate-600 md:text-base">
-              Te avisamos cuando abramos acceso y te compartimos novedades del lanzamiento.
+              Déjanos tu correo y te avisamos cuando Peloteras esté disponible.
             </p>
 
             <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-3 md:flex-row" noValidate>
@@ -162,7 +212,8 @@ export default function ComingSoonLanding() {
                 />
 
                 <p id={hintId} className="mt-2 text-xs text-slate-500">
-                  Sin spam. Solo avisos de acceso y novedades.
+                  Sin spam. Solo te escribiremos cuando lancemos Peloteras y para novedades
+                  importantes.
                 </p>
               </div>
 
@@ -177,7 +228,7 @@ export default function ComingSoonLanding() {
                     aria-hidden="true"
                   />
                 )}
-                {loading ? 'Guardando…' : 'Unirme'}
+                {loading ? 'Guardando…' : 'Quiero que me avisen'}
               </button>
             </form>
 
@@ -203,51 +254,53 @@ export default function ComingSoonLanding() {
                 >
                   <p className="font-semibold">{success}</p>
                   <p className="mt-1 text-emerald-800/90">
-                    ¿Quieres ayudarnos a llegar a más peloteras? Compártelo en tus stories.
+                    ¿Conoces más jugadoras? Comparte Peloteras con tu equipo.
                   </p>
                 </div>
               )}
             </div>
 
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900">Comparte Peloteras</p>
-              <p className="mt-1 text-xs text-slate-600">Invita a más jugadoras desde aquí.</p>
+            {success && (
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-900">Comparte Peloteras</p>
+                <p className="mt-1 text-xs text-slate-600">Invita a más jugadoras desde aquí.</p>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleNativeShare}
-                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100"
-                >
-                  Compartir
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100"
-                >
-                  Copiar enlace
-                </button>
-                <a
-                  href={`https://wa.me/?text=${encodedShareText}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 inline-flex items-center"
-                >
-                  WhatsApp
-                </a>
-                <a
-                  href={`https://twitter.com/intent/tweet?text=${encodedShareText}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 inline-flex items-center"
-                >
-                  X
-                </a>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleNativeShare}
+                    className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100"
+                  >
+                    Compartir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100"
+                  >
+                    Copiar enlace
+                  </button>
+                  <a
+                    href={`https://wa.me/?text=${encodedShareText}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 inline-flex items-center"
+                  >
+                    WhatsApp
+                  </a>
+                  <a
+                    href={`https://twitter.com/intent/tweet?text=${encodedShareText}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 inline-flex items-center"
+                  >
+                    X
+                  </a>
+                </div>
+
+                {shareMessage && <p className="mt-2 text-xs text-slate-600">{shareMessage}</p>}
               </div>
-
-              {shareMessage && <p className="mt-2 text-xs text-slate-600">{shareMessage}</p>}
-            </div>
+            )}
 
           </div>
         </div>
