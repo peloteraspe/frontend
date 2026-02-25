@@ -56,7 +56,7 @@ const PaymentStepper = (props: any) => {
   };
 
   const handlePaymentConfirmation = async () => {
-    if (!authUser?.eventsVerified) {
+    if (!authUser?.emailConfirmed) {
       setError('operationNumber', {
         type: 'manual',
         message: 'Verifica tu identidad para completar la inscripcion al evento.',
