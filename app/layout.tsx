@@ -6,6 +6,8 @@ import { eastmanBold, eastmanExtrabold } from './fonts';
 import { Toaster } from 'react-hot-toast';
 import AuthProvider from '@core/auth/AuthProvider';
 import AppShell from '@app/_components/AppShell';
+import { NavBar } from './_components/NavBar';
+import Footer from '@src/core/ui/Footer';
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -80,7 +82,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       >
         <AuthProvider>
           <AppShell>{children}</AppShell>
-
+          {/* <main className="flex-1 w-full flex flex-col items-center min-h-screen">
+            <NavBar />
+            {children}
+            <Footer />
+          </main> */}
           <Toaster />
 
           {/* Auth debugger for development */}

@@ -33,7 +33,7 @@ export default function EventDetailsClient({ data }: Props) {
       router.push('/login?message=Inicia sesion para inscribirte a un evento');
       return;
     }
-    if (!user.eventsVerified) {
+    if (!user.emailConfirmed) {
       toast.error('Verifica tu identidad para poder inscribirte a este evento.');
       return;
     }
