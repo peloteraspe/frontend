@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      toast.success('Te enviamos un enlace para cambiar tu contrasena.');
+      toast.success('Te enviamos un enlace para cambiar tu contraseña.');
     } catch {
       setError('No se pudo enviar el enlace. Intenta nuevamente.');
     } finally {
@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
     <div className="w-full max-w-[560px] mx-auto px-4 pt-8 pb-12 md:pt-12">
       <div className="text-center mb-8">
         <h1 className="mt-4 font-eastman-extrabold text-4xl md:text-5xl leading-tight text-slate-900">
-          Recupera tu <span className="text-mulberry">contrasena</span>
+          Recupera tu <span className="text-mulberry">contraseña</span>
         </h1>
         <p className="mt-3 text-slate-600 text-base">
           Te enviaremos un enlace seguro para restablecerla.

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -33,6 +33,10 @@ export default function SignupClient() {
   const [loading, setLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [signupEmail, setSignupEmail] = useState(prefilledEmail);
+  const [requiresEmailVerification, setRequiresEmailVerification] = useState(false);
+  const [checkingVerification, setCheckingVerification] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const verificationCheckInFlight = useRef(false);
 
   const {
     register,
@@ -60,6 +64,23 @@ export default function SignupClient() {
 
   const [userId, setUserId] = useState<string | null>(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+
+  const ensureDraftProfile = async (newUserId: string, normalizedUsername: string) => {
+    try {
+      await createProfileAction({
+        user: newUserId,
+        username: normalizedUsername,
+        level_id: null,
+        player_position: [],
+      });
+    } catch (err: any) {
+      const errorMessage = String(err?.message || err || '').toLowerCase();
+      // If a draft already exists (retry / duplicate click), continue.
+      if (errorMessage.includes('duplicate') || errorMessage.includes('already exists')) return;
+      // Non-blocking: user can still complete profile in step 2.
+      log.warn('Could not create profile draft on signup step 1', 'signup', err);
+    }
+  };
 
   // load options
   useEffect(() => {
@@ -122,17 +143,6 @@ export default function SignupClient() {
         return;
       }
 
-      let { error: verificationEmailError } = await supabase.auth.signInWithOtp({
-        email: signupEmail.trim(),
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/auth/recovery?next=${encodeURIComponent('/auth/verify-events')}`,
-        },
-      });
-      if (verificationEmailError) {
-        log.warn('Could not send events verification email on signup', 'signup', verificationEmailError);
-      }
-
       let currentUser = sign.user ?? null;
       let hasSession = Boolean(sign.session);
 
@@ -148,16 +158,20 @@ export default function SignupClient() {
       }
 
       if (hasSession && currentUser) {
+        await ensureDraftProfile(currentUser.id, normalizedUsername);
         setUserId(currentUser.id);
+        setRequiresEmailVerification(!currentUser.email_confirmed_at);
         setStep(2);
-        toast.success('Cuenta creada. Te enviamos un correo para verificar eventos.');
+        toast.success('Cuenta creada. Continúa para completar tu perfil.');
         return;
       }
 
       if (currentUser?.id) {
+        await ensureDraftProfile(currentUser.id, normalizedUsername);
         setUserId(currentUser.id);
+        setRequiresEmailVerification(true);
         setStep(2);
-        toast('Cuenta creada. Revisa tu correo para verificar eventos.');
+        toast.success('Cuenta creada. Revisa tu correo para verificar tu cuenta.');
         return;
       }
 
@@ -203,12 +217,22 @@ export default function SignupClient() {
       }
       clearErrors('username');
 
-      await createProfileAction({
+      const profilePayload = {
         user: userId,
         username: normalizedUsername,
         level_id: Number(selectedLevel),
         player_position: selectedPositions.map(Number).filter((n) => Number.isFinite(n)),
-      });
+      };
+
+      // We create the final profile here. If a draft exists and backend treats it as duplicate,
+      // show a guided message instead of failing silently.
+      await createProfileAction(profilePayload);
+
+      if (requiresEmailVerification) {
+        setStep(3);
+        toast.success('Perfil guardado. Verifica tu correo para activar tu cuenta.');
+        return;
+      }
 
       toast.success('Cuenta creada. Bienvenida.');
       refreshProfile().catch(() => undefined);
@@ -237,6 +261,65 @@ export default function SignupClient() {
 
   const emailError =
     signupEmail.length > 0 && !isValidEmail ? 'Ingresa un correo valido.' : undefined;
+
+  const tryCompleteEmailVerification = async () => {
+    if (verificationCheckInFlight.current) return false;
+    verificationCheckInFlight.current = true;
+    setCheckingVerification(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: signupEmail.trim(),
+        password: password || '',
+      });
+      if (error) {
+        const message = (error.message || '').toLowerCase();
+        if (message.includes('not confirmed') || message.includes('email_not_confirmed')) {
+          return false;
+        }
+        toast.error(error.message || 'No se pudo validar tu verificacion.');
+        return false;
+      }
+
+      toast.success('Cuenta verificada. Bienvenida.');
+      refreshProfile().catch(() => undefined);
+      window.location.href = '/';
+      return true;
+    } catch {
+      toast.error('No se pudo validar tu verificacion.');
+      return false;
+    } finally {
+      verificationCheckInFlight.current = false;
+      setCheckingVerification(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setResendingVerification(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: signupEmail.trim(),
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (error) {
+        toast.error(error.message || 'No se pudo reenviar el correo de verificacion.');
+        return;
+      }
+      toast.success('Correo de verificacion reenviado.');
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
+  useEffect(() => {
+    if (step !== 3 || !requiresEmailVerification) return;
+
+    const interval = window.setInterval(() => {
+      void tryCompleteEmailVerification();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [step, requiresEmailVerification]);
 
   return (
     <div className="w-full max-w-[560px] mx-auto px-4 pt-4 pb-8 md:pt-6">
@@ -358,7 +441,7 @@ export default function SignupClient() {
             />
           </form>
         </div>
-      ) : (
+      ) : step === 2 ? (
         <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
           <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm">
             <Link
@@ -426,6 +509,48 @@ export default function SignupClient() {
               {loading ? 'Guardando...' : 'Crear cuenta'}
             </button>
           </form>
+        </div>
+      ) : (
+        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
+          <h2 className="text-xl md:text-2xl font-eastman-extrabold text-slate-900">
+            Revisa tu correo para verificar tu cuenta
+          </h2>
+
+          <p className="text-slate-700 mt-3 text-sm md:text-base">
+            Te enviamos un enlace a <strong>{signupEmail}</strong>. Cuando verifiques, te
+            redirigiremos automaticamente al inicio.
+          </p>
+
+          <div className="mt-5 flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                void tryCompleteEmailVerification();
+              }}
+              disabled={checkingVerification}
+              className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
+            >
+              {checkingVerification ? 'Verificando...' : 'Ya verifique mi correo'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                void handleResendVerification();
+              }}
+              disabled={resendingVerification}
+              className="h-10 w-full rounded-xl border border-slate-300 text-slate-700 disabled:opacity-60"
+            >
+              {resendingVerification ? 'Reenviando...' : 'Reenviar correo'}
+            </button>
+
+            <Link
+              href="/login"
+              className="text-sm text-center text-mulberry font-semibold hover:text-mulberry/80"
+            >
+              Volver a iniciar sesion
+            </Link>
+          </div>
         </div>
       )}
     </div>

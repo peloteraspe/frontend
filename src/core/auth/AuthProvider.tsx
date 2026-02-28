@@ -2,12 +2,13 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { getBrowserSupabase } from '@src/core/api/supabase.browser';
+import { getBrowserSupabase } from '@core/api/supabase.browser';
 
 type UserLite = {
   id: string;
   email?: string | null;
   username?: string | null;
+  email_confirmed_at?: string | null;
   emailConfirmed?: boolean;
   eventsVerified?: boolean;
 } | null;
@@ -68,6 +69,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             id: directUser.id,
             email: directUser.email,
             username: directUser.user_metadata?.username ?? null,
+            email_confirmed_at: directUser.email_confirmed_at ?? null,
             emailConfirmed: Boolean(directUser.email_confirmed_at),
             eventsVerified: isEventsVerified(directUser.user_metadata?.events_verified),
           };
@@ -103,6 +105,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         id: sessionUser.id,
         email: sessionUser.email,
         username: sessionUser.user_metadata?.username ?? null,
+        email_confirmed_at: sessionUser.email_confirmed_at ?? null,
         emailConfirmed: Boolean(sessionUser.email_confirmed_at),
         eventsVerified: isEventsVerified(sessionUser.user_metadata?.events_verified),
       };
@@ -157,6 +160,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           id: u.id,
           email: u.email,
           username: u.user_metadata?.username ?? null,
+          email_confirmed_at: u.email_confirmed_at ?? null,
           emailConfirmed: Boolean(u.email_confirmed_at),
           eventsVerified: isEventsVerified(u.user_metadata?.events_verified),
         };

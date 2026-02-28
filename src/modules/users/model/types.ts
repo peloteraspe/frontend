@@ -1,7 +1,7 @@
 export interface ProfileRequestBody {
   user: string;
   username: string;
-  level_id: number;
+  level_id: number | null;
   player_position: number[];
 }
 

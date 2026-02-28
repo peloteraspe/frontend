@@ -19,14 +19,22 @@ type FormValues = {
   level_id: OptionSelect | null;
 };
 
-export default function CompleteProfileClient({ userId }: { userId: string }) {
+type CompleteProfileClientProps = {
+  userId: string;
+  initialUsername?: string;
+};
+
+export default function CompleteProfileClient({
+  userId,
+  initialUsername = '',
+}: CompleteProfileClientProps) {
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     control,
   } = useForm<FormValues>({
-    defaultValues: { username: '', player_position: [], level_id: null },
+    defaultValues: { username: initialUsername, player_position: [], level_id: null },
   });
 
   const [positions, setPositions] = useState<OptionSelect[]>([]);

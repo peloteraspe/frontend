@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import toast from 'react-hot-toast';
 import Input from '@core/ui/Input';
 import { getBrowserSupabase } from '@core/api/supabase.browser';
 
@@ -19,12 +18,12 @@ export default function ResetPasswordPage() {
     setError(null);
 
     if (password.length < 6) {
-      setError('La contrasena debe tener al menos 6 caracteres.');
+      setError('La contraseña debe tener al menos 6 caracteres.');
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Las contrasenas no coinciden.');
+      setError('Las contraseñas no coinciden.');
       return;
     }
 
@@ -41,14 +40,13 @@ export default function ResetPasswordPage() {
           setError('El enlace expiro. Solicita uno nuevo para continuar.');
           return;
         }
-        setError(updateError.message || 'No se pudo actualizar la contrasena.');
+        setError(updateError.message || 'No se pudo actualizar la contraseña.');
         return;
       }
 
-      toast.success('Contrasena actualizada. Ya puedes iniciar sesion con email y contrasena.');
-      router.replace('/login?message=Contrasena actualizada con exito');
+      router.replace('/login?message=Contraseña actualizada con exito');
     } catch {
-      setError('No se pudo actualizar la contrasena.');
+      setError('No se pudo actualizar la contraseña.');
     } finally {
       setLoading(false);
     }
@@ -61,17 +59,17 @@ export default function ResetPasswordPage() {
           Seguridad
         </p>
         <h1 className="mt-4 font-eastman-extrabold text-4xl md:text-5xl leading-tight text-slate-900">
-          Configura tu <span className="text-mulberry">nueva contrasena</span>
+          Configura tu <span className="text-mulberry">nueva contraseña</span>
         </h1>
         <p className="mt-3 text-slate-600 text-base">
-          Usa una contrasena facil de recordar para ti y dificil de adivinar.
+          Usa una contraseña facil de recordar para ti y dificil de adivinar.
         </p>
       </div>
 
       <div className="bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-5 md:p-7 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
           <Input
-            label="Nueva contrasena"
+            label="Nueva contraseña"
             type="password"
             required
             value={password}
@@ -81,16 +79,20 @@ export default function ResetPasswordPage() {
           />
 
           <Input
-            label="Confirmar contrasena"
+            label="Confirmar contraseña"
             type="password"
             required
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"
-            placeholder="Repite tu contrasena"
+            placeholder="Repite tu contraseña"
           />
 
-          {error && <p className="text-sm text-red-600" aria-live="polite">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-600" aria-live="polite">
+              {error}
+            </p>
+          )}
           {error?.toLowerCase().includes('expiro') && (
             <Link
               href="/auth/forgot-password"
@@ -105,7 +107,7 @@ export default function ResetPasswordPage() {
             disabled={loading}
             className="h-11 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
           >
-            {loading ? 'Guardando...' : 'Guardar contrasena'}
+            {loading ? 'Guardando...' : 'Guardar contraseña'}
           </button>
         </form>
       </div>

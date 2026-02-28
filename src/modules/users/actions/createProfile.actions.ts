@@ -1,10 +1,16 @@
 'use server';
 
-import { createProfile } from '@modules/users/api/profile.server';
+import { createProfile, updateProfileByUserId } from '@modules/users/api/profile.server';
 import { getServerSupabase } from '@core/api/supabase.server';
 
 export type CreateProfilePayload = {
   user: string;
+  username: string;
+  level_id: number | null;
+  player_position: number[];
+};
+
+export type UpdateProfilePayload = {
   username: string;
   level_id: number;
   player_position: number[];
@@ -12,6 +18,10 @@ export type CreateProfilePayload = {
 
 export async function createProfileAction(payload: CreateProfilePayload) {
   return createProfile(payload);
+}
+
+export async function updateProfileAction(userId: string, payload: UpdateProfilePayload) {
+  return updateProfileByUserId(userId, payload);
 }
 
 export async function checkUsernameAvailabilityAction(username: string) {

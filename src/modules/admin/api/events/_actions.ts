@@ -22,7 +22,7 @@ export async function createEvent(input: EventInput) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!isEventsVerified(user?.user_metadata?.events_verified)) {
+  if (!isEventsVerified(user?.email_confirmed_at)) {
     throw new Error('Debes verificar tu identidad para crear eventos.');
   }
   const { error } = await supabase.from('event').insert({
@@ -43,7 +43,7 @@ export async function updateEvent(id: string, input: EventInput) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!isEventsVerified(user?.user_metadata?.events_verified)) {
+  if (!isEventsVerified(user?.email_confirmed_at)) {
     throw new Error('Debes verificar tu identidad para editar eventos.');
   }
   const { error } = await supabase
@@ -68,7 +68,7 @@ export async function deleteEvent(id: string) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!isEventsVerified(user?.user_metadata?.events_verified)) {
+  if (!isEventsVerified(user?.email_confirmed_at)) {
     throw new Error('Debes verificar tu identidad para eliminar eventos.');
   }
   const { error } = await supabase.from('event').delete().eq('id', id);

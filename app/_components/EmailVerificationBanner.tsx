@@ -9,18 +9,18 @@ export default function EmailVerificationBanner() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  if (!user || user.eventsVerified) return null;
+  if (!user || user.email_confirmed_at) return null;
 
   const handleResend = async () => {
     if (!user.email) return;
     setLoading(true);
     try {
       const supabase = getBrowserSupabase();
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
         email: user.email,
         options: {
-          shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/auth/recovery?next=${encodeURIComponent('/auth/verify-events')}`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
@@ -41,8 +41,7 @@ export default function EmailVerificationBanner() {
     <div className="w-full border-y border-amber-200 bg-amber-50/95 text-amber-900">
       <div className="mx-auto max-w-screen-xl px-4 py-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <p className="text-sm">
-          Falta verificar tu identidad para eventos. Puedes navegar e iniciar sesion normalmente,
-          pero crear o inscribirte en eventos no esta disponible para cuentas no verificadas.
+          Debes verificar tu cuenta por correo para habilitar todas las funciones.
         </p>
         <button
           type="button"

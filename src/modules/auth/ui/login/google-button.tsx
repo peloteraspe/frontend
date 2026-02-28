@@ -38,7 +38,7 @@ export default function GoogleButton({
         toast.dismiss(loadingToastId);
         if ((error as any).code === 'unexpected_failure') {
           toast.error(
-            'Google no respondio correctamente. Intenta de nuevo o usa correo/contrasena.'
+            'Google no respondio correctamente. Intenta de nuevo o usa correo/contraseña.'
           );
         } else {
           toast.error('Error al iniciar sesión con Google: ' + error.message);

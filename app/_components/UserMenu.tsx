@@ -8,7 +8,12 @@ import { useRouter } from 'next/navigation';
 import UserImage from '@src/shared/ui/UserImage';
 import MenuItem from '@src/core/ui/MenuItem';
 
-type UserLite = { id: string; email?: string | null; username?: string | null } | null;
+type UserLite = {
+  id: string;
+  email?: string | null;
+  username?: string | null;
+  email_confirmed_at?: string;
+} | null;
 
 interface UserMenuProps {
   user?: UserLite;

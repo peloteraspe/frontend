@@ -51,3 +51,28 @@ export async function getProfile(userId: string) {
     throw error;
   }
 }
+
+export async function updateProfileByUserId(userId: string, requestBody: UserProfileUpdate) {
+  const url = `${process.env.BACKEND_URL}/profile/${userId}`;
+  try {
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    log.apiCall('PATCH', `/profile/${userId}`, response.status, { userId });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || response.statusText);
+    }
+
+    return data;
+  } catch (error: any) {
+    log.error('Error updating profile', 'PROFILE_ACTION', error, { userId });
+    throw error;
+  }
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -21,6 +21,7 @@ export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const didProcessFlashParams = useRef(false);
 
   const {
     register,
@@ -33,6 +34,9 @@ export default function LoginForm() {
   });
 
   useEffect(() => {
+    if (didProcessFlashParams.current) return;
+    didProcessFlashParams.current = true;
+
     router.prefetch('/');
 
     const error = searchParams.get('error');
@@ -74,7 +78,9 @@ export default function LoginForm() {
         const msg = (error.message || '').toLowerCase();
 
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
-          setAuthError('Tu correo no esta confirmado. Revisa tu bandeja o reenvia la confirmacion.');
+          setAuthError(
+            'Tu correo no esta confirmado. Revisa tu bandeja o reenvia la confirmacion.'
+          );
 
           const { error: resendError } = await supabase.auth.resend({
             type: 'signup',
@@ -88,7 +94,7 @@ export default function LoginForm() {
         }
 
         if (msg.includes('invalid') || msg.includes('credentials')) {
-          const text = 'Correo o contrasena incorrectos.';
+          const text = 'Correo o contraseña incorrectos.';
           setAuthError(text);
           setError('password', { type: 'manual', message: text });
           return;
@@ -156,9 +162,9 @@ export default function LoginForm() {
           />
 
           <Input
-            label="Contrasena"
+            label="Contraseña"
             type="password"
-            placeholder="Tu contrasena"
+            placeholder="Tu contraseña"
             autoComplete="current-password"
             required
             {...register('password', {
@@ -168,7 +174,11 @@ export default function LoginForm() {
             errorText={errors.password?.message}
           />
 
-          {authError && <p className="text-sm text-red-600" aria-live="polite">{authError}</p>}
+          {authError && (
+            <p className="text-sm text-red-600" aria-live="polite">
+              {authError}
+            </p>
+          )}
 
           <button
             type="submit"
