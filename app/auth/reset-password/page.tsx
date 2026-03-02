@@ -55,9 +55,6 @@ export default function ResetPasswordPage() {
   return (
     <div className="w-full max-w-[560px] mx-auto px-4 pt-8 pb-12 md:pt-12">
       <div className="text-center mb-8">
-        <p className="inline-block px-3 py-1 rounded-full bg-mulberry/10 text-mulberry text-xs font-semibold tracking-wide uppercase">
-          Seguridad
-        </p>
         <h1 className="mt-4 font-eastman-extrabold text-4xl md:text-5xl leading-tight text-slate-900">
           Configura tu <span className="text-mulberry">nueva contraseña</span>
         </h1>

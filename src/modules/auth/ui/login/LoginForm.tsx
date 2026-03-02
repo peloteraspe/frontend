@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 
 import Input from '@core/ui/Input';
 import { log } from '@core/lib/logger';
+import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
 import GoogleButton from './google-button';
 
 type LoginValues = {
@@ -16,6 +17,7 @@ type LoginValues = {
 };
 
 export default function LoginForm() {
+  const LOGIN_ONBOARDING_KEY = 'login-onboarding-state';
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,24 +80,36 @@ export default function LoginForm() {
         const msg = (error.message || '').toLowerCase();
 
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
+          const normalizedEmail = data.email.trim().toLowerCase();
+          let destination = `/signUp?step=3&email=${encodeURIComponent(data.email.trim())}`;
+
+          if (typeof window !== 'undefined') {
+            const raw = window.localStorage.getItem(LOGIN_ONBOARDING_KEY);
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw) as { email?: string; completedStep?: number };
+                if (parsed.email === normalizedEmail) {
+                  if (parsed.completedStep && parsed.completedStep >= 2) {
+                    destination = `/signUp?step=3&email=${encodeURIComponent(data.email.trim())}`;
+                  } else {
+                    destination = `/signUp?step=2&email=${encodeURIComponent(data.email.trim())}`;
+                  }
+                }
+              } catch {
+                // Ignore malformed local onboarding state.
+              }
+            }
+          }
+
           setAuthError(
-            'Tu correo no esta confirmado. Revisa tu bandeja o reenvia la confirmacion.'
+            'Tu correo no esta confirmado. Te redirigiremos para continuar tu registro.'
           );
-
-          const { error: resendError } = await supabase.auth.resend({
-            type: 'signup',
-            email: data.email.trim(),
-            options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-          });
-
-          if (resendError) toast.error(resendError.message || 'No se pudo reenviar el correo.');
-          else toast.success('Te enviamos un correo para confirmar tu cuenta.');
+          router.push(destination);
           return;
         }
 
         if (msg.includes('invalid') || msg.includes('credentials')) {
           const text = 'Correo o contraseña incorrectos.';
-          setAuthError(text);
           setError('password', { type: 'manual', message: text });
           return;
         }
@@ -109,8 +123,11 @@ export default function LoginForm() {
         return;
       }
 
+      const { destination, nextStep } = await fetchCurrentOnboardingState(supabase);
+      const finalDestination = nextStep === null ? '/' : destination;
+
       toast.success('Bienvenida de vuelta.');
-      router.push('/');
+      router.push(finalDestination);
     } catch (err) {
       setAuthError('Error inesperado al iniciar sesion.');
       toast.error('Error inesperado al iniciar sesion.');

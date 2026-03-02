@@ -1,9 +1,11 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@core/auth/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { Title2XL } from '@core/ui/Typography';
+import soccerBall from '@core/assets/soccer-ball.svg';
 
 import ProfileUpdateForm from '@modules/users/ui/ProfileUpdateForm';
 import TeamSection from '@modules/teams/ui/TeamSection';
@@ -16,7 +18,11 @@ import {
 } from '@modules/users/api/profile.client';
 
 import type { OptionSelectNumber } from './types';
-import { findCurrentOptionByLabel } from './selectors';
+import {
+  findCurrentOptionByLabel,
+  findCurrentOptionByValue,
+  findCurrentOptionsByLabels,
+} from './selectors';
 
 export default function ProfilePage() {
   const { user, loading } = useAuth();
@@ -81,10 +87,12 @@ export default function ProfilePage() {
   // Loading
   if (loading || isLoading) {
     return (
-      <div className="container mx-auto p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto" />
-          <p className="mt-4 text-gray-600">
+      <div className="min-h-screen grid place-items-center px-4">
+        <div className="text-center flex flex-col items-center">
+          <div className="mb-5 animate-spin">
+            <Image src={soccerBall} alt="Cargando perfil" width={64} height={64} priority />
+          </div>
+          <p className="mt-2 text-sm text-slate-600">
             {loading ? 'Verificando autenticación...' : 'Cargando perfil...'}
           </p>
         </div>
@@ -124,11 +132,14 @@ export default function ProfilePage() {
   const positionOptions = positions || [];
   const levelOptions = levels || [];
 
-  const currentLevelOption = findCurrentOptionByLabel(levelOptions, profileData?.level);
+  const currentLevelOption =
+    findCurrentOptionByValue(levelOptions, profileData?.level_id) ??
+    findCurrentOptionByLabel(levelOptions, profileData?.level);
 
-  const currentPositionOption = profileData?.player_position?.[0]?.name
-    ? findCurrentOptionByLabel(positionOptions, profileData.player_position[0].name)
-    : null;
+  const currentPositionOptions = findCurrentOptionsByLabels(
+    positionOptions,
+    (profileData?.player_position ?? []).map((position: { name?: string | null }) => position?.name)
+  );
 
   return (
     <div className="container mx-auto">
@@ -145,7 +156,7 @@ export default function ProfilePage() {
             levelsData={currentLevelOption}
             levelsOptions={levelOptions}
             playerPositionOptions={positionOptions}
-            positionsData={currentPositionOption ? [currentPositionOption] : []}
+            positionsData={currentPositionOptions}
           />
         </div>
 

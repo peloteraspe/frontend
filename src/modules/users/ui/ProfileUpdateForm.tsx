@@ -23,8 +23,8 @@ interface ProfileUpdateFormProps {
 
 type FormValues = {
   username: string;
-  level_id: OptionSelectNumber | null;
-  positions: OptionSelectNumber[];
+  level_id: number | null;
+  positions: number[];
 };
 
 export default function ProfileUpdateForm({
@@ -47,8 +47,8 @@ export default function ProfileUpdateForm({
   } = useForm<FormValues>({
     defaultValues: {
       username: userProfile ?? '',
-      level_id: levelsData ?? null,
-      positions: positionsData ?? [],
+      level_id: levelsData?.value ?? null,
+      positions: positionsData.map((position) => position.value) ?? [],
     },
   });
 
@@ -56,8 +56,8 @@ export default function ProfileUpdateForm({
   useEffect(() => {
     reset({
       username: userProfile ?? '',
-      level_id: levelsData ?? null,
-      positions: positionsData ?? [],
+      level_id: levelsData?.value ?? null,
+      positions: positionsData.map((position) => position.value) ?? [],
     });
   }, [userProfile, positionsData, levelsData, reset]);
 
@@ -66,8 +66,8 @@ export default function ProfileUpdateForm({
     try {
       const updateData: UserProfileUpdate = {
         username: data.username,
-        level_id: data.level_id?.value,
-        player_position: data.positions.map((p) => p.value),
+        level_id: data.level_id as number,
+        player_position: data.positions,
       };
 
       await updateProfile(userId, updateData);

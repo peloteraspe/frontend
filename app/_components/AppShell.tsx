@@ -8,9 +8,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex-1 w-full flex flex-col items-center min-h-screen">
       <EmailVerificationBanner />
-      <NavBar />
+      {/* <NavBar /> */}
       {children}
-      <Footer />
+      {/* <Footer /> */}
     </main>
   );
 }

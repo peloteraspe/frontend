@@ -15,24 +15,33 @@ import Input from '@core/ui/Input';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 
 import type { Step, SignupStep1Values } from './signup.types';
+import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
 import { fetchLevelsOptions, fetchPositionsOptions } from '@modules/users/api/lookups.client';
 import {
   checkUsernameAvailabilityAction,
-  createProfileAction,
+  completeOnboardingProfileAction,
 } from '@modules/users/actions/createProfile.actions';
 import GoogleButton from '@modules/auth/ui/login/google-button';
 
 export default function SignupClient() {
+  const LOGIN_ONBOARDING_KEY = 'login-onboarding-state';
   const sp = useSearchParams();
   const prefilledEmail = (sp.get('email') || '').trim();
+  const requestedStep = Number(sp.get('step') || '1');
 
-  const supabase = getBrowserSupabase();
+  const supabase = useMemo(() => getBrowserSupabase(), []);
   const { refreshProfile } = useAuth();
 
-  const [step, setStep] = useState<Step>(1);
+  const initialStep: Step = requestedStep === 3 ? 3 : requestedStep === 2 ? 2 : 1;
+  const [step, setStep] = useState<Step>(initialStep);
   const [loading, setLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [signupEmail, setSignupEmail] = useState(prefilledEmail);
+  const [emailError, setEmailError] = useState<string | undefined>(undefined);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [isIdentityConfirmed, setIsIdentityConfirmed] = useState(false);
+  const [identityError, setIdentityError] = useState<string | undefined>(undefined);
+  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
   const [requiresEmailVerification, setRequiresEmailVerification] = useState(false);
   const [checkingVerification, setCheckingVerification] = useState(false);
   const [resendingVerification, setResendingVerification] = useState(false);
@@ -42,6 +51,7 @@ export default function SignupClient() {
     register,
     handleSubmit,
     watch,
+    setValue,
     setError,
     clearErrors,
     formState: { errors },
@@ -55,7 +65,12 @@ export default function SignupClient() {
   const isValidEmail = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail), [signupEmail]);
 
   const canSubmitStep1 =
-    isValidEmail && (username?.trim().length ?? 0) >= 3 && (password?.length ?? 0) >= 6;
+    isValidEmail &&
+    !emailError &&
+    !isCheckingEmail &&
+    isIdentityConfirmed &&
+    (username?.trim().length ?? 0) >= 3 &&
+    (password?.length ?? 0) >= 6;
 
   const [positions, setPositions] = useState<OptionSelect[]>([]);
   const [levels, setLevels] = useState<OptionSelect[]>([]);
@@ -65,22 +80,254 @@ export default function SignupClient() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
-  const ensureDraftProfile = async (newUserId: string, normalizedUsername: string) => {
+  const signupRedirectTo = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const emailParam = signupEmail.trim() ? `?email=${encodeURIComponent(signupEmail.trim())}` : '';
+    return `${window.location.origin}/auth/callback${emailParam}`;
+  }, [signupEmail]);
+
+  const fetchOnboardingStateByEmail = async (email: string) => {
     try {
-      await createProfileAction({
-        user: newUserId,
-        username: normalizedUsername,
-        level_id: null,
-        player_position: [],
+      const response = await fetch('/api/onboarding/by-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
-    } catch (err: any) {
-      const errorMessage = String(err?.message || err || '').toLowerCase();
-      // If a draft already exists (retry / duplicate click), continue.
-      if (errorMessage.includes('duplicate') || errorMessage.includes('already exists')) return;
-      // Non-blocking: user can still complete profile in step 2.
-      log.warn('Could not create profile draft on signup step 1', 'signup', err);
+
+      if (!response.ok) return null;
+
+      return (await response.json()) as {
+        emailConfirmed?: boolean;
+      };
+    } catch {
+      return null;
     }
   };
+
+  const checkEmailAvailability = async (email: string) => {
+    try {
+      const response = await fetch('/api/onboarding/by-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      if (response.status === 404) {
+        return { available: true as const, reason: 'ok' as const };
+      }
+
+      if (response.ok) {
+        return { available: false as const, reason: 'already_registered' as const };
+      }
+
+      return { available: false as const, reason: 'error' as const };
+    } catch {
+      return { available: false as const, reason: 'error' as const };
+    }
+  };
+
+  const validateEmailAvailability = async (rawEmail: string) => {
+    const normalizedEmail = rawEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setEmailError(undefined);
+      return { available: true as const };
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      const message = 'Ingresa un correo valido.';
+      setEmailError(message);
+      return { available: false as const, message };
+    }
+
+    setIsCheckingEmail(true);
+    const result = await checkEmailAvailability(normalizedEmail);
+    setIsCheckingEmail(false);
+
+    if (result.available) {
+      setEmailError(undefined);
+      return { available: true as const };
+    }
+
+    const message =
+      result.reason === 'already_registered'
+        ? 'Este correo ya está registrado. Inicia sesión o recupera tu contraseña.'
+        : 'No se pudo validar el correo ahora. Intenta de nuevo.';
+
+    setEmailError(message);
+    setValue('username', '');
+    setValue('password', '');
+    return { available: false as const, message };
+  };
+
+  const readLoginOnboardingState = () => {
+    if (typeof window === 'undefined') return null;
+
+    const raw = window.localStorage.getItem(LOGIN_ONBOARDING_KEY);
+    if (!raw) return null;
+
+    try {
+      return JSON.parse(raw) as {
+        email?: string;
+        userId?: string;
+        username?: string;
+        completedStep?: number;
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const saveLoginOnboardingState = (payload: {
+    email: string;
+    userId: string;
+    username: string;
+    completedStep: 1 | 2;
+  }) => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      LOGIN_ONBOARDING_KEY,
+      JSON.stringify({
+        email: payload.email.trim().toLowerCase(),
+        userId: payload.userId,
+        username: payload.username.trim(),
+        completedStep: payload.completedStep,
+      })
+    );
+  };
+
+  const clearLoginOnboardingState = () => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.removeItem(LOGIN_ONBOARDING_KEY);
+  };
+
+  const ensureDraftProfile = async (newUserId: string, normalizedUsername: string) => {
+    const { data: existingRows, error: lookupError } = await supabase
+      .from('profile')
+      .select('user')
+      .eq('user', newUserId)
+      .limit(1);
+
+    if (lookupError) {
+      throw lookupError;
+    }
+
+    const payload = {
+      user: newUserId,
+      username: normalizedUsername,
+      level_id: null,
+      onboarding_step: 1,
+      is_profile_complete: false,
+    };
+
+    if ((existingRows?.length ?? 0) > 0) {
+      const { error } = await supabase.from('profile').update(payload).eq('user', newUserId);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.from('profile').insert(payload);
+    if (error) throw error;
+  };
+
+  const persistOnboardingSelections = async (payload: {
+    userId: string;
+    username: string;
+    levelId: number;
+    positionIds: number[];
+  }) => {
+    const { error: profileError } = await supabase
+      .from('profile')
+      .update({
+        username: payload.username.trim(),
+        level_id: payload.levelId,
+        onboarding_step: 2,
+        is_profile_complete: true,
+      })
+      .eq('user', payload.userId);
+
+    if (profileError) {
+      throw profileError;
+    }
+  };
+
+  useEffect(() => {
+    if (isIdentityModalOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isIdentityModalOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateExistingUser = async () => {
+      try {
+        const { user, profile, nextStep, destination } =
+          await fetchCurrentOnboardingState(supabase);
+
+        if (!user) {
+          const localState = readLoginOnboardingState();
+          const normalizedEmail = prefilledEmail.trim().toLowerCase();
+
+          if (localState?.email === normalizedEmail) {
+            if (localState.userId) setUserId(localState.userId);
+            if (localState.username) setValue('username', localState.username);
+            if (prefilledEmail) setSignupEmail(prefilledEmail);
+          }
+
+          if (initialStep === 3) {
+            setStep(
+              localState?.email === normalizedEmail && (localState.completedStep ?? 0) >= 2 ? 3 : 2
+            );
+            return;
+          }
+
+          if (localState?.email === normalizedEmail && (localState.completedStep ?? 0) >= 1) {
+            setStep(2);
+            return;
+          }
+
+          setStep(initialStep);
+          return;
+        }
+
+        if (cancelled) return;
+
+        const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+        const initialUsername =
+          (typeof profile?.username === 'string' && profile.username.trim()) ||
+          (typeof metadata.username === 'string' && metadata.username.trim()) ||
+          (typeof metadata.full_name === 'string' && metadata.full_name.trim()) ||
+          (user.email ? user.email.split('@')[0] : '');
+
+        setSignupEmail(user.email ?? prefilledEmail);
+        setUserId(user.id);
+        setRequiresEmailVerification(!user.email_confirmed_at);
+        setValue('username', initialUsername);
+
+        if (nextStep === null) {
+          window.location.href = destination;
+          return;
+        }
+
+        setStep(nextStep);
+      } catch (error) {
+        log.warn('Could not hydrate existing onboarding state', 'signup', error);
+      }
+    };
+
+    void hydrateExistingUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialStep, prefilledEmail, setValue, supabase]);
 
   // load options
   useEffect(() => {
@@ -112,12 +359,30 @@ export default function SignupClient() {
   }, []);
 
   const handleStep1 = async (data: SignupStep1Values) => {
+    if (!isIdentityConfirmed) {
+      const message =
+        'Debes confirmar que te identificas como mujer o persona de la diversidad de género.';
+      setIdentityError(message);
+      toast.error(message);
+      return;
+    }
     if (!canSubmitStep1) return;
     setLoading(true);
 
     try {
+      const normalizedEmail = signupEmail.trim().toLowerCase();
       const normalizedUsername = data.username.trim();
-      const usernameCheck = await checkUsernameAvailabilityAction(normalizedUsername);
+
+      const emailCheck = await validateEmailAvailability(normalizedEmail);
+      if (!emailCheck.available) {
+        toast.error(emailCheck.message);
+        return;
+      }
+
+      const usernameCheck = await checkUsernameAvailabilityAction(
+        normalizedUsername,
+        userId ?? undefined
+      );
       if (!usernameCheck.available) {
         const message =
           usernameCheck.reason === 'error'
@@ -130,35 +395,42 @@ export default function SignupClient() {
       clearErrors('username');
 
       const { data: sign, error } = await supabase.auth.signUp({
-        email: signupEmail.trim(),
+        email: normalizedEmail,
         password: data.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: signupRedirectTo,
           data: { username: normalizedUsername, events_verified: false },
         },
       });
 
       if (error) {
+        const lowerMessage = String(error.message || '').toLowerCase();
+        if (
+          lowerMessage.includes('already registered') ||
+          lowerMessage.includes('user already registered') ||
+          lowerMessage.includes('already been registered')
+        ) {
+          const message = 'Este correo ya está registrado. Inicia sesión o recupera tu contraseña.';
+          setEmailError(message);
+          setValue('password', '');
+          toast.error(message);
+          return;
+        }
         toast.error(error.message || 'No se pudo crear la cuenta');
         return;
       }
 
       let currentUser = sign.user ?? null;
-      let hasSession = Boolean(sign.session);
-
-      if (!hasSession) {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: signupEmail.trim(),
-          password: data.password,
-        });
-        if (!signInError && signInData.user) {
-          currentUser = signInData.user;
-          hasSession = true;
-        }
-      }
+      const hasSession = Boolean(sign.session);
 
       if (hasSession && currentUser) {
         await ensureDraftProfile(currentUser.id, normalizedUsername);
+        saveLoginOnboardingState({
+          email: signupEmail,
+          userId: currentUser.id,
+          username: normalizedUsername,
+          completedStep: 1,
+        });
         setUserId(currentUser.id);
         setRequiresEmailVerification(!currentUser.email_confirmed_at);
         setStep(2);
@@ -168,6 +440,12 @@ export default function SignupClient() {
 
       if (currentUser?.id) {
         await ensureDraftProfile(currentUser.id, normalizedUsername);
+        saveLoginOnboardingState({
+          email: signupEmail,
+          userId: currentUser.id,
+          username: normalizedUsername,
+          completedStep: 1,
+        });
         setUserId(currentUser.id);
         setRequiresEmailVerification(true);
         setStep(2);
@@ -175,7 +453,9 @@ export default function SignupClient() {
         return;
       }
 
-      toast.error('Cuenta creada, pero no pudimos continuar. Inicia sesion para completar tu perfil.');
+      toast.error(
+        'Cuenta creada, pero no pudimos continuar. Inicia sesion para completar tu perfil.'
+      );
     } catch (e) {
       toast.error('Error creando la cuenta');
       log.error('Signup step 1 failed', 'signup', e);
@@ -187,6 +467,7 @@ export default function SignupClient() {
   const handleStep2 = async () => {
     if (!userId) return toast.error('No se encontró el usuario recién creado.');
     if (!selectedLevel) return toast.error('Selecciona un nivel.');
+    if (selectedPositions.length === 0) return toast.error('Selecciona al menos una posicion.');
 
     setLoading(true);
     try {
@@ -201,7 +482,10 @@ export default function SignupClient() {
         return;
       }
 
-      const usernameCheck = await checkUsernameAvailabilityAction(normalizedUsername);
+      const usernameCheck = await checkUsernameAvailabilityAction(
+        normalizedUsername,
+        userId ?? undefined
+      );
       if (!usernameCheck.available) {
         if (usernameCheck.reason === 'error') {
           toast.error('No se pudo verificar el nombre de usuario. Intenta de nuevo.');
@@ -217,30 +501,35 @@ export default function SignupClient() {
       }
       clearErrors('username');
 
+      const positionIds = selectedPositions.map(Number).filter((n) => Number.isFinite(n));
+
       const profilePayload = {
         user: userId,
         username: normalizedUsername,
         level_id: Number(selectedLevel),
-        player_position: selectedPositions.map(Number).filter((n) => Number.isFinite(n)),
+        player_position: positionIds,
       };
 
       // We create the final profile here. If a draft exists and backend treats it as duplicate,
       // show a guided message instead of failing silently.
-      await createProfileAction(profilePayload);
-
-      if (requiresEmailVerification) {
-        setStep(3);
-        toast.success('Perfil guardado. Verifica tu correo para activar tu cuenta.');
-        return;
-      }
-
-      toast.success('Cuenta creada. Bienvenida.');
-      refreshProfile().catch(() => undefined);
-      window.location.href = '/';
+      await completeOnboardingProfileAction(profilePayload);
+      await persistOnboardingSelections({
+        userId,
+        username: normalizedUsername,
+        levelId: Number(selectedLevel),
+        positionIds,
+      });
+      clearLoginOnboardingState();
+      setRequiresEmailVerification(true);
+      setStep(3);
+      toast.success('Perfil guardado. Verifica tu correo para activar tu cuenta.');
+      return;
     } catch (err: any) {
       const errorMessage = String(err?.message || err || '');
       if (errorMessage.includes('profile_user_fkey')) {
-        toast.error('No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesion.');
+        toast.error(
+          'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesion.'
+        );
         window.location.href = '/login?message=Completa tu perfil al iniciar sesion';
         return;
       }
@@ -259,14 +548,44 @@ export default function SignupClient() {
     }
   };
 
-  const emailError =
-    signupEmail.length > 0 && !isValidEmail ? 'Ingresa un correo valido.' : undefined;
-
-  const tryCompleteEmailVerification = async () => {
+  const tryCompleteEmailVerification = async (showPendingToast = true) => {
     if (verificationCheckInFlight.current) return false;
     verificationCheckInFlight.current = true;
     setCheckingVerification(true);
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session) {
+        await supabase.auth.refreshSession();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user?.email_confirmed_at) {
+          if (typeof window !== 'undefined') {
+            window.localStorage.removeItem(LOGIN_ONBOARDING_KEY);
+          }
+          const { destination } = await fetchCurrentOnboardingState(supabase);
+          toast.success('Cuenta verificada. Bienvenida.');
+          refreshProfile().catch(() => undefined);
+          window.location.href = destination;
+          return true;
+        }
+
+        return false;
+      }
+
+      if (!signupEmail.trim() || !(password || '').trim()) {
+        if (showPendingToast) {
+          toast.error(
+            'Abre el enlace del correo y vuelve a intentar cuando la verificacion termine.'
+          );
+        }
+        return false;
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
         email: signupEmail.trim(),
         password: password || '',
@@ -280,9 +599,13 @@ export default function SignupClient() {
         return false;
       }
 
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(LOGIN_ONBOARDING_KEY);
+      }
+      const { destination } = await fetchCurrentOnboardingState(supabase);
       toast.success('Cuenta verificada. Bienvenida.');
       refreshProfile().catch(() => undefined);
-      window.location.href = '/';
+      window.location.href = destination;
       return true;
     } catch {
       toast.error('No se pudo validar tu verificacion.');
@@ -299,7 +622,7 @@ export default function SignupClient() {
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: signupEmail.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: { emailRedirectTo: signupRedirectTo },
       });
       if (error) {
         toast.error(error.message || 'No se pudo reenviar el correo de verificacion.');
@@ -315,7 +638,7 @@ export default function SignupClient() {
     if (step !== 3 || !requiresEmailVerification) return;
 
     const interval = window.setInterval(() => {
-      void tryCompleteEmailVerification();
+      void tryCompleteEmailVerification(false);
     }, 5000);
 
     return () => window.clearInterval(interval);
@@ -327,9 +650,7 @@ export default function SignupClient() {
         <h1 className="mt-3 font-eastman-extrabold text-3xl md:text-4xl leading-tight text-slate-900">
           Crea tu cuenta
         </h1>
-        <p className="mt-2 text-slate-600 text-sm">
-          Completa tus datos y empieza a jugar.
-        </p>
+        <p className="mt-2 text-slate-600 text-sm">Completa tus datos y empieza a jugar.</p>
       </div>
 
       {step === 1 ? (
@@ -350,20 +671,34 @@ export default function SignupClient() {
             Completa tus datos por primera vez para que tengas una experiencia personalizada
           </p>
 
-          <form onSubmit={handleSubmit(handleStep1)} className="flex flex-col gap-3" noValidate>
+          <form
+            onSubmit={handleSubmit(handleStep1)}
+            className="flex flex-col gap-3"
+            autoComplete="off"
+            noValidate
+          >
             <Input
               label="Correo electronico"
               type="email"
               required
               name="email"
-              autoComplete="email"
+              autoComplete="off"
               inputMode="email"
               placeholder="pelotera@gmail.com"
               value={signupEmail}
-              onChange={(e) => setSignupEmail(e.target.value)}
+              onChange={(e) => {
+                setSignupEmail(e.target.value);
+                if (emailError) setEmailError(undefined);
+              }}
+              onBlur={() => {
+                void validateEmailAvailability(signupEmail);
+              }}
               className="h-11"
               errorText={emailError}
             />
+            {isCheckingEmail && (
+              <p className="text-xs text-slate-500 -mt-2">Verificando correo...</p>
+            )}
 
             <Input
               label="Crea un nombre"
@@ -379,7 +714,10 @@ export default function SignupClient() {
                   const rawValue = String(e?.target?.value ?? '').trim();
                   if (rawValue.length < 3) return;
                   setIsCheckingUsername(true);
-                  const result = await checkUsernameAvailabilityAction(rawValue);
+                  const result = await checkUsernameAvailabilityAction(
+                    rawValue,
+                    userId ?? undefined
+                  );
                   setIsCheckingUsername(false);
                   if (!result.available) {
                     setError('username', {
@@ -396,6 +734,7 @@ export default function SignupClient() {
               })}
               autoComplete="nickname"
               className="h-11"
+              disabled={Boolean(emailError) || isCheckingEmail}
               errorText={errors.username?.message as string | undefined}
             />
             {isCheckingUsername && (
@@ -414,8 +753,35 @@ export default function SignupClient() {
               })}
               autoComplete="new-password"
               className="h-11"
+              disabled={Boolean(emailError) || isCheckingEmail}
               errorText={errors.password?.message as string | undefined}
             />
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <label className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="gender_identity_confirmation"
+                  checked={isIdentityConfirmed}
+                  onChange={() => {
+                    setIsIdentityConfirmed(true);
+                    if (identityError) setIdentityError(undefined);
+                  }}
+                  className="mt-1 h-4 w-4 border-slate-300 text-mulberry focus:ring-mulberry"
+                />
+                <span className="text-sm leading-6 text-slate-700">
+                  Confirmo que me identifico como mujer o persona de la diversidad de género.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIsIdentityModalOpen(true)}
+                    className="font-semibold text-mulberry hover:text-mulberry/80"
+                  >
+                    Más información
+                  </button>
+                </span>
+              </label>
+              {identityError && <p className="mt-2 text-sm text-red-500">{identityError}</p>}
+            </div>
 
             <button
               type="submit"
@@ -435,7 +801,7 @@ export default function SignupClient() {
             </div>
 
             <GoogleButton
-              disabled={loading || isGoogleLoading}
+              disabled={loading || isGoogleLoading || !isIdentityConfirmed}
               isLoading={isGoogleLoading}
               onLoadingChange={setIsGoogleLoading}
             />
@@ -550,6 +916,39 @@ export default function SignupClient() {
             >
               Volver a iniciar sesion
             </Link>
+          </div>
+        </div>
+      )}
+
+      {isIdentityModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]"
+            onClick={() => setIsIdentityModalOpen(false)}
+          />
+          <div className="relative z-[81] w-full max-w-lg rounded-[28px] bg-white p-6 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.45)]">
+            <div className="flex items-start justify-end">
+              <button
+                type="button"
+                onClick={() => setIsIdentityModalOpen(false)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-500 hover:text-slate-900"
+              >
+                X
+              </button>
+            </div>
+
+            <p className="mt-4 text-sm leading-7 text-slate-700">
+              Peloteras es una comunidad creada para mujeres y personas de la diversidad de género.
+              Buscamos ofrecer un espacio seguro, deportivo y de confianza.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setIsIdentityModalOpen(false)}
+              className="mt-6 h-11 w-full rounded-xl bg-mulberry text-white"
+            >
+              Entendido
+            </button>
           </div>
         </div>
       )}
