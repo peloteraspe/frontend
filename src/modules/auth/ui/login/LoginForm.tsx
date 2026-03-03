@@ -11,6 +11,19 @@ import { log } from '@core/lib/logger';
 import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
 import GoogleButton from './google-button';
 
+function getSafeAuthErrorMessage(rawMessage: string) {
+  const msg = rawMessage.toLowerCase();
+  if (
+    msg.includes('pwned') ||
+    msg.includes('breach') ||
+    msg.includes('compromised') ||
+    msg.includes('vulnerable')
+  ) {
+    return 'Tu contraseña no cumple con los requisitos de seguridad. Usa una más segura.';
+  }
+  return '';
+}
+
 type LoginValues = {
   email: string;
   password: string;
@@ -82,8 +95,29 @@ export default function LoginForm() {
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
           const normalizedEmail = data.email.trim().toLowerCase();
           let destination = `/signUp?step=3&email=${encodeURIComponent(data.email.trim())}`;
+          let resolvedFromServer = false;
 
-          if (typeof window !== 'undefined') {
+          try {
+            const onboardingResponse = await fetch('/api/onboarding/by-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: normalizedEmail }),
+            });
+
+            if (onboardingResponse.ok) {
+              const onboarding = (await onboardingResponse.json()) as { onboardingStep?: number | null };
+              const completedStep = Number(onboarding.onboardingStep || 0);
+              destination =
+                completedStep >= 2
+                  ? `/signUp?step=3&email=${encodeURIComponent(data.email.trim())}`
+                  : `/signUp?step=2&email=${encodeURIComponent(data.email.trim())}`;
+              resolvedFromServer = true;
+            }
+          } catch {
+            // Fallback to local onboarding state when server lookup is unavailable.
+          }
+
+          if (!resolvedFromServer && typeof window !== 'undefined') {
             const raw = window.localStorage.getItem(LOGIN_ONBOARDING_KEY);
             if (raw) {
               try {
@@ -119,7 +153,8 @@ export default function LoginForm() {
           return;
         }
 
-        setAuthError(error.message || 'No se pudo iniciar sesion.');
+        const safeMessage = getSafeAuthErrorMessage(String(error.message || ''));
+        setAuthError(safeMessage || 'No se pudo iniciar sesion.');
         return;
       }
 

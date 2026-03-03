@@ -2,6 +2,37 @@ import { NextResponse } from 'next/server';
 
 import { getAdminSupabase } from '@core/api/supabase.admin';
 
+type AdminAuthUser = {
+  id: string;
+  email?: string | null;
+  email_confirmed_at?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+};
+
+async function findAuthUserByEmail(email: string) {
+  const supabase = getAdminSupabase();
+  const perPage = 200;
+  let page = 1;
+
+  while (page <= 20) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      return { user: null as AdminAuthUser | null, error };
+    }
+
+    const users = (data?.users ?? []) as AdminAuthUser[];
+    const match = users.find((user) => String(user.email || '').toLowerCase() === email) ?? null;
+    if (match) {
+      return { user: match, error: null as null };
+    }
+
+    if (users.length < perPage) break;
+    page += 1;
+  }
+
+  return { user: null as AdminAuthUser | null, error: null as null };
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as { email?: string };
@@ -13,30 +44,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const supabase = getAdminSupabase();
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        {
+          error: 'Onboarding lookup is temporarily unavailable',
+          code: 'ADMIN_LOOKUP_UNAVAILABLE',
+        },
+        { status: 503 }
+      );
+    }
 
-    const { data: listedUsers, error: authError } = await supabase.auth.admin.listUsers();
-
+    const { user: authUser, error: authError } = await findAuthUserByEmail(email);
     if (authError) {
       return NextResponse.json({ error: authError.message }, { status: 500 });
     }
-
-    const users = (listedUsers?.users ?? []) as Array<{
-      id: string;
-      email?: string | null;
-      email_confirmed_at?: string | null;
-      user_metadata?: Record<string, unknown> | null;
-    }>;
-
-    const authUser = users.find((user) => String(user.email || '').toLowerCase() === email) ?? null;
 
     if (!authUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const supabase = getAdminSupabase();
     const { data: profile, error: profileError } = await supabase
       .from('profile')
-      .select('user, username, level_id, onboarding_step, is_profile_complete')
+      .select('*')
       .eq('user', authUser.id)
       .maybeSingle();
 
@@ -49,12 +79,12 @@ export async function POST(request: Request) {
       email: authUser.email,
       emailConfirmed: Boolean(authUser.email_confirmed_at),
       username:
-        profile?.username ||
+        (profile as any)?.username ||
         authUser.user_metadata?.username ||
         (authUser.email ? String(authUser.email).split('@')[0] : ''),
-      onboardingStep: profile?.onboarding_step ?? null,
-      isProfileComplete: profile?.is_profile_complete ?? null,
-      levelId: profile?.level_id ?? null,
+      onboardingStep: (profile as any)?.onboarding_step ?? null,
+      isProfileComplete: (profile as any)?.is_profile_complete ?? null,
+      levelId: (profile as any)?.level_id ?? null,
     });
   } catch (error: any) {
     return NextResponse.json(

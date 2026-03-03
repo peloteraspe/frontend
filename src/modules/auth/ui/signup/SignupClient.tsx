@@ -23,6 +23,19 @@ import {
 } from '@modules/users/actions/createProfile.actions';
 import GoogleButton from '@modules/auth/ui/login/google-button';
 
+function getSafeAuthErrorMessage(rawMessage: string) {
+  const msg = rawMessage.toLowerCase();
+  if (
+    msg.includes('pwned') ||
+    msg.includes('breach') ||
+    msg.includes('compromised') ||
+    msg.includes('vulnerable')
+  ) {
+    return 'Elige una contraseña más segura para continuar.';
+  }
+  return '';
+}
+
 export default function SignupClient() {
   const LOGIN_ONBOARDING_KEY = 'login-onboarding-state';
   const sp = useSearchParams();
@@ -118,6 +131,13 @@ export default function SignupClient() {
 
       if (response.ok) {
         return { available: false as const, reason: 'already_registered' as const };
+      }
+
+      if (response.status === 503) {
+        const body = (await response.json().catch(() => ({}))) as { code?: string };
+        if (body.code === 'ADMIN_LOOKUP_UNAVAILABLE') {
+          return { available: true as const, reason: 'lookup_unavailable' as const };
+        }
       }
 
       return { available: false as const, reason: 'error' as const };
@@ -282,9 +302,7 @@ export default function SignupClient() {
           }
 
           if (initialStep === 3) {
-            setStep(
-              localState?.email === normalizedEmail && (localState.completedStep ?? 0) >= 2 ? 3 : 2
-            );
+            setStep(3);
             return;
           }
 
@@ -416,7 +434,8 @@ export default function SignupClient() {
           toast.error(message);
           return;
         }
-        toast.error(error.message || 'No se pudo crear la cuenta');
+        const safeMessage = getSafeAuthErrorMessage(String(error.message || ''));
+        toast.error(safeMessage || 'No se pudo crear la cuenta. Revisa tus datos e intenta de nuevo.');
         return;
       }
 
@@ -519,7 +538,12 @@ export default function SignupClient() {
         levelId: Number(selectedLevel),
         positionIds,
       });
-      clearLoginOnboardingState();
+      saveLoginOnboardingState({
+        email: signupEmail,
+        userId,
+        username: normalizedUsername,
+        completedStep: 2,
+      });
       setRequiresEmailVerification(true);
       setStep(3);
       toast.success('Perfil guardado. Verifica tu correo para activar tu cuenta.');
@@ -595,7 +619,8 @@ export default function SignupClient() {
         if (message.includes('not confirmed') || message.includes('email_not_confirmed')) {
           return false;
         }
-        toast.error(error.message || 'No se pudo validar tu verificacion.');
+        const safeMessage = getSafeAuthErrorMessage(String(error.message || ''));
+        toast.error(safeMessage || 'No se pudo validar tu verificacion.');
         return false;
       }
 
