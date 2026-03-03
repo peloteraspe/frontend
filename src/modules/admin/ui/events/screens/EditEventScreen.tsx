@@ -1,6 +1,7 @@
 import { getEventById } from '@shared/lib/data/getEventById';
 import EventFormComponent from '@modules/admin/ui/events/EventFormComponent';
 import { deleteEvent, updateEvent } from '@modules/admin/api/events/_actions';
+import { parseEventFormData } from '@modules/admin/model/eventForm';
 import { redirect } from 'next/navigation';
 
 export default async function EditEventScreen({ id }: { id: string }) {
@@ -9,14 +10,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
 
   async function handleUpdate(fd: FormData) {
     'use server';
-    const input = {
-      title: String(fd.get('title') || ''),
-      price: Number(fd.get('price') || 0),
-      date: String(fd.get('date') || ''),
-      capacity: Number(fd.get('capacity') || 0),
-      locationText: String(fd.get('locationText') || ''),
-    };
-    await updateEvent(id, input);
+    await updateEvent(id, parseEventFormData(fd));
   }
 
   async function handleDelete() {
@@ -39,10 +33,19 @@ export default async function EditEventScreen({ id }: { id: string }) {
         onSubmit={handleUpdate}
         initial={{
           title: event.title,
+          description:
+            typeof event.description === 'object' ? event.description?.description : event.description,
+          startTime: event.start_time?.slice?.(0, 16),
+          endTime: event.end_time?.slice?.(0, 16),
           price: event.price,
-          date: event.formattedDateTime,
-          capacity: event.capacity,
-          locationText: event.locationText,
+          minUsers: event.min_users,
+          maxUsers: event.max_users,
+          district: event.district,
+          locationText: event.location_text,
+          lat: event.location?.lat,
+          lng: event.location?.lng ?? event.location?.long,
+          eventTypeId: event.EventType,
+          levelId: event.level,
         }}
       />
     </div>

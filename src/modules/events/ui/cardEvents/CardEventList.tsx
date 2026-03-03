@@ -1,18 +1,46 @@
 import { getAllEvents } from '@modules/events/api/event';
 import CardEventItem from './CardEventItem';
 import { log } from '@src/core/lib/logger';
+import Link from 'next/link';
+import LandingEventsMap from './LandingEventsMap';
 
-const CardEventList = async () => {
-  //let cardEvents;
-  const cardEvents = await getAllEvents();
+type CardEventListProps = {
+  previewCount?: number;
+  showViewAll?: boolean;
+};
+
+const CardEventList = async ({ previewCount = 4, showViewAll = true }: CardEventListProps) => {
+  const events = await getAllEvents();
+  const cardEvents = Array.isArray(events) ? events.slice(0, previewCount) : [];
+
   log.debug('Retrieved events for card list', 'CARD_EVENT_LIST', {
     eventCount: cardEvents?.length,
   });
+
   return (
     <div className="pb-8 md:pb-16">
-      <h2 className="text-3xl font-bold font-inter mb-10">Eventos deportivos:</h2>
-      <div className="flex flex-col">
-        <CardEventItem cardEvents={cardEvents} />
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-3xl font-bold font-inter">Próximos partidos</h2>
+          <p className="mt-1 text-sm text-slate-600">Explora una vista rápida y entra al mapa completo.</p>
+        </div>
+        {showViewAll && (
+          <Link
+            href="/events"
+            className="inline-flex h-10 items-center rounded-lg border border-[#54086F] px-4 text-sm font-semibold text-[#54086F] hover:bg-[#54086F] hover:text-white transition"
+          >
+            Ver todos los partidos
+          </Link>
+        )}
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
+        <div className="order-2 xl:order-1">
+          <CardEventItem cardEvents={cardEvents} variant="landing" />
+        </div>
+        <div className="order-1 xl:order-2">
+          <LandingEventsMap events={cardEvents} />
+        </div>
       </div>
     </div>
   );

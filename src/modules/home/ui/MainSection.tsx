@@ -4,7 +4,7 @@ import React from 'react';
 
 const MainSection = () => {
   return (
-    <div className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto px-4 sm:px-6 py-8 md:py-16 flex justify-between">
+    <div className="mx-auto flex w-full max-w-[1600px] justify-between px-5 sm:px-8 lg:px-10 py-8 md:py-12">
       <div className="flex flex-col gap-6 justify-center">
         <div>
           <Title2XL>Donde dominamos</Title2XL>
@@ -22,12 +22,14 @@ const MainSection = () => {
           </SubtitleL>
         </div>
         <div className="mt-8">
-          <ButtonWrapper width={'fit-content'}>Unirme a un evento</ButtonWrapper>
+          <ButtonWrapper width={'fit-content'} navigateTo="/events">
+            Unirme a un evento
+          </ButtonWrapper>
         </div>
       </div>
       <div className="hidden lg:block w-full">
         <img
-          src="/assets/images/MainSection-image.png"
+          src="/assets/images/peloteras-hero.png"
           alt="MainSection image"
           className="w-full h-full object-cover"
         />

@@ -52,12 +52,11 @@ export default function Index() {
 //   return (
 //     <>
 //       <MainSection />
-//       <section className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto px-4 sm:px-6 py-8 md:py-16 flex justify-between w-full">
-//         <div className="md:flex md:justify-between w-full" data-sticky-container>
+//       <section className="mx-auto w-full max-w-[1600px] px-5 sm:px-8 lg:px-10 py-8 md:py-12">
+//         <div className="w-full" data-sticky-container>
 //           <div className="w-full">
 //             <CardEventList />
 //           </div>
-//           <div className="md:w-96" />
 //         </div>
 //       </section>
 //     </>

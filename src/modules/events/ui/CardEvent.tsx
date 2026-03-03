@@ -16,6 +16,7 @@ interface CardEventProps {
   price: string;
   badge: React.ReactNode[];
   button: React.ReactNode;
+  compact?: boolean;
 }
 
 const CardEvent: React.FC<CardEventProps> = ({
@@ -28,9 +29,15 @@ const CardEvent: React.FC<CardEventProps> = ({
   price,
   badge,
   button,
+  compact = false,
 }) => {
   return (
-    <div className="relative sm:min-w-[714px] w-[92vw] min-h-[160px] group sm:w-full cursor-pointer">
+    <div
+      className={[
+        'relative group cursor-pointer',
+        compact ? 'w-full min-h-[170px]' : 'sm:min-w-[714px] w-[92vw] min-h-[160px] sm:w-full',
+      ].join(' ')}
+    >
       {Number(quantity) < 4 && (
         <div className="bg-white font-eastman-bold border-btnBg-light absolute top-[-20px] right-0 border-2 rounded-[14px] z-10 w-[80px] h-[40px]">
           <div className="flex justify-center items-center w-full h-full gap-[1px]">

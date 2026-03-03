@@ -11,10 +11,13 @@ import { formattedPrice } from '@src/shared/lib/utils';
 
 interface CardEventItemProps {
   cardEvents: any[];
+  variant?: 'legacy' | 'landing';
 }
 
-const CardEventItem = ({ cardEvents }: CardEventItemProps) => {
+const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) => {
   const router = useRouter();
+  const itemContainerClass = variant === 'landing' ? 'w-full max-w-none' : 'max-w-xl';
+
   return (
     <div className="flex flex-col">
       {cardEvents?.map((event: any) => {
@@ -22,7 +25,7 @@ const CardEventItem = ({ cardEvents }: CardEventItemProps) => {
           <div
             key={event.id}
             onClick={() => router.push(`/events/${event.id}`)}
-            className="max-w-xl"
+            className={itemContainerClass}
           >
             <CardEvent
               typeEvent={event.eventType.name}

@@ -10,8 +10,8 @@ import Link from 'next/link';
 
 const Footer: React.FC = () => {
   return (
-    <footer className="w-full flex flex-col items-center sm:pt-10 pb-10 font-poppins justify-center mt-auto">
-      <div className="flex sm:flex-row flex-col justify-center items-center sm:justify-around w-full sm:text-left text-center gap-4">
+    <footer className="mt-auto w-full pb-10 pt-8 font-poppins">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col items-center gap-6 px-5 sm:px-8 lg:px-10 sm:text-left text-center sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col sm:items-start items-center gap-2">
           <Image src={Logo} alt="Peloteras logo" />
           <div className="mt-2">
