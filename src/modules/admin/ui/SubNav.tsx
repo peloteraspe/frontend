@@ -6,6 +6,7 @@ const links = [
   { href: '/admin', label: 'Resumen' },
   { href: '/admin/events', label: 'Eventos' },
   { href: '/admin/payments', label: 'Pagos' },
+  { href: '/admin/scan', label: 'Validar QR' },
   { href: '/admin/users', label: 'Usuarios' },
 ];
 

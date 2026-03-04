@@ -46,6 +46,8 @@ const PaymentStepper = (props: any) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? user?.id ?? null;
+  const isEmailConfirmed = Boolean(authUser?.email_confirmed_at ?? user?.email_confirmed_at);
 
   // limpiar comillas del QR
   paymentData.QR = paymentData.QR.replace(/^"|"$/g, '');
@@ -56,7 +58,17 @@ const PaymentStepper = (props: any) => {
   };
 
   const handlePaymentConfirmation = async () => {
-    if (!authUser?.email_confirmed_at) {
+    if (!currentUserId) {
+      setError('operationNumber', {
+        type: 'manual',
+        message: 'Inicia sesión para completar la inscripción.',
+      });
+      toast.error('Inicia sesión para completar la inscripción.');
+      router.push('/login?message=Inicia sesion para completar la inscripcion');
+      return;
+    }
+
+    if (!isEmailConfirmed) {
       setError('operationNumber', {
         type: 'manual',
         message: 'Verifica tu identidad para completar la inscripcion al evento.',
@@ -80,11 +92,15 @@ const PaymentStepper = (props: any) => {
     const registeredPlayer = {
       operationNumber: op,
       event: post.id,
-      user: user.id,
+      user: currentUserId,
       state: 'pending',
     };
 
-    const { error } = await supabase.from('assistants').upsert(registeredPlayer);
+    const { data: assistantRow, error } = await supabase
+      .from('assistants')
+      .upsert(registeredPlayer)
+      .select('id')
+      .single();
     if (error) {
       log.database('UPSERT assistants', 'assistants', error, registeredPlayer);
       setError('operationNumber', {
@@ -93,6 +109,30 @@ const PaymentStepper = (props: any) => {
       });
       setLoading(false);
       return;
+    }
+
+    if (assistantRow?.id) {
+      try {
+        const issueTicketResponse = await fetch('/api/tickets/issue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assistantId: assistantRow.id }),
+        });
+
+        if (!issueTicketResponse.ok) {
+          const message = await issueTicketResponse.text().catch(() => '');
+          log.warn('Ticket issue failed after registration', 'PAYMENTS', {
+            assistantId: assistantRow.id,
+            status: issueTicketResponse.status,
+            response: message,
+          });
+        }
+      } catch (issueError) {
+        log.warn('Ticket issue request failed', 'PAYMENTS', {
+          assistantId: assistantRow.id,
+          issueError,
+        });
+      }
     }
 
     setLoading(false);
@@ -279,7 +319,13 @@ const PaymentStepper = (props: any) => {
                 <div className="flex">
                   <button
                     className="text-[#0EA5E9] hover:underline"
-                    onClick={() => router.push(`/tickets/${user.id}`)}
+                    onClick={() => {
+                      if (!currentUserId) {
+                        router.push('/login');
+                        return;
+                      }
+                      router.push(`/tickets/${currentUserId}`);
+                    }}
                   >
                     Ver estado de mi entrada
                   </button>
@@ -347,7 +393,7 @@ const PaymentStepper = (props: any) => {
 
       {/* <Stepper step={currentStep} setCurrentStep={setCurrentStep} /> */}
       <div className="w-full">
-        <StepContent />
+        {StepContent()}
       </div>
 
       <OperationNumberModal
