@@ -17,7 +17,7 @@ export async function getServerSupabase() {
         cookieStore.set({ name, value, ...options });
       },
       remove(name: string, options: CookieOptions) {
-        cookieStore.set({ name, value: '', ...options });
+        cookieStore.set({ name, value: '', maxAge: 0, ...options });
       },
     },
     cookieOptions: {

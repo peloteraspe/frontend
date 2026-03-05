@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 
 import Input from '@core/ui/Input';
 import { log } from '@core/lib/logger';
+import { useAuth } from '@core/auth/AuthProvider';
 import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
 import GoogleButton from './google-button';
 
@@ -29,14 +30,28 @@ type LoginValues = {
   password: string;
 };
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      const timer = window.setTimeout(() => {
+        window.clearTimeout(timer);
+        reject(new Error(errorMessage));
+      }, timeoutMs);
+    }),
+  ]);
+}
+
 export default function LoginForm() {
   const LOGIN_ONBOARDING_KEY = 'login-onboarding-state';
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const didProcessFlashParams = useRef(false);
+  const didAutoRedirectAuthenticated = useRef(false);
 
   const {
     register,
@@ -59,7 +74,9 @@ export default function LoginForm() {
     const signup = searchParams.get('signup');
 
     if (error) toast.error('Error de autenticacion: ' + decodeURIComponent(error));
-    if (message === 'link_expired') {
+    if (message === 'session_closed') {
+      toast.success('Sesion cerrada correctamente.');
+    } else if (message === 'link_expired') {
       toast.error('El enlace de correo expiro. Solicita uno nuevo.');
     } else if (message) {
       toast(message);
@@ -75,6 +92,30 @@ export default function LoginForm() {
     }
   }, [router, searchParams]);
 
+  useEffect(() => {
+    if (didAutoRedirectAuthenticated.current) return;
+    if (authLoading || !user) return;
+    didAutoRedirectAuthenticated.current = true;
+
+    const redirectAuthenticatedUser = async () => {
+      try {
+        const { getBrowserSupabase } = await import('@core/api/supabase.browser');
+        const supabase = getBrowserSupabase();
+        const state = await withTimeout(
+          fetchCurrentOnboardingState(supabase),
+          6_000,
+          'authenticated redirect timeout'
+        );
+        const finalDestination = state.nextStep === null ? '/' : state.destination;
+        window.location.replace(finalDestination);
+      } catch {
+        window.location.replace('/');
+      }
+    };
+
+    void redirectAuthenticatedUser();
+  }, [authLoading, user]);
+
   const onSubmit = async (data: LoginValues) => {
     setIsSubmitting(true);
     setAuthError(null);
@@ -84,13 +125,32 @@ export default function LoginForm() {
       const { getBrowserSupabase } = await import('@core/api/supabase.browser');
       const supabase = getBrowserSupabase();
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: data.email.trim(),
-        password: data.password,
-      });
+      let signInError: { message?: string } | null = null;
+      try {
+        const { error } = await withTimeout(
+          supabase.auth.signInWithPassword({
+            email: data.email.trim(),
+            password: data.password,
+          }),
+          12_000,
+          'signIn timeout'
+        );
+        signInError = error as { message?: string } | null;
+      } catch (timeoutOrUnexpectedError) {
+        const {
+          data: { session },
+        } = await withTimeout(
+          supabase.auth.getSession(),
+          4_000,
+          'session check after signIn timeout'
+        );
+        if (!session?.user) {
+          throw timeoutOrUnexpectedError;
+        }
+      }
 
-      if (error) {
-        const msg = (error.message || '').toLowerCase();
+      if (signInError) {
+        const msg = (signInError.message || '').toLowerCase();
 
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
           const normalizedEmail = data.email.trim().toLowerCase();
@@ -153,16 +213,38 @@ export default function LoginForm() {
           return;
         }
 
-        const safeMessage = getSafeAuthErrorMessage(String(error.message || ''));
+        const safeMessage = getSafeAuthErrorMessage(String(signInError.message || ''));
         setAuthError(safeMessage || 'No se pudo iniciar sesion.');
         return;
       }
 
-      const { destination, nextStep } = await fetchCurrentOnboardingState(supabase);
+      let destination = '/';
+      let nextStep: 1 | 2 | 3 | null = null;
+      try {
+        const state = await withTimeout(
+          fetchCurrentOnboardingState(supabase),
+          8_000,
+          'onboarding state timeout'
+        );
+        destination = state.destination;
+        nextStep = state.nextStep;
+      } catch {
+        const {
+          data: { session },
+        } = await withTimeout(
+          supabase.auth.getSession(),
+          4_000,
+          'session check after onboarding timeout'
+        );
+        if (!session?.user) {
+          throw new Error('No session after login');
+        }
+      }
+
       const finalDestination = nextStep === null ? '/' : destination;
 
       toast.success('Bienvenida de vuelta.');
-      router.push(finalDestination);
+      window.location.assign(finalDestination);
     } catch (err) {
       setAuthError('Error inesperado al iniciar sesion.');
       toast.error('Error inesperado al iniciar sesion.');

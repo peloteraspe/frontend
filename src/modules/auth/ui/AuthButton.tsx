@@ -8,7 +8,7 @@ export default function AuthButton({
   isLogged: boolean;
 }) {
   const signOut = async () => {
-    window.location.href = '/auth/signout';
+    window.location.href = '/auth/logout';
   };
 
   return isLogged ? (

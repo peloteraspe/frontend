@@ -1,12 +1,8 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { ButtonM, ParagraphS } from '@src/core/ui/Typography';
+import { ButtonM } from '@src/core/ui/Typography';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
-import Image from 'next/image';
 import Link from 'next/link';
-import { useAuth } from '@core/auth/AuthProvider';
-import { useRouter } from 'next/navigation';
 import UserImage from '@src/shared/ui/UserImage';
-import MenuItem from '@src/core/ui/MenuItem';
 
 type UserLite = {
   id: string;
@@ -22,9 +18,8 @@ interface UserMenuProps {
 
 const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [isSigningOut, setIsSigningOut] = React.useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const { signOut } = useAuth();
-  const router = useRouter();
 
   const toggleOpen = useCallback(() => {
     setIsOpen((prev) => !prev);
@@ -39,9 +34,10 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
   }, []);
 
   const handleSignOut = async () => {
-    await signOut();
+    if (isSigningOut) return;
+    setIsSigningOut(true);
     setIsOpen(false);
-    router.push('/login');
+    window.location.replace('/auth/logout');
   };
 
   return (
@@ -94,11 +90,13 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
                       <p className="text-sm leading-none text-muted-foreground">{user?.email}</p>
                     </Link>
                     <hr className="-mx-1 my-1 h-px bg-muted" />
-                    {/* <Link href="/auth/signout" onClick={() => toggleOpen()}>
-                      <MenuItem onClick={() => {}}>Cerrar sesión</MenuItem>
-                    </Link> */}
-                    <button type="button" onClick={handleSignOut} className="text-left">
-                      <MenuItem onClick={() => {}}>Cerrar sesión</MenuItem>
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      disabled={isSigningOut}
+                      className="px-4 py-3 w-full text-left hover:bg-neutral-100 transition font-semibold"
+                    >
+                      {isSigningOut ? 'Cerrando sesion...' : 'Cerrar sesión'}
                     </button>
                   </div>
                 )}

@@ -10,7 +10,7 @@ export function parseOauthCallbackParams(url: string) {
   const error = getParam('error');
   const error_code = getParam('error_code');
   const error_description = getParam('error_description');
-  const next = getParam('next') || '/';
+  const next = getParam('next');
 
   return { error, error_code, error_description, next };
 }

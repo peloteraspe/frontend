@@ -31,10 +31,63 @@ function isEventsVerified(value: unknown) {
   return value === true || value === 'true';
 }
 
+function normalizeAuthErrorMessage(raw: string) {
+  return String(raw || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function shouldClearSessionForError(rawMessage: string) {
+  const message = normalizeAuthErrorMessage(rawMessage);
+  return (
+    message.includes('user from sub claim in jwt does not exist') ||
+    message.includes('user not found') ||
+    message.includes('usuario no encontrado') ||
+    message.includes('jwt expired') ||
+    message.includes('invalid jwt') ||
+    message.includes('session not found') ||
+    message.includes('refresh token not found')
+  );
+}
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [user, setUser] = useState<UserLite>(null);
   const [loading, setLoading] = useState(true);
+
+  const clearInvalidLocalSession = async (reason: string) => {
+    console.warn('⚠️ Clearing invalid local session:', reason);
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (signOutError) {
+      console.warn('⚠️ Local sign-out failed while clearing invalid session:', signOutError);
+    } finally {
+      setUser(null);
+      setLoading(false);
+    }
+  };
+
+  const loadProfileUsername = async (userId: string) => {
+    try {
+      const { data: rows, error } = await supabase
+        .from('profile')
+        .select('id, username')
+        .eq('user', userId)
+        .order('id', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.warn('⚠️ Profile username query returned error:', error.message);
+        return null;
+      }
+
+      return rows?.[0]?.username ?? null;
+    } catch (profileErr) {
+      console.warn('⚠️ Profile username fetch failed:', profileErr);
+      return null;
+    }
+  };
 
   const hydrateFromSession = async () => {
     console.log('🔄 AuthProvider: Starting session hydration...');
@@ -65,10 +118,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         if (directUser && !directUserError) {
           console.log('✅ User found in localStorage:', directUser.id);
+          const profileUsername = await loadProfileUsername(directUser.id);
           const userData = {
             id: directUser.id,
             email: directUser.email,
-            username: directUser.user_metadata?.username ?? null,
+            username: profileUsername || directUser.user_metadata?.username || null,
             email_confirmed_at: directUser.email_confirmed_at ?? null,
             emailConfirmed: Boolean(directUser.email_confirmed_at),
             eventsVerified: isEventsVerified(directUser.user_metadata?.events_verified),
@@ -76,6 +130,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setUser(userData);
           return;
         } else {
+          if (directUserError) {
+            if (shouldClearSessionForError(directUserError.message || '')) {
+              await clearInvalidLocalSession(
+                `direct user lookup failed: ${directUserError.message || 'unknown error'}`
+              );
+            } else {
+              console.warn('⚠️ Direct user lookup failed with non-fatal error:', directUserError);
+              setUser(null);
+              setLoading(false);
+            }
+            return;
+          }
           console.log('❌ No user found anywhere');
           setUser(null);
           return;
@@ -97,7 +163,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
       if (!sessionUser || userError) {
         console.log('❌ Could not get user from session');
-        setUser(null);
+        if (shouldClearSessionForError(userError?.message || '')) {
+          await clearInvalidLocalSession(
+            `session user lookup failed: ${userError?.message || 'missing user'}`
+          );
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
         return;
       }
 
@@ -113,20 +186,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       setUser(userData);
       console.log('✅ User set successfully:', userData);
 
-      // Try to get profile data
-      try {
-        const { data: profile } = await supabase
-          .from('profile')
-          .select('username')
-          .eq('user', sessionUser.id)
-          .maybeSingle();
-
-        if (profile?.username) {
-          setUser((prev) => (prev ? { ...prev, username: profile.username } : prev));
-          console.log('✅ Profile loaded:', profile.username);
-        }
-      } catch (profileErr) {
-        console.warn('⚠️ Profile fetch failed:', profileErr);
+      const profileUsername = await loadProfileUsername(sessionUser.id);
+      if (profileUsername) {
+        setUser((prev) => (prev ? { ...prev, username: profileUsername } : prev));
+        console.log('✅ Profile loaded:', profileUsername);
       }
     } catch (err) {
       console.error('❌ Session hydration error:', err);
@@ -168,6 +231,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         setUser(userData);
         setLoading(false);
         console.log('✅ User updated from auth event:', userData);
+
+        const profileUsername = await loadProfileUsername(u.id);
+        if (profileUsername) {
+          setUser((prev) => (prev ? { ...prev, username: profileUsername } : prev));
+        }
       }
     });
 
@@ -180,10 +248,113 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     await hydrateFromSession();
   };
 
+  const clearSupabaseAuthStorage = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const localKeysToRemove = Object.keys(window.localStorage).filter(
+        (key) => key.startsWith('sb-') || key.includes('supabase') || key.includes('auth-token')
+      );
+      for (const key of localKeysToRemove) {
+        window.localStorage.removeItem(key);
+      }
+
+      const sessionKeysToRemove = Object.keys(window.sessionStorage).filter(
+        (key) => key.startsWith('sb-') || key.includes('supabase') || key.includes('auth-token')
+      );
+      for (const key of sessionKeysToRemove) {
+        window.sessionStorage.removeItem(key);
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not clear local Supabase storage:', error);
+    }
+
+    try {
+      const cookiePairs = document.cookie.split(';');
+      for (const pair of cookiePairs) {
+        const rawName = pair.split('=')[0]?.trim();
+        if (!rawName) continue;
+        if (
+          !rawName.includes('sb-') &&
+          !rawName.includes('supabase-auth-token') &&
+          !rawName.includes('supabase') &&
+          !rawName.includes('auth-token')
+        ) {
+          continue;
+        }
+
+        document.cookie = `${rawName}=; Path=/; Max-Age=0; SameSite=Lax`;
+        document.cookie = `${rawName}=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+      }
+
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+      const projectRef = (() => {
+        try {
+          return new URL(url).hostname.split('.')[0] || '';
+        } catch {
+          return '';
+        }
+      })();
+      const baseNames = ['supabase-auth-token'];
+      if (projectRef) {
+        baseNames.push(`sb-${projectRef}-auth-token`);
+        baseNames.push(`sb-${projectRef}-auth-token-code-verifier`);
+      }
+      const candidateNames = new Set<string>();
+      for (const baseName of baseNames) {
+        candidateNames.add(baseName);
+        candidateNames.add(`__Secure-${baseName}`);
+        candidateNames.add(`__Host-${baseName}`);
+        for (let i = 0; i < 6; i += 1) {
+          candidateNames.add(`${baseName}.${i}`);
+          candidateNames.add(`__Secure-${baseName}.${i}`);
+          candidateNames.add(`__Host-${baseName}.${i}`);
+        }
+      }
+
+      const host = window.location.hostname;
+      for (const name of Array.from(candidateNames)) {
+        document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+        document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+        if (host && host !== 'localhost' && host !== '127.0.0.1') {
+          document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax; Domain=${host}`;
+          document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax; Secure; Domain=${host}`;
+          document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax; Domain=.${host}`;
+          document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax; Secure; Domain=.${host}`;
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not clear Supabase auth cookies on client:', error);
+    }
+  };
+
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setLoading(false);
+    setLoading(true);
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.warn('⚠️ Local sign-out failed:', error);
+    }
+
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.warn('⚠️ Global sign-out failed:', error);
+    }
+
+    try {
+      await fetch('/auth/signout', {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+        cache: 'no-store',
+      });
+    } catch (error) {
+      console.warn('⚠️ Server sign-out request failed:', error);
+    } finally {
+      clearSupabaseAuthStorage();
+      setUser(null);
+      setLoading(false);
+    }
   };
 
   return <Ctx.Provider value={{ user, loading, refreshProfile, signOut }}>{children}</Ctx.Provider>;

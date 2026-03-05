@@ -36,6 +36,10 @@ function getSafeAuthErrorMessage(rawMessage: string) {
   return '';
 }
 
+function isGenderIdentityConfirmed(value: unknown) {
+  return value === true || value === 'true';
+}
+
 export default function SignupClient() {
   const LOGIN_ONBOARDING_KEY = 'login-onboarding-state';
   const sp = useSearchParams();
@@ -53,6 +57,8 @@ export default function SignupClient() {
   const [emailError, setEmailError] = useState<string | undefined>(undefined);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [isIdentityConfirmed, setIsIdentityConfirmed] = useState(false);
+  const [isGoogleOnboarding, setIsGoogleOnboarding] = useState(false);
+  const [hasActiveSession, setHasActiveSession] = useState(false);
   const [identityError, setIdentityError] = useState<string | undefined>(undefined);
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
   const [requiresEmailVerification, setRequiresEmailVerification] = useState(false);
@@ -82,7 +88,6 @@ export default function SignupClient() {
     !emailError &&
     !isCheckingEmail &&
     isIdentityConfirmed &&
-    (username?.trim().length ?? 0) >= 3 &&
     (password?.length ?? 0) >= 6;
 
   const [positions, setPositions] = useState<OptionSelect[]>([]);
@@ -191,6 +196,7 @@ export default function SignupClient() {
         userId?: string;
         username?: string;
         completedStep?: number;
+        identityConfirmed?: boolean;
       };
     } catch {
       return null;
@@ -202,6 +208,7 @@ export default function SignupClient() {
     userId: string;
     username: string;
     completedStep: 1 | 2;
+    identityConfirmed?: boolean;
   }) => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(
@@ -211,6 +218,7 @@ export default function SignupClient() {
         userId: payload.userId,
         username: payload.username.trim(),
         completedStep: payload.completedStep,
+        identityConfirmed: Boolean(payload.identityConfirmed),
       })
     );
   };
@@ -218,56 +226,6 @@ export default function SignupClient() {
   const clearLoginOnboardingState = () => {
     if (typeof window === 'undefined') return;
     window.localStorage.removeItem(LOGIN_ONBOARDING_KEY);
-  };
-
-  const ensureDraftProfile = async (newUserId: string, normalizedUsername: string) => {
-    const { data: existingRows, error: lookupError } = await supabase
-      .from('profile')
-      .select('user')
-      .eq('user', newUserId)
-      .limit(1);
-
-    if (lookupError) {
-      throw lookupError;
-    }
-
-    const payload = {
-      user: newUserId,
-      username: normalizedUsername,
-      level_id: null,
-      onboarding_step: 1,
-      is_profile_complete: false,
-    };
-
-    if ((existingRows?.length ?? 0) > 0) {
-      const { error } = await supabase.from('profile').update(payload).eq('user', newUserId);
-      if (error) throw error;
-      return;
-    }
-
-    const { error } = await supabase.from('profile').insert(payload);
-    if (error) throw error;
-  };
-
-  const persistOnboardingSelections = async (payload: {
-    userId: string;
-    username: string;
-    levelId: number;
-    positionIds: number[];
-  }) => {
-    const { error: profileError } = await supabase
-      .from('profile')
-      .update({
-        username: payload.username.trim(),
-        level_id: payload.levelId,
-        onboarding_step: 2,
-        is_profile_complete: true,
-      })
-      .eq('user', payload.userId);
-
-    if (profileError) {
-      throw profileError;
-    }
   };
 
   useEffect(() => {
@@ -292,12 +250,15 @@ export default function SignupClient() {
           await fetchCurrentOnboardingState(supabase);
 
         if (!user) {
+          setIsGoogleOnboarding(false);
+          setHasActiveSession(false);
           const localState = readLoginOnboardingState();
           const normalizedEmail = prefilledEmail.trim().toLowerCase();
 
           if (localState?.email === normalizedEmail) {
             if (localState.userId) setUserId(localState.userId);
             if (localState.username) setValue('username', localState.username);
+            if (localState.identityConfirmed) setIsIdentityConfirmed(true);
             if (prefilledEmail) setSignupEmail(prefilledEmail);
           }
 
@@ -318,6 +279,14 @@ export default function SignupClient() {
         if (cancelled) return;
 
         const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+        const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
+        const authProvider =
+          typeof appMetadata.provider === 'string'
+            ? appMetadata.provider
+            : Array.isArray(appMetadata.providers) &&
+                appMetadata.providers.some((provider) => provider === 'google')
+              ? 'google'
+              : '';
         const initialUsername =
           (typeof profile?.username === 'string' && profile.username.trim()) ||
           (typeof metadata.username === 'string' && metadata.username.trim()) ||
@@ -326,8 +295,11 @@ export default function SignupClient() {
 
         setSignupEmail(user.email ?? prefilledEmail);
         setUserId(user.id);
+        setIsGoogleOnboarding(authProvider === 'google');
+        setHasActiveSession(true);
         setRequiresEmailVerification(!user.email_confirmed_at);
         setValue('username', initialUsername);
+        setIsIdentityConfirmed(isGenderIdentityConfirmed(metadata.gender_identity_confirmed));
 
         if (nextStep === null) {
           window.location.href = destination;
@@ -389,7 +361,6 @@ export default function SignupClient() {
 
     try {
       const normalizedEmail = signupEmail.trim().toLowerCase();
-      const normalizedUsername = data.username.trim();
 
       const emailCheck = await validateEmailAvailability(normalizedEmail);
       if (!emailCheck.available) {
@@ -397,27 +368,15 @@ export default function SignupClient() {
         return;
       }
 
-      const usernameCheck = await checkUsernameAvailabilityAction(
-        normalizedUsername,
-        userId ?? undefined
-      );
-      if (!usernameCheck.available) {
-        const message =
-          usernameCheck.reason === 'error'
-            ? 'No se pudo verificar el nombre de usuario. Intenta de nuevo.'
-            : 'El nombre de usuario ya está en uso, elige otro.';
-        setError('username', { type: 'manual', message });
-        toast.error(message);
-        return;
-      }
-      clearErrors('username');
-
       const { data: sign, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password: data.password,
         options: {
           emailRedirectTo: signupRedirectTo,
-          data: { username: normalizedUsername, events_verified: false },
+          data: {
+            events_verified: false,
+            gender_identity_confirmed: true,
+          },
         },
       });
 
@@ -443,12 +402,13 @@ export default function SignupClient() {
       const hasSession = Boolean(sign.session);
 
       if (hasSession && currentUser) {
-        await ensureDraftProfile(currentUser.id, normalizedUsername);
+        setValue('username', '');
         saveLoginOnboardingState({
           email: signupEmail,
           userId: currentUser.id,
-          username: normalizedUsername,
+          username: '',
           completedStep: 1,
+          identityConfirmed: true,
         });
         setUserId(currentUser.id);
         setRequiresEmailVerification(!currentUser.email_confirmed_at);
@@ -458,12 +418,13 @@ export default function SignupClient() {
       }
 
       if (currentUser?.id) {
-        await ensureDraftProfile(currentUser.id, normalizedUsername);
+        setValue('username', '');
         saveLoginOnboardingState({
           email: signupEmail,
           userId: currentUser.id,
-          username: normalizedUsername,
+          username: '',
           completedStep: 1,
+          identityConfirmed: true,
         });
         setUserId(currentUser.id);
         setRequiresEmailVerification(true);
@@ -485,6 +446,13 @@ export default function SignupClient() {
 
   const handleStep2 = async () => {
     if (!userId) return toast.error('No se encontró el usuario recién creado.');
+    if (!isIdentityConfirmed) {
+      const message =
+        'Debes confirmar que te identificas como mujer o persona de la diversidad de género.';
+      setIdentityError(message);
+      toast.error(message);
+      return;
+    }
     if (!selectedLevel) return toast.error('Selecciona un nivel.');
     if (selectedPositions.length === 0) return toast.error('Selecciona al menos una posicion.');
 
@@ -507,16 +475,19 @@ export default function SignupClient() {
       );
       if (!usernameCheck.available) {
         if (usernameCheck.reason === 'error') {
-          toast.error('No se pudo verificar el nombre de usuario. Intenta de nuevo.');
+          log.warn('Username precheck failed, continuing with backend validation', 'signup', {
+            userId,
+            username: normalizedUsername,
+          });
+        } else {
+          setError('username', {
+            type: 'manual',
+            message: 'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.',
+          });
+          setStep(1);
+          toast.error('Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.');
           return;
         }
-        setError('username', {
-          type: 'manual',
-          message: 'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.',
-        });
-        setStep(1);
-        toast.error('Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.');
-        return;
       }
       clearErrors('username');
 
@@ -532,18 +503,29 @@ export default function SignupClient() {
       // We create the final profile here. If a draft exists and backend treats it as duplicate,
       // show a guided message instead of failing silently.
       await completeOnboardingProfileAction(profilePayload);
-      await persistOnboardingSelections({
-        userId,
-        username: normalizedUsername,
-        levelId: Number(selectedLevel),
-        positionIds,
-      });
-      saveLoginOnboardingState({
-        email: signupEmail,
-        userId,
-        username: normalizedUsername,
-        completedStep: 2,
-      });
+      const {
+        data: { user: authenticatedUser },
+      } = await supabase.auth.getUser();
+
+      if (authenticatedUser && isIdentityConfirmed) {
+        const { error: metadataError } = await supabase.auth.updateUser({
+          data: { gender_identity_confirmed: true },
+        });
+
+        if (metadataError) {
+          log.warn('Could not persist gender identity confirmation', 'signup', metadataError);
+        }
+      }
+
+      clearLoginOnboardingState();
+
+      if (isGoogleOnboarding && authenticatedUser?.email_confirmed_at) {
+        toast.success('Perfil completado. Bienvenida.');
+        refreshProfile().catch(() => undefined);
+        window.location.href = '/';
+        return;
+      }
+
       setRequiresEmailVerification(true);
       setStep(3);
       toast.success('Perfil guardado. Verifica tu correo para activar tu cuenta.');
@@ -681,12 +663,21 @@ export default function SignupClient() {
       {step === 1 ? (
         <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
           <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm">
-            <Link
-              href="/login"
-              className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
-            >
-              Iniciar sesion
-            </Link>
+            {hasActiveSession ? (
+              <span
+                className="rounded-xl text-slate-400 text-center py-2 cursor-not-allowed"
+                aria-disabled="true"
+              >
+                Iniciar sesion
+              </span>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
+              >
+                Iniciar sesion
+              </Link>
+            )}
             <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
               Crear cuenta
             </span>
@@ -723,47 +714,6 @@ export default function SignupClient() {
             />
             {isCheckingEmail && (
               <p className="text-xs text-slate-500 -mt-2">Verificando correo...</p>
-            )}
-
-            <Input
-              label="Crea un nombre"
-              type="text"
-              required
-              placeholder="Ej: Pelotera123"
-              bgColor="bg-white ring-secondary focus:ring-secondary-dark border-mulberry"
-              {...register('username', {
-                required: 'Este campo es requerido',
-                minLength: { value: 3, message: 'Mínimo 3 caracteres' },
-                maxLength: { value: 50, message: 'Máximo 50 caracteres' },
-                onBlur: async (e) => {
-                  const rawValue = String(e?.target?.value ?? '').trim();
-                  if (rawValue.length < 3) return;
-                  setIsCheckingUsername(true);
-                  const result = await checkUsernameAvailabilityAction(
-                    rawValue,
-                    userId ?? undefined
-                  );
-                  setIsCheckingUsername(false);
-                  if (!result.available) {
-                    setError('username', {
-                      type: 'manual',
-                      message:
-                        result.reason === 'error'
-                          ? 'No se pudo validar el nombre ahora.'
-                          : 'El nombre de usuario ya está en uso.',
-                    });
-                    return;
-                  }
-                  clearErrors('username');
-                },
-              })}
-              autoComplete="nickname"
-              className="h-11"
-              disabled={Boolean(emailError) || isCheckingEmail}
-              errorText={errors.username?.message as string | undefined}
-            />
-            {isCheckingUsername && (
-              <p className="text-xs text-slate-500 -mt-2">Verificando disponibilidad...</p>
             )}
 
             <Input
@@ -826,7 +776,7 @@ export default function SignupClient() {
             </div>
 
             <GoogleButton
-              disabled={loading || isGoogleLoading || !isIdentityConfirmed}
+              disabled={loading || isGoogleLoading}
               isLoading={isGoogleLoading}
               onLoadingChange={setIsGoogleLoading}
             />
@@ -835,12 +785,21 @@ export default function SignupClient() {
       ) : step === 2 ? (
         <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
           <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm">
-            <Link
-              href="/login"
-              className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
-            >
-              Iniciar sesion
-            </Link>
+            {hasActiveSession ? (
+              <span
+                className="rounded-xl text-slate-400 text-center py-2 cursor-not-allowed"
+                aria-disabled="true"
+              >
+                Iniciar sesion
+              </span>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
+              >
+                Iniciar sesion
+              </Link>
+            )}
             <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
               Crear cuenta
             </span>
@@ -858,10 +817,42 @@ export default function SignupClient() {
             className="flex flex-col gap-3"
             noValidate
           >
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs text-slate-500">Nombre de usuaria</p>
-              <p className="text-sm font-semibold text-slate-900">{username}</p>
-            </div>
+            <Input
+              label="Nombre de usuaria"
+              type="text"
+              required
+              placeholder="Ej: Pelotera123"
+              bgColor="bg-white ring-secondary focus:ring-secondary-dark border-mulberry"
+              {...register('username', {
+                required: 'Este campo es requerido',
+                minLength: { value: 3, message: 'Mínimo 3 caracteres' },
+                maxLength: { value: 50, message: 'Máximo 50 caracteres' },
+                onBlur: async (e) => {
+                  const rawValue = String(e?.target?.value ?? '').trim();
+                  if (rawValue.length < 3) return;
+                  setIsCheckingUsername(true);
+                  const result = await checkUsernameAvailabilityAction(rawValue, userId ?? undefined);
+                  setIsCheckingUsername(false);
+                  if (!result.available) {
+                    setError('username', {
+                      type: 'manual',
+                      message:
+                        result.reason === 'error'
+                          ? 'No se pudo validar el nombre ahora.'
+                          : 'El nombre de usuario ya está en uso.',
+                    });
+                    return;
+                  }
+                  clearErrors('username');
+                },
+              })}
+              autoComplete="nickname"
+              className="h-11"
+              errorText={errors.username?.message as string | undefined}
+            />
+            {isCheckingUsername && (
+              <p className="text-xs text-slate-500 -mt-2">Verificando disponibilidad...</p>
+            )}
 
             <label className="w-full">
               <div className="mb-1">
@@ -892,12 +883,46 @@ export default function SignupClient() {
               />
             </label>
 
+            {isGoogleOnboarding && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="gender_identity_confirmation_step_2"
+                    checked={isIdentityConfirmed}
+                    onChange={() => {
+                      setIsIdentityConfirmed(true);
+                      if (identityError) setIdentityError(undefined);
+                    }}
+                    className="mt-1 h-4 w-4 border-slate-300 text-mulberry focus:ring-mulberry"
+                  />
+                  <span className="text-sm leading-6 text-slate-700">
+                    Confirmo que me identifico como mujer o persona de la diversidad de género.{' '}
+                    <button
+                      type="button"
+                      onClick={() => setIsIdentityModalOpen(true)}
+                      className="font-semibold text-mulberry hover:text-mulberry/80"
+                    >
+                      Más información
+                    </button>
+                  </span>
+                </label>
+                {identityError && <p className="mt-2 text-sm text-red-500">{identityError}</p>}
+              </div>
+            )}
+
             <button
               type="submit"
               className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
-              disabled={loading}
+              disabled={
+                loading ||
+                !isIdentityConfirmed ||
+                (username?.trim().length ?? 0) < 3 ||
+                !selectedLevel ||
+                selectedPositions.length === 0
+              }
             >
-              {loading ? 'Guardando...' : 'Crear cuenta'}
+              {loading ? 'Guardando...' : 'Continuar'}
             </button>
           </form>
         </div>
@@ -935,12 +960,21 @@ export default function SignupClient() {
               {resendingVerification ? 'Reenviando...' : 'Reenviar correo'}
             </button>
 
-            <Link
-              href="/login"
-              className="text-sm text-center text-mulberry font-semibold hover:text-mulberry/80"
-            >
-              Volver a iniciar sesion
-            </Link>
+            {hasActiveSession ? (
+              <span
+                className="text-sm text-center text-slate-400 font-semibold cursor-not-allowed"
+                aria-disabled="true"
+              >
+                Volver a iniciar sesion
+              </span>
+            ) : (
+              <Link
+                href="/login"
+                className="text-sm text-center text-mulberry font-semibold hover:text-mulberry/80"
+              >
+                Volver a iniciar sesion
+              </Link>
+            )}
           </div>
         </div>
       )}
