@@ -22,6 +22,11 @@ export default function AdminHome() {
         <h2 className="text-lg font-semibold text-mulberry">Validar QR</h2>
         <p className="text-sm text-gray-600">Escanear o pegar token para marcar entradas como usadas.</p>
       </Link>
+
+      <Link href="/admin/wallet" className="block rounded-lg bg-white shadow p-4 hover:shadow-md">
+        <h2 className="text-lg font-semibold text-mulberry">Google Wallet</h2>
+        <p className="text-sm text-gray-600">Conectar issuer y seleccionar clase activa desde panel.</p>
+      </Link>
     </div>
   );
 }

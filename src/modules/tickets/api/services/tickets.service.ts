@@ -1,6 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'crypto';
 import { log } from '@core/lib/logger';
+import { buildGoogleWalletSaveUrl, getGoogleWalletConfig } from './google-wallet.service';
 
 export type TicketStatus = 'pending' | 'active' | 'used' | 'revoked';
 
@@ -9,6 +10,10 @@ type AssistantRow = {
   event: number | null;
   user: string | null;
   state: string | null;
+};
+
+type ProfileRow = {
+  username: string | null;
 };
 
 type TicketRow = {
@@ -47,6 +52,26 @@ function resolveWalletUrl(template: string | undefined, token: string) {
   return template.includes('{token}')
     ? template.replace('{token}', encodeURIComponent(token))
     : template;
+}
+
+async function resolveTicketHolderName(supabase: any, userId: string) {
+  const { data, error } = await supabase
+    .from('profile')
+    .select('username')
+    .eq('user', userId)
+    .maybeSingle();
+
+  if (error) {
+    log.database('SELECT profile username for ticket', 'profile', error, { userId });
+    return 'Peloteras';
+  }
+
+  const profile = data as ProfileRow | null;
+  if (profile?.username && profile.username.trim()) {
+    return profile.username.trim();
+  }
+
+  return 'Peloteras';
 }
 
 export async function ensureTicketForAssistant(
@@ -95,10 +120,23 @@ export async function ensureTicketForAssistant(
   const existing = existingByEventUser as TicketRow | null;
   const qrToken = existing?.qr_token || buildQrToken();
   const finalStatus: TicketStatus = existing?.status === 'used' ? 'used' : mappedStatus;
+  const googleWalletConfig = await getGoogleWalletConfig();
   const appleWalletUrl =
     existing?.apple_wallet_url || resolveWalletUrl(process.env.APPLE_WALLET_URL_TEMPLATE, qrToken);
-  const googleWalletUrl =
-    existing?.google_wallet_url || resolveWalletUrl(process.env.GOOGLE_WALLET_URL_TEMPLATE, qrToken);
+
+  let googleWalletUrl = existing?.google_wallet_url ?? null;
+  if (!googleWalletUrl) {
+    const ticketHolderName = await resolveTicketHolderName(supabase, row.user);
+    googleWalletUrl =
+      (await buildGoogleWalletSaveUrl(
+        {
+          qrToken,
+          ticketNumber: String(row.id),
+          ticketHolderName,
+        },
+        googleWalletConfig
+      )) || resolveWalletUrl(process.env.GOOGLE_WALLET_URL_TEMPLATE, qrToken);
+  }
 
   if (existing) {
     const { data: updated, error: updateError } = await supabase
