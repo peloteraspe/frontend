@@ -4,8 +4,8 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 function isComingSoonEnabled() {
   if (process.env.NODE_ENV !== 'production') return false;
-  if (process.env.COMING_SOON_MODE === 'off') return false;
-  return true;
+  const mode = (process.env.COMING_SOON_MODE ?? '').trim().toLowerCase();
+  return mode === 'on' || mode === 'true' || mode === '1';
 }
 
 function isAllowedPath(pathname: string) {
