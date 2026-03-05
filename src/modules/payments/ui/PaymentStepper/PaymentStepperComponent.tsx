@@ -57,6 +57,37 @@ const PaymentStepper = (props: any) => {
     setError('promCode', { type: 'manual', message: 'Código inválido o expirado' });
   };
 
+  const issueTicketInBackground = (assistantId: number) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    void fetch('/api/tickets/issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assistantId }),
+      signal: controller.signal,
+    })
+      .then(async (issueTicketResponse) => {
+        if (!issueTicketResponse.ok) {
+          const message = await issueTicketResponse.text().catch(() => '');
+          log.warn('Ticket issue failed after registration', 'PAYMENTS', {
+            assistantId,
+            status: issueTicketResponse.status,
+            response: message,
+          });
+        }
+      })
+      .catch((issueError) => {
+        log.warn('Ticket issue request failed', 'PAYMENTS', {
+          assistantId,
+          issueError,
+        });
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+      });
+  };
+
   const handlePaymentConfirmation = async () => {
     if (!currentUserId) {
       setError('operationNumber', {
@@ -87,6 +118,7 @@ const PaymentStepper = (props: any) => {
       return;
     }
 
+    setLoading(true);
     setCurrentStep(3);
 
     const registeredPlayer = {
@@ -96,46 +128,39 @@ const PaymentStepper = (props: any) => {
       state: 'pending',
     };
 
-    const { data: assistantRow, error } = await supabase
-      .from('assistants')
-      .upsert(registeredPlayer)
-      .select('id')
-      .single();
-    if (error) {
-      log.database('UPSERT assistants', 'assistants', error, registeredPlayer);
+    try {
+      const { data: assistantRow, error } = await supabase
+        .from('assistants')
+        .upsert(registeredPlayer)
+        .select('id')
+        .single();
+
+      if (error) {
+        log.database('UPSERT assistants', 'assistants', error, registeredPlayer);
+        setError('operationNumber', {
+          type: 'manual',
+          message: 'No pudimos registrar tu número. Intenta nuevamente.',
+        });
+        setCurrentStep(2);
+        return;
+      }
+
+      if (assistantRow?.id) {
+        issueTicketInBackground(assistantRow.id);
+      }
+    } catch (error) {
+      log.error('Error registering assistant', 'PAYMENTS', {
+        error,
+        registeredPlayer,
+      });
       setError('operationNumber', {
         type: 'manual',
         message: 'No pudimos registrar tu número. Intenta nuevamente.',
       });
+      setCurrentStep(2);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    if (assistantRow?.id) {
-      try {
-        const issueTicketResponse = await fetch('/api/tickets/issue', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assistantId: assistantRow.id }),
-        });
-
-        if (!issueTicketResponse.ok) {
-          const message = await issueTicketResponse.text().catch(() => '');
-          log.warn('Ticket issue failed after registration', 'PAYMENTS', {
-            assistantId: assistantRow.id,
-            status: issueTicketResponse.status,
-            response: message,
-          });
-        }
-      } catch (issueError) {
-        log.warn('Ticket issue request failed', 'PAYMENTS', {
-          assistantId: assistantRow.id,
-          issueError,
-        });
-      }
-    }
-
-    setLoading(false);
   };
 
   const StepContent = () => {
