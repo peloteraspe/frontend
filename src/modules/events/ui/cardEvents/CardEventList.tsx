@@ -9,9 +9,13 @@ type CardEventListProps = {
   showViewAll?: boolean;
 };
 
-const CardEventList = async ({ previewCount = 4, showViewAll = true }: CardEventListProps) => {
+const CardEventList = async ({ previewCount, showViewAll = true }: CardEventListProps) => {
   const events = await getAllEvents();
-  const cardEvents = Array.isArray(events) ? events.slice(0, previewCount) : [];
+  const cardEvents = Array.isArray(events)
+    ? typeof previewCount === 'number'
+      ? events.slice(0, previewCount)
+      : events
+    : [];
 
   log.debug('Retrieved events for card list', 'CARD_EVENT_LIST', {
     eventCount: cardEvents?.length,
@@ -22,7 +26,7 @@ const CardEventList = async ({ previewCount = 4, showViewAll = true }: CardEvent
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-3xl font-bold font-inter">Próximos partidos</h2>
-          <p className="mt-1 text-sm text-slate-600">Explora una vista rápida y entra al mapa completo.</p>
+          <p className="mt-1 text-sm text-slate-600">Explora todos los partidos disponibles y ubícalos en el mapa.</p>
         </div>
         {showViewAll && (
           <Link
