@@ -20,6 +20,21 @@ type FormValues = {
   operationNumber: string;
 };
 
+const ASSISTANT_UPSERT_TIMEOUT_MS = 12000;
+const ASSISTANT_UPSERT_TIMEOUT_ERROR = 'ASSISTANT_UPSERT_TIMEOUT';
+
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, timeoutMessage: string) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  }) as Promise<T>;
+}
+
 const PaymentStepper = (props: any) => {
   const supabase = getBrowserSupabase();
   const { post, paymentData, user } = props;
@@ -129,13 +144,31 @@ const PaymentStepper = (props: any) => {
     };
 
     try {
-      const { data: assistantRow, error } = await supabase
-        .from('assistants')
-        .upsert(registeredPlayer)
-        .select('id')
-        .single();
+      const upsertResult = (await withTimeout(
+        supabase.from('assistants').upsert(registeredPlayer).select('id').single() as any,
+        ASSISTANT_UPSERT_TIMEOUT_MS,
+        ASSISTANT_UPSERT_TIMEOUT_ERROR
+      )) as any;
+      const assistantRow = upsertResult?.data;
+      const error = upsertResult?.error;
 
       if (error) {
+        const isTimeout = /abort|timed out|timeout/i.test(String(error?.message ?? ''));
+        if (isTimeout) {
+          log.warn('Assistant upsert timeout', 'PAYMENTS', {
+            registeredPlayer,
+            timeoutMs: ASSISTANT_UPSERT_TIMEOUT_MS,
+            error,
+          });
+          setError('operationNumber', {
+            type: 'manual',
+            message:
+              'La confirmación está tardando más de lo normal. Intenta nuevamente en unos segundos.',
+          });
+          setCurrentStep(2);
+          return;
+        }
+
         log.database('UPSERT assistants', 'assistants', error, registeredPlayer);
         setError('operationNumber', {
           type: 'manual',
@@ -149,6 +182,24 @@ const PaymentStepper = (props: any) => {
         issueTicketInBackground(assistantRow.id);
       }
     } catch (error) {
+      const isTimeout =
+        (error as any)?.message === ASSISTANT_UPSERT_TIMEOUT_ERROR ||
+        /abort|timed out|timeout/i.test(String((error as any)?.message ?? error));
+      if (isTimeout) {
+        log.warn('Assistant upsert timeout (exception)', 'PAYMENTS', {
+          registeredPlayer,
+          timeoutMs: ASSISTANT_UPSERT_TIMEOUT_MS,
+          error,
+        });
+        setError('operationNumber', {
+          type: 'manual',
+          message:
+            'La confirmación está tardando más de lo normal. Intenta nuevamente en unos segundos.',
+        });
+        setCurrentStep(2);
+        return;
+      }
+
       log.error('Error registering assistant', 'PAYMENTS', {
         error,
         registeredPlayer,
