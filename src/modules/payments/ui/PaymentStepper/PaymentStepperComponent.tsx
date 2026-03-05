@@ -23,6 +23,9 @@ type FormValues = {
 const PaymentStepper = (props: any) => {
   const supabase = getBrowserSupabase();
   const { post, paymentData, user } = props;
+  const paymentQr =
+    typeof paymentData?.QR === 'string' ? paymentData.QR.replace(/^"|"$/g, '') : '';
+  const paymentNumber = paymentData?.number ?? '';
 
   const {
     register,
@@ -48,9 +51,6 @@ const PaymentStepper = (props: any) => {
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id ?? user?.id ?? null;
   const isEmailConfirmed = Boolean(authUser?.email_confirmed_at ?? user?.email_confirmed_at);
-
-  // limpiar comillas del QR
-  paymentData.QR = paymentData.QR.replace(/^"|"$/g, '');
 
   const handleApplyPromCode = (data: FormValues) => {
     // Aquí podrías validar el cupón via API. Por ahora, forzamos error de ejemplo:
@@ -177,7 +177,7 @@ const PaymentStepper = (props: any) => {
                     utiliza el número:
                   </p>
                   <span className="font-bold text-[20px] text-[#54086F] ml-3">
-                    {paymentData?.number}
+                    {paymentNumber}
                   </span>
                   <p>2. Guarda el número de operación.</p>
                   <div className="flex">
@@ -189,13 +189,19 @@ const PaymentStepper = (props: any) => {
                       ¿Dónde encuentro mi número de operación?
                     </button>
                   </div>
-                  <img
-                    className="hidden md:block"
-                    src={paymentData?.QR}
-                    alt="QR Code"
-                    width={200}
-                    height={200}
-                  />
+                  {paymentQr ? (
+                    <img
+                      className="hidden md:block"
+                      src={paymentQr}
+                      alt="QR Code"
+                      width={200}
+                      height={200}
+                    />
+                  ) : (
+                    <p className="hidden md:block text-sm text-gray-500">
+                      QR no disponible por el momento.
+                    </p>
+                  )}
                 </div>
               </div>
 

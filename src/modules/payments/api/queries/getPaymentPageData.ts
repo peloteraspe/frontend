@@ -19,13 +19,36 @@ export async function getPaymentPageData(id: string) {
     throw new Error('Event not found');
   }
 
-  const { data: paymentMethod, error: paymentError } = await supabase
+  const { data: eventPaymentMethod, error: paymentError } = await supabase
     .from('paymentMethod')
     .select('*')
     .eq('event', event.id)
-    .single();
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (paymentError || !paymentMethod) {
+  if (paymentError) {
+    throw new Error('Payment method query failed');
+  }
+
+  let paymentMethod = eventPaymentMethod;
+
+  if (!paymentMethod) {
+    const { data: fallbackPaymentMethod, error: fallbackError } = await supabase
+      .from('paymentMethod')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fallbackError || !fallbackPaymentMethod) {
+      throw new Error('Payment method not found');
+    }
+
+    paymentMethod = fallbackPaymentMethod;
+  }
+
+  if (!paymentMethod) {
     throw new Error('Payment method not found');
   }
 
