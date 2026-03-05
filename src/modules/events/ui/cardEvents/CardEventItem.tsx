@@ -10,8 +10,61 @@ import { useRouter } from 'next/navigation';
 import { formattedPrice } from '@src/shared/lib/utils';
 
 interface CardEventItemProps {
-  cardEvents: any[];
+  cardEvents: CardEventData[];
   variant?: 'legacy' | 'landing';
+}
+
+type CardEventData = {
+  id: string | number;
+  title?: string;
+  formattedDateTime?: string;
+  dateLabel?: string;
+  locationText?: string;
+  price?: number;
+  placesLeft?: number;
+  minUsers?: number;
+  maxUsers?: number;
+  level?: {
+    name?: string;
+  };
+  levelName?: string;
+  eventType?: {
+    name?: string;
+  };
+  eventTypeName?: string;
+  featuresData?: Array<{
+    feature?: {
+      name?: string;
+    };
+  }>;
+};
+
+function getEventTypeName(event: CardEventData) {
+  return event.eventType?.name || event.eventTypeName || 'Partido';
+}
+
+function getLevelName(event: CardEventData) {
+  return event.level?.name || event.levelName || 'Sin nivel';
+}
+
+function getDateLabel(event: CardEventData) {
+  return event.formattedDateTime || event.dateLabel || 'Fecha por confirmar';
+}
+
+function getPlacesLeft(event: CardEventData) {
+  if (typeof event.placesLeft === 'number') return event.placesLeft;
+  const maxUsers = Number(event.maxUsers ?? 0);
+  const minUsers = Number(event.minUsers ?? 0);
+  return Math.max(maxUsers - minUsers, 0);
+}
+
+function getBadges(event: CardEventData) {
+  if (Array.isArray(event.featuresData) && event.featuresData.length) {
+    return event.featuresData
+      .map((featureData) => featureData?.feature?.name)
+      .filter((featureName): featureName is string => Boolean(featureName));
+  }
+  return [getEventTypeName(event)];
 }
 
 const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) => {
@@ -20,7 +73,10 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
 
   return (
     <div className="flex flex-col">
-      {cardEvents?.map((event: any) => {
+      {cardEvents?.map((event) => {
+        const eventTypeName = getEventTypeName(event);
+        const badges = getBadges(event);
+
         return (
           <div
             key={event.id}
@@ -28,29 +84,29 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
             className={itemContainerClass}
           >
             <CardEvent
-              typeEvent={event.eventType.name}
-              quantity={event.placesLeft}
-              levelText={`NIVEL: ${event.level.name}`}
-              matchText={event.title}
-              dateText={event.formattedDateTime}
-              textLocation={event.locationText}
+              typeEvent={eventTypeName}
+              quantity={getPlacesLeft(event)}
+              levelText={`NIVEL: ${getLevelName(event).toUpperCase()}`}
+              matchText={event.title || 'Evento sin título'}
+              dateText={getDateLabel(event)}
+              textLocation={event.locationText || 'Ubicación por confirmar'}
               button={
                 <ButtonWrapper
                   icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-                  onClick={(e: any) => {
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
                     router.push(`/payments/${event.id}`);
                   }}
                   children={
-                    event.eventType.name.includes('libre') ? 'Anotarme' : 'Anotar a mi equipo'
+                    eventTypeName.toLowerCase().includes('libre') ? 'Anotarme' : 'Anotar a mi equipo'
                   }
                 />
               }
-              price={formattedPrice(event.price)}
-              badge={event.featuresData.map((feature: any, index: number) => (
+              price={formattedPrice(Number(event.price ?? 0))}
+              badge={badges.map((badge, index) => (
                 <Badge
                   key={index}
-                  text={feature.feature.name.toUpperCase()}
+                  text={badge.toUpperCase()}
                   icon={true}
                   badgeType="Primary"
                 />

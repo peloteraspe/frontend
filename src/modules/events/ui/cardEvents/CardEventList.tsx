@@ -1,4 +1,4 @@
-import { getAllEvents } from '@modules/events/api/event';
+import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
 import CardEventItem from './CardEventItem';
 import { log } from '@src/core/lib/logger';
 import Link from 'next/link';
@@ -10,7 +10,7 @@ type CardEventListProps = {
 };
 
 const CardEventList = async ({ previewCount, showViewAll = true }: CardEventListProps) => {
-  const events = await getAllEvents();
+  const events = await getEventsExplorer();
   const cardEvents = Array.isArray(events)
     ? typeof previewCount === 'number'
       ? events.slice(0, previewCount)

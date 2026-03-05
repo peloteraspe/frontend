@@ -8,6 +8,7 @@ type EventLite = {
   id: string | number;
   title?: string;
   formattedDateTime?: string;
+  dateLabel?: string;
   locationText?: string;
   price?: number;
   location?: {
@@ -47,7 +48,7 @@ export default function LandingEventsMap({ events }: Props) {
           return {
             id: String(event.id),
             title: event.title || 'Evento',
-            date: event.formattedDateTime || 'Fecha por confirmar',
+            date: event.formattedDateTime || event.dateLabel || 'Fecha por confirmar',
             locationText: event.locationText || 'Ubicación por confirmar',
             price: Number(event.price ?? 0),
             ...coords,
