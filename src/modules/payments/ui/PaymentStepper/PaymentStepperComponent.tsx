@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { getBrowserSupabase } from '@src/core/api/supabase.browser';
 import Image from 'next/image';
 import OperationNumberModal from '../OperationNumberModal';
 import operationGuideImage from '@core/assets/images/donde-nro-operacion.png';
@@ -20,23 +19,9 @@ type FormValues = {
   operationNumber: string;
 };
 
-const ASSISTANT_UPSERT_TIMEOUT_MS = 12000;
-const ASSISTANT_UPSERT_TIMEOUT_ERROR = 'ASSISTANT_UPSERT_TIMEOUT';
-
-function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, timeoutMessage: string) {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
-  });
-
-  return Promise.race([Promise.resolve(promise), timeoutPromise]).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
-  }) as Promise<T>;
-}
+const PAYMENT_CONFIRM_TIMEOUT_MS = 12000;
 
 const PaymentStepper = (props: any) => {
-  const supabase = getBrowserSupabase();
   const { post, paymentData, user } = props;
   const paymentQr =
     typeof paymentData?.QR === 'string' ? paymentData.QR.replace(/^"|"$/g, '') : '';
@@ -144,32 +129,28 @@ const PaymentStepper = (props: any) => {
     };
 
     try {
-      const upsertResult = (await withTimeout(
-        supabase.from('assistants').upsert(registeredPlayer).select('id').single() as any,
-        ASSISTANT_UPSERT_TIMEOUT_MS,
-        ASSISTANT_UPSERT_TIMEOUT_ERROR
-      )) as any;
-      const assistantRow = upsertResult?.data;
-      const error = upsertResult?.error;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), PAYMENT_CONFIRM_TIMEOUT_MS);
 
-      if (error) {
-        const isTimeout = /abort|timed out|timeout/i.test(String(error?.message ?? ''));
-        if (isTimeout) {
-          log.warn('Assistant upsert timeout', 'PAYMENTS', {
-            registeredPlayer,
-            timeoutMs: ASSISTANT_UPSERT_TIMEOUT_MS,
-            error,
-          });
-          setError('operationNumber', {
-            type: 'manual',
-            message:
-              'La confirmación está tardando más de lo normal. Intenta nuevamente en unos segundos.',
-          });
-          setCurrentStep(2);
-          return;
-        }
+      const registerResponse = await fetch('/api/payments/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: post.id,
+          operationNumber: op,
+        }),
+        signal: controller.signal,
+      }).finally(() => {
+        clearTimeout(timeout);
+      });
 
-        log.database('UPSERT assistants', 'assistants', error, registeredPlayer);
+      if (!registerResponse.ok) {
+        const body = await registerResponse.json().catch(() => ({}));
+        log.warn('Payment confirm failed', 'PAYMENTS', {
+          status: registerResponse.status,
+          body,
+          registeredPlayer,
+        });
         setError('operationNumber', {
           type: 'manual',
           message: 'No pudimos registrar tu número. Intenta nuevamente.',
@@ -178,17 +159,31 @@ const PaymentStepper = (props: any) => {
         return;
       }
 
-      if (assistantRow?.id) {
-        issueTicketInBackground(assistantRow.id);
+      const body = await registerResponse.json().catch(() => ({}));
+      const assistantId = Number(body?.assistantId);
+
+      if (!Number.isFinite(assistantId) || assistantId <= 0) {
+        log.warn('Payment confirm returned invalid assistantId', 'PAYMENTS', {
+          body,
+          registeredPlayer,
+        });
+        setError('operationNumber', {
+          type: 'manual',
+          message: 'No pudimos registrar tu número. Intenta nuevamente.',
+        });
+        setCurrentStep(2);
+        return;
       }
+
+      issueTicketInBackground(assistantId);
     } catch (error) {
       const isTimeout =
-        (error as any)?.message === ASSISTANT_UPSERT_TIMEOUT_ERROR ||
+        (error as any)?.name === 'AbortError' ||
         /abort|timed out|timeout/i.test(String((error as any)?.message ?? error));
       if (isTimeout) {
-        log.warn('Assistant upsert timeout (exception)', 'PAYMENTS', {
+        log.warn('Payment confirm timeout', 'PAYMENTS', {
           registeredPlayer,
-          timeoutMs: ASSISTANT_UPSERT_TIMEOUT_MS,
+          timeoutMs: PAYMENT_CONFIRM_TIMEOUT_MS,
           error,
         });
         setError('operationNumber', {
