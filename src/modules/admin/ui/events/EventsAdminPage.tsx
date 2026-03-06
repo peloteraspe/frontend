@@ -1,7 +1,23 @@
 import { getEvents } from '@shared/lib/data/getEvents';
 import Link from 'next/link';
+import { getServerSupabase } from '@core/api/supabase.server';
+import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import { setEventFeatured } from '@modules/admin/api/events/_actions';
 
 export default async function AdminEventsPage() {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const canManageFeatured = isSuperAdmin(user as any);
+
+  async function handleToggleFeatured(formData: FormData) {
+    'use server';
+    const id = String(formData.get('id') || '');
+    const isFeatured = String(formData.get('isFeatured') || '') === 'true';
+    await setEventFeatured(id, isFeatured);
+  }
+
   const events = await getEvents();
   return (
     <div className="rounded-md bg-white shadow overflow-x-auto">
@@ -43,6 +59,19 @@ export default async function AdminEventsPage() {
               </td>
               <td className="px-4 py-2 text-right">
                 <div className="flex gap-3 justify-end">
+                  {canManageFeatured && (
+                    <form action={handleToggleFeatured}>
+                      <input type="hidden" name="id" value={e.id} />
+                      <input
+                        type="hidden"
+                        name="isFeatured"
+                        value={e.is_featured ? 'false' : 'true'}
+                      />
+                      <button className="text-mulberry hover:underline">
+                        {e.is_featured ? 'Quitar destacado' : 'Destacar'}
+                      </button>
+                    </form>
+                  )}
                   <a href={`/events/${e.id}`} className="text-mulberry hover:underline">
                     Ver
                   </a>

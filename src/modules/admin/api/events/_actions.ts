@@ -140,3 +140,24 @@ export async function deleteEvent(id: string) {
   revalidatePath('/events');
   revalidatePath('/');
 }
+
+export async function setEventFeatured(id: string, isFeatured: boolean) {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('Debes iniciar sesión para gestionar destacados.');
+  if (!isSuperAdmin(user as any)) {
+    throw new Error('Solo superadmin puede gestionar partidos destacados.');
+  }
+  if (!id) throw new Error('Id de evento inválido.');
+
+  const { error } = await supabase.from('event').update({ is_featured: isFeatured }).eq('id', id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath('/admin/events');
+  revalidatePath('/events');
+  revalidatePath(`/events/${id}`);
+  revalidatePath('/');
+}
