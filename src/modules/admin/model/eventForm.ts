@@ -12,11 +12,18 @@ export type EventUpsertInput = {
   lng: number;
   eventTypeId: number;
   levelId: number;
+  isFeatured: boolean;
 };
 
 function parseNumber(value: FormDataEntryValue | null, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function parseBoolean(value: FormDataEntryValue | null) {
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
 }
 
 export function parseEventFormData(fd: FormData): EventUpsertInput {
@@ -34,5 +41,6 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     lng: parseNumber(fd.get('lng'), 0),
     eventTypeId: parseNumber(fd.get('eventTypeId'), 1),
     levelId: parseNumber(fd.get('levelId'), 1),
+    isFeatured: parseBoolean(fd.get('isFeatured')),
   };
 }

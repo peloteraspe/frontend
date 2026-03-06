@@ -19,12 +19,14 @@ type Props = {
     lng: number;
     eventTypeId: number;
     levelId: number;
+    isFeatured: boolean;
   }>;
   onSubmit: (form: FormData) => Promise<void>;
   submitLabel: string;
+  canManageFeatured?: boolean;
 };
 
-const EventForm = ({ initial, onSubmit, submitLabel }: Props) => {
+const EventForm = ({ initial, onSubmit, submitLabel, canManageFeatured = false }: Props) => {
   const [pending, setPending] = useState(false);
 
   return (
@@ -163,6 +165,24 @@ const EventForm = ({ initial, onSubmit, submitLabel }: Props) => {
           bgColor="bg-white"
         />
       </div>
+
+      {canManageFeatured ? (
+        <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            name="isFeatured"
+            value="true"
+            defaultChecked={Boolean(initial?.isFeatured)}
+            className="h-4 w-4 accent-mulberry"
+          />
+          Mostrar como partido destacado en la landing
+        </label>
+      ) : (
+        <p className="text-xs text-slate-500">
+          Solo superadmin puede gestionar partidos destacados.
+          {initial?.isFeatured ? ' Este evento está marcado como destacado.' : ''}
+        </p>
+      )}
 
       <div className="pt-2">
         <ButtonWrapper width="fit-content" disabled={pending}>

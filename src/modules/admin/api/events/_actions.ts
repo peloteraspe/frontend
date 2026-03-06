@@ -3,12 +3,18 @@
 import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@src/core/api/supabase.server';
 import { EventUpsertInput } from '@modules/admin/model/eventForm';
+import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 
 function isEventsVerified(value: unknown) {
   return value === true || value === 'true';
 }
 
-function toInsertPayload(input: EventUpsertInput, userId: string, createdBy: string) {
+function toInsertPayload(
+  input: EventUpsertInput,
+  userId: string,
+  createdBy: string,
+  isFeatured: boolean
+) {
   return {
     title: input.title,
     description: {
@@ -28,6 +34,7 @@ function toInsertPayload(input: EventUpsertInput, userId: string, createdBy: str
     price: input.price,
     EventType: input.eventTypeId,
     level: input.levelId,
+    is_featured: isFeatured,
     created_by_id: userId,
     created_by: createdBy,
   };
@@ -52,12 +59,17 @@ export async function createEvent(input: EventUpsertInput) {
     .maybeSingle();
 
   const createdBy = profile?.username || user.email?.split('@')[0] || 'Peloteras';
+  const canManageFeatured = isSuperAdmin(user as any);
+  const isFeatured = canManageFeatured ? Boolean(input.isFeatured) : false;
 
-  const { error } = await supabase.from('event').insert(toInsertPayload(input, user.id, createdBy));
+  const { error } = await supabase
+    .from('event')
+    .insert(toInsertPayload(input, user.id, createdBy, isFeatured));
   if (error) throw new Error(error.message);
 
   revalidatePath('/admin/events');
   revalidatePath('/events');
+  revalidatePath('/');
 }
 
 export async function updateEvent(id: string, input: EventUpsertInput) {
@@ -79,10 +91,25 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
     .maybeSingle();
 
   const createdBy = profile?.username || user.email?.split('@')[0] || 'Peloteras';
+  const canManageFeatured = isSuperAdmin(user as any);
+  let isFeatured = false;
+
+  if (canManageFeatured) {
+    isFeatured = Boolean(input.isFeatured);
+  } else {
+    const { data: existingEvent, error: existingEventError } = await supabase
+      .from('event')
+      .select('is_featured')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (existingEventError) throw new Error(existingEventError.message);
+    isFeatured = Boolean(existingEvent?.is_featured);
+  }
 
   const { error } = await supabase
     .from('event')
-    .update(toInsertPayload(input, user.id, createdBy))
+    .update(toInsertPayload(input, user.id, createdBy, isFeatured))
     .eq('id', id);
 
   if (error) throw new Error(error.message);
@@ -91,6 +118,7 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
   revalidatePath(`/admin/events/${id}/edit`);
   revalidatePath('/events');
   revalidatePath(`/events/${id}`);
+  revalidatePath('/');
 }
 
 export async function deleteEvent(id: string) {
@@ -110,4 +138,5 @@ export async function deleteEvent(id: string) {
 
   revalidatePath('/admin/events');
   revalidatePath('/events');
+  revalidatePath('/');
 }

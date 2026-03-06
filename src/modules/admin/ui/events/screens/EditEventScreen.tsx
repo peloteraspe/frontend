@@ -3,8 +3,16 @@ import EventFormComponent from '@modules/admin/ui/events/EventFormComponent';
 import { deleteEvent, updateEvent } from '@modules/admin/api/events/_actions';
 import { parseEventFormData } from '@modules/admin/model/eventForm';
 import { redirect } from 'next/navigation';
+import { getServerSupabase } from '@core/api/supabase.server';
+import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 
 export default async function EditEventScreen({ id }: { id: string }) {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const canManageFeatured = isSuperAdmin(user as any);
+
   const event = await getEventById(id);
   if (!event) redirect('/admin/events');
 
@@ -46,7 +54,9 @@ export default async function EditEventScreen({ id }: { id: string }) {
           lng: event.location?.lng ?? event.location?.long,
           eventTypeId: event.EventType,
           levelId: event.level,
+          isFeatured: Boolean(event.is_featured),
         }}
+        canManageFeatured={canManageFeatured}
       />
     </div>
   );

@@ -11,13 +11,13 @@ type CardEventListProps = {
 
 const CardEventList = async ({ previewCount, showViewAll = true }: CardEventListProps) => {
   const events = await getEventsExplorer();
-  const cardEvents = Array.isArray(events)
-    ? typeof previewCount === 'number'
-      ? events.slice(0, previewCount)
-      : events
-    : [];
+  const featuredEvents = Array.isArray(events) ? events.filter((event) => event.isFeatured) : [];
+  const cardEvents = typeof previewCount === 'number'
+    ? featuredEvents.slice(0, previewCount)
+    : featuredEvents;
 
   log.debug('Retrieved events for card list', 'CARD_EVENT_LIST', {
+    featuredCount: featuredEvents.length,
     eventCount: cardEvents?.length,
   });
 
@@ -25,8 +25,8 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
     <div className="pb-8 md:pb-16">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-3xl font-bold font-inter">Próximos partidos</h2>
-          <p className="mt-1 text-sm text-slate-600">Explora todos los partidos disponibles y ubícalos en el mapa.</p>
+          <h2 className="text-3xl font-bold font-inter">Partidos destacados</h2>
+          <p className="mt-1 text-sm text-slate-600">Explora los encuentros destacados por nuestro equipo.</p>
         </div>
         {showViewAll && (
           <Link
@@ -38,14 +38,20 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
         )}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
-        <div className="order-2 xl:order-1">
-          <CardEventItem cardEvents={cardEvents} variant="landing" />
+      {!cardEvents.length ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+          Aún no hay partidos destacados publicados.
         </div>
-        <div className="order-1 xl:order-2">
-          <LandingEventsMap events={cardEvents} />
+      ) : (
+        <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
+          <div className="order-2 xl:order-1">
+            <CardEventItem cardEvents={cardEvents} variant="landing" />
+          </div>
+          <div className="order-1 xl:order-2">
+            <LandingEventsMap events={cardEvents} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
