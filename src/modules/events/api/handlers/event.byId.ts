@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
 import { getEventExplorerById } from '@modules/events/api/queries/getEventsExplorer';
+import { rateLimitByRequest } from '@core/api/rateLimit';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const limited = await rateLimitByRequest(request, {
+    keyPrefix: 'api_events_by_id_get',
+    limit: 240,
+    windowMs: 60_000,
+    message: 'Demasiadas consultas de detalle de eventos. Inténtalo nuevamente en un minuto.',
+  });
+  if (limited) return limited;
+
   try {
     const { id } = await params;
     const event = await getEventExplorerById(id);

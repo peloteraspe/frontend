@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
+import {
+  clientIdentifierFromRequest,
+  rateLimitByIdentifier,
+  rateLimitByRequest,
+} from '@core/api/rateLimit';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
 import { CreateEventPayload, EventEntity } from '@modules/events/model/types';
@@ -127,6 +132,14 @@ function validatePayload(body: any): CreateEventPayload {
 }
 
 export async function GET(request: Request) {
+  const limited = await rateLimitByRequest(request, {
+    keyPrefix: 'api_events_get',
+    limit: 180,
+    windowMs: 60_000,
+    message: 'Has realizado demasiadas consultas de eventos. Inténtalo nuevamente en un minuto.',
+  });
+  if (limited) return limited;
+
   try {
     const [events, catalogs] = await Promise.all([getEventsExplorer(), getEventCatalogs()]);
     const data = applyFilters(events, request.url);
@@ -137,6 +150,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const clientId = clientIdentifierFromRequest(request);
+  const limitedByIp = await rateLimitByIdentifier({
+    keyPrefix: 'api_events_post_ip',
+    identifier: clientId,
+    limit: 12,
+    windowMs: 10 * 60_000,
+    message:
+      'Has realizado demasiados intentos de creación de eventos. Espera unos minutos e intenta nuevamente.',
+  });
+  if (limitedByIp) return limitedByIp;
+
   try {
     const supabase = await getServerSupabase();
     const {
@@ -146,6 +170,16 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
     }
+
+    const limitedByUser = await rateLimitByIdentifier({
+      keyPrefix: 'api_events_post_user',
+      identifier: `user:${user.id}`,
+      limit: 6,
+      windowMs: 10 * 60_000,
+      message:
+        'Superaste el límite temporal para crear eventos. Espera unos minutos e intenta nuevamente.',
+    });
+    if (limitedByUser) return limitedByUser;
 
     if (!isVerified(user.user_metadata?.events_verified)) {
       return NextResponse.json(

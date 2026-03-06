@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getAdminSupabase } from '@core/api/supabase.admin';
+import { rateLimitByRequest } from '@core/api/rateLimit';
 
 type AdminAuthUser = {
   id: string;
@@ -34,6 +35,15 @@ async function findAuthUserByEmail(email: string) {
 }
 
 export async function POST(request: Request) {
+  const limited = await rateLimitByRequest(request, {
+    keyPrefix: 'api_onboarding_by_email_post',
+    limit: 40,
+    windowMs: 60_000,
+    message:
+      'Has realizado demasiadas validaciones de correo. Espera un momento e inténtalo nuevamente.',
+  });
+  if (limited) return limited;
+
   try {
     const body = (await request.json().catch(() => ({}))) as { email?: string };
     const email = String(body.email || '')

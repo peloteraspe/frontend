@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { log } from '@src/core/lib/logger';
+import { rateLimitByRequest } from '@core/api/rateLimit';
 
 function listSupabaseAuthCookieNames(request: NextRequest) {
   const namesFromRequest = request.cookies
@@ -88,6 +89,14 @@ function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse) 
 }
 
 export async function GET(request: NextRequest) {
+  const limited = await rateLimitByRequest(request, {
+    keyPrefix: 'auth_signout_get',
+    limit: 30,
+    windowMs: 60_000,
+    message: 'Demasiados intentos de cierre de sesión. Espera un momento e inténtalo nuevamente.',
+  });
+  if (limited) return limited;
+
   const supabase = await getServerSupabase();
   const response = NextResponse.redirect(new URL('/login', request.url));
 
@@ -103,6 +112,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const limited = await rateLimitByRequest(request, {
+    keyPrefix: 'auth_signout_post',
+    limit: 30,
+    windowMs: 60_000,
+    message: 'Demasiados intentos de cierre de sesión. Espera un momento e inténtalo nuevamente.',
+  });
+  if (limited) return limited;
+
   const supabase = await getServerSupabase();
   const response = NextResponse.json({ ok: true });
 
