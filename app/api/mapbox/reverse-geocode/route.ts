@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { fetchWithTimeout, isAbortError } from '@core/api/backend';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -19,23 +20,40 @@ export async function GET(request: Request) {
 
   const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&language=es&limit=1`;
 
-  const response = await fetch(endpoint, { cache: 'no-store' });
-  const body = await response.json();
+  try {
+    const response = await fetchWithTimeout(endpoint, { cache: 'no-store' }, 4000);
+    const body = await response.json();
 
-  if (!response.ok) {
-    return NextResponse.json({ error: body?.message || 'Error de reverse geocoding.' }, { status: 502 });
-  }
+    if (!response.ok) {
+      return NextResponse.json({ error: body?.message || 'Error de reverse geocoding.' }, { status: 502 });
+    }
 
-  const feature = body?.features?.[0];
+    const feature = body?.features?.[0];
 
-  return NextResponse.json(
-    {
-      data: {
-        placeName: feature?.place_name ?? '',
-        center: feature?.center ?? [lng, lat],
-        context: feature?.context ?? [],
+    return NextResponse.json(
+      {
+        data: {
+          placeName: feature?.place_name ?? '',
+          center: feature?.center ?? [lng, lat],
+          context: feature?.context ?? [],
+        },
       },
-    },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (error) {
+    if (isAbortError(error)) {
+      return NextResponse.json(
+        {
+          data: {
+            placeName: '',
+            center: [lng, lat],
+            context: [],
+          },
+          timeout: true,
+        },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+    return NextResponse.json({ error: 'No se pudo consultar reverse geocoding.' }, { status: 502 });
+  }
 }

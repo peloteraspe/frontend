@@ -9,8 +9,35 @@ type CardEventListProps = {
   showViewAll?: boolean;
 };
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => {
+        if (timer) clearTimeout(timer);
+        reject(timeoutError);
+      }, timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 const CardEventList = async ({ previewCount, showViewAll = true }: CardEventListProps) => {
-  const events = await getEventsExplorer();
+  let events: Awaited<ReturnType<typeof getEventsExplorer>> = [];
+  try {
+    events = await withTimeout(
+      getEventsExplorer(),
+      4500,
+      new Error('CardEventList getEventsExplorer timeout')
+    );
+  } catch (error) {
+    log.warn('Landing events query timed out; using empty featured list fallback', 'CARD_EVENT_LIST', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   const featuredEvents = Array.isArray(events) ? events.filter((event) => event.isFeatured) : [];
   const cardEvents = typeof previewCount === 'number'
     ? featuredEvents.slice(0, previewCount)

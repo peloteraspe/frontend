@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { fetchWithTimeout, isAbortError } from '@core/api/backend';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -21,18 +22,28 @@ export async function GET(request: Request) {
     encodeURIComponent(q) +
     `.json?access_token=${token}&autocomplete=true&types=address,place,poi&language=es&limit=5&country=PE`;
 
-  const response = await fetch(endpoint, { cache: 'no-store' });
-  const body = await response.json();
+  try {
+    const response = await fetchWithTimeout(endpoint, { cache: 'no-store' }, 4000);
+    const body = await response.json();
 
-  if (!response.ok) {
-    return NextResponse.json({ error: body?.message || 'Error de geocodificación.' }, { status: 502 });
+    if (!response.ok) {
+      return NextResponse.json({ error: body?.message || 'Error de geocodificación.' }, { status: 502 });
+    }
+
+    const data = (body?.features || []).map((feature: any) => ({
+      id: feature.id,
+      placeName: feature.place_name,
+      center: feature.center,
+    }));
+
+    return NextResponse.json({ data }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    if (isAbortError(error)) {
+      return NextResponse.json(
+        { data: [], timeout: true },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+    return NextResponse.json({ error: 'No se pudo consultar geocodificación.' }, { status: 502 });
   }
-
-  const data = (body?.features || []).map((feature: any) => ({
-    id: feature.id,
-    placeName: feature.place_name,
-    center: feature.center,
-  }));
-
-  return NextResponse.json({ data }, { headers: { 'Cache-Control': 'no-store' } });
 }

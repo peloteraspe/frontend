@@ -4,19 +4,35 @@ export function backendUrl(path: string) {
   return `${base}${path}`;
 }
 
-export async function backendFetch(input: string, init?: RequestInit, ms = 8000) {
+export function isAbortError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const maybe = error as { name?: string };
+  return maybe.name === 'AbortError';
+}
+
+export async function fetchWithTimeout(input: string, init?: RequestInit, ms = 8000) {
   const ctrl = new AbortController();
   const to = setTimeout(() => ctrl.abort(), ms);
   try {
     return await fetch(input, {
       ...init,
-      cache: 'no-store',
       signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
     });
   } finally {
     clearTimeout(to);
   }
+}
+
+export async function backendFetch(input: string, init?: RequestInit, ms = 8000) {
+  return fetchWithTimeout(
+    input,
+    {
+      ...init,
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    },
+    ms
+  );
 }
 
 export async function backendJson<T>(path: string, init?: RequestInit, ms = 8000): Promise<T> {

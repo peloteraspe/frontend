@@ -140,7 +140,7 @@ export default function SignupClient() {
 
       if (response.status === 503) {
         const body = (await response.json().catch(() => ({}))) as { code?: string };
-        if (body.code === 'ADMIN_LOOKUP_UNAVAILABLE') {
+        if (body.code === 'ADMIN_LOOKUP_UNAVAILABLE' || body.code === 'ADMIN_LOOKUP_TIMEOUT') {
           return { available: true as const, reason: 'lookup_unavailable' as const };
         }
       }

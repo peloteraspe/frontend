@@ -9,6 +9,23 @@ import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
 import { CreateEventPayload, EventEntity } from '@modules/events/model/types';
 
+const EVENTS_TIMEOUT_MS = 4500;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => {
+        if (timer) clearTimeout(timer);
+        reject(timeoutError);
+      }, timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 function isVerified(value: unknown) {
   return value === true || value === 'true';
 }
@@ -141,10 +158,27 @@ export async function GET(request: Request) {
   if (limited) return limited;
 
   try {
-    const [events, catalogs] = await Promise.all([getEventsExplorer(), getEventCatalogs()]);
+    const [events, catalogs] = await withTimeout(
+      Promise.all([getEventsExplorer(), getEventCatalogs()]),
+      EVENTS_TIMEOUT_MS,
+      new Error('Events catalog query timeout')
+    );
     const data = applyFilters(events, request.url);
     return NextResponse.json({ data, catalogs }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: any) {
+    if (error instanceof Error && error.message === 'Events catalog query timeout') {
+      return NextResponse.json(
+        {
+          data: [],
+          catalogs: {
+            eventTypes: [],
+            levels: [],
+          },
+          degraded: true,
+        },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
     return NextResponse.json({ error: error.message || 'No se pudo listar eventos.' }, { status: 500 });
   }
 }

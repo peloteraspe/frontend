@@ -1,6 +1,7 @@
 import 'server-only';
 import { createPrivateKey, createSign } from 'crypto';
 import { getAdminSupabase } from '@core/api/supabase.admin';
+import { fetchWithTimeout, isAbortError } from '@core/api/backend';
 import { log } from '@core/lib/logger';
 
 const GOOGLE_WALLET_PROVIDER = 'google_wallet';
@@ -379,16 +380,28 @@ async function getGoogleWalletAccessToken(config: GoogleWalletConfig) {
   const signature = signer.sign(createPrivateKey(config.privateKey));
   const assertion = `${unsignedJwt}.${toBase64Url(signature)}`;
 
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion,
-    }),
-  });
+  let tokenResponse: Response;
+  try {
+    tokenResponse = await fetchWithTimeout(
+      'https://oauth2.googleapis.com/token',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          assertion,
+        }),
+      },
+      5000
+    );
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error('Tiempo de espera agotado al solicitar token de Google Wallet.');
+    }
+    throw error;
+  }
 
   const tokenJson = (await tokenResponse.json().catch(() => ({}))) as {
     access_token?: string;
@@ -414,17 +427,26 @@ export async function listGoogleWalletEventClasses(
   }
 
   const token = await getGoogleWalletAccessToken(resolvedConfig);
-  const response = await fetch(
-    `https://walletobjects.googleapis.com/walletobjects/v1/eventTicketClass?issuerId=${encodeURIComponent(
-      resolvedConfig.issuerId
-    )}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(
+      `https://walletobjects.googleapis.com/walletobjects/v1/eventTicketClass?issuerId=${encodeURIComponent(
+        resolvedConfig.issuerId
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: 'no-store',
       },
-      cache: 'no-store',
+      5000
+    );
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error('Tiempo de espera agotado al listar clases de Google Wallet.');
     }
-  );
+    throw error;
+  }
 
   const body = (await response.json().catch(() => ({}))) as {
     resources?: Array<{

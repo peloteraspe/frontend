@@ -34,6 +34,21 @@ async function findAuthUserByEmail(email: string) {
   return { user: null as AdminAuthUser | null, error: null as null };
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => {
+        if (timer) clearTimeout(timer);
+        reject(timeoutError);
+      }, timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 export async function POST(request: Request) {
   const limited = await rateLimitByRequest(request, {
     keyPrefix: 'api_onboarding_by_email_post',
@@ -64,7 +79,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const { user: authUser, error: authError } = await findAuthUserByEmail(email);
+    let lookupResult:
+      | {
+          user: AdminAuthUser | null;
+          error: any;
+        }
+      | null = null;
+
+    try {
+      lookupResult = await withTimeout(
+        findAuthUserByEmail(email),
+        4000,
+        new Error('Onboarding lookup timeout')
+      );
+    } catch (lookupError: any) {
+      if (lookupError?.message === 'Onboarding lookup timeout') {
+        return NextResponse.json(
+          {
+            error: 'Onboarding lookup timed out',
+            code: 'ADMIN_LOOKUP_TIMEOUT',
+          },
+          { status: 503 }
+        );
+      }
+      throw lookupError;
+    }
+
+    const { user: authUser, error: authError } = lookupResult;
     if (authError) {
       return NextResponse.json({ error: authError.message }, { status: 500 });
     }
