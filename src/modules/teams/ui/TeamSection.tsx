@@ -26,7 +26,7 @@ export default function TeamSection({ currentUserId }: { currentUserId: string }
 
           <button
             onClick={() => setOpen(true)}
-            className="inline-flex items-center justify-center rounded-xl bg-btnBg-light px-4 py-[0.60rem] text-sm font-semibold uppercase text-white transition hover:bg-btnBg-dark hover:shadow"
+            className="inline-flex items-center justify-center rounded-xl bg-btnBg-light px-4 py-2.5 text-sm font-semibold uppercase text-white transition-colors hover:bg-btnBg-dark hover:shadow"
           >
             Crear equipo
           </button>

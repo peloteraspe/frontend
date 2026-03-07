@@ -117,7 +117,7 @@ export default function ProfileUpdateForm({
         </div>
         <button
           type="submit"
-          className="px-4 py-[0.60rem] bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border"
+          className="px-4 py-2.5 bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border transition-colors"
           style={{ minWidth: '160px' }}
           disabled={isLoading}
         >

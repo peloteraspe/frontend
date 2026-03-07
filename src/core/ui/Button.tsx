@@ -60,7 +60,7 @@ export const ButtonWrapper: React.FC<ButtonWrapperProps> = ({
       type={(htmlType as any) ?? (type as any) ?? 'button'}
       className={[
         buttonWidth,
-        'px-3 py-[0.75rem] font-semibold text-white rounded-xl my-0 flex justify-center items-center relative box-border',
+        'px-4 py-3 font-semibold text-white rounded-xl my-0 flex justify-center items-center relative box-border transition-colors',
         disabled ? baseDisabled : baseEnabled,
         className ?? '',
       ].join(' ')}
@@ -111,7 +111,7 @@ export const ButtonWrapperOutline: React.FC<ButtonWrapperProps> = ({
       type={(htmlType as any) ?? (type as any) ?? 'button'}
       className={[
         buttonWidth,
-        `px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light border-2 border-btnBg-light hover:border-btnBg-dark hover:text-btnBg-dark rounded-xl my-0 mx-2 flex justify-center items-center relative box-border`,
+        `px-4 py-3 ${bg} font-semibold text-btnBg-light border-2 border-btnBg-light hover:border-btnBg-dark hover:text-btnBg-dark rounded-xl my-0 mx-2 flex justify-center items-center relative box-border transition-colors`,
         disabled ? 'cursor-auto' : 'cursor-pointer',
         className ?? '',
       ].join(' ')}
@@ -151,7 +151,7 @@ export const ButtonUnWrapperOutline: React.FC<ButtonWrapperProps> = ({
       type={(htmlType as any) ?? (type as any) ?? 'button'}
       className={[
         buttonWidth,
-        `px-3 py-[0.75rem] ${bg} font-semibold text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark rounded-xl my-0 flex justify-center items-center relative box-border`,
+        `px-4 py-3 ${bg} font-semibold text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark rounded-xl my-0 flex justify-center items-center relative box-border transition-colors`,
         disabled ? 'cursor-auto' : 'cursor-pointer',
         className ?? '',
       ].join(' ')}
@@ -166,11 +166,17 @@ export const ButtonUnWrapperOutline: React.FC<ButtonWrapperProps> = ({
   );
 };
 
-const colorClassMap: Record<string, { text: string; border: string }> = {
-  primary: { text: 'text-primary', border: 'border-primary' },
-  mulberry: { text: 'text-mulberry', border: 'border-mulberry' },
-  plum: { text: 'text-plum', border: 'border-plum' },
-  white: { text: 'text-white', border: 'border-white' },
+const colorClassMap: Record<string, { text: string; border: string; bg?: string }> = {
+  // Colores de marca
+  primary: { text: 'text-primary', border: 'border-primary', bg: 'bg-primary' },
+  mulberry: { text: 'text-mulberry', border: 'border-mulberry', bg: 'bg-mulberry' },
+  plum: { text: 'text-plum', border: 'border-plum', bg: 'bg-plum' },
+  white: { text: 'text-white', border: 'border-white', bg: 'bg-white' },
+  // Estados semanticos
+  success: { text: 'text-success-foreground', border: 'border-success', bg: 'bg-success' },
+  warning: { text: 'text-warning-foreground', border: 'border-warning', bg: 'bg-warning' },
+  error: { text: 'text-error-foreground', border: 'border-error', bg: 'bg-error' },
+  info: { text: 'text-info-foreground', border: 'border-info', bg: 'bg-info' },
 };
 
 export const ButtonHover: React.FC<ButtonWrapperProps> = ({
@@ -200,7 +206,7 @@ export const ButtonHover: React.FC<ButtonWrapperProps> = ({
       type={(htmlType as any) ?? (type as any) ?? 'button'}
       className={[
         buttonWidth,
-        `px-3 py-[0.75rem] ${bg} font-semibold ${colorClasses.text} hover:border-2 ${colorClasses.border} rounded-xl my-0 mx-2 flex justify-center items-center relative box-border`,
+        `px-4 py-3 ${bg} font-semibold ${colorClasses.text} hover:border-2 ${colorClasses.border} rounded-xl my-0 mx-2 flex justify-center items-center relative box-border transition-colors`,
         disabled ? 'cursor-auto' : 'cursor-pointer',
         className ?? '',
       ].join(' ')}

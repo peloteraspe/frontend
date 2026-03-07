@@ -46,7 +46,7 @@ const animatedComponents = makeAnimated();
 const MULBERRY = '#5b1c70';
 const MULBERRY_DARK = '#4a175f';
 const BORDER_DEFAULT = MULBERRY;
-const BORDER_ERROR = '#ef4444';
+const BORDER_ERROR = '#EF4444'; // --color-error
 const TEXT_DEFAULT = '#111827';
 const TEXT_MUTED = '#6b7280';
 const BG_WHITE = '#ffffff';
@@ -259,7 +259,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
         <div className="mb-1">
           <ParagraphM fontWeight="semibold">
             {labelText}
-            {required && <span className="text-red-500"> *</span>}
+            {required && <span className="text-error"> *</span>}
           </ParagraphM>
         </div>
       )}
@@ -277,7 +277,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
       )}
 
       {hasError && (
-        <span className="text-sm text-red-500 mt-1 inline-block">
+        <span className="text-sm text-error mt-1 inline-block">
           {errorText || 'Este campo es requerido'}
         </span>
       )}

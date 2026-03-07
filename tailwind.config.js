@@ -39,6 +39,44 @@ module.exports = {
         plum: '#744D7C',
         inputBg: '#F1F3F5',
         clear: '#C03C84',
+        // Tokens semanticos para estados
+        success: {
+          DEFAULT: '#10B981',
+          light: '#D1FAE5',
+          dark: '#059669',
+          foreground: '#065F46',
+        },
+        warning: {
+          DEFAULT: '#F59E0B',
+          light: '#FEF3C7',
+          dark: '#D97706',
+          foreground: '#92400E',
+        },
+        error: {
+          DEFAULT: '#EF4444',
+          light: '#FEE2E2',
+          dark: '#DC2626',
+          foreground: '#991B1B',
+        },
+        info: {
+          DEFAULT: '#3B82F6',
+          light: '#DBEAFE',
+          dark: '#2563EB',
+          foreground: '#1E40AF',
+        },
+      },
+      // Estandarizar border-radius (solo 3 valores)
+      borderRadius: {
+        DEFAULT: '0.5rem',    // 8px - para inputs, badges pequenos
+        lg: '0.75rem',        // 12px - para cards, contenedores
+        xl: '1rem',           // 16px - para botones, modales
+        '2xl': '1.25rem',     // 20px - para hero sections
+        full: '9999px',       // pills, avatares
+      },
+      // Escala de espaciado consistente (base 4px)
+      spacing: {
+        '4.5': '1.125rem',    // 18px
+        '5.5': '1.375rem',    // 22px
       },
     },
   },

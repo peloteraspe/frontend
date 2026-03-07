@@ -55,7 +55,7 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
                 </Link>
                 <Link
                   href="/signUp"
-                  className="px-4 py-[0.60rem] bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border"
+                  className="px-4 py-2.5 bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border transition-colors"
                 >
                   <ButtonM color="text-white">Unirme a un evento</ButtonM>
                 </Link>
@@ -110,7 +110,7 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
                 </Link>
                 <Link
                   href="/signUp"
-                  className="px-4 py-[0.60rem] bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border"
+                  className="px-4 py-2.5 bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border transition-colors"
                 >
                   <ButtonM color="text-white">Unirme a un evento</ButtonM>
                 </Link>

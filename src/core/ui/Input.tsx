@@ -26,7 +26,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         <div className="mb-1">
           <ParagraphM fontWeight="semibold">
             {label}
-            {required && <span className="text-red-500"> *</span>}
+            {required && <span className="text-error"> *</span>}
           </ParagraphM>
         </div>
       )}
@@ -38,7 +38,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
             'w-full h-12 rounded-lg border-2 px-4 focus:outline-none focus:border-mulberry focus:ring-0',
             isPasswordField || icon ? 'pr-12' : '',
             bgColor,
-            hasError ? 'border-red-500' : 'border-mulberry',
+            hasError ? 'border-error' : 'border-mulberry',
             className || '',
           ].join(' ')}
           {...rest}
@@ -64,7 +64,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       </div>
 
       {hasError && (
-        <span className="text-sm text-red-500">{errorText || 'Este campo es requerido'}</span>
+        <span className="text-sm text-error">{errorText || 'Este campo es requerido'}</span>
       )}
     </label>
   );
