@@ -262,31 +262,44 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
         {geoError && <p className="text-sm text-red-600">{geoError}</p>}
       </div>
 
-      <div className="mb-4 flex items-center gap-2 xl:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileView('list')}
-          className={[
-            'h-10 rounded-lg px-3 text-sm font-semibold',
-            mobileView === 'list'
-              ? 'bg-[#54086F] text-white'
-              : 'border border-slate-300 bg-white text-slate-700',
-          ].join(' ')}
-        >
-          Lista
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileView('map')}
-          className={[
-            'h-10 rounded-lg px-3 text-sm font-semibold',
-            mobileView === 'map'
-              ? 'bg-[#54086F] text-white'
-              : 'border border-slate-300 bg-white text-slate-700',
-          ].join(' ')}
-        >
-          Mapa
-        </button>
+      {/* Toggle Vista Lista/Mapa - Solo mobile/tablet */}
+      <div className="mb-4 xl:hidden">
+        <div className="inline-flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Cambiar vista">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobileView === 'list'}
+            onClick={() => setMobileView('list')}
+            className={[
+              'flex items-center gap-2 h-10 rounded-lg px-4 text-sm font-semibold transition-all duration-200',
+              mobileView === 'list'
+                ? 'bg-mulberry text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900',
+            ].join(' ')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+              <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+            </svg>
+            Lista
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobileView === 'map'}
+            onClick={() => setMobileView('map')}
+            className={[
+              'flex items-center gap-2 h-10 rounded-lg px-4 text-sm font-semibold transition-all duration-200',
+              mobileView === 'map'
+                ? 'bg-mulberry text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900',
+            ].join(' ')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+              <path fillRule="evenodd" d="M8.157 2.176a1.5 1.5 0 00-1.147 0l-4.084 1.69A1.5 1.5 0 002 5.25v10.877a1.5 1.5 0 002.074 1.386l3.51-1.452 4.26 1.762a1.5 1.5 0 001.146 0l4.083-1.69A1.5 1.5 0 0018 14.75V3.872a1.5 1.5 0 00-2.073-1.386l-3.51 1.452-4.26-1.762zM7.58 5a.75.75 0 01.75.75v6.5a.75.75 0 01-1.5 0v-6.5A.75.75 0 017.58 5zm5.59 2.75a.75.75 0 00-1.5 0v6.5a.75.75 0 001.5 0v-6.5z" clipRule="evenodd" />
+            </svg>
+            Mapa
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(740px,820px)_minmax(520px,1fr)]">

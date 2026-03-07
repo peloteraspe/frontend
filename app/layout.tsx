@@ -8,6 +8,7 @@ import AuthProvider from '@core/auth/AuthProvider';
 import AppShell from '@app/_components/AppShell';
 import { NavBar } from './_components/NavBar';
 import Footer from '@src/core/ui/Footer';
+import BottomNavigation from './_components/BottomNavigation';
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -82,11 +83,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       >
         <AuthProvider>
           {/* <AppShell>{children}</AppShell> */}
-          <main className="flex-1 w-full flex flex-col items-center min-h-screen">
+          <main className="flex-1 w-full flex flex-col items-center min-h-screen pb-16 md:pb-0">
             <NavBar />
             {children}
             <Footer />
           </main>
+          <BottomNavigation />
           <Toaster />
 
           {/* Auth debugger for development */}
