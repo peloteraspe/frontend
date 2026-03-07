@@ -91,7 +91,14 @@ const CardEvent: React.FC<CardEventProps> = ({
               {textLocation}
             </div>
           </SubtitleS>
-          <div className="flex justify-start gap-1 max-w-[92vw] sm:max-w-none overflow-scroll sm:overflow-hidden">
+          <div
+            className={[
+              'flex justify-start gap-1',
+              compact
+                ? 'max-w-full overflow-x-auto pr-1'
+                : 'max-w-[92vw] sm:max-w-none overflow-x-auto sm:overflow-hidden',
+            ].join(' ')}
+          >
             {badge?.map((b) => b)}
           </div>
         </div>

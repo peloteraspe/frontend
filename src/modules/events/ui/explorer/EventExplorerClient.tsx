@@ -294,7 +294,6 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           <EventListPanel
             events={events}
             selectedEventId={selectedEventId}
-            onSelectEvent={(id) => setSelectedEventId(id)}
             hoveredEventId={hoveredEventId}
             onHoverEvent={setHoveredEventId}
             isLoading={loading}

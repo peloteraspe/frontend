@@ -12,7 +12,6 @@ import { formattedPrice } from '@shared/lib/utils';
 type Props = {
   events: EventEntity[];
   selectedEventId: string | null;
-  onSelectEvent: (id: string) => void;
   hoveredEventId: string | null;
   onHoverEvent: (id: string | null) => void;
   isLoading?: boolean;
@@ -21,13 +20,11 @@ type Props = {
 function EventCardSameAsLanding({
   event,
   isActive,
-  onSelect,
   onHover,
   onLeave,
 }: {
   event: EventEntity;
   isActive: boolean;
-  onSelect: () => void;
   onHover: () => void;
   onLeave: () => void;
 }) {
@@ -35,7 +32,7 @@ function EventCardSameAsLanding({
 
   return (
     <div
-      onClick={onSelect}
+      onClick={() => router.push(`/events/${event.id}`)}
       onMouseEnter={onHover}
       onMouseLeave={onLeave}
       className={isActive ? 'rounded-xl ring-2 ring-[#54086F]/40 ring-offset-2 ring-offset-white' : ''}
@@ -47,6 +44,7 @@ function EventCardSameAsLanding({
         matchText={event.title}
         dateText={event.dateLabel}
         textLocation={event.locationText}
+        compact
         button={
           <ButtonWrapper
             icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
@@ -75,7 +73,6 @@ function EventCardSameAsLanding({
 export default function EventListPanel({
   events,
   selectedEventId,
-  onSelectEvent,
   hoveredEventId,
   onHoverEvent,
   isLoading = false,
@@ -90,7 +87,7 @@ export default function EventListPanel({
 
   return (
     <div
-      className="relative h-[calc(100vh-260px)] min-h-[520px] overflow-y-auto pr-2 [overflow-anchor:none]"
+      className="relative h-auto min-h-0 overflow-visible [overflow-anchor:none] md:h-[76vh] md:min-h-[520px] md:overflow-y-auto md:pr-2 xl:h-[calc(100vh-260px)]"
       aria-busy={isLoading}
     >
       <div className="space-y-5 pb-4 mt-5 ml-1">
@@ -99,7 +96,6 @@ export default function EventListPanel({
             <EventCardSameAsLanding
               event={event}
               isActive={selectedEventId === event.id || hoveredEventId === event.id}
-              onSelect={() => onSelectEvent(event.id)}
               onHover={() => onHoverEvent(event.id)}
               onLeave={() => onHoverEvent(null)}
             />

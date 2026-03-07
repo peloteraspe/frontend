@@ -1,35 +1,33 @@
-"use client";
-import React, { useState, FC } from "react";
+'use client';
+
+import React, { FC, ReactNode, useState } from 'react';
 
 interface CollapseProps {
   title: string;
-  content: string;
-  width?: string;
+  content: ReactNode;
+  width?: 'fit-content' | 'full';
+  defaultOpen?: boolean;
 }
 
-const Collapse: FC<CollapseProps> = ({ title, content, width }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const toggleCollapse = () => {
-    setIsOpen(!isOpen);
-  };
-  const collapseWidth = width === "fit-content" ? "w-fit" : `w-full`;
+const Collapse: FC<CollapseProps> = ({ title, content, width = 'full', defaultOpen = false }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const collapseWidth = width === 'fit-content' ? 'w-fit' : 'w-full';
 
   return (
-    <div className={`${collapseWidth} mt-5`}>
-      <div
-        className="bg-[#744D7C] bg-opacity-5 text-[#54086F] font-bold text-lg px-4 py-2 cursor-pointer rounded-[12px] flex justify-between items-center"
-        onClick={toggleCollapse}
-        style={{ height: "66px" }} // Fixed height regardless of collapse state
+    <div className={collapseWidth}>
+      <button
+        type="button"
+        className="flex min-h-[58px] w-full items-center justify-between rounded-xl border border-[#54086F]/15 bg-[#744D7C]/[0.06] px-4 py-3 text-left text-base font-semibold text-[#54086F]"
+        onClick={() => setIsOpen((current) => !current)}
+        aria-expanded={isOpen}
       >
-        {title}
+        <span>{title}</span>
         <svg
-          className={`w-4 h-4 transition-transform duration-300 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={['h-4 w-4 transition-transform duration-200', isOpen ? 'rotate-180' : ''].join(' ')}
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 20 20"
           fill="currentColor"
+          aria-hidden="true"
         >
           <path
             fillRule="evenodd"
@@ -37,14 +35,15 @@ const Collapse: FC<CollapseProps> = ({ title, content, width }) => {
             clipRule="evenodd"
           />
         </svg>
-      </div>
+      </button>
+
       <div
-        className={`transition-[max-height] duration-700 ease-in-out overflow-hidden ${
-          isOpen ? "max-h-[2000px]" : "max-h-0"
-        }`}
-        style={{ borderRadius: isOpen ? "0 0 12px 12px" : "0" }}
+        className={[
+          'overflow-hidden transition-[max-height,opacity] duration-300 ease-out',
+          isOpen ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0',
+        ].join(' ')}
       >
-        <div className="bg-[#CFC1D2] bg-opacity-5 text-black p-4 rounded-b-lg">
+        <div className="rounded-b-xl border border-t-0 border-[#54086F]/15 bg-[#744D7C]/[0.03] px-4 py-3 text-sm text-slate-700">
           {content}
         </div>
       </div>

@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import Input from '@core/ui/Input';
 import { getBrowserSupabase } from '@core/api/supabase.browser';
+import { authRecoveryUrl } from '@modules/auth/lib/redirect';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -32,7 +33,7 @@ export default function ForgotPasswordPage() {
     try {
       const supabase = getBrowserSupabase();
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: `${window.location.origin}/auth/recovery?next=${encodeURIComponent('/auth/reset-password')}`,
+        redirectTo: authRecoveryUrl('/auth/reset-password'),
       });
 
       if (resetError) {

@@ -20,17 +20,26 @@ export default async function PaymentPage({ id }: { id: string }) {
   if (!data) {
     if (loadError instanceof Error && loadError.message === PAYMENT_METHOD_NOT_CONFIGURED) {
       return (
-        <section className="w-full py-10 px-4 max-w-2xl mx-auto">
-          <h1 className="text-2xl font-bold text-[#54086F]">Pago no disponible</h1>
-          <p className="mt-3 text-gray-700">
-            Este evento aún no tiene un método de pago configurado.
-          </p>
-          <p className="mt-2 text-gray-700">
-            Vuelve en unos minutos o contacta al organizador para habilitar el pago de este evento.
-          </p>
-          <Link href={`/events/${id}`} className="inline-block mt-6 text-[#0EA5E9] hover:underline">
-            Volver al evento
-          </Link>
+        <section className="mx-auto w-full max-w-2xl px-4 py-10">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+            <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+              Información
+            </span>
+            <h1 className="mt-3 text-2xl font-bold text-[#54086F]">Pago no disponible</h1>
+            <p className="mt-3 text-sm text-slate-700 sm:text-base">
+              Este evento aún no tiene un método de pago configurado.
+            </p>
+            <p className="mt-2 text-sm text-slate-700 sm:text-base">
+              Vuelve en unos minutos o contacta al organizador para habilitar el pago.
+            </p>
+
+            <Link
+              href={`/events/${id}`}
+              className="mt-6 inline-flex h-11 items-center justify-center rounded-xl border border-btnBg-light px-4 text-sm font-semibold text-btnBg-light transition hover:bg-btnBg-light hover:text-white"
+            >
+              Volver al evento
+            </Link>
+          </div>
         </section>
       );
     }

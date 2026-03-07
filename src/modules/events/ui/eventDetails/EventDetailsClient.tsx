@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import React from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -16,8 +15,58 @@ import arrowAnotarse from '@core/assets/images/arrow-anotarse.svg';
 import Calendar from '@core/assets/images/calendar.png';
 
 type Props = {
-  data: any; // luego lo tipamos bien
+  data: any;
 };
+
+function extractExtraNames(post: any, event: any) {
+  const candidates = [
+    ...(Array.isArray(event?.featuresData) ? event.featuresData : []),
+    ...(Array.isArray(post?.featuresData) ? post.featuresData : []),
+    ...(Array.isArray(event?.features) ? event.features : []),
+    ...(Array.isArray(post?.features) ? post.features : []),
+    ...(Array.isArray(event?.extras) ? event.extras : []),
+    ...(Array.isArray(post?.extras) ? post.extras : []),
+  ];
+
+  const names = candidates
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (!item || typeof item !== 'object') return '';
+      const value =
+        (item as any)?.feature?.name ??
+        (item as any)?.name ??
+        (item as any)?.label ??
+        (item as any)?.title ??
+        '';
+      return String(value).trim();
+    })
+    .filter(Boolean);
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+
+  names.forEach((name) => {
+    const key = name.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    unique.push(name);
+  });
+
+  return unique;
+}
+
+function toNumber(value: unknown, fallback = 0) {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function toText(value: unknown, fallback = '') {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  return fallback;
+}
 
 export default function EventDetailsClient({ data }: Props) {
   const post = data;
@@ -26,7 +75,49 @@ export default function EventDetailsClient({ data }: Props) {
 
   if (!post) return <div>No se encuentra el evento</div>;
 
-  const event = post.event ?? post; // por si a veces viene plano
+  const event = post.event ?? post;
+  const extras = extractExtraNames(post, event);
+
+  const eventTitle = toText(event?.title ?? event?.description?.title, 'Evento sin título');
+  const eventDescription =
+    typeof event?.description === 'string'
+      ? toText(event.description, 'Sin descripción registrada.')
+      : toText(event?.description?.description, 'Sin descripción registrada.');
+
+  const organizer = toText(event?.created_by ?? event?.createdBy, 'Peloteras');
+  const locationText = toText(event?.location_text ?? event?.locationText, 'Ubicación por confirmar');
+
+  const startTimeIso = event?.start_time ?? event?.startTime ?? null;
+  const startDate = startTimeIso ? new Date(startTimeIso) : null;
+  const formattedDate =
+    startDate && !Number.isNaN(startDate.getTime())
+      ? startDate.toLocaleString('es-PE', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+      : 'Fecha por confirmar';
+  const shortDate =
+    startDate && !Number.isNaN(startDate.getTime())
+      ? startDate.toLocaleDateString('es-PE', {
+          day: 'numeric',
+          month: 'short',
+        })
+      : 'Fecha por confirmar';
+
+  const price = toNumber(event?.price, 0);
+  const minUsers = toNumber(event?.min_users ?? event?.minUsers, 0);
+  const maxUsers = toNumber(event?.max_users ?? event?.maxUsers, 0);
+
+  const lat = toNumber(event?.location?.lat, 0);
+  const lng = toNumber(event?.location?.lng ?? event?.location?.long, 0);
+  const hasLocation = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+
+  const assistants = Array.isArray(post?.assistants) ? post.assistants : [];
+  const occupancyText = maxUsers > 0 ? `${assistants.length}/${maxUsers}` : `${assistants.length}`;
 
   const handleJoinClick = () => {
     if (!user) {
@@ -41,192 +132,169 @@ export default function EventDetailsClient({ data }: Props) {
   };
 
   return (
-    <div className="md:flex md:justify-between" data-sticky-container>
-      {/* Sidebar (mobile back) */}
-      <div className="mb-4 sm:hidden">
-        <Link className="text-[#54086F] font-medium" href="/">
-          <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-[#54086F] transition duration-150 ease-in-out">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth="1.5"
-              stroke="currentColor"
-              className="w-6 h-6"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
-              />
-            </svg>
-            Todos los partidos
-          </span>{' '}
+    <div className="py-6 md:py-10">
+      <div className="mb-5">
+        <Link
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-[#54086F]"
+          href="/"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth="1.5"
+            stroke="currentColor"
+            className="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
+            />
+          </svg>
+          Todos los partidos
         </Link>
       </div>
 
-      <h1 className="text-4xl font-extrabold font-inter mb-10 sm:hidden">{event.title}</h1>
-
-      <aside className="mb-8 md:mb-0 md:w-64 lg:w-72 md:ml-12 lg:ml-20 md:shrink-0 md:order-1">
-        <div data-sticky data-margin-top="32" data-sticky-for="768" data-sticky-wrap>
-          <div className="relative bg-gray-50 rounded-xl border border-gray-200 p-5">
-            <div className="text-center mb-6">
-              <div className="text-[#54086F] font-bold mb-4"> por {event.created_by}</div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <main className="order-2 space-y-6 lg:order-1">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <h1 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">{eventTitle}</h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{eventDescription}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Fecha</p>
+                <p className="mt-1 text-sm font-semibold text-slate-800">{shortDate}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Precio</p>
+                <p className="mt-1 text-sm font-semibold text-slate-800">S/ {price.toFixed(2)}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Cupos</p>
+                <p className="mt-1 text-sm font-semibold text-slate-800">{occupancyText}</p>
+              </div>
             </div>
+          </section>
 
-            <div className="flex justify-center md:justify-start mb-5">
-              <ul className="inline-flex flex-col space-y-2">
-                <li className="flex items-center">
-                  <Image className="mr-3" src={Calendar} alt="calendar" width={15} />
-                  <span className="text-sm text-[#54086F]">
-                    {new Date(event.start_time).toLocaleString('es-PE', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true,
-                    })}
-                  </span>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <h2 className="mb-4 text-xl font-bold text-slate-900">Alineación</h2>
+            <SoccerField
+              minUsers={minUsers}
+              maxUsers={maxUsers}
+              onSelect={(position) => console.log('Posición seleccionada:', position)}
+            />
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <div className="space-y-4">
+              <Collapse title="Descripción" content={eventDescription} defaultOpen />
+              <Collapse
+                title="Extras"
+                content={
+                  extras.length ? (
+                    <ul className="flex flex-wrap gap-2">
+                      {extras.map((extra) => (
+                        <li
+                          key={extra}
+                          className="rounded-full border border-[#54086F]/20 bg-[#54086F]/5 px-3 py-1 text-xs font-semibold text-[#54086F]"
+                        >
+                          {extra}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    'Sin extras registrados.'
+                  )
+                }
+              />
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <h3 className="mb-3 text-xl font-bold text-slate-900">Ubicación</h3>
+            {hasLocation ? (
+              <Map lat={lat} lng={lng} />
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
+                Este evento aún no tiene coordenadas válidas para mostrar el mapa.
+              </div>
+            )}
+          </section>
+        </main>
+
+        <aside className="order-1 lg:order-2">
+          <div className="space-y-4 lg:sticky lg:top-24">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Detalle del evento</p>
+              <p className="mt-1 text-base font-semibold text-[#54086F]">Organiza: {organizer}</p>
+
+              <ul className="mt-4 space-y-3 text-sm text-slate-700">
+                <li className="flex items-start gap-2">
+                  <Image className="mt-0.5" src={Calendar} alt="calendar" width={15} />
+                  <span>{formattedDate}</span>
                 </li>
 
-                <li className="flex items-center">
+                <li className="flex items-start gap-2">
                   <svg
-                    className="shrink-0 fill-[#54086F] mr-3"
-                    width="14"
-                    height="16"
-                    xmlns="http://www.w3.org/2000/svg"
+                    className="mt-0.5 h-4 w-4 shrink-0 fill-[#54086F]"
+                    viewBox="0 0 14 16"
+                    aria-hidden="true"
                   >
                     <circle cx="7" cy="7" r="2" />
                     <path d="M6.3 15.7c-.1-.1-4.2-3.7-4.2-3.8C.7 10.7 0 8.9 0 7c0-3.9 3.1-7 7-7s7 3.1 7 7c0 1.9-.7 3.7-2.1 5-.1.1-4.1 3.7-4.2 3.8-.4.3-1 .3-1.4-.1Zm-2.7-5 3.4 3 3.4-3c1-1 1.6-2.2 1.6-3.6 0-2.8-2.2-5-5-5S2 4.2 2 7c0 1.4.6 2.7 1.6 3.7 0-.1 0-.1 0 0Z" />
                   </svg>
-                  <span className="text-sm text-[#54086F]">{event.location_text}</span>
+                  <span>{locationText}</span>
                 </li>
 
-                <li className="flex items-center">
+                <li className="flex items-start gap-2">
                   <svg
-                    className="shrink-0 fill-[#54086F] mr-3"
-                    width="16"
-                    height="12"
-                    xmlns="http://www.w3.org/2000/svg"
+                    className="mt-0.5 h-3.5 w-4 shrink-0 fill-[#54086F]"
+                    viewBox="0 0 16 12"
+                    aria-hidden="true"
                   >
                     <path d="M15 0H1C.4 0 0 .4 0 1v10c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V1c0-.6-.4-1-1-1Zm-1 10H2V2h12v8Z" />
                     <circle cx="8" cy="6" r="2" />
                   </svg>
-                  <span className="text-sm text-[#54086F]">S/ {event.price}</span>
+                  <span>S/ {price.toFixed(2)}</span>
                 </li>
               </ul>
+
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Participantes</p>
+                <p className="mt-1 text-sm font-semibold text-slate-800">{occupancyText} inscritas</p>
+              </div>
+
+              <div className="mt-5">
+                <ButtonWrapper
+                  onClick={handleJoinClick}
+                  icon={<Image src={arrowAnotarse} alt="arrow" width={24} height={24} />}
+                  className="!my-0"
+                >
+                  Anotarme
+                </ButtonWrapper>
+              </div>
             </div>
 
-            <ButtonWrapper
-              onClick={handleJoinClick}
-              icon={<Image src={arrowAnotarse} alt="arrow" width={24} height={24} />}
-            >
-              Anotarme
-            </ButtonWrapper>
-          </div>
-
-          {Array.isArray(post.assistants) && (
             <Collapse
-              title="Participantes"
-              content={post.assistants.map((assistant: any) => (
-                <ol key={assistant.id ?? assistant.username} style={{ listStyleType: 'decimal' }}>
-                  <li>{assistant.username}</li>
-                </ol>
-              ))}
+              title={`Participantes (${assistants.length})`}
+              content={
+                assistants.length ? (
+                  <ol className="list-decimal space-y-1 pl-5">
+                    {assistants.map((assistant: any, index: number) => {
+                      const name = toText(assistant?.username ?? assistant?.name, 'Participante');
+                      const key = String(assistant?.id ?? `${name}-${index}`);
+                      return <li key={key}>{name}</li>;
+                    })}
+                  </ol>
+                ) : (
+                  'Aún no hay participantes confirmados.'
+                )
+              }
             />
-          )}
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <div className="md:grow">
-        <div className="pb-8">
-          <div className="mb-4 hidden sm:block">
-            <Link className="text-[#54086F] font-medium" href="/">
-              <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-[#54086F] transition duration-150 ease-in-out">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                  className="w-6 h-6"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
-                  />
-                </svg>
-                Todos los partidos
-              </span>{' '}
-            </Link>
           </div>
-
-          <h1 className="text-4xl font-extrabold font-inter mb-10 hidden sm:block">
-            {event.description?.title}
-          </h1>
-
-          <SoccerField
-            minUsers={event.min_users}
-            maxUsers={event.max_users}
-            onSelect={(pos) => console.log('Posición seleccionada:', pos)}
-          />
-
-          <div className="space-y-8 mb-8">
-            <Collapse title="Descripción" content={event.description?.description ?? ''} />
-            <Collapse title="Extras" content={''} />
-          </div>
-
-          <div className="mb-8">
-            <h3 className="text-xl font-bold text-gray-800 mb-3">Ubicación</h3>
-            {/* OJO: en tu data original usabas long */}
-            <Map lat={event.location?.lat} lng={event.location?.long} />
-          </div>
-
-          {/* Social share (igual que el primero) */}
-          <div className="flex items-center justify-end space-x-4">
-            <div className="text-xl font-nycd text-gray-400">Compartir partido</div>
-            <ul className="inline-flex space-x-3">
-              <li>
-                <a
-                  className="flex justify-center items-center text-[#54086F] bg-indigo-100 hover:text-white hover:bg-[#54086F] rounded-full transition duration-150 ease-in-out"
-                  href="#0"
-                  aria-label="Twitter"
-                >
-                  <svg className="w-8 h-8 fill-current" viewBox="0 0 32 32">
-                    <path d="m13.063 9 3.495 4.475L20.601 9h2.454l-5.359 5.931L24 23h-4.938l-3.866-4.893L10.771 23H8.316l5.735-6.342L8 9h5.063Zm-.74 1.347h-1.457l8.875 11.232h1.36l-8.778-11.232Z" />
-                  </svg>
-                </a>
-              </li>
-              <li>
-                <a
-                  className="flex justify-center items-center text-[#54086F] bg-indigo-100 hover:text-white hover:bg-[#54086F] rounded-full transition duration-150 ease-in-out"
-                  href="#0"
-                  aria-label="Facebook"
-                >
-                  <svg className="w-8 h-8 fill-current" viewBox="0 0 32 32">
-                    <path d="M14.023 24 14 17h-3v-3h3v-2c0-2.7 1.672-4 4.08-4 1.153 0 2.144.086 2.433.124v2.821h-1.67c-1.31 0-1.563.623-1.563 1.536V14H21l-1 3h-2.72v7h-3.257Z" />
-                  </svg>
-                </a>
-              </li>
-              <li>
-                <a
-                  className="flex justify-center items-center text-[#54086F] bg-indigo-100 hover:text-white hover:bg-[#54086F] rounded-full transition duration-150 ease-in-out"
-                  href="#0"
-                  aria-label="Telegram"
-                >
-                  <svg className="w-8 h-8 fill-current" viewBox="0 0 32 32">
-                    <path d="M22.968 10.276a.338.338 0 0 0-.232-.253 1.192 1.192 0 0 0-.63.045s-14.019 5.038-14.82 5.596c-.172.121-.23.19-.259.272-.138.4.293.573.293.573l3.613 1.177a.388.388 0 0 0 .183-.011c.822-.519 8.27-5.222 8.7-5.38.068-.02.118 0 .1.049-.172.6-6.606 6.319-6.64 6.354a.138.138 0 0 0-.05.118l-.337 3.528s-.142 1.1.956 0a30.66 30.66 0 0 1 1.9-1.738c1.242.858 2.58 1.806 3.156 2.3a1 1 0 0 0 .732.283.825.825 0 0 0 .7-.622s2.561-10.275 2.646-11.658c.008-.135.021-.217.021-.317a1.177 1.177 0 0 0-.032-.316Z" />
-                  </svg>
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div>{/* <Newsletter /> */}</div>
+        </aside>
       </div>
     </div>
   );

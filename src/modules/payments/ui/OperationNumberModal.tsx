@@ -2,31 +2,52 @@
 import React from 'react';
 import Image from 'next/image';
 
-const OperationNumberModal = ({ isOpen, onClose, imageSrc }: any) => {
+type OperationNumberModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  imageSrc: any;
+};
+
+const OperationNumberModal = ({ isOpen, onClose, imageSrc }: OperationNumberModalProps) => {
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full"
-      id="my-modal"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4"
+      onClick={onClose}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') onClose();
+      }}
     >
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div className="mt-3 text-center">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Ubica tu Número de Operación
-          </h3>
-          <div className="mt-2 px-7 py-3">
-            <Image
-              src={imageSrc}
-              alt="Número de Operación"
-              width={400}
-              height={300}
-            />
+      <div
+        className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:p-6"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          aria-label="Cerrar"
+          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+          onClick={onClose}
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="text-center">
+          <h3 className="pr-8 text-lg font-bold text-slate-900">Ubica tu número de operación</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Revisa este ejemplo y copia exactamente los 8 dígitos.
+          </p>
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <Image src={imageSrc} alt="Número de Operación" width={400} height={300} className="h-auto w-full" />
           </div>
-          <div className="items-center px-4 py-3">
+          <div className="mt-4">
             <button
-              id="ok-btn"
-              className="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              type="button"
+              className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-btnBg-light px-4 text-sm font-semibold text-white transition hover:bg-btnBg-dark"
               onClick={onClose}
             >
               Entendido

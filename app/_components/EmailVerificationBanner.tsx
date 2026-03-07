@@ -4,6 +4,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@core/auth/AuthProvider';
 import { getBrowserSupabase } from '@core/api/supabase.browser';
+import { authCallbackUrl } from '@modules/auth/lib/redirect';
 
 export default function EmailVerificationBanner() {
   const { user } = useAuth();
@@ -20,7 +21,7 @@ export default function EmailVerificationBanner() {
         type: 'signup',
         email: user.email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: authCallbackUrl(),
         },
       });
 

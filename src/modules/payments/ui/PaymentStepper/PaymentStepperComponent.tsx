@@ -10,7 +10,6 @@ import { useRouter } from 'next/navigation';
 import soccerBall from '@core/assets/soccer-ball.svg';
 import { useForm } from 'react-hook-form';
 import { log } from '@src/core/lib/logger';
-import { Title2XL } from '@src/core/ui/Typography';
 import toast from 'react-hot-toast';
 import { useAuth } from '@core/auth/AuthProvider';
 
@@ -20,12 +19,16 @@ type FormValues = {
 };
 
 const PAYMENT_CONFIRM_TIMEOUT_MS = 12000;
+const OPERATION_NUMBER_REGEX = /^\d{8}$/;
 
 const PaymentStepper = (props: any) => {
   const { post, paymentData, user } = props;
   const paymentQr =
     typeof paymentData?.QR === 'string' ? paymentData.QR.replace(/^"|"$/g, '') : '';
   const paymentNumber = paymentData?.number ?? '';
+  const eventTitle = typeof post?.title === 'string' ? post.title : 'Evento';
+  const price = Number(post?.price ?? 0);
+  const formattedPrice = Number.isFinite(price) ? price.toFixed(2) : '0.00';
 
   const {
     register,
@@ -52,7 +55,7 @@ const PaymentStepper = (props: any) => {
   const currentUserId = authUser?.id ?? user?.id ?? null;
   const isEmailConfirmed = Boolean(authUser?.email_confirmed_at ?? user?.email_confirmed_at);
 
-  const handleApplyPromCode = (data: FormValues) => {
+  const handleApplyPromCode = (_data: FormValues) => {
     // Aquí podrías validar el cupón via API. Por ahora, forzamos error de ejemplo:
     setError('promCode', { type: 'manual', message: 'Código inválido o expirado' });
   };
@@ -110,7 +113,7 @@ const PaymentStepper = (props: any) => {
 
     const op = getValues('operationNumber');
     // Seguridad extra: valida en handler también
-    if (!/^\d{8}$/.test(op)) {
+    if (!OPERATION_NUMBER_REGEX.test(op)) {
       setError('operationNumber', {
         type: 'manual',
         message: 'El número de operación debe tener 8 dígitos',
@@ -209,232 +212,229 @@ const PaymentStepper = (props: any) => {
     }
   };
 
+  const StepHeader = () => {
+    const steps = [
+      { id: 1, label: 'Pago' },
+      { id: 2, label: 'Verificación' },
+      { id: 3, label: 'Confirmación' },
+    ];
+
+    return (
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-4 sm:px-6">
+        <ol className="flex flex-wrap items-center gap-3 sm:gap-4">
+          {steps.map((step) => {
+            const isDone = currentStep > step.id;
+            const isActive = currentStep === step.id;
+            return (
+              <li key={step.id} className="flex items-center gap-3">
+                <span
+                  className={[
+                    'inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold',
+                    isDone || isActive
+                      ? 'bg-btnBg-light text-white'
+                      : 'border border-slate-300 bg-slate-100 text-slate-500',
+                  ].join(' ')}
+                >
+                  {step.id}
+                </span>
+                <span className={isDone || isActive ? 'text-slate-900 font-semibold' : 'text-slate-500'}>
+                  {step.label}
+                </span>
+                {step.id < steps.length && <span className="hidden h-px w-8 bg-slate-300 sm:block" />}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    );
+  };
+
   const StepContent = () => {
     switch (currentStep) {
       case 1:
         return (
-          <>
-            <div className="md:grow flex md:flex-row flex-col ">
-              <div className="pb-8 md:w-[55%] w-[90%] m-auto">
-                <Title2XL>Paga Ahora</Title2XL>
-                <div className="text-base flex gap-2 flex-col mt-4">
-                  <p>
-                    1. Para realizar tu pago, escanea el código QR que se muestra a continuación o
-                    utiliza el número:
-                  </p>
-                  <span className="font-bold text-[20px] text-[#54086F] ml-3">
-                    {paymentNumber}
-                  </span>
-                  <p>2. Guarda el número de operación.</p>
-                  <div className="flex">
-                    <button
-                      type="button"
-                      className="text-[#0EA5E9] hover:underline"
-                      onClick={() => setShowModal(true)}
-                    >
-                      ¿Dónde encuentro mi número de operación?
-                    </button>
-                  </div>
-                  {paymentQr ? (
-                    <img
-                      className="hidden md:block"
-                      src={paymentQr}
-                      alt="QR Code"
-                      width={200}
-                      height={200}
-                    />
-                  ) : (
-                    <p className="hidden md:block text-sm text-gray-500">
-                      QR no disponible por el momento.
-                    </p>
-                  )}
-                </div>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Paga ahora</h1>
+              <p className="mt-2 text-sm text-slate-600 sm:text-base">
+                Completa el pago para reservar tu cupo en el evento.
+              </p>
+
+              <ol className="mt-5 space-y-3 text-sm text-slate-700 sm:text-base">
+                <li>
+                  1. Escanea el código QR o paga al número <strong>{paymentNumber || 'No disponible'}</strong>.
+                </li>
+                <li>2. Guarda el número de operación de 8 dígitos.</li>
+                <li>3. Regresa aquí para confirmar tu pago.</li>
+              </ol>
+
+              <button
+                type="button"
+                className="mt-4 text-sm font-semibold text-sky-600 hover:underline"
+                onClick={() => setShowModal(true)}
+              >
+                ¿Dónde encuentro mi número de operación?
+              </button>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                {paymentQr ? (
+                  <img
+                    className="mx-auto h-56 w-56 rounded-xl border border-slate-200 bg-white p-2"
+                    src={paymentQr}
+                    alt="QR Code"
+                    width={224}
+                    height={224}
+                  />
+                ) : (
+                  <p className="text-sm text-slate-500">QR no disponible por el momento.</p>
+                )}
+              </div>
+            </section>
+
+            <aside className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Resumen de reserva</h2>
+                <p className="mt-1 text-sm text-slate-600">{eventTitle}</p>
               </div>
 
-              <div className="relative p-3 m-auto h-[50vh] md:h-[70vh] md:w-[35%] w-[90%] rounded-xl bg-[#F4F3F7] border-[#F4F3F7]">
-                {/* Form de código promocional */}
-                <form
-                  className="flex flex-row gap-4 w-full justify-stretch"
-                  onSubmit={handleSubmit(handleApplyPromCode)}
-                  noValidate
-                >
-                  <Input
-                    label="Código promocional"
-                    placeholder="Ingresa tu código promocional"
-                    // RHF
-                    {...register('promCode')}
-                    // UI error
-                    errorText={errors.promCode?.message as string | undefined}
-                    bgColor="bg-white"
-                  />
+              <form
+                className="mt-5 flex flex-col gap-3 sm:flex-row"
+                onSubmit={handleSubmit(handleApplyPromCode)}
+                noValidate
+              >
+                <Input
+                  label="Código promocional"
+                  placeholder="Ingresa tu código"
+                  {...register('promCode')}
+                  errorText={errors.promCode?.message as string | undefined}
+                  bgColor="bg-white"
+                />
+                <div className="sm:w-40 sm:pt-7">
                   <ButtonWrapper type="submit" width="full">
                     Aplicar
                   </ButtonWrapper>
-                </form>
-
-                <div className="text-base flex gap-2 flex-col mt-4">
-                  <div className="flex justify-between">
-                    <p>Entrada</p>
-                    <span className="font-bold text-[20px] text-[#54086F] ml-3">
-                      {'S/. '}
-                      {parseFloat(post?.price).toFixed(2)}
-                    </span>
-                  </div>
-
-                  <hr className="border-t border-gray-300 my-4" />
-                  <div className="flex justify-between">
-                    <p>Total</p>
-                    <span className="font-bold text-[20px] text-[#54086F] ml-3">
-                      {' S/. '}
-                      {parseFloat(post?.price).toFixed(2)}
-                    </span>
-                  </div>
                 </div>
+              </form>
 
-                <div className="absolute bottom-3 left-0 right-0 mx-auto w-[95%]">
-                  <ButtonWrapper type="button" onClick={() => setCurrentStep(2)} width="full">
-                    Ya realicé el pago
-                  </ButtonWrapper>
+              <div className="mt-6 space-y-3 text-sm text-slate-700">
+                <div className="flex items-center justify-between">
+                  <p>Entrada</p>
+                  <span className="text-lg font-bold text-[#54086F]">S/. {formattedPrice}</span>
+                </div>
+                <div className="h-px bg-slate-200" />
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold">Total</p>
+                  <span className="text-xl font-bold text-[#54086F]">S/. {formattedPrice}</span>
                 </div>
               </div>
-            </div>
-          </>
+
+              <div className="mt-6">
+                <ButtonWrapper type="button" onClick={() => setCurrentStep(2)} width="full">
+                  Ya realicé el pago
+                </ButtonWrapper>
+              </div>
+            </aside>
+          </div>
         );
 
       case 2:
         return (
-          <>
-            <div className="md:grow flex flex-col w-full justify-start">
-              <div className="pb-8 md:mx-8 mx-4 md:w-[40%] w-[90%]">
-                <Title2XL>Verificación</Title2XL>
-                <div className="text-base flex gap-2 flex-col mt-4">
-                  <p>Ingresa tu número de operación del pago realizado en la app de Yape</p>
+          <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <h2 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Verificación</h2>
+            <p className="mt-2 text-sm text-slate-600 sm:text-base">
+              Ingresa tu número de operación de Yape para validar el pago.
+            </p>
 
-                  {/* Form del número de operación */}
-                  <form onSubmit={handleSubmit(handlePaymentConfirmation)} noValidate>
-                    <Input
-                      label="Número de operación"
-                      placeholder="Ingresa tu número de operación"
-                      // RHF: validación inline (8 dígitos)
-                      {...register('operationNumber', {
-                        required: 'Por favor, ingresa tu número de operación',
-                        pattern: {
-                          value: /^\d{8}$/,
-                          message: 'El número de operación debe tener 8 dígitos',
-                        },
-                      })}
-                      maxLength={8}
-                      errorText={errors.operationNumber?.message as string | undefined}
-                    />
+            <form className="mt-5" onSubmit={handleSubmit(handlePaymentConfirmation)} noValidate>
+              <Input
+                label="Número de operación"
+                placeholder="Ingresa los 8 dígitos"
+                inputMode="numeric"
+                {...register('operationNumber', {
+                  required: 'Por favor, ingresa tu número de operación',
+                  pattern: {
+                    value: OPERATION_NUMBER_REGEX,
+                    message: 'El número de operación debe tener 8 dígitos',
+                  },
+                })}
+                maxLength={8}
+                errorText={errors.operationNumber?.message as string | undefined}
+              />
 
-                    <div className="flex mt-2">
-                      <button
-                        type="button"
-                        className="text-[#0EA5E9] hover:underline"
-                        onClick={() => setShowModal(true)}
-                      >
-                        ¿Dónde encuentro mi número de operación?
-                      </button>
-                    </div>
+              <button
+                type="button"
+                className="mt-2 text-sm font-semibold text-sky-600 hover:underline"
+                onClick={() => setShowModal(true)}
+              >
+                ¿Dónde encuentro mi número de operación?
+              </button>
 
-                    <div className="flex flex-row md:w-full w-full mx-auto gap-4 justify-between mt-6">
-                      <ButtonWrapper
-                        type="button"
-                        onClick={() => setCurrentStep(1)}
-                        width="full"
-                        iconDirection="left"
-                        icon={
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth="1.5"
-                            stroke="currentColor"
-                            className="w-6 h-6"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
-                            />
-                          </svg>
-                        }
-                      >
-                        Regresar
-                      </ButtonWrapper>
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearErrors('operationNumber');
+                    setCurrentStep(1);
+                  }}
+                  className="inline-flex h-12 w-full items-center justify-center rounded-xl border border-btnBg-light px-4 text-sm font-semibold text-btnBg-light transition hover:bg-btnBg-light hover:text-white"
+                >
+                  Regresar
+                </button>
 
-                      <ButtonWrapper
-                        type="submit"
-                        width="full"
-                        disabled={isSubmitting || !/^\d{8}$/.test(operationNumber || '')}
-                      >
-                        {isSubmitting ? 'Enviando...' : 'Finalizar'}
-                      </ButtonWrapper>
-                    </div>
-                  </form>
-                </div>
+                <ButtonWrapper
+                  type="submit"
+                  width="full"
+                  disabled={isSubmitting || !OPERATION_NUMBER_REGEX.test(operationNumber || '')}
+                >
+                  {isSubmitting ? 'Enviando...' : 'Finalizar'}
+                </ButtonWrapper>
               </div>
-            </div>
-          </>
+            </form>
+          </section>
         );
 
       case 3:
         return loading ? (
-          <div className="mb-4 step-content" id="step-4">
-            <div className="flex flex-col items-center">
-              <Image src={soccerBall} alt="arrow" width={24} height={24} />
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Registrando tu asistencia...</h2>
-              <p>Por favor, espera mientras confirmamos tu registro.</p>
+          <div className="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-white p-6 text-center">
+            <div className="mx-auto mb-3 h-10 w-10 animate-pulse">
+              <Image src={soccerBall} alt="balón" width={40} height={40} />
             </div>
+            <h2 className="text-lg font-bold text-slate-900">Registrando tu asistencia...</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Por favor, espera mientras confirmamos tu registro.
+            </p>
           </div>
         ) : (
-          <div>
-            <div className="mb-4 step-content" id="step-4">
-              <div className="flex flex-col items-center">
-                <Image src={soccerBall} alt="arrow" width={24} height={24} />
-                <h2 className="text-lg font-bold text-gray-800 mb-4">¡Ya estás registrada!</h2>
-                <div className="flex">
-                  <button
-                    className="text-[#0EA5E9] hover:underline"
-                    onClick={() => {
-                      if (!currentUserId) {
-                        router.push('/login');
-                        return;
-                      }
-                      router.push(`/tickets/${currentUserId}`);
-                    }}
-                  >
-                    Ver estado de mi entrada
-                  </button>
-                </div>
-                <p>
-                  La reserva se completará después de validar el comprobante de pago. Si no
-                  coincide, se cancelará la reserva.
-                </p>
-                <ButtonWrapper
-                  onClick={() => router.push(`/`)}
-                  width="full"
-                  iconDirection="left"
-                  icon={
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth="1.5"
-                      stroke="currentColor"
-                      className="w-6 h-6"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
-                      />
-                    </svg>
+          <div className="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-white p-6 text-center">
+            <div className="mx-auto mb-3 h-10 w-10">
+              <Image src={soccerBall} alt="balón" width={40} height={40} />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">¡Ya estás registrada!</h2>
+            <p className="mt-3 text-sm text-slate-600">
+              La reserva se completará después de validar el comprobante de pago. Si no coincide,
+              se cancelará la reserva.
+            </p>
+
+            <div className="mt-6 flex flex-col gap-3">
+              <ButtonWrapper
+                onClick={() => {
+                  if (!currentUserId) {
+                    router.push('/login');
+                    return;
                   }
-                >
-                  Volver al inicio
-                </ButtonWrapper>
-              </div>
+                  router.push(`/tickets/${currentUserId}`);
+                }}
+                width="full"
+              >
+                Ver estado de mi entrada
+              </ButtonWrapper>
+              <button
+                type="button"
+                onClick={() => router.push(`/`)}
+                className="inline-flex h-12 w-full items-center justify-center rounded-xl border border-btnBg-light px-4 text-sm font-semibold text-btnBg-light transition hover:bg-btnBg-light hover:text-white"
+              >
+                Volver al inicio
+              </button>
             </div>
           </div>
         );
@@ -445,10 +445,10 @@ const PaymentStepper = (props: any) => {
   };
 
   return (
-    <div className="w-full">
-      <div className="w-full px-4 mb-4 mx-4 hidden sm:block">
-        <Link className="text-[#54086F] font-medium" href="/">
-          <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-[#54086F] transition duration-150 ease-in-out">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mb-4">
+        <Link className="text-[#54086F] font-medium" href={`/events/${post?.id}`}>
+          <span className="tracking-normal flex gap-2 items-center text-sm text-gray-600 hover:text-[#54086F] transition duration-150 ease-in-out w-fit">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -463,15 +463,13 @@ const PaymentStepper = (props: any) => {
                 d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75"
               />
             </svg>
-            Todos los partidos
+            Volver al evento
           </span>
         </Link>
       </div>
 
-      {/* <Stepper step={currentStep} setCurrentStep={setCurrentStep} /> */}
-      <div className="w-full">
-        {StepContent()}
-      </div>
+      <StepHeader />
+      <div className="w-full">{StepContent()}</div>
 
       <OperationNumberModal
         isOpen={showModal}

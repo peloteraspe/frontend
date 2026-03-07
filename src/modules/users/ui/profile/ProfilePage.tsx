@@ -4,7 +4,6 @@ import Image from 'next/image';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@core/auth/AuthProvider';
 import { useRouter } from 'next/navigation';
-import { Title2XL } from '@core/ui/Typography';
 import soccerBall from '@core/assets/soccer-ball.svg';
 
 import ProfileUpdateForm from '@modules/users/ui/ProfileUpdateForm';
@@ -25,6 +24,7 @@ import {
 } from './selectors';
 
 export default function ProfilePage() {
+  const PROFILE_LOAD_TIMEOUT_MS = 15000;
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -37,6 +37,20 @@ export default function ProfilePage() {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
 
+  const withFallbackTimeout = useCallback(
+    async <T,>(promise: Promise<T>, fallback: T): Promise<T> => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const timeoutPromise = new Promise<T>((resolve) => {
+        timeoutId = setTimeout(() => resolve(fallback), PROFILE_LOAD_TIMEOUT_MS);
+      });
+
+      const result = await Promise.race([promise, timeoutPromise]);
+      if (timeoutId) clearTimeout(timeoutId);
+      return result;
+    },
+    [PROFILE_LOAD_TIMEOUT_MS]
+  );
+
   const loadProfileData = useCallback(async () => {
     if (!user || isLoadingData) return;
 
@@ -46,18 +60,27 @@ export default function ProfilePage() {
       setError(null);
 
       const [profileResult, positionsResult, levelsResult] = await Promise.all([
-        fetchProfile(user.id).catch((err) => {
-          console.error('Error fetching profile:', err);
-          return null;
-        }),
-        fetchPlayersPosition().catch((err) => {
-          console.error('Error fetching positions:', err);
-          return [];
-        }),
-        fetchLevels().catch((err) => {
-          console.error('Error fetching levels:', err);
-          return [];
-        }),
+        withFallbackTimeout(
+          fetchProfile(user.id).catch((err) => {
+            console.error('Error fetching profile:', err);
+            return null;
+          }),
+          null
+        ),
+        withFallbackTimeout(
+          fetchPlayersPosition().catch((err) => {
+            console.error('Error fetching positions:', err);
+            return [];
+          }),
+          []
+        ),
+        withFallbackTimeout(
+          fetchLevels().catch((err) => {
+            console.error('Error fetching levels:', err);
+            return [];
+          }),
+          []
+        ),
       ]);
 
       setProfileData(profileResult);
@@ -71,10 +94,11 @@ export default function ProfilePage() {
       setIsLoading(false);
       setIsLoadingData(false);
     }
-  }, [user, isLoadingData]);
+  }, [user, isLoadingData, withFallbackTimeout]);
 
   useEffect(() => {
     if (!loading && !user) {
+      setIsLoading(false);
       router.push('/login');
       return;
     }
@@ -87,14 +111,26 @@ export default function ProfilePage() {
   // Loading
   if (loading || isLoading) {
     return (
-      <div className="min-h-screen grid place-items-center px-4">
-        <div className="text-center flex flex-col items-center">
-          <div className="mb-5 animate-spin">
-            <Image src={soccerBall} alt="Cargando perfil" width={64} height={64} priority />
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 md:py-10">
+        <div className="mb-6 animate-pulse rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="h-8 w-52 rounded bg-slate-200" />
+          <div className="mt-3 h-4 w-80 max-w-full rounded bg-slate-100" />
+        </div>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="animate-pulse rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="h-6 w-40 rounded bg-slate-200" />
+            <div className="mt-4 h-12 w-full rounded bg-slate-100" />
+            <div className="mt-4 h-12 w-full rounded bg-slate-100" />
+            <div className="mt-4 h-12 w-full rounded bg-slate-100" />
           </div>
-          <p className="mt-2 text-sm text-slate-600">
-            {loading ? 'Verificando autenticación...' : 'Cargando perfil...'}
-          </p>
+          <div className="animate-pulse rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="h-6 w-32 rounded bg-slate-200" />
+            <div className="mt-4 h-20 w-full rounded bg-slate-100" />
+          </div>
+        </div>
+        <div className="mt-5 flex items-center gap-2 text-sm text-slate-600">
+          <Image src={soccerBall} alt="Cargando perfil" width={20} height={20} className="animate-spin" />
+          {loading ? 'Verificando autenticación...' : 'Cargando perfil...'}
         </div>
       </div>
     );
@@ -131,6 +167,7 @@ export default function ProfilePage() {
 
   const positionOptions = positions || [];
   const levelOptions = levels || [];
+  const hasCatalogFallback = positionOptions.length === 0 || levelOptions.length === 0;
 
   const currentLevelOption =
     findCurrentOptionByValue(levelOptions, profileData?.level_id) ??
@@ -142,13 +179,30 @@ export default function ProfilePage() {
   );
 
   return (
-    <div className="container mx-auto">
-      <div className="p-6 md:p-10 bg-white min-h-screen">
-        <div className="text-stone-900 mb-12">
-          <Title2XL fontWeight="extrabold">Mi Perfil</Title2XL>
+    <section className="mx-auto w-full max-w-6xl px-4 py-8 md:py-10">
+      <header className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">Mi perfil</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Mantén tus datos al día para que los eventos y equipos encajen mejor contigo.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[#54086F]/20 bg-[#54086F]/5 px-3 py-2 text-right">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#54086F]">Cuenta activa</p>
+            <p className="text-sm font-semibold text-slate-800">{user.email || 'Sin correo'}</p>
+          </div>
         </div>
+      </header>
 
-        <div className="space-y-8 max-w-lg">
+      {hasCatalogFallback && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          No pudimos cargar completamente niveles o posiciones. Puedes continuar y reintentar más tarde.
+        </div>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
           <ProfileUpdateForm
             userProfile={profileData?.username || ''}
             updateProfile={updateProfile}
@@ -160,13 +214,10 @@ export default function ProfilePage() {
           />
         </div>
 
-        <div className="mt-12 space-y-6">
-          <div className="text-stone-900">
-            <Title2XL fontWeight="extrabold">Mi Equipo</Title2XL>
-          </div>
+        <aside className="space-y-6">
           <TeamSection currentUserId={user.id} />
-        </div>
+        </aside>
       </div>
-    </div>
+    </section>
   );
 }

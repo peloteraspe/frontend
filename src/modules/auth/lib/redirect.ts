@@ -1,3 +1,70 @@
-export function oauthRedirectTo() {
-  return `${window.location.origin}/auth/callback`;
+type RedirectQueryValue = string | number | boolean | null | undefined;
+
+type RedirectOptions = {
+  fallbackOrigin?: string | null;
+  query?: Record<string, RedirectQueryValue>;
+};
+
+function normalizeOrigin(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value.trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveAppOrigin(fallbackOrigin?: string | null) {
+  const configured =
+    normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL) ||
+    normalizeOrigin(process.env.NEXT_PUBLIC_SITE_URL);
+
+  if (configured) return configured;
+
+  const fallback = normalizeOrigin(fallbackOrigin);
+  if (fallback) return fallback;
+
+  if (typeof window !== 'undefined') return window.location.origin;
+
+  return 'http://localhost:3000';
+}
+
+function buildAuthUrl(pathname: string, options?: RedirectOptions) {
+  const origin = resolveAppOrigin(options?.fallbackOrigin);
+  const url = new URL(pathname, `${origin}/`);
+
+  if (options?.query) {
+    for (const [key, value] of Object.entries(options.query)) {
+      if (value === null || value === undefined || value === '') continue;
+      url.searchParams.set(key, String(value));
+    }
+  }
+
+  return url.toString();
+}
+
+export function authCallbackUrl(options?: {
+  email?: string | null;
+  fallbackOrigin?: string | null;
+}) {
+  return buildAuthUrl('/auth/callback', {
+    fallbackOrigin: options?.fallbackOrigin,
+    query: options?.email ? { email: options.email } : undefined,
+  });
+}
+
+export function authRecoveryUrl(
+  nextPath = '/auth/reset-password',
+  options?: { fallbackOrigin?: string | null }
+) {
+  return buildAuthUrl('/auth/recovery', {
+    fallbackOrigin: options?.fallbackOrigin,
+    query: { next: nextPath },
+  });
+}
+
+export function oauthRedirectTo(options?: { fallbackOrigin?: string | null }) {
+  return authCallbackUrl({ fallbackOrigin: options?.fallbackOrigin });
 }

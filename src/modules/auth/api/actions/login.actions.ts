@@ -3,18 +3,25 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@core/api/supabase.server';
+import { authCallbackUrl } from '@modules/auth/lib/redirect';
 
 async function getOrigin() {
   const hdrs = await headers();
-  return hdrs.get('origin') ?? 'http://localhost:3000';
-}
+  const origin = hdrs.get('origin');
+  if (origin) return origin;
 
-function callbackUrl(origin: string) {
-  return `${origin}/auth/callback`;
+  const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host');
+  if (!host) return null;
+
+  const proto =
+    hdrs.get('x-forwarded-proto') ??
+    (host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https');
+
+  return `${proto}://${host}`;
 }
 
 export async function signUp(formData: FormData) {
-  const origin = await getOrigin(); // ✅ await
+  const origin = await getOrigin();
   const email = String(formData.get('email') || '');
   const password = String(formData.get('password') || '');
 
@@ -26,7 +33,7 @@ export async function signUp(formData: FormData) {
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: callbackUrl(origin) },
+    options: { emailRedirectTo: authCallbackUrl({ fallbackOrigin: origin }) },
   });
 
   if (error) {
@@ -59,7 +66,7 @@ export async function resendConfirmation(email: string) {
   const { error } = await supabase.auth.resend({
     type: 'signup',
     email,
-    options: { emailRedirectTo: callbackUrl(origin) },
+    options: { emailRedirectTo: authCallbackUrl({ fallbackOrigin: origin }) },
   });
 
   if (error) return { ok: false as const, error: error.message ?? 'No se pudo reenviar el correo' };

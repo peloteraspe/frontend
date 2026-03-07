@@ -16,6 +16,7 @@ import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 
 import type { Step, SignupStep1Values } from './signup.types';
 import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
+import { authCallbackUrl } from '@modules/auth/lib/redirect';
 import { fetchLevelsOptions, fetchPositionsOptions } from '@modules/users/api/lookups.client';
 import {
   checkUsernameAvailabilityAction,
@@ -99,9 +100,7 @@ export default function SignupClient() {
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
   const signupRedirectTo = useMemo(() => {
-    if (typeof window === 'undefined') return '';
-    const emailParam = signupEmail.trim() ? `?email=${encodeURIComponent(signupEmail.trim())}` : '';
-    return `${window.location.origin}/auth/callback${emailParam}`;
+    return authCallbackUrl({ email: signupEmail.trim() || undefined });
   }, [signupEmail]);
 
   const fetchOnboardingStateByEmail = async (email: string) => {

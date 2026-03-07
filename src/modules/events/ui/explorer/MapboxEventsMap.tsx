@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Map, { Layer, MapRef, Marker, NavigationControl, Popup, Source } from 'react-map-gl/mapbox';
 import { EventEntity } from '@modules/events/model/types';
@@ -9,7 +9,7 @@ type Props = {
   events: EventEntity[];
   selectedEventId: string | null;
   hoveredEventId: string | null;
-  onSelectEvent: (id: string) => void;
+  onSelectEvent: (id: string | null) => void;
   className?: string;
 };
 
@@ -51,6 +51,7 @@ export default function MapboxEventsMap({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [displayedActiveId, setDisplayedActiveId] = useState<string | null>(null);
+  const [visibleUnclusteredIds, setVisibleUnclusteredIds] = useState<Set<string>>(new Set());
 
   const geojson = useMemo(
     () => ({
@@ -81,6 +82,56 @@ export default function MapboxEventsMap({
   }, [activeId]);
 
   const activeEvent = events.find((event) => event.id === displayedActiveId) ?? null;
+
+  function closeActiveCard() {
+    setPinnedId(null);
+    setHoveredId(null);
+    onSelectEvent(null);
+  }
+
+  const syncVisibleUnclusteredIds = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !map.isStyleLoaded()) return;
+
+    let features: any[] = [];
+    try {
+      features = map.querySourceFeatures('events');
+    } catch {
+      return;
+    }
+
+    const nextIds = new Set<string>();
+    for (const feature of features) {
+      const properties = feature?.properties as Record<string, unknown> | undefined;
+      if (!properties) continue;
+      if (properties.point_count !== undefined) continue;
+      if (properties.id == null) continue;
+      nextIds.add(String(properties.id));
+    }
+
+    setVisibleUnclusteredIds((currentIds) => {
+      if (currentIds.size === nextIds.size) {
+        let hasChanges = false;
+        currentIds.forEach((id) => {
+          if (!nextIds.has(id)) {
+            hasChanges = true;
+          }
+        });
+        if (!hasChanges) return currentIds;
+      }
+      return nextIds;
+    });
+  }, []);
+
+  useEffect(() => {
+    const rafId = window.requestAnimationFrame(syncVisibleUnclusteredIds);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [events, syncVisibleUnclusteredIds]);
+
+  const visibleEvents = useMemo(
+    () => events.filter((event) => visibleUnclusteredIds.has(String(event.id))),
+    [events, visibleUnclusteredIds]
+  );
 
   useEffect(() => {
     if (!selectedEventId) return;
@@ -122,11 +173,14 @@ export default function MapboxEventsMap({
         mapStyle="mapbox://styles/mapbox/streets-v12"
         mapboxAccessToken={token}
         style={{ width: '100%', height: '100%' }}
+        onLoad={syncVisibleUnclusteredIds}
+        onMoveEnd={syncVisibleUnclusteredIds}
+        onZoomEnd={syncVisibleUnclusteredIds}
+        onIdle={syncVisibleUnclusteredIds}
         onClick={(eventInfo) => {
           const feature = eventInfo.features?.[0];
           if (!feature) {
-            setPinnedId(null);
-            setHoveredId(null);
+            closeActiveCard();
             return;
           }
 
@@ -167,14 +221,19 @@ export default function MapboxEventsMap({
           <Layer {...CLUSTER_COUNT_LAYER} />
         </Source>
 
-        {events.map((event) => (
+        {visibleEvents.map((event) => (
           <Marker key={event.id} latitude={event.location.lat} longitude={event.location.lng} anchor="bottom">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                const shouldClose = pinnedId === event.id;
+                if (shouldClose) {
+                  closeActiveCard();
+                  return;
+                }
                 onSelectEvent(event.id);
-                setPinnedId((current) => (current === event.id ? null : event.id));
+                setPinnedId(event.id);
               }}
               onMouseEnter={() => setHoveredId(event.id)}
               onMouseLeave={() => setHoveredId((current) => (current === event.id ? null : current))}
@@ -198,8 +257,9 @@ export default function MapboxEventsMap({
             anchor="top"
             offset={16}
             closeOnClick={false}
-            closeButton={false}
+            closeButton
             className="landing-map-popup"
+            onClose={closeActiveCard}
           >
             <div className="w-[min(80vw,210px)]">
               <div className="flex items-start justify-between gap-2">

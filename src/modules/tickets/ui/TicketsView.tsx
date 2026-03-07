@@ -51,7 +51,7 @@ function TicketEventCard({ event }: { event: TicketEvent }) {
   const locationText = event.locationText || 'Ubicación por confirmar';
 
   return (
-    <article className="relative w-full overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-md sm:p-6">
+    <article className="relative w-full overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <span className="pointer-events-none absolute -left-3 top-1/2 hidden h-6 w-6 -translate-y-1/2 rounded-full border border-slate-200 bg-slate-100 lg:block" />
       <span className="pointer-events-none absolute -right-3 top-1/2 hidden h-6 w-6 -translate-y-1/2 rounded-full border border-slate-200 bg-slate-100 lg:block" />
 
@@ -60,41 +60,41 @@ function TicketEventCard({ event }: { event: TicketEvent }) {
         <p>{ticket?.id ? `Ticket #${ticket.id}` : `Evento #${event.id}`}</p>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[260px_1fr_170px]">
+      <div className="grid gap-5 lg:grid-cols-[260px_1fr_190px]">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex flex-col items-center gap-3">
-          {statusCopy.showQr && ticket?.qrImageUrl ? (
-            <img
-              src={ticket.qrImageUrl}
-              alt={`QR de entrada ${event.title || event.id}`}
-              className="h-44 w-44 rounded-xl border border-slate-200 bg-white p-2 sm:h-52 sm:w-52"
-              loading="lazy"
-            />
-          ) : (
-            <div className="grid h-44 w-44 place-items-center rounded-xl border border-slate-200 bg-white sm:h-52 sm:w-52">
-              <Image src={Ball} alt="ball" width={64} height={64} />
-            </div>
-          )}
+            {statusCopy.showQr && ticket?.qrImageUrl ? (
+              <img
+                src={ticket.qrImageUrl}
+                alt={`QR de entrada ${event.title || event.id}`}
+                className="h-44 w-44 rounded-xl border border-slate-200 bg-white p-2 sm:h-52 sm:w-52"
+                loading="lazy"
+              />
+            ) : (
+              <div className="grid h-44 w-44 place-items-center rounded-xl border border-slate-200 bg-white sm:h-52 sm:w-52">
+                <Image src={Ball} alt="ball" width={64} height={64} />
+              </div>
+            )}
             <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusCopy.classes}`}>
               {statusCopy.label}
             </span>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 uppercase lg:pr-4">
-          <p className="text-sm font-bold text-btnBg-light">NIVEL: {levelName}</p>
+        <div className="flex flex-col gap-3 lg:pr-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-btnBg-light">Nivel: {levelName}</p>
           <p className="text-2xl font-bold text-slate-800 sm:text-4xl">{event.title || 'Evento'}</p>
 
-          <div className="flex items-center gap-1 text-sm font-semibold text-btnBg-light">
+          <div className="flex items-center gap-2 text-sm font-semibold text-btnBg-light">
             <Image src={Calendar} alt="calendar" width={15} />
             {formattedDate}
           </div>
-          <div className="flex items-center gap-1 text-sm font-semibold text-btnBg-light">
+          <div className="flex items-center gap-2 text-sm font-semibold text-btnBg-light">
             <Image src={Ubication} alt="location" width={15} />
             {locationText}
           </div>
 
-          <div className="flex justify-start gap-1 max-w-[92vw] overflow-scroll sm:max-w-none sm:overflow-hidden">
+          <div className="flex flex-wrap gap-2">
             {features.map((feature: any, index: number) => (
               <Badge
                 key={`${event.id}-feature-${index}`}
@@ -105,9 +105,9 @@ function TicketEventCard({ event }: { event: TicketEvent }) {
             ))}
           </div>
 
-          <p className="text-xs normal-case text-slate-500">{statusCopy.helperText}</p>
+          <p className="text-sm text-slate-500">{statusCopy.helperText}</p>
 
-          <div className="flex flex-wrap gap-2 normal-case">
+          <div className="flex flex-wrap gap-2">
             {ticket?.appleWalletUrl ? (
               <a
                 href={ticket.appleWalletUrl}
@@ -140,13 +140,13 @@ function TicketEventCard({ event }: { event: TicketEvent }) {
           </div>
         </div>
 
-        <div className="flex flex-col items-end justify-between gap-3 border-t border-dashed border-slate-200 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-          <p className="text-4xl font-bold uppercase text-btnBg-light sm:text-[52px]">
+        <div className="flex flex-col items-start justify-between gap-3 border-t border-dashed border-slate-200 pt-4 lg:items-end lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+          <p className="text-3xl font-bold text-btnBg-light sm:text-5xl">
             {formattedPrice(priceValue)}
           </p>
           <Link
             href={`/events/${event.id}`}
-            className="inline-flex rounded-lg border border-btnBg-light px-3 py-2 text-xs font-semibold normal-case text-btnBg-light hover:bg-btnBg-light hover:text-white"
+            className="inline-flex rounded-lg border border-btnBg-light px-3 py-2 text-xs font-semibold text-btnBg-light hover:bg-btnBg-light hover:text-white"
           >
             Ver evento
           </Link>
@@ -168,6 +168,42 @@ function TicketCardsList({ events }: { events: TicketEvent[] }) {
   );
 }
 
+function EmptyState({
+  title,
+  description,
+  ctaLabel,
+  ctaHref,
+}: {
+  title: string;
+  description: string;
+  ctaLabel: string;
+  ctaHref: string;
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6">
+      <p className="text-base font-semibold text-slate-800">{title}</p>
+      <p className="mt-1 text-sm text-slate-600">{description}</p>
+      <Link
+        href={ctaHref}
+        className="mt-4 inline-flex rounded-lg border border-btnBg-light px-4 py-2 text-sm font-semibold text-btnBg-light transition hover:bg-btnBg-light hover:text-white"
+      >
+        {ctaLabel}
+      </Link>
+    </div>
+  );
+}
+
+function SectionTitle({ title, count }: { title: string; count: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <h2 className="text-2xl font-extrabold text-slate-900">{title}</h2>
+      <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-slate-200 px-2 text-sm font-bold text-slate-700">
+        {count}
+      </span>
+    </div>
+  );
+}
+
 export default function TicketsView({
   upcoming,
   past,
@@ -176,20 +212,41 @@ export default function TicketsView({
   past: TicketEvent[];
 }) {
   return (
-    <div className="md:max-w-screen-md lg:max-w-screen-md xl:max-w-screen-xl mx-auto flex flex-col justify-between w-full p-4 mt-12">
-      <div>
+    <div className="mx-auto mt-8 flex w-full max-w-6xl flex-col justify-between px-4 pb-12">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
         <TitleXL>Mis entradas</TitleXL>
+        <p className="mt-2 text-sm text-slate-600 sm:text-base">
+          Revisa tus reservas activas, el estado de validación y el historial de partidos.
+        </p>
+      </section>
 
-        <div className="my-8">
-          {upcoming.length > 0 ? <TicketCardsList events={upcoming} /> : <p>No tienes entradas disponibles.</p>}
-        </div>
+      <section className="mt-8">
+        <SectionTitle title="Próximas entradas" count={upcoming.length} />
+        {upcoming.length > 0 ? (
+          <TicketCardsList events={upcoming} />
+        ) : (
+          <EmptyState
+            title="Aún no tienes entradas activas"
+            description="Explora los próximos partidos y reserva tu lugar."
+            ctaLabel="Ver eventos"
+            ctaHref="/"
+          />
+        )}
+      </section>
 
-        <TitleXL>Entradas Pasadas</TitleXL>
-
-        <div className="my-8">
-          {past.length > 0 ? <TicketCardsList events={past} /> : <p>No tienes entradas pasadas.</p>}
-        </div>
-      </div>
+      <section className="mt-10">
+        <SectionTitle title="Entradas pasadas" count={past.length} />
+        {past.length > 0 ? (
+          <TicketCardsList events={past} />
+        ) : (
+          <EmptyState
+            title="Sin historial por ahora"
+            description="Cuando juegues tus próximos partidos, aparecerán aquí."
+            ctaLabel="Explorar eventos"
+            ctaHref="/"
+          />
+        )}
+      </section>
     </div>
   );
 }
