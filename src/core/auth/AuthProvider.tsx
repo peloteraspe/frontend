@@ -10,7 +10,6 @@ type UserLite = {
   username?: string | null;
   email_confirmed_at?: string | null;
   emailConfirmed?: boolean;
-  eventsVerified?: boolean;
 } | null;
 
 type AuthCtx = {
@@ -27,8 +26,18 @@ const Ctx = createContext<AuthCtx>({
   signOut: async () => {},
 });
 
-function isEventsVerified(value: unknown) {
-  return value === true || value === 'true';
+async function withTimeout<T = any>(promise: PromiseLike<T>, ms: number, label: string) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race<T>([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(label)), ms);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 function normalizeAuthErrorMessage(raw: string) {
@@ -70,12 +79,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const loadProfileUsername = async (userId: string) => {
     try {
-      const { data: rows, error } = await supabase
-        .from('profile')
-        .select('id, username')
-        .eq('user', userId)
-        .order('id', { ascending: false })
-        .limit(1);
+      const { data: rows, error } = await withTimeout(
+        supabase
+          .from('profile')
+          .select('id, username')
+          .eq('user', userId)
+          .order('id', { ascending: false })
+          .limit(1),
+        6000,
+        'Profile username query timeout'
+      );
 
       if (error) {
         console.warn('⚠️ Profile username query returned error:', error.message);
@@ -98,7 +111,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const {
         data: { session },
         error: sessionError,
-      } = await supabase.auth.getSession();
+      } = await withTimeout(supabase.auth.getSession(), 6000, 'Auth getSession timeout');
       console.log('📊 Session check:', {
         hasSession: !!session,
         error: sessionError?.message,
@@ -114,7 +127,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const {
           data: { user: directUser },
           error: directUserError,
-        } = await supabase.auth.getUser();
+        } = await withTimeout(supabase.auth.getUser(), 6000, 'Auth getUser direct timeout');
 
         if (directUser && !directUserError) {
           console.log('✅ User found in localStorage:', directUser.id);
@@ -125,7 +138,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             username: profileUsername || directUser.user_metadata?.username || null,
             email_confirmed_at: directUser.email_confirmed_at ?? null,
             emailConfirmed: Boolean(directUser.email_confirmed_at),
-            eventsVerified: isEventsVerified(directUser.user_metadata?.events_verified),
           };
           setUser(userData);
           return;
@@ -152,7 +164,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const {
         data: { user: sessionUser },
         error: userError,
-      } = await supabase.auth.getUser();
+      } = await withTimeout(supabase.auth.getUser(), 6000, 'Auth getUser session timeout');
 
       console.log('👤 User from session:', {
         user: !!sessionUser,
@@ -180,7 +192,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         username: sessionUser.user_metadata?.username ?? null,
         email_confirmed_at: sessionUser.email_confirmed_at ?? null,
         emailConfirmed: Boolean(sessionUser.email_confirmed_at),
-        eventsVerified: isEventsVerified(sessionUser.user_metadata?.events_verified),
       };
 
       setUser(userData);
@@ -225,7 +236,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           username: u.user_metadata?.username ?? null,
           email_confirmed_at: u.email_confirmed_at ?? null,
           emailConfirmed: Boolean(u.email_confirmed_at),
-          eventsVerified: isEventsVerified(u.user_metadata?.events_verified),
         };
 
         setUser(userData);

@@ -5,6 +5,7 @@ import { parseEventFormData } from '@modules/admin/model/eventForm';
 import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 
 export default async function EditEventScreen({ id }: { id: string }) {
   const supabase = await getServerSupabase();
@@ -15,6 +16,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
 
   const event = await getEventById(id);
   if (!event) redirect('/admin/events');
+  const catalogs = await getEventCatalogs();
 
   async function handleUpdate(fd: FormData) {
     'use server';
@@ -39,6 +41,8 @@ export default async function EditEventScreen({ id }: { id: string }) {
       <EventFormComponent
         submitLabel="Guardar"
         onSubmit={handleUpdate}
+        eventTypes={catalogs.eventTypes}
+        levels={catalogs.levels}
         initial={{
           title: event.title,
           description:

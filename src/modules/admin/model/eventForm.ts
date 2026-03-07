@@ -15,6 +15,11 @@ export type EventUpsertInput = {
   isFeatured: boolean;
 };
 
+function toTimestamp(value: string) {
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 function parseNumber(value: FormDataEntryValue | null, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -35,7 +40,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     price: parseNumber(fd.get('price'), 0),
     minUsers: parseNumber(fd.get('minUsers'), 0),
     maxUsers: parseNumber(fd.get('maxUsers'), 0),
-    district: String(fd.get('district') || ''),
+    district: String(fd.get('district') || '').trim(),
     locationText: String(fd.get('locationText') || ''),
     lat: parseNumber(fd.get('lat'), 0),
     lng: parseNumber(fd.get('lng'), 0),
@@ -43,4 +48,21 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     levelId: parseNumber(fd.get('levelId'), 1),
     isFeatured: parseBoolean(fd.get('isFeatured')),
   };
+}
+
+export function validateEventFormInput(input: EventUpsertInput) {
+  const startTimestamp = toTimestamp(input.startTime);
+  const endTimestamp = toTimestamp(input.endTime);
+
+  if (startTimestamp === null || endTimestamp === null) {
+    throw new Error('Formato de fecha/hora inválido.');
+  }
+
+  if (endTimestamp <= startTimestamp) {
+    throw new Error('La fecha y hora de fin debe ser posterior al inicio.');
+  }
+
+  if (!input.district.trim()) {
+    throw new Error('Selecciona un distrito válido.');
+  }
 }

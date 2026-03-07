@@ -26,10 +26,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutErr
   });
 }
 
-function isVerified(value: unknown) {
-  return value === true || value === 'true';
-}
-
 function parseNumber(value: unknown, fallback = 0) {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -128,7 +124,20 @@ function validatePayload(body: any): CreateEventPayload {
 
   if (!payload.title) throw new Error('El título es obligatorio.');
   if (!payload.startTime || !payload.endTime) throw new Error('Debes indicar fecha y hora.');
+
+  const startTimestamp = new Date(payload.startTime).getTime();
+  const endTimestamp = new Date(payload.endTime).getTime();
+  if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp)) {
+    throw new Error('Formato de fecha y hora inválido.');
+  }
+  if (endTimestamp <= startTimestamp) {
+    throw new Error('La fecha y hora de fin debe ser posterior al inicio.');
+  }
+
   if (!payload.locationText) throw new Error('La dirección es obligatoria.');
+  if (!payload.district) {
+    throw new Error('Selecciona un distrito válido.');
+  }
   if (!Number.isFinite(payload.lat) || !Number.isFinite(payload.lng)) {
     throw new Error('Debes seleccionar un punto válido en el mapa.');
   }
@@ -214,13 +223,6 @@ export async function POST(request: Request) {
         'Superaste el límite temporal para crear eventos. Espera unos minutos e intenta nuevamente.',
     });
     if (limitedByUser) return limitedByUser;
-
-    if (!isVerified(user.user_metadata?.events_verified)) {
-      return NextResponse.json(
-        { error: 'Debes verificar tu identidad para crear eventos.' },
-        { status: 403 }
-      );
-    }
 
     const body = await request.json();
     const payload = validatePayload(body);

@@ -2,12 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@src/core/api/supabase.server';
-import { EventUpsertInput } from '@modules/admin/model/eventForm';
+import { EventUpsertInput, validateEventFormInput } from '@modules/admin/model/eventForm';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
-
-function isEventsVerified(value: unknown) {
-  return value === true || value === 'true';
-}
 
 function toInsertPayload(
   input: EventUpsertInput,
@@ -41,16 +37,14 @@ function toInsertPayload(
 }
 
 export async function createEvent(input: EventUpsertInput) {
+  validateEventFormInput(input);
+
   const supabase = await getServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) throw new Error('Debes iniciar sesión para crear eventos.');
-
-  if (!isEventsVerified(user.user_metadata?.events_verified)) {
-    throw new Error('Debes verificar tu identidad para crear eventos.');
-  }
 
   const { data: profile } = await supabase
     .from('profile')
@@ -73,16 +67,14 @@ export async function createEvent(input: EventUpsertInput) {
 }
 
 export async function updateEvent(id: string, input: EventUpsertInput) {
+  validateEventFormInput(input);
+
   const supabase = await getServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) throw new Error('Debes iniciar sesión para editar eventos.');
-
-  if (!isEventsVerified(user.user_metadata?.events_verified)) {
-    throw new Error('Debes verificar tu identidad para editar eventos.');
-  }
 
   const { data: profile } = await supabase
     .from('profile')
@@ -128,10 +120,6 @@ export async function deleteEvent(id: string) {
   } = await supabase.auth.getUser();
 
   if (!user) throw new Error('Debes iniciar sesión para eliminar eventos.');
-
-  if (!isEventsVerified(user.user_metadata?.events_verified)) {
-    throw new Error('Debes verificar tu identidad para eliminar eventos.');
-  }
 
   const { error } = await supabase.from('event').delete().eq('id', id);
   if (error) throw new Error(error.message);

@@ -14,6 +14,87 @@ type Props = {
 
 type Draft = CreateEventPayload;
 
+const DISTRICT_CONTEXT_TYPES = new Set(['district', 'locality', 'place', 'neighborhood']);
+const DISTRICT_TYPE_PRIORITY: Record<string, number> = {
+  district: 1,
+  locality: 2,
+  place: 3,
+  neighborhood: 4,
+};
+
+type DistrictOption = {
+  id: string;
+  type: string;
+  value: string;
+  label: string;
+};
+
+function normalizeKey(value: string) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function districtOptionsFromFeature(feature: any): DistrictOption[] {
+  if (!feature) return [];
+
+  const context = Array.isArray(feature?.context) ? feature.context : [];
+  const region = String(
+    context.find((item) => String(item?.id || '').startsWith('region'))?.text || ''
+  ).trim();
+  const country = String(
+    context.find((item) => String(item?.id || '').startsWith('country'))?.text || ''
+  ).trim();
+
+  const rawItems = [feature, ...context];
+  const options: DistrictOption[] = [];
+  const seen = new Set<string>();
+
+  for (const item of rawItems) {
+    const rawId = String(item?.id || '').trim();
+    const type = rawId.split('.')[0] || '';
+    if (!DISTRICT_CONTEXT_TYPES.has(type)) continue;
+
+    const districtName = String(item?.text || item?.place_name || '').trim();
+    if (!districtName) continue;
+
+    const value = [districtName, region, country].filter(Boolean).join(', ') || districtName;
+    const key = normalizeKey(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    options.push({
+      id: rawId || `${type}:${key}`,
+      type,
+      value,
+      label: value,
+    });
+  }
+
+  return options.sort(
+    (a, b) =>
+      (DISTRICT_TYPE_PRIORITY[a.type] ?? Number.MAX_SAFE_INTEGER) -
+      (DISTRICT_TYPE_PRIORITY[b.type] ?? Number.MAX_SAFE_INTEGER)
+  );
+}
+
+function mergeDistrictOptions(current: DistrictOption[], next: DistrictOption[]) {
+  const merged = [...current];
+  const seen = new Set(current.map((item) => normalizeKey(item.value)));
+
+  for (const option of next) {
+    const key = normalizeKey(option.value);
+    if (!key || seen.has(key)) continue;
+    merged.push(option);
+    seen.add(key);
+  }
+
+  return merged;
+}
+
 const EMPTY_DRAFT: Draft = {
   title: '',
   description: '',
@@ -22,7 +103,7 @@ const EMPTY_DRAFT: Draft = {
   price: 0,
   minUsers: 10,
   maxUsers: 20,
-  district: 'Lima',
+  district: '',
   locationText: '',
   locationReference: '',
   lat: -12.0464,
@@ -51,7 +132,15 @@ export default function CreateEventModal({ isOpen, eventTypes, levels, onClose, 
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [pinSelected, setPinSelected] = useState(false);
+  const [districtOptions, setDistrictOptions] = useState<DistrictOption[]>([]);
   const mapRef = useRef<MapRef>(null);
+
+  const hasValidTimeRange = useMemo(() => {
+    if (!draft.startTime || !draft.endTime) return false;
+    const start = new Date(draft.startTime).getTime();
+    const end = new Date(draft.endTime).getTime();
+    return Number.isFinite(start) && Number.isFinite(end) && end > start;
+  }, [draft.startTime, draft.endTime]);
 
   const canContinueStep1 = useMemo(() => {
     return (
@@ -59,13 +148,15 @@ export default function CreateEventModal({ isOpen, eventTypes, levels, onClose, 
       draft.description.trim().length > 4 &&
       Boolean(draft.startTime) &&
       Boolean(draft.endTime) &&
+      hasValidTimeRange &&
       Boolean(draft.eventTypeId) &&
       Boolean(draft.levelId)
     );
-  }, [draft]);
+  }, [draft, hasValidTimeRange]);
 
   const hasMapPoint = Number.isFinite(draft.lat) && Number.isFinite(draft.lng);
-  const canContinueStep2 = pinSelected && draft.locationText.trim().length > 3 && hasMapPoint;
+  const canContinueStep2 =
+    pinSelected && draft.locationText.trim().length > 3 && hasMapPoint && draft.district.trim().length > 0;
 
   if (!isOpen) return null;
 
@@ -83,13 +174,19 @@ export default function CreateEventModal({ isOpen, eventTypes, levels, onClose, 
     try {
       const result = await mapboxReverseGeocode(lat, lng);
       const feature = result?.features?.[0];
-      const district = getDistrictFromContext(feature?.context || []);
+      const nextDistrictOptions = districtOptionsFromFeature(feature);
 
       setDraft((prev) => ({
         ...prev,
         locationText: feature?.place_name || prev.locationText,
-        district: district || prev.district,
+        district:
+          nextDistrictOptions.length > 0
+            ? nextDistrictOptions[0].value
+            : getDistrictFromContext(feature?.context || []) || prev.district,
       }));
+      if (nextDistrictOptions.length > 0) {
+        setDistrictOptions((prev) => mergeDistrictOptions(prev, nextDistrictOptions));
+      }
       setPinSelected(true);
 
       if (!feature?.place_name) {
@@ -139,6 +236,10 @@ export default function CreateEventModal({ isOpen, eventTypes, levels, onClose, 
     setError(null);
 
     try {
+      if (!hasValidTimeRange) {
+        throw new Error('La fecha y hora de fin debe ser posterior al inicio.');
+      }
+
       const response = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -158,6 +259,7 @@ export default function CreateEventModal({ isOpen, eventTypes, levels, onClose, 
         eventTypeId: eventTypes[0]?.id ?? 1,
         levelId: levels[0]?.id ?? 1,
       });
+      setDistrictOptions([]);
       setPinSelected(false);
       onCreated(createdId);
       onClose();
@@ -242,10 +344,17 @@ export default function CreateEventModal({ isOpen, eventTypes, levels, onClose, 
                   type="datetime-local"
                   className="mt-1 h-11 w-full rounded-lg border border-slate-300 px-3"
                   value={draft.endTime}
+                  min={draft.startTime || undefined}
                   onChange={(e) => setDraft((prev) => ({ ...prev, endTime: e.target.value }))}
                   required
                 />
               </label>
+
+              {draft.startTime && draft.endTime && !hasValidTimeRange ? (
+                <p className="md:col-span-2 text-sm text-red-600">
+                  La fecha y hora de fin debe ser posterior al inicio.
+                </p>
+              ) : null}
 
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">Precio (S/)</span>
@@ -255,15 +364,6 @@ export default function CreateEventModal({ isOpen, eventTypes, levels, onClose, 
                   className="mt-1 h-11 w-full rounded-lg border border-slate-300 px-3"
                   value={draft.price}
                   onChange={(e) => setDraft((prev) => ({ ...prev, price: Number(e.target.value) }))}
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Distrito</span>
-                <input
-                  className="mt-1 h-11 w-full rounded-lg border border-slate-300 px-3"
-                  value={draft.district}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, district: e.target.value }))}
                 />
               </label>
 
@@ -383,6 +483,27 @@ export default function CreateEventModal({ isOpen, eventTypes, levels, onClose, 
                     onChange={(e) => setDraft((prev) => ({ ...prev, locationText: e.target.value }))}
                     placeholder="Primero elige el pin en el mapa, luego ajusta el texto si quieres"
                   />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Distrito</span>
+                  <select
+                    className="mt-1 h-11 w-full rounded-lg border border-slate-300 px-3"
+                    value={draft.district}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, district: e.target.value }))}
+                    required
+                  >
+                    <option value="">
+                      {districtOptions.length === 0
+                        ? 'Selecciona ubicación en el mapa para cargar distritos'
+                        : 'Selecciona un distrito'}
+                    </option>
+                    {districtOptions.map((district) => (
+                      <option key={`${district.id}:${district.value}`} value={district.value}>
+                        {district.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label className="block">

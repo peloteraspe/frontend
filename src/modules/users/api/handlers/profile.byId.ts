@@ -6,6 +6,20 @@ import { HTTP_401, HTTP_403, jsonNoStore } from '@core/api/responses';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { getServerSupabase } from '@core/api/supabase.server';
 
+async function withTimeout<T = any>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race<T>([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(label)), ms);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 type RouteParams = { userId: string };
 
 type ProfileRow = {
@@ -13,7 +27,23 @@ type ProfileRow = {
   user: string;
   username: string | null;
   level_id: number | null;
+  onboarding_step: number | null;
+  is_profile_complete: boolean | null;
 };
+
+async function resolveAuthUserId(request: Request) {
+  const token = getBearer(request);
+  if (token) {
+    const byToken = await withTimeout(getUserIdFromToken(token), 5000, 'Token auth timeout');
+    if (byToken) return byToken;
+  }
+
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await withTimeout(supabase.auth.getUser(), 5000, 'Cookie auth timeout');
+  return user?.id ?? null;
+}
 
 async function getSupabaseFallbackClient() {
   try {
@@ -37,11 +67,17 @@ function normalizePositionIds(value: unknown): number[] {
 async function getProfileFallbackFromSupabase(userId: string) {
   const supabase = await getSupabaseFallbackClient();
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profile')
-    .select('id, user, username, level_id')
-    .eq('user', userId)
-    .maybeSingle();
+  const { data: profile, error: profileError } = await withTimeout(
+    supabase
+      .from('profile')
+      .select('id, user, username, level_id, onboarding_step, is_profile_complete')
+      .eq('user', userId)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    6000,
+    'Profile query timeout'
+  );
 
   if (profileError) {
     throw new Error(profileError.message);
@@ -52,18 +88,29 @@ async function getProfileFallbackFromSupabase(userId: string) {
   let levelName: string | null = null;
 
   if (typeof safeProfile.level_id === 'number') {
-    const { data: levelRow } = await supabase
-      .from('level')
-      .select('name')
-      .eq('id', safeProfile.level_id)
-      .maybeSingle();
+    const { data: levelRow, error: levelError } = await withTimeout(
+      supabase
+        .from('level')
+        .select('name')
+        .eq('id', safeProfile.level_id)
+        .maybeSingle(),
+      5000,
+      'Level query timeout'
+    );
+    if (levelError) {
+      throw new Error(levelError.message);
+    }
     levelName = typeof levelRow?.name === 'string' ? levelRow.name : null;
   }
 
-  const { data: profilePositions, error: profilePositionsError } = await supabase
-    .from('profile_position')
-    .select('position_id')
-    .eq('profile_id', safeProfile.id);
+  const { data: profilePositions, error: profilePositionsError } = await withTimeout(
+    supabase
+      .from('profile_position')
+      .select('position_id')
+      .eq('profile_id', safeProfile.id),
+    6000,
+    'Profile positions query timeout'
+  );
 
   if (profilePositionsError) {
     throw new Error(profilePositionsError.message);
@@ -73,10 +120,14 @@ async function getProfileFallbackFromSupabase(userId: string) {
   let playerPosition: Array<{ id: number; name: string }> = [];
 
   if (positionIds.length > 0) {
-    const { data: positionsRows, error: positionsError } = await supabase
-      .from('player_position')
-      .select('id, name')
-      .in('id', positionIds);
+    const { data: positionsRows, error: positionsError } = await withTimeout(
+      supabase
+        .from('player_position')
+        .select('id, name')
+        .in('id', positionIds),
+      6000,
+      'Player positions catalog query timeout'
+    );
 
     if (positionsError) {
       throw new Error(positionsError.message);
@@ -188,10 +239,7 @@ export async function GET(request: Request, { params }: { params: Promise<RouteP
   try {
     const { userId: routeUserId } = await params;
 
-    const token = getBearer(request);
-    if (!token) return HTTP_401;
-
-    const authUserId = await getUserIdFromToken(token);
+    const authUserId = await resolveAuthUserId(request);
     if (!authUserId) return HTTP_401;
     if (authUserId !== routeUserId) return HTTP_403;
 
@@ -201,15 +249,7 @@ export async function GET(request: Request, { params }: { params: Promise<RouteP
         return jsonNoStore(await res.json());
       }
 
-      if (res.status === 404) {
-        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-      }
-
       const txt = await res.text().catch(() => '');
-      if (res.status < 500) {
-        return NextResponse.json({ error: txt || 'Failed to fetch profile' }, { status: res.status });
-      }
-
       console.warn('GET /api/profile backend failed, using Supabase fallback', {
         routeUserId,
         status: res.status,
@@ -238,10 +278,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<Rout
   try {
     const { userId: routeUserId } = await params;
 
-    const token = getBearer(request);
-    if (!token) return HTTP_401;
-
-    const authUserId = await getUserIdFromToken(token);
+    const authUserId = await resolveAuthUserId(request);
     if (!authUserId) return HTTP_401;
     if (authUserId !== routeUserId) return HTTP_403;
 

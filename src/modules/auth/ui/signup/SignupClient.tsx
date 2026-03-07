@@ -373,7 +373,6 @@ export default function SignupClient() {
         options: {
           emailRedirectTo: signupRedirectTo,
           data: {
-            events_verified: false,
             gender_identity_confirmed: true,
           },
         },

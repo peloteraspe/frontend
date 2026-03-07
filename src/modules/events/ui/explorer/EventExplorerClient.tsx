@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { CatalogOption, EventEntity } from '@modules/events/model/types';
 import MapboxEventsMap from './MapboxEventsMap';
 import EventListPanel from './EventListPanel';
-import CreateEventModal from './CreateEventModal';
 
 type Props = {
   initialEvents: EventEntity[];
@@ -32,7 +32,6 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
-  const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>({
@@ -162,13 +161,12 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsCreating(true)}
-          className="h-11 rounded-xl bg-[#54086F] px-4 text-sm font-semibold text-white"
+        <Link
+          href="/admin/events/new"
+          className="inline-flex h-11 items-center justify-center rounded-xl bg-[#54086F] px-4 text-sm font-semibold text-white"
         >
           Crear evento
-        </button>
+        </Link>
       </div>
 
       <div className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-6">
@@ -328,16 +326,6 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           />
         </div>
       </div>
-
-      <CreateEventModal
-        isOpen={isCreating}
-        eventTypes={catalogs.eventTypes}
-        levels={catalogs.levels}
-        onClose={() => setIsCreating(false)}
-        onCreated={(id) => {
-          refreshEvents(id);
-        }}
-      />
     </section>
   );
 }

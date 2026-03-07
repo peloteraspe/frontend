@@ -17,17 +17,97 @@ async function fetchWithTimeout(input: string, init?: RequestInit, timeoutMs = P
   }
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs = PROFILE_FETCH_TIMEOUT_MS): Promise<T> {
+async function withTimeout<T>(
+  promise: PromiseLike<T>,
+  timeoutMs = PROFILE_FETCH_TIMEOUT_MS,
+  message = 'Request timeout'
+): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
-  });
-
   try {
-    return await Promise.race([promise, timeoutPromise]);
+    return await Promise.race<T>([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
   }
+}
+
+async function fetchProfileFromSupabase(userId: string) {
+  const { getBrowserSupabase } = await import('@src/core/api/supabase.browser');
+  const supabase = getBrowserSupabase();
+
+  const { data: profile, error: profileError } = await withTimeout(
+    supabase
+      .from('profile')
+      .select('id, user, username, level_id, onboarding_step, is_profile_complete')
+      .eq('user', userId)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    6000,
+    'Profile query timeout'
+  );
+
+  if (profileError || !profile) return null;
+
+  const { data: profilePositions, error: profilePositionsError } = await withTimeout(
+    supabase
+      .from('profile_position')
+      .select('position_id')
+      .eq('profile_id', profile.id),
+    6000,
+    'Profile positions query timeout'
+  );
+  if (profilePositionsError) return null;
+
+  const positionIds = (profilePositions ?? [])
+    .map((row: { position_id: number }) => Number(row.position_id))
+    .filter((id) => Number.isFinite(id));
+
+  let playerPosition: Array<{ id: number; name: string }> = [];
+  if (positionIds.length > 0) {
+    const { data: positions, error: positionsError } = await withTimeout(
+      supabase
+        .from('player_position')
+        .select('id, name')
+        .in('id', positionIds),
+      6000,
+      'Player positions catalog query timeout'
+    );
+
+    if (!positionsError) {
+      const byId = new Map((positions ?? []).map((row: { id: number; name: string }) => [row.id, row.name]));
+      playerPosition = positionIds
+        .map((id) => ({ id, name: byId.get(id) || '' }))
+        .filter((row) => row.name);
+    }
+  }
+
+  let levelName: string | null = null;
+  if (profile.level_id != null) {
+    const { data: levelData, error: levelError } = await withTimeout(
+      supabase
+        .from('level')
+        .select('name')
+        .eq('id', profile.level_id)
+        .maybeSingle(),
+      5000,
+      'Level query timeout'
+    );
+
+    if (!levelError) {
+      levelName = (levelData as { name?: string } | null)?.name ?? null;
+    }
+  }
+
+  return {
+    ...profile,
+    level: levelName,
+    player_position: playerPosition,
+  };
 }
 
 export async function fetchProfile(userId: string) {
@@ -52,23 +132,29 @@ export async function fetchProfile(userId: string) {
       headers,
     });
 
-    if (!response.ok) {
-      if ([401, 403, 404, 500].includes(response.status)) {
-        // Profile not found is expected for new users
-        return null;
-      }
-      const details = await response.text().catch(() => '');
-      throw new Error(`Failed to fetch profile (${response.status})${details ? `: ${details}` : ''}`);
+    if (response.ok) {
+      return await response.json();
     }
-    return await response.json();
+
+    if (response.status !== 404) {
+      console.warn(`API profile failed with ${response.status}, trying Supabase fallback`);
+    }
+
+    return await fetchProfileFromSupabase(userId);
   } catch (error) {
     const message = String((error as any)?.message ?? error);
     if (/timeout|abort/i.test(message)) {
-      console.warn('Profile request timed out, using fallback state');
+      console.warn('Profile request timed out, trying Supabase fallback');
+    } else {
+      console.error('Error fetching profile:', error);
+    }
+
+    try {
+      return await fetchProfileFromSupabase(userId);
+    } catch (fallbackError) {
+      console.error('Supabase fallback for profile failed:', fallbackError);
       return null;
     }
-    console.error('Error fetching profile:', error);
-    return null;
   }
 }
 
