@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 type AlertVariant = 'success' | 'warning' | 'error' | 'info';
+type AlertIconComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
 interface AlertProps {
   variant: AlertVariant;
@@ -22,7 +23,7 @@ interface AlertProps {
 
 const variantStyles: Record<
   AlertVariant,
-  { container: string; icon: string; iconComponent: React.ElementType }
+  { container: string; icon: string; iconComponent: AlertIconComponent }
 > = {
   success: {
     container: 'bg-success-light border-success text-success-foreground',
