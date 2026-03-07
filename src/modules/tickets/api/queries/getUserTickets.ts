@@ -171,7 +171,6 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
   const assistantsByEventId = new Map<string, AssistantRow>();
   for (const assistant of assistantsRows) {
     const eventId = String(assistant.event);
-    if (assistant.state === 'rejected') continue;
     if (!assistantsByEventId.has(eventId)) {
       assistantsByEventId.set(eventId, assistant);
     }
