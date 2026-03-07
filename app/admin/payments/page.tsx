@@ -1,9 +1,15 @@
 import PaymentsAdminPage from '@modules/admin/ui/payments/PaymentsAdminPage';
 
+type PageSearchParams = { state?: string; q?: string };
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function Page({
   searchParams,
 }: {
-  searchParams?: { state?: string; q?: string };
+  searchParams?: PageSearchParams | Promise<PageSearchParams>;
 }) {
-  return <PaymentsAdminPage searchParams={searchParams} />;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  return <PaymentsAdminPage searchParams={resolvedSearchParams} />;
 }

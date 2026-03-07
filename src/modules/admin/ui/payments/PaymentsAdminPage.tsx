@@ -1,14 +1,16 @@
 import { getAssistantsCounts, getAssistantsWithDetails } from '@shared/lib/data/getAssistants';
 import Badge from '@core/ui/Badge';
 import { approveAssistant, rejectAssistant } from '../../api/payments/_actions';
+import Link from 'next/link';
 
 export default async function PaymentsAdminPage({
   searchParams,
 }: {
   searchParams?: { state?: string; q?: string };
 }) {
-  const state =
-    (searchParams?.state as 'pending' | 'approved' | 'rejected' | undefined) || 'pending';
+  const requestedState = searchParams?.state;
+  const state: 'pending' | 'approved' | 'rejected' =
+    requestedState === 'approved' || requestedState === 'rejected' ? requestedState : 'pending';
   const q = searchParams?.q || '';
 
   const [counts, items] = await Promise.all([
@@ -25,9 +27,12 @@ export default async function PaymentsAdminPage({
             { k: 'approved', l: `Aprobados (${counts.approved})` },
             { k: 'rejected', l: `Rechazados (${counts.rejected})` },
           ].map((t) => (
-            <a
+            <Link
               key={t.k}
-              href={`?state=${t.k}${q ? `&q=${encodeURIComponent(q)}` : ''}`}
+              href={{
+                pathname: '/admin/payments',
+                query: q ? { state: t.k, q } : { state: t.k },
+              }}
               className={`px-3 py-2 rounded-md text-sm border ${
                 state === t.k
                   ? 'bg-mulberry text-white border-mulberry'
@@ -35,7 +40,7 @@ export default async function PaymentsAdminPage({
               }`}
             >
               {t.l}
-            </a>
+            </Link>
           ))}
         </div>
         <form className="md:w-64" action="">
