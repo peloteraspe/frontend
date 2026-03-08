@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { log } from '@core/lib/logger';
 import { buildGoogleWalletSaveUrl, getGoogleWalletConfig } from './google-wallet.service';
 
+const GOOGLE_WALLET_FORCED_CLASS_ID = 'peloteras_event_16';
+
 export type TicketStatus = 'pending' | 'active' | 'used' | 'revoked';
 
 type AssistantRow = {
@@ -168,13 +170,12 @@ export async function ensureTicketForAssistant(
       eventTitle,
       eventStartTime,
       eventEndTime,
-      classId: row.event === 16 ? 'peloteras_event_16' : null,
+      classId: GOOGLE_WALLET_FORCED_CLASS_ID,
     },
     googleWalletConfig
   );
   const googleWalletUrl =
     generatedGoogleWalletUrl ||
-    existing?.google_wallet_url ||
     resolveWalletUrl(process.env.GOOGLE_WALLET_URL_TEMPLATE, qrToken);
 
   if (existing) {
