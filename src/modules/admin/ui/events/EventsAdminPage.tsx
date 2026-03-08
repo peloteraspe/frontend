@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { setEventFeatured } from '@modules/admin/api/events/_actions';
+import EventShareActionButton from '@modules/admin/ui/events/EventShareActionButton';
 
 export default async function AdminEventsPage() {
   const supabase = await getServerSupabase();
@@ -75,6 +76,7 @@ export default async function AdminEventsPage() {
                   <a href={`/events/${e.id}`} className="text-mulberry hover:underline">
                     Ver
                   </a>
+                  <EventShareActionButton eventId={String(e.id)} eventTitle={String(e.title || 'Evento')} />
                   <Link href={`/admin/events/${e.id}/edit`} className="text-mulberry hover:underline">
                     Editar
                   </Link>

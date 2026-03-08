@@ -1,10 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Input from '@src/core/ui/Input';
 import { ButtonWrapper } from '@src/core/ui/Button';
+import SelectComponent from '@core/ui/SelectComponent';
 import Map, { MapRef, Marker, NavigationControl } from 'react-map-gl/mapbox';
 import { CatalogOption } from '@modules/events/model/types';
+import { useRouter } from 'next/navigation';
+import EventShareModal, { EventShareModalStatus } from '@modules/admin/ui/events/EventShareModal';
+
+type SubmitResult = {
+  eventId?: string | number;
+};
 
 type Props = {
   initial?: Partial<{
@@ -21,17 +28,21 @@ type Props = {
     lng: number;
     eventTypeId: number;
     levelId: number;
+    featureIds: number[];
     isFeatured: boolean;
   }>;
   eventTypes: CatalogOption[];
   levels: CatalogOption[];
-  onSubmit: (form: FormData) => Promise<void>;
+  features?: CatalogOption[];
+  onSubmit: (form: FormData) => Promise<void | SubmitResult>;
   submitLabel: string;
   canManageFeatured?: boolean;
+  successRedirectTo?: string;
 };
 
 const DEFAULT_LAT = -12.0464;
 const DEFAULT_LNG = -77.0428;
+const MIN_PENDING_MS = 450;
 
 function asFiniteNumber(value: unknown, fallback: number) {
   const parsed = Number(value);
@@ -151,12 +162,20 @@ const EventForm = ({
   initial,
   eventTypes,
   levels,
+  features = [],
   onSubmit,
   submitLabel,
   canManageFeatured = false,
+  successRedirectTo,
 }: Props) => {
+  const router = useRouter();
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
   const [pending, setPending] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
+  const [shareTitle, setShareTitle] = useState('');
   const [startTime, setStartTime] = useState(initial?.startTime ?? '');
   const [endTime, setEndTime] = useState(initial?.endTime ?? '');
   const [locationText, setLocationText] = useState(initial?.locationText ?? '');
@@ -168,6 +187,16 @@ const EventForm = ({
   });
   const [lat, setLat] = useState(() => asFiniteNumber(initial?.lat, DEFAULT_LAT));
   const [lng, setLng] = useState(() => asFiniteNumber(initial?.lng, DEFAULT_LNG));
+  const [selectedFeatureIds, setSelectedFeatureIds] = useState<number[]>(() => {
+    const input = Array.isArray(initial?.featureIds) ? initial.featureIds : [];
+    return Array.from(
+      new Set(
+        input
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0)
+      )
+    );
+  });
   const [pinSelected, setPinSelected] = useState(() =>
     Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
   );
@@ -196,6 +225,14 @@ const EventForm = ({
     if (levels.some((option) => option.id === initialId)) return String(initialId);
     return String(levels[0]?.id ?? 1);
   }, [levels, initial?.levelId]);
+
+  const featureOptions = useMemo(
+    () => features.map((option) => ({ value: option.id, label: option.name })),
+    [features]
+  );
+  const isCreateMode = useMemo(() => submitLabel.trim().toLowerCase() === 'crear', [submitLabel]);
+  const pendingLabel = isCreateMode ? 'Creando evento...' : 'Guardando...';
+  const modalRedirectTo = successRedirectTo || '/admin/events';
 
   const locationError = useMemo(() => {
     if (!pinSelected) {
@@ -248,7 +285,7 @@ const EventForm = ({
     const timeoutId = window.setTimeout(async () => {
       try {
         const nextSuggestions = await fetchSuggestions(query, {
-          types: 'address,street,place,locality,neighborhood',
+          types: 'address,district,place,locality,neighborhood',
           proximity: { lat, lng },
           limit: 5,
         });
@@ -331,38 +368,91 @@ const EventForm = ({
     });
   }
 
-  return (
-    <form
-      action={async (fd: FormData) => {
-        const start = String(fd.get('startTime') || '');
-        const end = String(fd.get('endTime') || '');
-        const startMs = new Date(start).getTime();
-        const endMs = new Date(end).getTime();
-        if (
-          !start ||
-          !end ||
-          !Number.isFinite(startMs) ||
-          !Number.isFinite(endMs) ||
-          endMs <= startMs ||
-          !districtText
-        ) {
-          return;
-        }
-        if (!pinSelected || !Number.isFinite(lat) || !Number.isFinite(lng)) {
-          return;
-        }
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-        setPending(true);
-        try {
-          await onSubmit(fd);
-        } finally {
-          setPending(false);
+    const fd = new FormData(event.currentTarget);
+    const start = String(fd.get('startTime') || '');
+    const end = String(fd.get('endTime') || '');
+    const startMs = new Date(start).getTime();
+    const endMs = new Date(end).getTime();
+    if (
+      !start ||
+      !end ||
+      !Number.isFinite(startMs) ||
+      !Number.isFinite(endMs) ||
+      endMs <= startMs ||
+      !districtText
+    ) {
+      return;
+    }
+    if (!pinSelected || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return;
+    }
+
+    setSubmitStatus('idle');
+    setSubmitMessage('');
+    setShareUrl('');
+    setShareTitle('');
+    if (isCreateMode) {
+      setShowCreateModal(true);
+    }
+    setPending(true);
+    const pendingStartedAt = Date.now();
+
+    // Let the spinner paint before calling server action.
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+
+    try {
+      const result = await onSubmit(fd);
+      if (isCreateMode) {
+        const createdEventId = String((result && 'eventId' in result ? result.eventId : '') || '').trim();
+        setSubmitStatus('success');
+        if (createdEventId) {
+          const origin = window.location.origin;
+          setShareUrl(`${origin}/events/${createdEventId}`);
+          setShareTitle(String(fd.get('title') || 'Evento'));
+          setSubmitMessage('Evento creado con éxito. Ahora compártelo para que se inscriban.');
+        } else {
+          setSubmitMessage('Evento creado con éxito.');
         }
-      }}
-      className="grid gap-4 max-w-2xl"
-      noValidate
-    >
-      <Input label="Título" name="title" required defaultValue={initial?.title ?? ''} bgColor="bg-white" />
+      } else {
+        setSubmitStatus('success');
+        setSubmitMessage('Evento guardado con éxito.');
+      }
+    } catch (error: any) {
+      setSubmitStatus('error');
+      setSubmitMessage(error?.message || 'No se pudo completar la operación.');
+    } finally {
+      const elapsed = Date.now() - pendingStartedAt;
+      if (elapsed < MIN_PENDING_MS) {
+        await new Promise((resolve) => window.setTimeout(resolve, MIN_PENDING_MS - elapsed));
+      }
+      setPending(false);
+    }
+  }
+
+  function handleCloseCreateModal() {
+    setShowCreateModal(false);
+    router.push(modalRedirectTo);
+  }
+
+  const createModalStatus = useMemo<EventShareModalStatus>(() => {
+    if (pending) return 'loading';
+    if (submitStatus === 'error') return 'error';
+    return 'success';
+  }, [pending, submitStatus]);
+
+  return (
+    <>
+      <form
+        onSubmit={handleSubmit}
+        className="grid gap-4 max-w-2xl"
+        noValidate
+      >
+        <Input label="Título" name="title" required defaultValue={initial?.title ?? ''} bgColor="bg-white" />
 
       <label className="w-full">
         <div className="mb-1 text-sm font-semibold text-slate-700">Descripción</div>
@@ -564,6 +654,34 @@ const EventForm = ({
         </label>
       </div>
 
+      <label className="w-full">
+        <div className="mb-1 text-sm font-semibold text-slate-700">Features</div>
+        <SelectComponent
+          options={featureOptions}
+          value={selectedFeatureIds}
+          onChange={(value) =>
+            setSelectedFeatureIds(
+              Array.isArray(value)
+                ? value
+                    .map((item) => Number(item))
+                    .filter((item) => Number.isInteger(item) && item > 0)
+                : []
+            )
+          }
+          isMulti
+          isSearchable={false}
+          bgColor="bg-white"
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          {selectedFeatureIds.length > 0
+            ? `${selectedFeatureIds.length} feature(s) seleccionada(s).`
+            : 'Selecciona una o más features para el evento.'}
+        </p>
+        {selectedFeatureIds.map((featureId) => (
+          <input key={featureId} type="hidden" name="featureIds" value={featureId} readOnly />
+        ))}
+      </label>
+
       {canManageFeatured ? (
         <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
           <input
@@ -582,16 +700,34 @@ const EventForm = ({
         </p>
       )}
 
-      <div className="pt-2">
-        <ButtonWrapper
-          width="fit-content"
-          htmlType="submit"
-          disabled={pending || Boolean(timeError) || Boolean(locationError) || !districtText}
-        >
-          {pending ? 'Guardando…' : submitLabel}
-        </ButtonWrapper>
-      </div>
-    </form>
+        <div className="pt-2">
+          <ButtonWrapper
+            width="fit-content"
+            htmlType="submit"
+            disabled={pending || Boolean(timeError) || Boolean(locationError) || !districtText}
+          >
+            {pending ? pendingLabel : submitLabel}
+          </ButtonWrapper>
+          {!isCreateMode && !pending && submitStatus === 'success' && submitMessage ? (
+            <p className="mt-3 text-sm text-emerald-700">{submitMessage}</p>
+          ) : null}
+          {!isCreateMode && !pending && submitStatus === 'error' && submitMessage ? (
+            <p className="mt-3 text-sm text-red-600">{submitMessage}</p>
+          ) : null}
+        </div>
+      </form>
+
+      {isCreateMode ? (
+        <EventShareModal
+          isOpen={showCreateModal}
+          status={createModalStatus}
+          eventTitle={shareTitle || String(initial?.title || 'Evento')}
+          message={submitMessage}
+          shareUrl={shareUrl}
+          onClose={handleCloseCreateModal}
+        />
+      ) : null}
+    </>
   );
 };
 

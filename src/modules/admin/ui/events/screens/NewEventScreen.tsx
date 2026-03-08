@@ -11,7 +11,22 @@ export default async function NewEventScreen() {
     data: { user },
   } = await supabase.auth.getUser();
   const canManageFeatured = isSuperAdmin(user as any);
-  const catalogs = await getEventCatalogs();
+  const [catalogs, featuresRes] = await Promise.all([
+    getEventCatalogs(),
+    supabase.from('features').select('id,name').order('name', { ascending: true }),
+  ]);
+
+  if (featuresRes.error) {
+    throw new Error(featuresRes.error.message);
+  }
+
+  const features = (featuresRes.data ?? [])
+    .map((feature) => ({
+      id: Number(feature.id),
+      name: String(feature.name || '').trim(),
+    }))
+    .filter((feature) => Number.isInteger(feature.id) && feature.id > 0 && feature.name.length > 0);
+
   const eventTypes =
     catalogs.eventTypes.filter((option) => option.name.trim().toLowerCase() === 'pichanga libre') ||
     [];
@@ -20,7 +35,8 @@ export default async function NewEventScreen() {
 
   async function handleCreate(fd: FormData) {
     'use server';
-    await createEvent(parseEventFormData(fd));
+    const created = await createEvent(parseEventFormData(fd));
+    return { eventId: created.id };
   }
 
   return (
@@ -31,11 +47,14 @@ export default async function NewEventScreen() {
         onSubmit={handleCreate}
         eventTypes={selectableEventTypes}
         levels={catalogs.levels}
+        features={features}
         initial={{
           eventTypeId: selectableEventTypes[0]?.id ?? 1,
           levelId: catalogs.levels[0]?.id ?? 1,
+          featureIds: [],
         }}
         canManageFeatured={canManageFeatured}
+        successRedirectTo="/admin/events"
       />
     </div>
   );

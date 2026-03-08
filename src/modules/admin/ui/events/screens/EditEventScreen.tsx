@@ -16,7 +16,29 @@ export default async function EditEventScreen({ id }: { id: string }) {
 
   const event = await getEventById(id);
   if (!event) redirect('/admin/events');
-  const catalogs = await getEventCatalogs();
+  const [catalogs, featuresRes, eventFeaturesRes] = await Promise.all([
+    getEventCatalogs(),
+    supabase.from('features').select('id,name').order('name', { ascending: true }),
+    supabase.from('eventFeatures').select('feature').eq('event', id),
+  ]);
+
+  if (featuresRes.error) throw new Error(featuresRes.error.message);
+  if (eventFeaturesRes.error) throw new Error(eventFeaturesRes.error.message);
+
+  const features = (featuresRes.data ?? [])
+    .map((feature) => ({
+      id: Number(feature.id),
+      name: String(feature.name || '').trim(),
+    }))
+    .filter((feature) => Number.isInteger(feature.id) && feature.id > 0 && feature.name.length > 0);
+
+  const selectedFeatureIds = Array.from(
+    new Set(
+      (eventFeaturesRes.data ?? [])
+        .map((row) => Number(row.feature))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )
+  );
 
   async function handleUpdate(fd: FormData) {
     'use server';
@@ -43,6 +65,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
         onSubmit={handleUpdate}
         eventTypes={catalogs.eventTypes}
         levels={catalogs.levels}
+        features={features}
         initial={{
           title: event.title,
           description:
@@ -58,6 +81,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
           lng: event.location?.lng ?? event.location?.long,
           eventTypeId: event.EventType,
           levelId: event.level,
+          featureIds: selectedFeatureIds,
           isFeatured: Boolean(event.is_featured),
         }}
         canManageFeatured={canManageFeatured}

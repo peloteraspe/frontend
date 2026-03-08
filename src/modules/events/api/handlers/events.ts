@@ -31,6 +31,13 @@ function parseNumber(value: unknown, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function normalizeDistrict(value: unknown) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const [district] = raw.split(',');
+  return String(district || '').trim();
+}
+
 function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number) {
   const toRad = (value: number) => (value * Math.PI) / 180;
   const earthKm = 6371;
@@ -113,7 +120,7 @@ function validatePayload(body: any): CreateEventPayload {
     price: parseNumber(body?.price),
     minUsers: parseNumber(body?.minUsers),
     maxUsers: parseNumber(body?.maxUsers),
-    district: String(body?.district ?? '').trim(),
+    district: normalizeDistrict(body?.district),
     locationText: String(body?.locationText ?? '').trim(),
     locationReference: String(body?.locationReference ?? '').trim(),
     lat: parseNumber(body?.lat),

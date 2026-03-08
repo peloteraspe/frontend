@@ -12,6 +12,7 @@ export type EventUpsertInput = {
   lng: number;
   eventTypeId: number;
   levelId: number;
+  featureIds: number[];
   isFeatured: boolean;
 };
 
@@ -31,6 +32,24 @@ function parseBoolean(value: FormDataEntryValue | null) {
   return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
 }
 
+function parseNumberList(values: FormDataEntryValue[]) {
+  const unique = new Set<number>();
+  values.forEach((value) => {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      unique.add(parsed);
+    }
+  });
+  return Array.from(unique);
+}
+
+function normalizeDistrict(value: FormDataEntryValue | null) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const [district] = raw.split(',');
+  return String(district || '').trim();
+}
+
 export function parseEventFormData(fd: FormData): EventUpsertInput {
   return {
     title: String(fd.get('title') || ''),
@@ -40,12 +59,13 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     price: parseNumber(fd.get('price'), 0),
     minUsers: parseNumber(fd.get('minUsers'), 0),
     maxUsers: parseNumber(fd.get('maxUsers'), 0),
-    district: String(fd.get('district') || '').trim(),
+    district: normalizeDistrict(fd.get('district')),
     locationText: String(fd.get('locationText') || ''),
     lat: parseNumber(fd.get('lat'), 0),
     lng: parseNumber(fd.get('lng'), 0),
     eventTypeId: parseNumber(fd.get('eventTypeId'), 1),
     levelId: parseNumber(fd.get('levelId'), 1),
+    featureIds: parseNumberList(fd.getAll('featureIds')),
     isFeatured: parseBoolean(fd.get('isFeatured')),
   };
 }

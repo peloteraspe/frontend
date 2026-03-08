@@ -36,6 +36,34 @@ function toInsertPayload(
   };
 }
 
+function normalizeFeatureIds(ids: number[]) {
+  return Array.from(
+    new Set(ids.filter((id) => Number.isInteger(id) && id > 0))
+  );
+}
+
+async function syncEventFeatures(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  eventId: string | number,
+  featureIds: number[]
+) {
+  const normalizedFeatureIds = normalizeFeatureIds(featureIds);
+
+  const { error: deleteError } = await supabase.from('eventFeatures').delete().eq('event', eventId);
+  if (deleteError) throw new Error(deleteError.message);
+
+  if (normalizedFeatureIds.length === 0) return;
+
+  const { error: insertError } = await supabase.from('eventFeatures').insert(
+    normalizedFeatureIds.map((featureId) => ({
+      event: eventId,
+      feature: featureId,
+    }))
+  );
+
+  if (insertError) throw new Error(insertError.message);
+}
+
 export async function createEvent(input: EventUpsertInput) {
   validateEventFormInput(input);
 
@@ -56,14 +84,22 @@ export async function createEvent(input: EventUpsertInput) {
   const canManageFeatured = isSuperAdmin(user as any);
   const isFeatured = canManageFeatured ? Boolean(input.isFeatured) : false;
 
-  const { error } = await supabase
+  const { data: createdEvent, error } = await supabase
     .from('event')
-    .insert(toInsertPayload(input, user.id, createdBy, isFeatured));
+    .insert(toInsertPayload(input, user.id, createdBy, isFeatured))
+    .select('id')
+    .single();
   if (error) throw new Error(error.message);
+  if (!createdEvent?.id) throw new Error('No se pudo obtener el id del evento creado.');
+
+  await syncEventFeatures(supabase, createdEvent.id, input.featureIds);
 
   revalidatePath('/admin/events');
   revalidatePath('/events');
+  revalidatePath(`/events/${createdEvent.id}`);
   revalidatePath('/');
+
+  return { id: String(createdEvent.id) };
 }
 
 export async function updateEvent(id: string, input: EventUpsertInput) {
@@ -105,6 +141,8 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
     .eq('id', id);
 
   if (error) throw new Error(error.message);
+
+  await syncEventFeatures(supabase, id, input.featureIds);
 
   revalidatePath('/admin/events');
   revalidatePath(`/admin/events/${id}/edit`);
