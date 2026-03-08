@@ -5,6 +5,8 @@ import { fetchWithTimeout, isAbortError } from '@core/api/backend';
 import { log } from '@core/lib/logger';
 
 const GOOGLE_WALLET_PROVIDER = 'google_wallet';
+const WALLET_CLASS_DEFAULT_EVENT_NAME = 'Peloteras';
+const walletClassValidationCache = new Set<string>();
 
 export type BuildGoogleWalletSaveUrlInput = {
   qrToken: string;
@@ -88,6 +90,28 @@ function sanitizeObjectSuffix(value: string) {
 
 function normalizeOrigins(value: string[] | null | undefined) {
   return (value ?? []).map((item) => item.trim()).filter(Boolean);
+}
+
+function isPlaceholderWalletEventName(value: string | null | undefined) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  return (
+    normalized === 'event.title' ||
+    normalized === '{event.title}' ||
+    normalized === '${event.title}' ||
+    normalized === 'event_name' ||
+    normalized === 'eventname'
+  );
+}
+
+function toLocalizedString(value: string) {
+  return {
+    defaultValue: {
+      language: 'es-PE',
+      value,
+    },
+  };
 }
 
 function asIssuerFromClassId(classId: string | null | undefined) {
@@ -356,6 +380,7 @@ export async function buildGoogleWalletSaveUrl(
 ): Promise<string | null> {
   const resolvedConfig = config ?? (await getGoogleWalletConfig());
   if (!resolvedConfig) return null;
+  await ensureWalletClassEventName(resolvedConfig);
   return buildGoogleWalletSaveUrlWithConfig(resolvedConfig, input);
 }
 
@@ -416,6 +441,97 @@ async function getGoogleWalletAccessToken(config: GoogleWalletConfig) {
   }
 
   return tokenJson.access_token;
+}
+
+async function ensureWalletClassEventName(config: GoogleWalletConfig) {
+  const classId = String(config.classId || '').trim();
+  if (!classId) return;
+  if (walletClassValidationCache.has(classId)) return;
+
+  try {
+    const token = await getGoogleWalletAccessToken(config);
+    const classEndpoint = `https://walletobjects.googleapis.com/walletobjects/v1/eventTicketClass/${encodeURIComponent(
+      classId
+    )}`;
+
+    const classResponse = await fetchWithTimeout(
+      classEndpoint,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: 'no-store',
+      },
+      5000
+    );
+
+    const classBody = (await classResponse.json().catch(() => ({}))) as {
+      eventName?: {
+        defaultValue?: {
+          value?: string;
+        };
+      };
+      error?: {
+        message?: string;
+      };
+    };
+
+    if (!classResponse.ok) {
+      log.warn('Could not verify Google Wallet class eventName', 'TICKETS', {
+        classId,
+        status: classResponse.status,
+        error: classBody?.error?.message || 'Unknown error',
+      });
+      return;
+    }
+
+    const currentEventName = classBody?.eventName?.defaultValue?.value ?? null;
+    if (!isPlaceholderWalletEventName(currentEventName)) {
+      return;
+    }
+
+    const patchResponse = await fetchWithTimeout(
+      classEndpoint,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventName: toLocalizedString(WALLET_CLASS_DEFAULT_EVENT_NAME),
+        }),
+      },
+      5000
+    );
+
+    const patchBody = (await patchResponse.json().catch(() => ({}))) as {
+      error?: {
+        message?: string;
+      };
+    };
+
+    if (!patchResponse.ok) {
+      log.warn('Could not normalize Google Wallet class eventName placeholder', 'TICKETS', {
+        classId,
+        status: patchResponse.status,
+        error: patchBody?.error?.message || 'Unknown error',
+      });
+      return;
+    }
+
+    log.info('Google Wallet class eventName placeholder normalized', 'TICKETS', {
+      classId,
+      eventName: WALLET_CLASS_DEFAULT_EVENT_NAME,
+    });
+  } catch (error) {
+    log.warn('Wallet class eventName validation failed; continuing with current class', 'TICKETS', {
+      classId,
+      error,
+    });
+  } finally {
+    walletClassValidationCache.add(classId);
+  }
 }
 
 export async function listGoogleWalletEventClasses(
