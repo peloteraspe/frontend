@@ -56,6 +56,8 @@ type ProfileRow = {
   username: string | null;
 };
 
+const DEFAULT_TIMEZONE = 'America/Lima';
+
 function isMissingTicketTableError(error: any) {
   const message = String(error?.message ?? '').toLowerCase();
   return message.includes('ticket') && message.includes('does not exist');
@@ -84,6 +86,7 @@ function toFormattedDateTime(event: any): string {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: DEFAULT_TIMEZONE,
   });
 }
 

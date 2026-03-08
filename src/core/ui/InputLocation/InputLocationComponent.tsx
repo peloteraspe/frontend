@@ -1,8 +1,11 @@
 'use client';
 
 import { Autocomplete, LoadScript } from '@react-google-maps/api';
+import type { Libraries } from '@react-google-maps/api';
 import React, { useState } from 'react';
 import { log } from '@src/core/lib/logger';
+
+const GOOGLE_MAPS_LIBRARIES: Libraries = ['places'];
 
 const InputLocation: React.FC = () => {
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
@@ -28,7 +31,7 @@ const InputLocation: React.FC = () => {
   return (
     <LoadScript
       googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || ''}
-      libraries={['places']}
+      libraries={GOOGLE_MAPS_LIBRARIES}
     >
       <Autocomplete
         onLoad={onLoad}

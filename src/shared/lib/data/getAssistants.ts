@@ -23,6 +23,8 @@ export type AssistantsQuery = {
   offset?: number;
 };
 
+const DEFAULT_TIMEZONE = 'America/Lima';
+
 function normalizeId(value: unknown) {
   return String(value ?? '').trim();
 }
@@ -40,6 +42,7 @@ function formatEventDateTime(startTime: unknown, endTime: unknown) {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: DEFAULT_TIMEZONE,
   });
 
   if (!end || Number.isNaN(end.getTime())) {
@@ -56,11 +59,13 @@ function formatEventDateTime(startTime: unknown, endTime: unknown) {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
+      timeZone: DEFAULT_TIMEZONE,
     });
     const hourFormatter = new Intl.DateTimeFormat('es-PE', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
+      timeZone: DEFAULT_TIMEZONE,
     });
     return `${dayFormatter.format(start)} ${hourFormatter.format(start)} - ${hourFormatter.format(end)}`;
   }

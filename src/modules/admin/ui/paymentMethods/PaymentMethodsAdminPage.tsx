@@ -20,6 +20,8 @@ type PaymentMethodResponse = {
   paymentMethods?: PaymentMethodSummary[];
 };
 
+const DEFAULT_TIMEZONE = 'America/Lima';
+
 function formatError(error: unknown) {
   if (!error) return 'Ocurrió un error.';
   if (typeof error === 'string') return error;
@@ -70,6 +72,7 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat('es-PE', {
     dateStyle: 'short',
     timeStyle: 'short',
+    timeZone: DEFAULT_TIMEZONE,
   }).format(date);
 }
 

@@ -16,6 +16,8 @@ type ValidationPayload = {
   };
 };
 
+const DEFAULT_TIMEZONE = 'America/Lima';
+
 function normalizeToken(raw: string) {
   const clean = raw.trim();
   if (!clean) return '';
@@ -130,7 +132,10 @@ export default function TicketScanAdminPage() {
             ) : null}
             {payload?.ticket?.usedAt ? (
               <p>
-                <strong>Usada en:</strong> {new Date(payload.ticket.usedAt).toLocaleString('es-PE')}
+                <strong>Usada en:</strong>{' '}
+                {new Date(payload.ticket.usedAt).toLocaleString('es-PE', {
+                  timeZone: DEFAULT_TIMEZONE,
+                })}
               </p>
             ) : null}
           </div>

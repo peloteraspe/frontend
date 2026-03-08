@@ -1,6 +1,7 @@
 import { EventEntity } from '@modules/events/model/types';
 
 type Dictionary = Record<number, string>;
+const DEFAULT_TIMEZONE = 'America/Lima';
 
 function asNumber(value: unknown, fallback = 0) {
   const n = typeof value === 'number' ? value : Number(value);
@@ -49,6 +50,7 @@ function formatDateLabel(startTime: string | null) {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: DEFAULT_TIMEZONE,
   });
 }
 

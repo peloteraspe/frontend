@@ -6,6 +6,8 @@ import { setEventFeatured } from '@modules/admin/api/events/_actions';
 import EventShareActionButton from '@modules/admin/ui/events/EventShareActionButton';
 import { getApprovedParticipantsCountByEventIds } from '@modules/admin/api/events/services/eventParticipants.service';
 
+const DEFAULT_TIMEZONE = 'America/Lima';
+
 function parseDate(value: unknown) {
   if (!value) return null;
   const parsed = new Date(String(value));
@@ -29,6 +31,7 @@ function formatDateRange(startRaw: unknown, endRaw: unknown) {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: DEFAULT_TIMEZONE,
   });
 
   if (!end || isSameCalendarDate(start, end)) {
@@ -47,6 +50,7 @@ function formatTimeRange(startRaw: unknown, endRaw: unknown) {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: DEFAULT_TIMEZONE,
   });
   const dateTimeFormatter = new Intl.DateTimeFormat('es-PE', {
     day: '2-digit',
@@ -54,6 +58,7 @@ function formatTimeRange(startRaw: unknown, endRaw: unknown) {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: DEFAULT_TIMEZONE,
   });
 
   if (!end) {
