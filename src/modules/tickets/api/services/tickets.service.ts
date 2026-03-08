@@ -168,6 +168,7 @@ export async function ensureTicketForAssistant(
       eventTitle,
       eventStartTime,
       eventEndTime,
+      classId: row.event === 16 ? 'peloteras_event_16' : null,
     },
     googleWalletConfig
   );
