@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import PartnerLeadCaptureForm from '@modules/home/ui/PartnerLeadCaptureForm';
 
 export const metadata: Metadata = {
   title: 'Postula como Admin | Peloteras',
-  description: 'Deja tus datos para organizar eventos con Peloteras y escalar tu comunidad deportiva.',
+  description: 'Escríbenos a contacto@peloteras.com para organizar eventos con Peloteras.',
 };
 
 const bullets = [
@@ -33,7 +32,17 @@ export default function OrganizaConPeloterasPage() {
           ))}
         </div>
 
-        <PartnerLeadCaptureForm kind="admin" />
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <p className="text-sm text-slate-700 sm:text-base">
+            Para activar tu comunidad en Peloteras, escríbenos directamente y te contactamos:
+          </p>
+          <a
+            href="mailto:contacto@peloteras.com?subject=Quiero%20organizar%20con%20Peloteras"
+            className="mt-4 inline-flex h-11 items-center rounded-full bg-mulberry px-6 text-sm font-semibold text-white transition hover:bg-[#470760]"
+          >
+            contacto@peloteras.com
+          </a>
+        </div>
       </section>
     </main>
   );

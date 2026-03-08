@@ -100,7 +100,6 @@ export default function BottomNavigation() {
 
   const hiddenRoutes = ['/login', '/signUp', '/onboarding', '/auth'];
   const shouldHide = hiddenRoutes.some((route) => pathname.startsWith(route));
-  if (shouldHide) return null;
 
   useEffect(() => {
     setMenuOpen(false);
@@ -166,6 +165,8 @@ export default function BottomNavigation() {
     if (item.href === '/') return pathname === '/';
     return pathname.startsWith(item.href);
   };
+
+  if (shouldHide) return null;
 
   return (
     <nav
