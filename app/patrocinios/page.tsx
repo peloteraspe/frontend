@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import PartnerLeadCaptureForm from '@modules/home/ui/PartnerLeadCaptureForm';
 
 export const metadata: Metadata = {
   title: 'Patrocinios | Peloteras',
-  description: 'Conecta tu marca con comunidad real y apoya el deporte femenino en eventos de Peloteras.',
+  description: 'Escríbenos a contacto@peloteras.com para alianzas y patrocinios con Peloteras.',
 };
 
 const bullets = [
@@ -33,7 +32,17 @@ export default function PatrociniosPage() {
           ))}
         </div>
 
-        <PartnerLeadCaptureForm kind="sponsor" />
+        <div className="mt-6 rounded-2xl border border-mulberry/20 bg-white p-5">
+          <p className="text-sm text-slate-700 sm:text-base">
+            Si quieres patrocinar eventos y apoyar el deporte femenino, escríbenos directamente:
+          </p>
+          <a
+            href="mailto:contacto@peloteras.com?subject=Quiero%20patrocinar%20eventos%20de%20Peloteras"
+            className="mt-4 inline-flex h-11 items-center rounded-full bg-mulberry px-6 text-sm font-semibold text-white transition hover:bg-[#470760]"
+          >
+            contacto@peloteras.com
+          </a>
+        </div>
       </section>
     </main>
   );
