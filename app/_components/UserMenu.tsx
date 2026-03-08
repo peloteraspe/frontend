@@ -45,22 +45,7 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
       <div className="flex flex-row items-center gap-3">
         <div className="flex flex-1 items-center justify-end">
           <div className="flex items-center space-x-8">
-            {loading ? (
-              // Show login options while loading to prevent empty navbar
-              <>
-                <Link href={'/login'}>
-                  <span className="font-poppins font-semibold text-sm text-mulberry">
-                    Inicia sesión
-                  </span>
-                </Link>
-                <Link
-                  href="/signUp"
-                  className="px-4 py-2.5 bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border transition-colors"
-                >
-                  <ButtonM color="text-white">Unirme a un evento</ButtonM>
-                </Link>
-              </>
-            ) : user ? (
+            {user ? (
               <>
                 <Link
                   href={`/tickets/${user.id}`}
@@ -101,6 +86,8 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
                   </div>
                 )}
               </>
+            ) : loading ? (
+              <div className="h-10 w-44 rounded-xl bg-slate-100 animate-pulse" aria-hidden="true" />
             ) : (
               <>
                 <Link href={'/login'}>
