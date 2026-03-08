@@ -8,6 +8,7 @@ import { ButtonWrapper } from '@core/ui/Button';
 import CardEvent from '@modules/events/ui/CardEvent';
 import { EventEntity } from '@modules/events/model/types';
 import { formattedPrice } from '@shared/lib/utils';
+import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 
 type Props = {
   events: EventEntity[];
@@ -29,6 +30,7 @@ function EventCardSameAsLanding({
   onLeave: () => void;
 }) {
   const router = useRouter();
+  const isVersus = isVersusEventTypeName(event.eventTypeName);
 
   return (
     <div
@@ -50,10 +52,10 @@ function EventCardSameAsLanding({
             icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
             onClick={(e: any) => {
               e.stopPropagation();
-              router.push(`/payments/${event.id}`);
+              router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
             }}
           >
-            Anotarme
+            {isVersus ? 'Anotar a mi equipo' : 'Anotarme'}
           </ButtonWrapper>
         }
         price={formattedPrice(event.price)}
@@ -87,7 +89,7 @@ export default function EventListPanel({
 
   return (
     <div
-      className="relative h-auto min-h-0 overflow-visible [overflow-anchor:none] md:h-[76vh] md:min-h-[520px] md:overflow-y-auto md:pr-2 xl:h-[calc(100vh-260px)]"
+      className="relative h-auto min-h-0 overflow-visible [overflow-anchor:none] md:h-[76vh] md:min-h-[520px] md:overflow-y-auto md:pr-2 xl:h-[calc(100vh-140px)]"
       aria-busy={isLoading}
     >
       <div className="space-y-5 pb-4 mt-5 ml-1">
