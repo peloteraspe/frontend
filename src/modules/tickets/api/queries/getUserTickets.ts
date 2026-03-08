@@ -1,7 +1,11 @@
 import { getServerSupabase } from '@core/api/supabase.server';
 import { log } from '@core/lib/logger';
 import type { TicketEvent } from '../../model/TicketEvent';
-import { buildGoogleWalletSaveUrl, getGoogleWalletConfig } from '../services/google-wallet.service';
+import {
+  buildGoogleWalletEventClassId,
+  buildGoogleWalletSaveUrl,
+  getGoogleWalletConfig,
+} from '../services/google-wallet.service';
 
 type AssistantRow = {
   id: number;
@@ -57,8 +61,6 @@ type ProfileRow = {
 };
 
 const DEFAULT_TIMEZONE = 'America/Lima';
-const GOOGLE_WALLET_FORCED_CLASS_ID = 'peloteras_event_16';
-
 function isMissingTicketTableError(error: any) {
   const message = String(error?.message ?? '').toLowerCase();
   return message.includes('ticket') && message.includes('does not exist');
@@ -320,7 +322,7 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
               ticketHolderName,
               eventTitle: event?.title ?? null,
               eventStartTime: event?.start_time ?? event?.startTime ?? null,
-              classId: GOOGLE_WALLET_FORCED_CLASS_ID,
+              classId: buildGoogleWalletEventClassId(eventId),
             },
             googleWalletConfig
           )) ||

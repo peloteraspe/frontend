@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@src/core/api/supabase.server';
+import { log } from '@core/lib/logger';
 import { EventUpsertInput, validateEventFormInput } from '@modules/admin/model/eventForm';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import { ensureGoogleWalletEventClass } from '@modules/tickets/api/services/google-wallet.service';
 
 function toInsertPayload(
   input: EventUpsertInput,
@@ -126,6 +128,20 @@ export async function createEvent(input: EventUpsertInput) {
 
   await syncEventFeatures(supabase, createdEvent.id, input.featureIds);
   await syncEventPaymentMethods(supabase, createdEvent.id, input.paymentMethodIds);
+
+  try {
+    await ensureGoogleWalletEventClass({
+      eventId: createdEvent.id,
+      eventTitle: input.title,
+      eventStartTime: input.startTime,
+      eventEndTime: input.endTime,
+    });
+  } catch (walletError) {
+    log.warn('Could not provision Google Wallet class on event creation', 'ADMIN_EVENTS', {
+      eventId: createdEvent.id,
+      error: walletError,
+    });
+  }
 
   revalidatePath('/admin/events');
   revalidatePath('/events');

@@ -6,6 +6,7 @@ import { log } from '@core/lib/logger';
 
 const GOOGLE_WALLET_PROVIDER = 'google_wallet';
 const WALLET_CLASS_DEFAULT_EVENT_NAME = 'Peloteras';
+const WALLET_EVENT_CLASS_PREFIX = 'peloteras_event_';
 const walletClassValidationCache = new Set<string>();
 
 export type BuildGoogleWalletSaveUrlInput = {
@@ -63,6 +64,13 @@ export type UpsertGoogleWalletSettingsInput = {
   serviceAccountPrivateKey?: string | null;
   origins?: string[] | null;
   updatedBy?: string | null;
+};
+
+export type EnsureGoogleWalletEventClassInput = {
+  eventId: string | number;
+  eventTitle?: string | null;
+  eventStartTime?: string | null;
+  eventEndTime?: string | null;
 };
 
 function normalizePrivateKey(rawKey: string) {
@@ -141,6 +149,15 @@ function asIssuerFromClassId(classId: string | null | undefined) {
 
 function resolveClassId(config: GoogleWalletConfig, inputClassId?: string | null) {
   return normalizeWalletClassId(inputClassId, config.issuerId) ?? config.classId;
+}
+
+export function buildGoogleWalletEventClassId(
+  eventId: string | number,
+  issuerId?: string | null
+) {
+  const eventSuffix = sanitizeObjectSuffix(String(eventId ?? '').trim());
+  if (!eventSuffix) return null;
+  return normalizeWalletClassId(`${WALLET_EVENT_CLASS_PREFIX}${eventSuffix}`, issuerId);
 }
 
 async function getGoogleWalletConfigFromDb(): Promise<GoogleWalletConfig | null> {
@@ -378,6 +395,119 @@ export async function buildGoogleWalletSaveUrl(
   return buildGoogleWalletSaveUrlWithConfig(configWithClass, input);
 }
 
+export async function ensureGoogleWalletEventClass(
+  input: EnsureGoogleWalletEventClassInput,
+  config?: GoogleWalletConfig | null
+): Promise<string | null> {
+  const resolvedConfig = config ?? (await getGoogleWalletConfig());
+  if (!resolvedConfig) return null;
+
+  const classId = buildGoogleWalletEventClassId(input.eventId, resolvedConfig.issuerId);
+  if (!classId) return null;
+
+  const configWithClass = classId === resolvedConfig.classId ? resolvedConfig : { ...resolvedConfig, classId };
+  await ensureWalletClassEventName(configWithClass, {
+    eventTitle: input.eventTitle,
+    eventStartTime: input.eventStartTime,
+    eventEndTime: input.eventEndTime,
+  });
+
+  return classId;
+}
+
+function getGoogleWalletClassEndpoint(classId: string) {
+  return `https://walletobjects.googleapis.com/walletobjects/v1/eventTicketClass/${encodeURIComponent(classId)}`;
+}
+
+type GoogleWalletClassApiBody = {
+  eventName?: {
+    defaultValue?: {
+      value?: string;
+    };
+  };
+  dateTime?: {
+    start?: string;
+    end?: string;
+  };
+  error?: {
+    message?: string;
+  };
+};
+
+async function fetchGoogleWalletClass(
+  accessToken: string,
+  classId: string
+): Promise<{ response: Response; body: GoogleWalletClassApiBody }> {
+  const classResponse = await fetchWithTimeout(
+    getGoogleWalletClassEndpoint(classId),
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: 'no-store',
+    },
+    5000
+  );
+
+  const classBody = (await classResponse.json().catch(() => ({}))) as GoogleWalletClassApiBody;
+  return { response: classResponse, body: classBody };
+}
+
+async function createGoogleWalletEventClass(
+  accessToken: string,
+  classId: string,
+  input?: Pick<BuildGoogleWalletSaveUrlInput, 'eventTitle' | 'eventStartTime' | 'eventEndTime'>
+) {
+  const desiredEventName = toTrimmedOrNull(input?.eventTitle) || WALLET_CLASS_DEFAULT_EVENT_NAME;
+  const desiredStartTime = toTrimmedOrNull(input?.eventStartTime);
+  const desiredEndTime = toTrimmedOrNull(input?.eventEndTime);
+
+  const payload: Record<string, unknown> = {
+    id: classId,
+    issuerName: WALLET_CLASS_DEFAULT_EVENT_NAME,
+    reviewStatus: 'UNDER_REVIEW',
+    eventName: toLocalizedString(desiredEventName),
+  };
+
+  if (desiredStartTime) {
+    payload.dateTime = {
+      start: desiredStartTime,
+      ...(desiredEndTime ? { end: desiredEndTime } : {}),
+    };
+  }
+
+  const response = await fetchWithTimeout(
+    'https://walletobjects.googleapis.com/walletobjects/v1/eventTicketClass',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    },
+    5000
+  );
+
+  const body = (await response.json().catch(() => ({}))) as {
+    error?: {
+      message?: string;
+    };
+  };
+
+  if (response.ok || response.status === 409) {
+    return true;
+  }
+
+  log.warn('Could not create Google Wallet event class', 'TICKETS', {
+    classId,
+    status: response.status,
+    error: body?.error?.message || 'Unknown error',
+  });
+
+  return false;
+}
+
 async function getGoogleWalletAccessToken(config: GoogleWalletConfig) {
   const nowSeconds = Math.floor(Date.now() / 1000);
   const jwtHeader = toBase64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
@@ -449,38 +579,17 @@ async function ensureWalletClassEventName(
   const desiredEndTime = toTrimmedOrNull(input?.eventEndTime);
   const cacheKey = `${classId}::${desiredEventName}::${desiredStartTime || ''}::${desiredEndTime || ''}`;
   if (walletClassValidationCache.has(cacheKey)) return;
+  let shouldCache = false;
 
   try {
     const token = await getGoogleWalletAccessToken(config);
-    const classEndpoint = `https://walletobjects.googleapis.com/walletobjects/v1/eventTicketClass/${encodeURIComponent(
-      classId
-    )}`;
+    let { response: classResponse, body: classBody } = await fetchGoogleWalletClass(token, classId);
 
-    const classResponse = await fetchWithTimeout(
-      classEndpoint,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: 'no-store',
-      },
-      5000
-    );
-
-    const classBody = (await classResponse.json().catch(() => ({}))) as {
-      eventName?: {
-        defaultValue?: {
-          value?: string;
-        };
-      };
-      dateTime?: {
-        start?: string;
-        end?: string;
-      };
-      error?: {
-        message?: string;
-      };
-    };
+    if (!classResponse.ok && classResponse.status === 404) {
+      const created = await createGoogleWalletEventClass(token, classId, input);
+      if (!created) return;
+      ({ response: classResponse, body: classBody } = await fetchGoogleWalletClass(token, classId));
+    }
 
     if (!classResponse.ok) {
       log.warn('Could not verify Google Wallet class eventName', 'TICKETS', {
@@ -503,6 +612,7 @@ async function ensureWalletClassEventName(
         (desiredEndTime ? currentEndTime !== desiredEndTime : false));
 
     if (!shouldPatchEventName && !shouldPatchDateTime) {
+      shouldCache = true;
       return;
     }
 
@@ -518,7 +628,7 @@ async function ensureWalletClassEventName(
     }
 
     const patchResponse = await fetchWithTimeout(
-      classEndpoint,
+      getGoogleWalletClassEndpoint(classId),
       {
         method: 'PATCH',
         headers: {
@@ -551,13 +661,16 @@ async function ensureWalletClassEventName(
       startTime: desiredStartTime,
       endTime: desiredEndTime,
     });
+    shouldCache = true;
   } catch (error) {
     log.warn('Wallet class metadata validation failed; continuing with current class', 'TICKETS', {
       classId,
       error,
     });
   } finally {
-    walletClassValidationCache.add(cacheKey);
+    if (shouldCache) {
+      walletClassValidationCache.add(cacheKey);
+    }
   }
 }
 

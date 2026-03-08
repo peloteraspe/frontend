@@ -1,9 +1,11 @@
 import 'server-only';
 import { randomUUID } from 'crypto';
 import { log } from '@core/lib/logger';
-import { buildGoogleWalletSaveUrl, getGoogleWalletConfig } from './google-wallet.service';
-
-const GOOGLE_WALLET_FORCED_CLASS_ID = 'peloteras_event_16';
+import {
+  buildGoogleWalletEventClassId,
+  buildGoogleWalletSaveUrl,
+  getGoogleWalletConfig,
+} from './google-wallet.service';
 
 export type TicketStatus = 'pending' | 'active' | 'used' | 'revoked';
 
@@ -170,7 +172,7 @@ export async function ensureTicketForAssistant(
       eventTitle,
       eventStartTime,
       eventEndTime,
-      classId: GOOGLE_WALLET_FORCED_CLASS_ID,
+      classId: buildGoogleWalletEventClassId(row.event),
     },
     googleWalletConfig
   );
