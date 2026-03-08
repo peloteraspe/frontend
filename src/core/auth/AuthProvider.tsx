@@ -11,6 +11,8 @@ type UserLite = {
   email_confirmed_at?: string | null;
   emailConfirmed?: boolean;
   eventsVerified?: boolean;
+  app_metadata?: Record<string, any> | null;
+  user_metadata?: Record<string, any> | null;
 } | null;
 
 type AuthCtx = {
@@ -65,6 +67,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     id: string;
     email?: string | null;
     email_confirmed_at?: string | null;
+    app_metadata?: Record<string, any>;
     user_metadata?: Record<string, any>;
   }) => ({
     id: authUser.id,
@@ -73,6 +76,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     email_confirmed_at: authUser.email_confirmed_at ?? null,
     emailConfirmed: Boolean(authUser.email_confirmed_at),
     eventsVerified: isEventsVerified(authUser.user_metadata?.events_verified),
+    app_metadata: authUser.app_metadata ?? null,
+    user_metadata: authUser.user_metadata ?? null,
   });
 
   const clearInvalidLocalSession = async (reason: string) => {

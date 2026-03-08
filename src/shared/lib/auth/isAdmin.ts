@@ -33,16 +33,43 @@ function isFlagEnabled(user: SupabaseUserLite, flag: string) {
   );
 }
 
+function isExplicitFalse(value: unknown) {
+  if (value === false) return true;
+  if (typeof value === 'string') return value.trim().toLowerCase() === 'false';
+  return false;
+}
+
+function hasExplicitAdminRevocation(user: SupabaseUserLite) {
+  if (!user) return false;
+  const appFlag = user?.app_metadata?.is_admin;
+  const userFlag = user?.user_metadata?.is_admin;
+  const hasFalseFlag = isExplicitFalse(appFlag) || isExplicitFalse(userFlag);
+  if (!hasFalseFlag) return false;
+
+  // If role/flag says superadmin, revocation should not override.
+  if (isRole(user, 'superadmin') || isFlagEnabled(user, 'is_superadmin')) return false;
+  return true;
+}
+
 export function isAdmin(user: SupabaseUserLite): boolean {
   if (!user) return false;
+
+  // Superadmin always keeps admin permissions.
+  if (isSuperAdmin(user) || isRole(user, 'superadmin') || isFlagEnabled(user, 'is_superadmin')) {
+    return true;
+  }
+
+  // Explicit switch-off from superadmin must win over ADMIN_EMAILS fallback.
+  if (hasExplicitAdminRevocation(user)) return false;
+
   const admins = parseEmailList(process.env.ADMIN_EMAILS);
   const byEmail = user.email
-    ? [...admins, ...Array.from(SUPERADMIN_EMAILS)].includes(user.email.toLowerCase())
+    ? admins.includes(user.email.toLowerCase())
     : false;
   const byMetadata =
     isRole(user, 'admin') ||
-    isRole(user, 'superadmin') ||
     isFlagEnabled(user, 'is_admin') ||
+    isRole(user, 'superadmin') ||
     isFlagEnabled(user, 'is_superadmin');
 
   return byEmail || byMetadata;

@@ -35,7 +35,7 @@ const CardEvent: React.FC<CardEventProps> = ({
     <div
       className={[
         'relative group cursor-pointer',
-        compact ? 'w-full min-h-[170px]' : 'sm:min-w-[714px] w-[92vw] min-h-[160px] sm:w-full',
+        compact ? 'w-full min-h-[170px]' : 'w-full sm:min-w-[714px] sm:w-full sm:min-h-[160px]',
       ].join(' ')}
     >
       {Number(quantity) < 4 && (
@@ -53,7 +53,7 @@ const CardEvent: React.FC<CardEventProps> = ({
         </div>
       )}
       <div
-        className="card-info hover:bg-[#744D7C] hover:bg-opacity-20 sm:grid absolute left-0 bottom-0 w-full shadow-md rounded-xl h-full"
+        className="card-info hover:bg-[#744D7C] hover:bg-opacity-20 sm:grid w-full shadow-md rounded-xl sm:absolute sm:left-0 sm:bottom-0 sm:h-full"
         style={{ gridTemplateColumns: '15% 68% 20%' }}
       >
         <div className="flex sm:flex-row flex-col gap-4">

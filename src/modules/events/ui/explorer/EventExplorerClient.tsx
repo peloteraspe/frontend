@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import Input from '@core/ui/Input';
+import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 import { CatalogOption, EventEntity } from '@modules/events/model/types';
 import MapboxEventsMap from './MapboxEventsMap';
 import EventListPanel from './EventListPanel';
@@ -54,6 +57,24 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
         (filters.userLat && filters.userLng)
     );
   }, [filters]);
+
+  const eventTypeOptions = useMemo<OptionSelect[]>(
+    () =>
+      catalogs.eventTypes.map((option) => ({
+        value: option.id,
+        label: option.name,
+      })),
+    [catalogs.eventTypes]
+  );
+
+  const levelOptions = useMemo<OptionSelect[]>(
+    () =>
+      catalogs.levels.map((option) => ({
+        value: option.id,
+        label: option.name,
+      })),
+    [catalogs.levels]
+  );
 
   async function refreshEvents(preferredId?: string, currentFilters?: Filters) {
     const activeFilters = currentFilters ?? filters;
@@ -170,49 +191,47 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
       </div>
 
       <div className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-6">
-        <input
+        <Input
           value={filters.q}
           onChange={(event) => setFilters((prev) => ({ ...prev, q: event.target.value }))}
-          className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm md:col-span-2"
+          className="h-11 md:col-span-2"
           placeholder="Buscar por título o dirección"
         />
 
-        <input
+        <Input
           type="date"
           value={filters.date}
           onChange={(event) => setFilters((prev) => ({ ...prev, date: event.target.value }))}
-          className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm"
+          className="h-11"
         />
 
-        <select
+        <SelectComponent
+          options={eventTypeOptions}
           value={filters.eventTypeId}
-          onChange={(event) =>
-            setFilters((prev) => ({ ...prev, eventTypeId: Number(event.target.value) }))
-          }
-          className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm"
-        >
-          <option value={0}>Tipo de evento</option>
-          {catalogs.eventTypes.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => setFilters((prev) => ({ ...prev, eventTypeId: Number(value) || 0 }))}
+          isSearchable={false}
+          className="text-sm"
+          selectProps={{
+            instanceId: 'event-map-type-filter',
+            inputId: 'event-map-type-filter',
+            placeholder: 'Tipo de evento',
+          }}
+        />
 
-        <select
+        <SelectComponent
+          options={levelOptions}
           value={filters.levelId}
-          onChange={(event) => setFilters((prev) => ({ ...prev, levelId: Number(event.target.value) }))}
-          className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm"
-        >
-          <option value={0}>Nivel</option>
-          {catalogs.levels.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => setFilters((prev) => ({ ...prev, levelId: Number(value) || 0 }))}
+          isSearchable={false}
+          className="text-sm"
+          selectProps={{
+            instanceId: 'event-map-level-filter',
+            inputId: 'event-map-level-filter',
+            placeholder: 'Nivel',
+          }}
+        />
 
-        <input
+        <Input
           type="number"
           min={0}
           placeholder="Distancia (km)"
@@ -220,7 +239,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           onChange={(event) =>
             setFilters((prev) => ({ ...prev, distanceKm: Number(event.target.value) || 0 }))
           }
-          className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm"
+          className="h-11"
         />
       </div>
 
@@ -251,8 +270,9 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           <button
             type="button"
             onClick={clearFilters}
-            className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700"
           >
+            <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
             Limpiar filtros
           </button>
         )}

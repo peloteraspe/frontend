@@ -7,13 +7,14 @@ const MainSection = () => {
   return (
     <section className="mx-auto flex w-full max-w-[1600px] flex-col lg:flex-row lg:justify-between px-5 sm:px-8 lg:px-10 py-8 md:py-12 gap-8">
       {/* Imagen hero para mobile - visible solo en pantallas pequenas */}
-      <div className="lg:hidden w-full relative aspect-[4/3] rounded-2xl overflow-hidden">
+      <div className="lg:hidden w-full rounded-2xl overflow-hidden">
         <Image
           src="/assets/images/peloteras-hero.png"
           alt="Jugadoras de futbol femenino celebrando un gol en la cancha"
-          fill
-          className="object-cover"
-          sizes="(max-width: 1024px) 100vw, 50vw"
+          width={960}
+          height={1200}
+          className="h-auto w-full object-contain object-top"
+          sizes="100vw"
           priority
         />
       </div>

@@ -1,6 +1,15 @@
 import Link from 'next/link';
+import { getServerSupabase } from '@core/api/supabase.server';
+import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 
-export default function AdminHome() {
+export default async function AdminHome() {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const canViewUsersModule = isSuperAdmin(user as any);
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Link href="/admin/events" className="block rounded-lg bg-white shadow p-4 hover:shadow-md">
@@ -8,10 +17,12 @@ export default function AdminHome() {
         <p className="text-sm text-gray-600">Crear, editar y administrar eventos.</p>
       </Link>
 
-      <Link href="/admin/users" className="block rounded-lg bg-white shadow p-4 hover:shadow-md">
-        <h2 className="text-lg font-semibold text-mulberry">Usuarios</h2>
-        <p className="text-sm text-gray-600">Ver perfiles y asignar roles.</p>
-      </Link>
+      {canViewUsersModule ? (
+        <Link href="/admin/users" className="block rounded-lg bg-white shadow p-4 hover:shadow-md">
+          <h2 className="text-lg font-semibold text-mulberry">Usuarios</h2>
+          <p className="text-sm text-gray-600">Ver perfiles y asignar roles.</p>
+        </Link>
+      ) : null}
 
       <Link href="/admin/payments" className="block rounded-lg bg-white shadow p-4 hover:shadow-md">
         <h2 className="text-lg font-semibold text-mulberry">Pagos</h2>
