@@ -60,6 +60,27 @@ function shouldClearSessionForError(rawMessage: string) {
   );
 }
 
+function getErrorMessage(error: unknown) {
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as any).message || '');
+  }
+  return '';
+}
+
+function isSupabaseLockAbortError(error: unknown) {
+  const message = normalizeAuthErrorMessage(getErrorMessage(error));
+  const name = normalizeAuthErrorMessage(String((error as any)?.name || ''));
+  return (
+    name.includes('aborterror') &&
+    (message.includes('lock broken by another request') || message.includes('steal option'))
+  );
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [user, setUser] = useState<UserLite>(null);
@@ -78,28 +99,48 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   const loadProfileUsername = async (userId: string) => {
-    try {
-      const { data: rows, error } = await withTimeout(
-        supabase
-          .from('profile')
-          .select('id, username')
-          .eq('user', userId)
-          .order('id', { ascending: false })
-          .limit(1),
-        6000,
-        'Profile username query timeout'
-      );
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const { data: rows, error } = await withTimeout(
+          supabase
+            .from('profile')
+            .select('id, username')
+            .eq('user', userId)
+            .order('id', { ascending: false })
+            .limit(1),
+          6000,
+          'Profile username query timeout'
+        );
 
-      if (error) {
-        console.warn('⚠️ Profile username query returned error:', error.message);
+        if (error) {
+          if (isSupabaseLockAbortError(error) && attempt === 0) {
+            await wait(150);
+            continue;
+          }
+          if (isSupabaseLockAbortError(error)) {
+            console.info('ℹ️ Profile username query skipped due to temporary lock contention.');
+            return null;
+          }
+          console.warn('⚠️ Profile username query returned error:', error.message);
+          return null;
+        }
+
+        return rows?.[0]?.username ?? null;
+      } catch (profileErr) {
+        if (isSupabaseLockAbortError(profileErr) && attempt === 0) {
+          await wait(150);
+          continue;
+        }
+        if (isSupabaseLockAbortError(profileErr)) {
+          console.info('ℹ️ Profile username fetch skipped due to temporary lock contention.');
+          return null;
+        }
+        console.warn('⚠️ Profile username fetch failed:', profileErr);
         return null;
       }
-
-      return rows?.[0]?.username ?? null;
-    } catch (profileErr) {
-      console.warn('⚠️ Profile username fetch failed:', profileErr);
-      return null;
     }
+
+    return null;
   };
 
   const hydrateFromSession = async () => {
