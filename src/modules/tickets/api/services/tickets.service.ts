@@ -175,8 +175,7 @@ export async function ensureTicketForAssistant(
     googleWalletConfig
   );
   const googleWalletUrl =
-    generatedGoogleWalletUrl ||
-    resolveWalletUrl(process.env.GOOGLE_WALLET_URL_TEMPLATE, qrToken);
+    generatedGoogleWalletUrl || null;
 
   if (existing) {
     const { data: updated, error: updateError } = await supabase
