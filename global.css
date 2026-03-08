@@ -37,6 +37,12 @@
     /* Texto */
     --color-foreground: 15 23 42;        /* slate-900 */
     --color-foreground-muted: 100 116 139; /* slate-500 */
+
+    /* Fuentes fallback locales para evitar dependencia de red en build */
+    --font-poppins: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    --font-poppins-semibold: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    --font-poppins-bold: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    --font-poppins-extrabold: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
     
     /* Border radius estandarizado */
     --radius-sm: 0.5rem;    /* 8px - inputs, badges */

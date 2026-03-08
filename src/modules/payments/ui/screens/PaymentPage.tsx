@@ -4,6 +4,7 @@ import {
   getPaymentPageData,
   PAYMENT_METHOD_NOT_CONFIGURED,
 } from '@modules/payments/api/queries/getPaymentPageData';
+import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 
@@ -47,7 +48,11 @@ export default async function PaymentPage({ id }: { id: string }) {
     notFound();
   }
 
-  const { event, paymentMethods, user, isVersus } = data;
+  const { event, paymentMethods, user } = data;
+  const eventTypeName = String(
+    event?.eventTypeName ?? event?.eventType?.name ?? event?.event_type_name ?? ''
+  ).trim();
+  const isVersus = isVersusEventTypeName(eventTypeName);
   const rawStartTime = event?.start_time ?? event?.startTime ?? null;
   const eventStart = rawStartTime ? new Date(String(rawStartTime)) : null;
   const isRegistrationClosed =

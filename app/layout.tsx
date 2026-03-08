@@ -1,4 +1,3 @@
-import { Poppins } from 'next/font/google';
 import type { Metadata, Viewport } from 'next';
 import '../global.css';
 import '../src/core/ui/styles/index.css';
@@ -13,34 +12,6 @@ import BottomNavigation from './_components/BottomNavigation';
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : 'http://localhost:3000';
-
-const poppins = Poppins({
-  subsets: ['latin'],
-  variable: '--font-poppins',
-  weight: '400',
-  display: 'swap',
-});
-
-const poppinsSemibold = Poppins({
-  subsets: ['latin'],
-  variable: '--font-poppins-semibold',
-  weight: '600',
-  display: 'swap',
-});
-
-const poppinsBold = Poppins({
-  subsets: ['latin'],
-  variable: '--font-poppins-bold',
-  weight: '700',
-  display: 'swap',
-});
-
-const poppinsExtrabold = Poppins({
-  subsets: ['latin'],
-  variable: '--font-poppins-extrabold',
-  weight: '800',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
@@ -71,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang="es"
-      className={`${poppins.variable} ${poppinsBold.variable} ${poppinsExtrabold.variable} ${poppinsSemibold.variable} ${eastmanBold.variable} ${eastmanExtrabold.variable}`}
+      className={`${eastmanBold.variable} ${eastmanExtrabold.variable}`}
       suppressHydrationWarning
     >
       <body
