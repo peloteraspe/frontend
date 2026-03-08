@@ -159,10 +159,14 @@ async function requireAdminUser() {
   return { user, supabase };
 }
 
-async function loadPaymentMethods(supabase: Awaited<ReturnType<typeof getServerSupabase>>) {
+async function loadPaymentMethods(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  userId: string
+) {
   const { data, error } = await supabase
     .from('paymentMethod')
     .select('id,created_at,updated_at,name,QR,number,type,is_active')
+    .eq('created_by', userId)
     .order('is_active', { ascending: false })
     .order('updated_at', { ascending: false })
     .order('created_at', { ascending: false });
@@ -180,7 +184,7 @@ export async function GET() {
     const auth = await requireAdminUser();
     if ('errorResponse' in auth) return auth.errorResponse;
 
-    const paymentMethods = await loadPaymentMethods(auth.supabase);
+    const paymentMethods = await loadPaymentMethods(auth.supabase, auth.user.id);
     return NextResponse.json({ ok: true, paymentMethods });
   } catch (error: any) {
     log.error('Error fetching payment methods admin settings', 'ADMIN_PAYMENT_METHODS', error);
@@ -233,6 +237,7 @@ export async function POST(request: Request) {
         .from('paymentMethod')
         .select('id,QR')
         .eq('id', methodId)
+        .eq('created_by', auth.user.id)
         .maybeSingle();
 
       if (currentMethodError) {
@@ -272,14 +277,21 @@ export async function POST(request: Request) {
     };
 
     if (isEditing) {
-      const { error: updateError } = await auth.supabase
+      const { data: updatedMethod, error: updateError } = await auth.supabase
         .from('paymentMethod')
         .update(payload)
-        .eq('id', methodId);
+        .eq('id', methodId)
+        .eq('created_by', auth.user.id)
+        .select('id')
+        .maybeSingle();
 
       if (updateError) {
         log.database('UPDATE payment method', 'paymentMethod', updateError, { id: methodId });
         throw new Error('No se pudo actualizar el método de pago.');
+      }
+
+      if (!updatedMethod) {
+        return NextResponse.json({ error: 'No puedes editar un método de pago que no es tuyo.' }, { status: 403 });
       }
     } else {
       const { error: insertError } = await auth.supabase.from('paymentMethod').insert({
@@ -293,7 +305,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const paymentMethods = await loadPaymentMethods(auth.supabase);
+    const paymentMethods = await loadPaymentMethods(auth.supabase, auth.user.id);
     return NextResponse.json({
       ok: true,
       mode: isEditing ? 'updated' : 'created',

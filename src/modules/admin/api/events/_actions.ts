@@ -75,6 +75,7 @@ async function syncEventFeatures(
 async function syncEventPaymentMethods(
   supabase: Awaited<ReturnType<typeof getServerSupabase>>,
   eventId: string | number,
+  ownerUserId: string,
   paymentMethodIds: number[]
 ) {
   const normalizedPaymentMethodIds = normalizePaymentMethodIds(paymentMethodIds);
@@ -88,8 +89,28 @@ async function syncEventPaymentMethods(
 
   if (normalizedPaymentMethodIds.length === 0) return;
 
+  const { data: ownedMethods, error: ownedMethodsError } = await supabase
+    .from('paymentMethod')
+    .select('id')
+    .eq('created_by', ownerUserId)
+    .in('id', normalizedPaymentMethodIds);
+
+  if (ownedMethodsError) throw new Error(ownedMethodsError.message);
+
+  const ownedMethodIds = Array.from(
+    new Set(
+      (ownedMethods ?? [])
+        .map((row) => Number((row as { id: number }).id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+
+  if (ownedMethodIds.length !== normalizedPaymentMethodIds.length) {
+    throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
+  }
+
   const { error: insertError } = await supabase.from('eventPaymentMethod').insert(
-    normalizedPaymentMethodIds.map((paymentMethodId) => ({
+    ownedMethodIds.map((paymentMethodId) => ({
       event: eventId,
       paymentMethod: paymentMethodId,
     }))
@@ -127,7 +148,7 @@ export async function createEvent(input: EventUpsertInput) {
   if (!createdEvent?.id) throw new Error('No se pudo obtener el id del evento creado.');
 
   await syncEventFeatures(supabase, createdEvent.id, input.featureIds);
-  await syncEventPaymentMethods(supabase, createdEvent.id, input.paymentMethodIds);
+  await syncEventPaymentMethods(supabase, createdEvent.id, user.id, input.paymentMethodIds);
 
   try {
     await ensureGoogleWalletEventClass({
@@ -193,7 +214,7 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
   if (error) throw new Error(error.message);
 
   await syncEventFeatures(supabase, id, input.featureIds);
-  await syncEventPaymentMethods(supabase, id, input.paymentMethodIds);
+  await syncEventPaymentMethods(supabase, id, user.id, input.paymentMethodIds);
 
   try {
     await ensureGoogleWalletEventClass({

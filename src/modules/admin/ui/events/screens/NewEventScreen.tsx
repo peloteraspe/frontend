@@ -18,6 +18,7 @@ export default async function NewEventScreen() {
       .from('paymentMethod')
       .select('id,name,type,number,is_active')
       .eq('is_active', true)
+      .eq('created_by', user?.id || '')
       .order('created_at', { ascending: false }),
   ]);
 
