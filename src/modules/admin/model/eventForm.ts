@@ -13,6 +13,7 @@ export type EventUpsertInput = {
   eventTypeId: number;
   levelId: number;
   featureIds: number[];
+  paymentMethodIds: number[];
   isFeatured: boolean;
 };
 
@@ -66,6 +67,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     eventTypeId: parseNumber(fd.get('eventTypeId'), 1),
     levelId: parseNumber(fd.get('levelId'), 1),
     featureIds: parseNumberList(fd.getAll('featureIds')),
+    paymentMethodIds: parseNumberList(fd.getAll('paymentMethodIds')),
     isFeatured: parseBoolean(fd.get('isFeatured')),
   };
 }
@@ -84,5 +86,9 @@ export function validateEventFormInput(input: EventUpsertInput) {
 
   if (!input.district.trim()) {
     throw new Error('Selecciona un distrito válido.');
+  }
+
+  if (!Array.isArray(input.paymentMethodIds) || input.paymentMethodIds.length === 0) {
+    throw new Error('Selecciona al menos un método de pago para el evento.');
   }
 }

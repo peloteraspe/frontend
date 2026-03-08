@@ -20,10 +20,21 @@ create index if not exists "wallet_provider_settings_provider_idx"
 
 alter table "public"."wallet_provider_settings" enable row level security;
 
-create policy "wallet_provider_settings_service_role_all"
-  on "public"."wallet_provider_settings"
-  as permissive
-  for all
-  to service_role
-  using (true)
-  with check (true);
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'wallet_provider_settings'
+      and policyname = 'wallet_provider_settings_service_role_all'
+  ) then
+    create policy "wallet_provider_settings_service_role_all"
+      on "public"."wallet_provider_settings"
+      as permissive
+      for all
+      to service_role
+      using (true)
+      with check (true);
+  end if;
+end $$;

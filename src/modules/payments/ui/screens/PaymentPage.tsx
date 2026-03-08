@@ -27,7 +27,7 @@ export default async function PaymentPage({ id }: { id: string }) {
             </span>
             <h1 className="mt-3 text-2xl font-bold text-[#54086F]">Pago no disponible</h1>
             <p className="mt-3 text-sm text-slate-700 sm:text-base">
-              Este evento aún no tiene un método de pago configurado.
+              Este evento aún no tiene métodos de pago configurados.
             </p>
             <p className="mt-2 text-sm text-slate-700 sm:text-base">
               Vuelve en unos minutos o contacta al organizador para habilitar el pago.
@@ -47,11 +47,11 @@ export default async function PaymentPage({ id }: { id: string }) {
     notFound();
   }
 
-  const { event, paymentMethod, user } = data;
+  const { event, paymentMethods, user } = data;
 
   return (
     <section className="w-full">
-      <PaymentStepper post={event} paymentData={paymentMethod} user={user} />
+      <PaymentStepper post={event} paymentData={paymentMethods} user={user} />
     </section>
   );
 }

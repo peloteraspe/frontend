@@ -18,6 +18,11 @@ export default function AdminHome() {
         <p className="text-sm text-gray-600">Aprobar o rechazar pagos pendientes.</p>
       </Link>
 
+      <Link href="/admin/payment-methods" className="block rounded-lg bg-white shadow p-4 hover:shadow-md">
+        <h2 className="text-lg font-semibold text-mulberry">Formas de pago</h2>
+        <p className="text-sm text-gray-600">Configurar Yape y Plin por evento.</p>
+      </Link>
+
       <Link href="/admin/scan" className="block rounded-lg bg-white shadow p-4 hover:shadow-md">
         <h2 className="text-lg font-semibold text-mulberry">Validar QR</h2>
         <p className="text-sm text-gray-600">Escanear o pegar token para marcar entradas como usadas.</p>

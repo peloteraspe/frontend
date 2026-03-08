@@ -2,7 +2,7 @@ import { getServerSupabase } from '@core/api/supabase.server';
 
 export type PaymentPageData = {
   event: any;
-  paymentMethod: any;
+  paymentMethods: any[];
   user: any;
 };
 
@@ -21,15 +21,50 @@ export async function getPaymentPageData(id: string) {
     throw new Error('Event not found');
   }
 
-  const { data: paymentMethod, error: paymentError } = await supabase
-    .from('paymentMethod')
-    .select('*')
-    .eq('event', event.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: links, error: linksError } = await supabase
+    .from('eventPaymentMethod')
+    .select('paymentMethod')
+    .eq('event', event.id);
 
-  if (paymentError || !paymentMethod) {
+  if (linksError) {
+    throw new Error(PAYMENT_METHOD_NOT_CONFIGURED);
+  }
+
+  const paymentMethodIds = Array.from(
+    new Set(
+      (links || [])
+        .map((row) => Number(row.paymentMethod))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )
+  );
+
+  if (paymentMethodIds.length === 0) {
+    throw new Error(PAYMENT_METHOD_NOT_CONFIGURED);
+  }
+
+  const { data: paymentMethods, error: paymentError } = await supabase
+    .from('paymentMethod')
+    .select('id,name,QR,number,type,is_active')
+    .in('id', paymentMethodIds)
+    .eq('is_active', true);
+
+  if (paymentError || !paymentMethods || paymentMethods.length === 0) {
+    throw new Error(PAYMENT_METHOD_NOT_CONFIGURED);
+  }
+
+  const methodsById = new Map<number, any>();
+  paymentMethods.forEach((method) => {
+    const id = Number((method as any)?.id);
+    if (Number.isInteger(id) && id > 0) {
+      methodsById.set(id, method);
+    }
+  });
+
+  const orderedPaymentMethods = paymentMethodIds
+    .map((id) => methodsById.get(id))
+    .filter(Boolean);
+
+  if (orderedPaymentMethods.length === 0) {
     throw new Error(PAYMENT_METHOD_NOT_CONFIGURED);
   }
 
@@ -37,5 +72,5 @@ export async function getPaymentPageData(id: string) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { event, paymentMethod, user } satisfies PaymentPageData;
+  return { event, paymentMethods: orderedPaymentMethods, user } satisfies PaymentPageData;
 }

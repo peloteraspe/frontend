@@ -29,11 +29,13 @@ type Props = {
     eventTypeId: number;
     levelId: number;
     featureIds: number[];
+    paymentMethodIds: number[];
     isFeatured: boolean;
   }>;
   eventTypes: CatalogOption[];
   levels: CatalogOption[];
   features?: CatalogOption[];
+  paymentMethods?: PaymentMethodOption[];
   onSubmit: (form: FormData) => Promise<void | SubmitResult>;
   submitLabel: string;
   canManageFeatured?: boolean;
@@ -62,6 +64,14 @@ type DistrictOption = {
   type: string;
   value: string;
   label: string;
+};
+
+type PaymentMethodOption = {
+  id: number;
+  name: string;
+  type: string;
+  number: number | null;
+  isActive: boolean;
 };
 
 function normalizeKey(value: string) {
@@ -163,6 +173,7 @@ const EventForm = ({
   eventTypes,
   levels,
   features = [],
+  paymentMethods = [],
   onSubmit,
   submitLabel,
   canManageFeatured = false,
@@ -197,6 +208,17 @@ const EventForm = ({
       )
     );
   });
+  const [selectedPaymentMethodIds, setSelectedPaymentMethodIds] = useState<number[]>(() => {
+    const input = Array.isArray(initial?.paymentMethodIds) ? initial.paymentMethodIds : [];
+    return Array.from(
+      new Set(
+        input
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0)
+      )
+    );
+  });
+  const [paymentMethodsError, setPaymentMethodsError] = useState('');
   const [pinSelected, setPinSelected] = useState(() =>
     Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
   );
@@ -229,6 +251,24 @@ const EventForm = ({
   const featureOptions = useMemo(
     () => features.map((option) => ({ value: option.id, label: option.name })),
     [features]
+  );
+  const paymentMethodOptions = useMemo(
+    () =>
+      paymentMethods.map((option) => {
+        const methodType =
+          option.type === 'yape_plin'
+            ? 'Yape/Plin'
+            : option.type === 'plin'
+              ? 'Plin'
+              : 'Yape';
+        const numberText = option.number ? ` · ${option.number}` : '';
+        const stateText = option.isActive ? '' : ' (Inactivo)';
+        return {
+          value: option.id,
+          label: `${option.name} · ${methodType}${numberText}${stateText}`,
+        };
+      }),
+    [paymentMethods]
   );
   const isCreateMode = useMemo(() => submitLabel.trim().toLowerCase() === 'crear', [submitLabel]);
   const pendingLabel = isCreateMode ? 'Creando evento...' : 'Guardando...';
@@ -370,6 +410,7 @@ const EventForm = ({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setPaymentMethodsError('');
 
     const fd = new FormData(event.currentTarget);
     const start = String(fd.get('startTime') || '');
@@ -387,6 +428,11 @@ const EventForm = ({
       return;
     }
     if (!pinSelected || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return;
+    }
+
+    if (selectedPaymentMethodIds.length === 0) {
+      setPaymentMethodsError('Selecciona al menos un método de pago.');
       return;
     }
 
@@ -655,6 +701,49 @@ const EventForm = ({
       </div>
 
       <label className="w-full">
+        <div className="mb-1 text-sm font-semibold text-slate-700">Métodos de pago permitidos *</div>
+        <SelectComponent
+          options={paymentMethodOptions}
+          value={selectedPaymentMethodIds}
+          onChange={(value) => {
+            const nextIds = Array.isArray(value)
+              ? value
+                  .map((item) => Number(item))
+                  .filter((item) => Number.isInteger(item) && item > 0)
+              : [];
+            setSelectedPaymentMethodIds(nextIds);
+            if (nextIds.length > 0) {
+              setPaymentMethodsError('');
+            }
+          }}
+          isMulti
+          isSearchable={false}
+          bgColor="bg-white"
+        />
+        {paymentMethods.length === 0 ? (
+          <p className="mt-1 text-xs text-amber-700">
+            No hay métodos disponibles. Crea al menos uno en Admin {'>'} Formas de pago.
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-slate-500">
+            {selectedPaymentMethodIds.length > 0
+              ? `${selectedPaymentMethodIds.length} método(s) seleccionado(s).`
+              : 'Selecciona uno o más métodos para este evento.'}
+          </p>
+        )}
+        {paymentMethodsError ? <p className="mt-1 text-xs text-red-600">{paymentMethodsError}</p> : null}
+        {selectedPaymentMethodIds.map((paymentMethodId) => (
+          <input
+            key={`payment-method-${paymentMethodId}`}
+            type="hidden"
+            name="paymentMethodIds"
+            value={paymentMethodId}
+            readOnly
+          />
+        ))}
+      </label>
+
+      <label className="w-full">
         <div className="mb-1 text-sm font-semibold text-slate-700">Features</div>
         <SelectComponent
           options={featureOptions}
@@ -704,7 +793,13 @@ const EventForm = ({
           <ButtonWrapper
             width="fit-content"
             htmlType="submit"
-            disabled={pending || Boolean(timeError) || Boolean(locationError) || !districtText}
+            disabled={
+              pending ||
+              Boolean(timeError) ||
+              Boolean(locationError) ||
+              !districtText ||
+              selectedPaymentMethodIds.length === 0
+            }
           >
             {pending ? pendingLabel : submitLabel}
           </ButtonWrapper>

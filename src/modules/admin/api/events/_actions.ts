@@ -42,6 +42,12 @@ function normalizeFeatureIds(ids: number[]) {
   );
 }
 
+function normalizePaymentMethodIds(ids: number[]) {
+  return Array.from(
+    new Set(ids.filter((id) => Number.isInteger(id) && id > 0))
+  );
+}
+
 async function syncEventFeatures(
   supabase: Awaited<ReturnType<typeof getServerSupabase>>,
   eventId: string | number,
@@ -58,6 +64,32 @@ async function syncEventFeatures(
     normalizedFeatureIds.map((featureId) => ({
       event: eventId,
       feature: featureId,
+    }))
+  );
+
+  if (insertError) throw new Error(insertError.message);
+}
+
+async function syncEventPaymentMethods(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  eventId: string | number,
+  paymentMethodIds: number[]
+) {
+  const normalizedPaymentMethodIds = normalizePaymentMethodIds(paymentMethodIds);
+
+  const { error: deleteError } = await supabase
+    .from('eventPaymentMethod')
+    .delete()
+    .eq('event', eventId);
+
+  if (deleteError) throw new Error(deleteError.message);
+
+  if (normalizedPaymentMethodIds.length === 0) return;
+
+  const { error: insertError } = await supabase.from('eventPaymentMethod').insert(
+    normalizedPaymentMethodIds.map((paymentMethodId) => ({
+      event: eventId,
+      paymentMethod: paymentMethodId,
     }))
   );
 
@@ -93,10 +125,12 @@ export async function createEvent(input: EventUpsertInput) {
   if (!createdEvent?.id) throw new Error('No se pudo obtener el id del evento creado.');
 
   await syncEventFeatures(supabase, createdEvent.id, input.featureIds);
+  await syncEventPaymentMethods(supabase, createdEvent.id, input.paymentMethodIds);
 
   revalidatePath('/admin/events');
   revalidatePath('/events');
   revalidatePath(`/events/${createdEvent.id}`);
+  revalidatePath(`/payments/${createdEvent.id}`);
   revalidatePath('/');
 
   return { id: String(createdEvent.id) };
@@ -143,11 +177,13 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
   if (error) throw new Error(error.message);
 
   await syncEventFeatures(supabase, id, input.featureIds);
+  await syncEventPaymentMethods(supabase, id, input.paymentMethodIds);
 
   revalidatePath('/admin/events');
   revalidatePath(`/admin/events/${id}/edit`);
   revalidatePath('/events');
   revalidatePath(`/events/${id}`);
+  revalidatePath(`/payments/${id}`);
   revalidatePath('/');
 }
 

@@ -68,6 +68,19 @@ function toText(value: unknown, fallback = '') {
   return fallback;
 }
 
+function getNameInitials(name: string) {
+  const normalized = toText(name);
+  if (!normalized) return '??';
+  const tokens = normalized
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+  if (tokens.length >= 2) {
+    return `${tokens[0][0] || ''}${tokens[1][0] || ''}`.toUpperCase();
+  }
+  return normalized.slice(0, 2).toUpperCase();
+}
+
 export default function EventDetailsClient({ data }: Props) {
   const post = data;
   const router = useRouter();
@@ -116,7 +129,27 @@ export default function EventDetailsClient({ data }: Props) {
   const lng = toNumber(event?.location?.lng ?? event?.location?.long, 0);
   const hasLocation = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
 
-  const assistants = Array.isArray(post?.assistants) ? post.assistants : [];
+  const assistantsSource = Array.isArray(post?.assistants)
+    ? post.assistants
+    : Array.isArray(event?.assistants)
+    ? event.assistants
+    : [];
+
+  const assistants = assistantsSource
+    .filter((assistant: any) => {
+      const state = toText(assistant?.state).toLowerCase();
+      return !state || state === 'approved';
+    })
+    .map((assistant: any, index: number) => {
+      const name = toText(assistant?.username ?? assistant?.name, `Participante ${index + 1}`);
+      const id = String(assistant?.id ?? assistant?.user ?? `${name}-${index}`);
+      return {
+        id,
+        name,
+        initials: getNameInitials(name),
+      };
+    });
+
   const occupancyText = maxUsers > 0 ? `${assistants.length}/${maxUsers}` : `${assistants.length}`;
 
   const handleJoinClick = () => {
@@ -179,12 +212,42 @@ export default function EventDetailsClient({ data }: Props) {
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-            <h2 className="mb-4 text-xl font-bold text-slate-900">Alineación</h2>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-900">Alineación</h2>
+              <span
+                className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+                title="Las posiciones son una referencia visual y cambian en cada ingreso al evento."
+              >
+                Distribución referencial
+              </span>
+            </div>
             <SoccerField
               minUsers={minUsers}
               maxUsers={maxUsers}
+              participants={assistants}
               onSelect={(position) => console.log('Posición seleccionada:', position)}
             />
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <h3 className="mb-3 text-xl font-bold text-slate-900">Participantes ({assistants.length})</h3>
+            {assistants.length ? (
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {assistants.map((assistant) => (
+                  <li
+                    key={assistant.id}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                  >
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#54086F] text-xs font-semibold text-white">
+                      {assistant.initials}
+                    </span>
+                    <span className="text-sm text-slate-800">{assistant.name}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-600">Aún no hay participantes confirmados.</p>
+            )}
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
@@ -277,22 +340,6 @@ export default function EventDetailsClient({ data }: Props) {
               </div>
             </div>
 
-            <Collapse
-              title={`Participantes (${assistants.length})`}
-              content={
-                assistants.length ? (
-                  <ol className="list-decimal space-y-1 pl-5">
-                    {assistants.map((assistant: any, index: number) => {
-                      const name = toText(assistant?.username ?? assistant?.name, 'Participante');
-                      const key = String(assistant?.id ?? `${name}-${index}`);
-                      return <li key={key}>{name}</li>;
-                    })}
-                  </ol>
-                ) : (
-                  'Aún no hay participantes confirmados.'
-                )
-              }
-            />
           </div>
         </aside>
       </div>

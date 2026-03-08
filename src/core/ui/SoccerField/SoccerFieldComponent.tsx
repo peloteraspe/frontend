@@ -11,12 +11,19 @@ type Position = {
   kind: 'field' | 'bench';
 };
 
+type ParticipantMarker = {
+  id: string;
+  name: string;
+  initials?: string;
+};
+
 export type SoccerFieldDynamicProps = {
   minUsers: number;
   maxUsers?: number;
   selectedId?: string | null;
   onSelect?: (pos: Position) => void;
   className?: string;
+  participants?: ParticipantMarker[];
 };
 
 type AnchorContainer = 'portrait' | 'landscape' | 'bench' | null;
@@ -27,9 +34,11 @@ export default function SoccerField({
   selectedId = null,
   onSelect,
   className,
+  participants = [],
 }: SoccerFieldDynamicProps) {
   const nPerTeam = Math.max(0, Math.floor(minUsers / 2));
   const extras = Math.max(0, (maxUsers ?? minUsers) - minUsers);
+  const [placementSeed] = useState(() => Math.floor(Math.random() * 2147483647));
 
   const fieldPositionsPortrait = useMemo(() => {
     const teamTop = layoutTeam(nPerTeam, 'top');
@@ -53,6 +62,31 @@ export default function SoccerField({
       })),
     [extras]
   );
+
+  const participantBySpotId = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; initials: string }>();
+    const spots = [...fieldPositionsPortrait, ...benchPositions];
+    if (!spots.length || !participants.length) return map;
+
+    const shuffledSpotIds = seededShuffle(
+      spots.map((spot) => spot.id),
+      placementSeed
+    );
+    const shuffledParticipants = seededShuffle([...participants], placementSeed ^ 0x9e3779b9);
+    const assignments = Math.min(shuffledSpotIds.length, shuffledParticipants.length);
+
+    for (let i = 0; i < assignments; i++) {
+      const rawParticipant = shuffledParticipants[i];
+      const name = String(rawParticipant?.name || '').trim() || 'Participante';
+      map.set(shuffledSpotIds[i], {
+        id: String(rawParticipant?.id || `participant-${i + 1}`),
+        name,
+        initials: toInitials(rawParticipant?.initials || name),
+      });
+    }
+
+    return map;
+  }, [benchPositions, fieldPositionsPortrait, participants, placementSeed]);
 
   const portraitLayerRef = useRef<HTMLDivElement | null>(null);
   const landscapeLayerRef = useRef<HTMLDivElement | null>(null);
@@ -147,28 +181,34 @@ export default function SoccerField({
     onSelect?.(p);
   };
 
-  const Spot = ({ p, isSelected }: { p: Position; isSelected: boolean }) => (
-    <button
-      type="button"
-      data-spot-id={p.id}
-      aria-label={p.label}
-      title={p.label}
-      className={[
-        'absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full select-none',
-        'flex items-center justify-center focus:outline-none touch-manipulation',
+  const Spot = ({ p, isSelected }: { p: Position; isSelected: boolean }) => {
+    const participant = participantBySpotId.get(p.id);
+    const label = participant?.name || p.label;
 
-        'bg-white/80 backdrop-blur-sm border-2 border-gray-400/60 shadow-sm',
-
-        'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60',
-
-        isSelected ? 'border-gray-700 ring-2 ring-gray-500/40' : '',
-        'w-12 h-12 md:w-12 md:h-12',
-        'active:scale-[0.97] transition-transform',
-      ].join(' ')}
-      style={{ left: `${p.x}%`, top: `${p.y}%` }}
-      onClick={(e) => selectByClick(p, e.currentTarget as HTMLElement)} // ← solo click/tap selecciona
-    />
-  );
+    return (
+      <button
+        type="button"
+        data-spot-id={p.id}
+        aria-label={label}
+        title={label}
+        className={[
+          'absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full select-none',
+          'flex items-center justify-center focus:outline-none touch-manipulation',
+          participant
+            ? 'bg-[#5b1c70] border-2 border-[#8d4aa0] text-white shadow-md'
+            : 'bg-white/80 backdrop-blur-sm border-2 border-gray-400/60 shadow-sm',
+          'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60',
+          isSelected ? 'border-gray-700 ring-2 ring-gray-500/40' : '',
+          'w-12 h-12 md:w-12 md:h-12',
+          'active:scale-[0.97] transition-transform',
+        ].join(' ')}
+        style={{ left: `${p.x}%`, top: `${p.y}%` }}
+        onClick={(e) => selectByClick(p, e.currentTarget as HTMLElement)}
+      >
+        {participant ? <span className="text-[10px] font-semibold tracking-wide">{participant.initials}</span> : null}
+      </button>
+    );
+  };
 
   const showSelected = Boolean(selected);
 
@@ -259,16 +299,25 @@ export default function SoccerField({
                   key={p.id}
                   type="button"
                   data-spot-id={p.id}
-                  aria-label={p.label}
+                  aria-label={participantBySpotId.get(p.id)?.name || p.label}
+                  title={participantBySpotId.get(p.id)?.name || p.label}
                   className={[
-                    'rounded-full bg-gray-100 border-2 border-gray-400/70 shadow-sm',
+                    participantBySpotId.get(p.id)
+                      ? 'rounded-full border-2 border-[#8d4aa0] bg-[#5b1c70] text-white shadow-md'
+                      : 'rounded-full bg-gray-100 border-2 border-gray-400/70 shadow-sm',
                     'focus:outline-none touch-manipulation',
                     'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60',
                     selected?.id === p.id ? 'border-gray-700 ring-2 ring-gray-500/40' : '',
-                    'w-12 h-12 active:scale-[0.97] transition-transform',
+                    'w-12 h-12 active:scale-[0.97] transition-transform flex items-center justify-center',
                   ].join(' ')}
                   onClick={(e) => selectByClick(p, e.currentTarget as HTMLElement)}
-                />
+                >
+                  {participantBySpotId.get(p.id) ? (
+                    <span className="text-[10px] font-semibold tracking-wide">
+                      {participantBySpotId.get(p.id)?.initials}
+                    </span>
+                  ) : null}
+                </button>
               ))}
             </div>
 
@@ -345,6 +394,42 @@ function splitEvenly(n: number, rows: number): number[] {
   const base = Math.floor(n / rows);
   const rem = n % rows;
   return Array.from({ length: rows }, (_, i) => base + (i < rem ? 1 : 0));
+}
+
+function toInitials(value: unknown) {
+  const text = String(value ?? '')
+    .trim()
+    .toUpperCase();
+  if (!text) return '??';
+  const parts = text
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0] || ''}${parts[1][0] || ''}`.slice(0, 2);
+  return text.slice(0, 2);
+}
+
+function seededShuffle<T>(items: T[], seed: number): T[] {
+  const result = [...items];
+  if (result.length <= 1) return result;
+  const random = mulberry32(seed || 1);
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    const tmp = result[i];
+    result[i] = result[j];
+    result[j] = tmp;
+  }
+  return result;
+}
+
+function mulberry32(initialSeed: number) {
+  let t = initialSeed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let n = Math.imul(t ^ (t >>> 15), t | 1);
+    n ^= n + Math.imul(n ^ (n >>> 7), n | 61);
+    return ((n ^ (n >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function SpinningBall({ color = '#5b1c70' }: { color?: string }) {

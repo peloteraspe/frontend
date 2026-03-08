@@ -16,14 +16,23 @@ export default async function EditEventScreen({ id }: { id: string }) {
 
   const event = await getEventById(id);
   if (!event) redirect('/admin/events');
-  const [catalogs, featuresRes, eventFeaturesRes] = await Promise.all([
-    getEventCatalogs(),
-    supabase.from('features').select('id,name').order('name', { ascending: true }),
-    supabase.from('eventFeatures').select('feature').eq('event', id),
-  ]);
+  const [catalogs, featuresRes, eventFeaturesRes, paymentMethodsRes, eventPaymentMethodsRes] =
+    await Promise.all([
+      getEventCatalogs(),
+      supabase.from('features').select('id,name').order('name', { ascending: true }),
+      supabase.from('eventFeatures').select('feature').eq('event', id),
+      supabase
+        .from('paymentMethod')
+        .select('id,name,type,number,is_active')
+        .order('is_active', { ascending: false })
+        .order('created_at', { ascending: false }),
+      supabase.from('eventPaymentMethod').select('paymentMethod').eq('event', id),
+    ]);
 
   if (featuresRes.error) throw new Error(featuresRes.error.message);
   if (eventFeaturesRes.error) throw new Error(eventFeaturesRes.error.message);
+  if (paymentMethodsRes.error) throw new Error(paymentMethodsRes.error.message);
+  if (eventPaymentMethodsRes.error) throw new Error(eventPaymentMethodsRes.error.message);
 
   const features = (featuresRes.data ?? [])
     .map((feature) => ({
@@ -36,6 +45,28 @@ export default async function EditEventScreen({ id }: { id: string }) {
     new Set(
       (eventFeaturesRes.data ?? [])
         .map((row) => Number(row.feature))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )
+  );
+
+  const paymentMethods = (paymentMethodsRes.data ?? [])
+    .map((method) => ({
+      id: Number(method.id),
+      name: String(method.name || '').trim() || `Método #${method.id}`,
+      type: String(method.type || 'yape')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace('/', '_'),
+      number: method.number === null || method.number === undefined ? null : Number(method.number),
+      isActive: method.is_active !== false,
+    }))
+    .filter((method) => Number.isInteger(method.id) && method.id > 0);
+
+  const selectedPaymentMethodIds = Array.from(
+    new Set(
+      (eventPaymentMethodsRes.data ?? [])
+        .map((row) => Number(row.paymentMethod))
         .filter((value) => Number.isInteger(value) && value > 0)
     )
   );
@@ -66,6 +97,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
         eventTypes={catalogs.eventTypes}
         levels={catalogs.levels}
         features={features}
+        paymentMethods={paymentMethods}
         initial={{
           title: event.title,
           description:
@@ -82,6 +114,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
           eventTypeId: event.EventType,
           levelId: event.level,
           featureIds: selectedFeatureIds,
+          paymentMethodIds: selectedPaymentMethodIds,
           isFeatured: Boolean(event.is_featured),
         }}
         canManageFeatured={canManageFeatured}

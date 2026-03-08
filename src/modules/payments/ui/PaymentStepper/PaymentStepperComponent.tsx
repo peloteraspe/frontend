@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import OperationNumberModal from '../OperationNumberModal';
 import operationGuideImage from '@core/assets/images/donde-nro-operacion.png';
@@ -21,11 +21,45 @@ type FormValues = {
 const PAYMENT_CONFIRM_TIMEOUT_MS = 12000;
 const OPERATION_NUMBER_REGEX = /^\d{8}$/;
 
+function normalizePaymentType(rawType: unknown) {
+  const normalized = String(rawType || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace('/', '_');
+
+  if (normalized.includes('yape') && normalized.includes('plin')) return 'yape_plin';
+  if (normalized.includes('plin')) return 'plin';
+  if (normalized.includes('yape')) return 'yape';
+  return '';
+}
+
+function getPaymentMethodLabel(rawType: unknown) {
+  const normalized = normalizePaymentType(rawType);
+  if (normalized === 'yape_plin') return 'Yape o Plin';
+  if (normalized === 'plin') return 'Plin';
+  return 'Yape';
+}
+
+function getPaymentMethodName(method: any) {
+  const customName = typeof method?.name === 'string' ? method.name.trim() : '';
+  if (customName) return customName;
+  return getPaymentMethodLabel(method?.type);
+}
+
 const PaymentStepper = (props: any) => {
   const { post, paymentData, user } = props;
+  const paymentMethods = Array.isArray(paymentData) ? paymentData : paymentData ? [paymentData] : [];
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(() => {
+    const firstId = Number(paymentMethods?.[0]?.id);
+    return Number.isFinite(firstId) && firstId > 0 ? firstId : null;
+  });
+  const selectedPaymentMethod =
+    paymentMethods.find((method) => Number(method?.id) === selectedPaymentMethodId) || paymentMethods[0] || null;
   const paymentQr =
-    typeof paymentData?.QR === 'string' ? paymentData.QR.replace(/^"|"$/g, '') : '';
-  const paymentNumber = paymentData?.number ?? '';
+    typeof selectedPaymentMethod?.QR === 'string' ? selectedPaymentMethod.QR.replace(/^"|"$/g, '') : '';
+  const paymentNumber = selectedPaymentMethod?.number ?? '';
+  const paymentMethodName = getPaymentMethodName(selectedPaymentMethod);
   const eventTitle = typeof post?.title === 'string' ? post.title : 'Evento';
   const price = Number(post?.price ?? 0);
   const formattedPrice = Number.isFinite(price) ? price.toFixed(2) : '0.00';
@@ -54,6 +88,13 @@ const PaymentStepper = (props: any) => {
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id ?? user?.id ?? null;
   const isEmailConfirmed = Boolean(authUser?.email_confirmed_at ?? user?.email_confirmed_at);
+
+  useEffect(() => {
+    const firstId = Number(paymentMethods?.[0]?.id);
+    if ((!selectedPaymentMethodId || !selectedPaymentMethod) && Number.isFinite(firstId) && firstId > 0) {
+      setSelectedPaymentMethodId(firstId);
+    }
+  }, [paymentMethods, selectedPaymentMethod, selectedPaymentMethodId]);
 
   const handleApplyPromCode = (_data: FormValues) => {
     // Aquí podrías validar el cupón via API. Por ahora, forzamos error de ejemplo:
@@ -260,9 +301,45 @@ const PaymentStepper = (props: any) => {
                 Completa el pago para reservar tu cupo en el evento.
               </p>
 
+              {paymentMethods.length > 1 ? (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Elige método de pago
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {paymentMethods.map((method) => {
+                      const methodId = Number(method?.id);
+                      const methodName = getPaymentMethodName(method);
+                      const isActive =
+                        Number.isFinite(methodId) && methodId > 0 && methodId === selectedPaymentMethodId;
+
+                      return (
+                        <button
+                          key={String(method?.id || methodName)}
+                          type="button"
+                          onClick={() => {
+                            if (Number.isFinite(methodId) && methodId > 0) {
+                              setSelectedPaymentMethodId(methodId);
+                            }
+                          }}
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                            isActive
+                              ? 'border-mulberry bg-mulberry text-white'
+                              : 'border-slate-300 bg-white text-slate-700'
+                          }`}
+                        >
+                          {methodName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
               <ol className="mt-5 space-y-3 text-sm text-slate-700 sm:text-base">
                 <li>
-                  1. Escanea el código QR o paga al número <strong>{paymentNumber || 'No disponible'}</strong>.
+                  1. Escanea el código QR o paga al número <strong>{paymentNumber || 'No disponible'}</strong>{' '}
+                  usando <strong>{paymentMethodName}</strong>.
                 </li>
                 <li>2. Guarda el número de operación de 8 dígitos.</li>
                 <li>3. Regresa aquí para confirmar tu pago.</li>
@@ -342,7 +419,7 @@ const PaymentStepper = (props: any) => {
           <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
             <h2 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Verificación</h2>
             <p className="mt-2 text-sm text-slate-600 sm:text-base">
-              Ingresa tu número de operación de Yape para validar el pago.
+              Ingresa tu número de operación de {paymentMethodName} para validar el pago.
             </p>
 
             <form className="mt-5" onSubmit={handleSubmit(handlePaymentConfirmation)} noValidate>
