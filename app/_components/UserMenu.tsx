@@ -3,6 +3,7 @@ import { ButtonM } from '@src/core/ui/Typography';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import UserImage from '@src/shared/ui/UserImage';
+import { isAdmin as isAdminUser } from '@shared/lib/auth/isAdmin';
 
 type UserLite = {
   id: string;
@@ -10,6 +11,8 @@ type UserLite = {
   username?: string | null;
   avatar_url?: string | null;
   email_confirmed_at?: string;
+  app_metadata?: Record<string, any> | null;
+  user_metadata?: Record<string, any> | null;
 } | null;
 
 interface UserMenuProps {
@@ -21,6 +24,7 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
   const [isOpen, setIsOpen] = React.useState(false);
   const [isSigningOut, setIsSigningOut] = React.useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const userIsAdmin = Boolean(user && isAdminUser(user as any));
 
   const toggleOpen = useCallback(() => {
     setIsOpen((prev) => !prev);
@@ -48,12 +52,18 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
           <div className="flex items-center space-x-8">
             {user ? (
               <>
-                <Link
-                  href={`/tickets/${user.id}`}
-                  className="font-poppins font-semibold text-sm text-mulberry"
-                >
-                  Mis entradas
-                </Link>
+                {userIsAdmin ? (
+                  <Link href="/admin" className="font-poppins font-semibold text-sm text-mulberry">
+                    Dashboard
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/tickets/${user.id}`}
+                    className="font-poppins font-semibold text-sm text-mulberry"
+                  >
+                    Mis entradas
+                  </Link>
+                )}
 
                 <Link href="/profile" className="font-poppins font-semibold text-sm text-mulberry">
                   Mi perfil
@@ -78,6 +88,18 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
                       <p className="text-sm  font-semibold leading-none">{user.username}</p>
                       <p className="text-sm leading-none text-muted-foreground">{user?.email}</p>
                     </Link>
+                    {userIsAdmin ? (
+                      <>
+                        <hr className="-mx-1 my-1 h-px bg-muted" />
+                        <Link
+                          href={`/tickets/${user.id}`}
+                          onClick={() => setIsOpen(false)}
+                          className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-neutral-100 transition"
+                        >
+                          Mis entradas
+                        </Link>
+                      </>
+                    ) : null}
                     <hr className="-mx-1 my-1 h-px bg-muted" />
                     <button
                       type="button"
