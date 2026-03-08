@@ -57,6 +57,7 @@ type ProfileRow = {
 };
 
 const DEFAULT_TIMEZONE = 'America/Lima';
+const GOOGLE_WALLET_FORCED_CLASS_ID = 'peloteras_event_16';
 
 function isMissingTicketTableError(error: any) {
   const message = String(error?.message ?? '').toLowerCase();
@@ -311,18 +312,21 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
       const qrImageUrl = qrValue
         ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrValue)}`
         : null;
-      const googleWalletUrl = ticket?.google_wallet_url
-        ? ticket.google_wallet_url
-        : qrToken
-          ? await buildGoogleWalletSaveUrl(
-              {
-                qrToken,
-                ticketNumber: String(ticket?.id ?? assistant.id),
-                ticketHolderName,
-              },
-              googleWalletConfig
-            )
-          : null;
+      const googleWalletUrl = qrToken
+        ? (await buildGoogleWalletSaveUrl(
+            {
+              qrToken,
+              ticketNumber: String(ticket?.id ?? assistant.id),
+              ticketHolderName,
+              eventTitle: event?.title ?? null,
+              eventStartTime: event?.start_time ?? event?.startTime ?? null,
+              classId: GOOGLE_WALLET_FORCED_CLASS_ID,
+            },
+            googleWalletConfig
+          )) ||
+          ticket?.google_wallet_url ||
+          null
+        : null;
 
       return {
         ...event,

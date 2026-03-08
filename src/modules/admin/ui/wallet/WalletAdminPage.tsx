@@ -223,7 +223,7 @@ export default function WalletAdminPage() {
           <input
             value={activeClassId}
             onChange={(event) => setActiveClassId(event.target.value)}
-            placeholder="3388....peloteras_event_ticket_v1"
+            placeholder="3388....peloteras_event_16"
             className="h-10 rounded-md border border-slate-300 px-3 focus:border-mulberry focus:outline-none"
           />
         </label>
