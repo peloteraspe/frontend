@@ -418,74 +418,87 @@ export async function checkUsernameAvailabilityAction(
   username: string | null | undefined,
   currentUserId?: string
 ) {
-  const normalizedUsername = String(username ?? '').trim();
-  if (!normalizedUsername || normalizedUsername.length < 3) {
-    return { available: false, reason: 'invalid' as const };
-  }
-
-  let matchingUserId: string | null | undefined;
-  let lookupError: string | null = null;
-
   try {
-    const supabase = await getServerSupabase();
-    const { data, error } = await supabase
-      .from('profile')
-      .select('user')
-      .eq('username', normalizedUsername)
-      .limit(1);
-
-    if (!error) {
-      matchingUserId = data?.[0]?.user ?? null;
-    } else {
-      lookupError = error.message;
-      log.warn('Username lookup failed via server Supabase client', 'SIGNUP', {
-        username: normalizedUsername,
-        error: error.message,
-      });
+    const normalizedUsername = String(username ?? '').trim();
+    if (!normalizedUsername || normalizedUsername.length < 3) {
+      return { available: false, reason: 'invalid' as const };
     }
-  } catch (error: any) {
-    lookupError = String(error?.message || error || 'Unknown server Supabase error');
-    log.warn('Username lookup crashed via server Supabase client', 'SIGNUP', {
-      username: normalizedUsername,
-      error: lookupError,
-    });
-  }
 
-  if (matchingUserId === undefined) {
+    let matchingUserId: string | null | undefined;
+    let lookupError: string | null = null;
+
     try {
-      const adminSupabase = getAdminSupabase();
-      const { data, error } = await adminSupabase
+      const supabase = await getServerSupabase();
+      const { data, error } = await supabase
         .from('profile')
         .select('user')
         .eq('username', normalizedUsername)
         .limit(1);
 
-      if (error) {
-        lookupError = error.message;
-      } else {
+      if (!error) {
         matchingUserId = data?.[0]?.user ?? null;
+      } else {
+        lookupError = error.message;
+        log.warn('Username lookup failed via server Supabase client', 'SIGNUP', {
+          username: normalizedUsername,
+          error: error.message,
+        });
       }
     } catch (error: any) {
-      lookupError = String(error?.message || error || 'Unknown admin Supabase error');
-      log.warn('Username lookup crashed via admin Supabase client', 'SIGNUP', {
+      lookupError = String(error?.message || error || 'Unknown server Supabase error');
+      log.warn('Username lookup crashed via server Supabase client', 'SIGNUP', {
         username: normalizedUsername,
         error: lookupError,
       });
     }
-  }
 
-  if (matchingUserId === undefined) {
+    if (matchingUserId === undefined) {
+      try {
+        const adminSupabase = getAdminSupabase();
+        const { data, error } = await adminSupabase
+          .from('profile')
+          .select('user')
+          .eq('username', normalizedUsername)
+          .limit(1);
+
+        if (error) {
+          lookupError = error.message;
+        } else {
+          matchingUserId = data?.[0]?.user ?? null;
+        }
+      } catch (error: any) {
+        lookupError = String(error?.message || error || 'Unknown admin Supabase error');
+        log.warn('Username lookup crashed via admin Supabase client', 'SIGNUP', {
+          username: normalizedUsername,
+          error: lookupError,
+        });
+      }
+    }
+
+    if (matchingUserId === undefined) {
+      return {
+        available: false,
+        reason: 'error' as const,
+        message: lookupError || 'No se pudo validar el nombre de usuario.',
+      };
+    }
+
+    const isSameUser = Boolean(currentUserId) && matchingUserId === currentUserId;
+
+    return {
+      available: !matchingUserId || isSameUser,
+      reason: 'ok' as const,
+    };
+  } catch (error: any) {
+    const message = String(error?.message || error || 'Unexpected username lookup error');
+    log.warn('Username lookup action failed unexpectedly', 'SIGNUP', {
+      username: String(username ?? ''),
+      error: message,
+    });
     return {
       available: false,
       reason: 'error' as const,
-      message: lookupError || 'No se pudo validar el nombre de usuario.',
+      message: 'No se pudo validar el nombre de usuario.',
     };
   }
-
-  const isSameUser = Boolean(currentUserId) && matchingUserId === currentUserId;
-
-  return {
-    available: !matchingUserId || isSameUser,
-    reason: 'ok' as const,
-  };
 }

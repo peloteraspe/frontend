@@ -477,10 +477,27 @@ export default function SignupClient() {
         return;
       }
 
-      const usernameCheck = await checkUsernameAvailabilityAction(
-        normalizedUsername,
-        userId ?? undefined
-      );
+      let usernameCheck:
+        | { available: boolean; reason: 'ok' | 'invalid' | 'error'; message?: string }
+        | null = null;
+      try {
+        usernameCheck = await checkUsernameAvailabilityAction(
+          normalizedUsername,
+          userId ?? undefined
+        );
+      } catch (usernameCheckError) {
+        log.warn('Username precheck server action crashed, continuing with backend validation', 'signup', {
+          userId,
+          username: normalizedUsername,
+          error: String((usernameCheckError as any)?.message || usernameCheckError || 'Unknown error'),
+        });
+        usernameCheck = { available: false, reason: 'error' };
+      }
+
+      if (!usernameCheck) {
+        usernameCheck = { available: false, reason: 'error' };
+      }
+
       if (!usernameCheck.available) {
         if (usernameCheck.reason === 'error') {
           log.warn('Username precheck failed, continuing with backend validation', 'signup', {
