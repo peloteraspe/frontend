@@ -1,6 +1,7 @@
 'use client';
 
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
+import Input from '@core/ui/Input';
 
 type PaymentMethodSummary = {
   id: number;
@@ -320,32 +321,33 @@ export default function PaymentMethodsAdminPage() {
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-semibold text-mulberry">Métodos de pago</h2>
         <p className="text-sm text-slate-600">
-          Crea y administra métodos globales. Luego podrás asignarlos al crear/editar cada evento.
+          Crea y administra tus métodos de pago. Luego podrás asignarlos al crear/editar cada evento.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-4 grid gap-4">
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-1 text-sm">
-            <span className="font-semibold text-slate-700">Nombre (opcional)</span>
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Yape principal"
-              className="h-10 rounded-md border border-slate-300 px-3 focus:border-mulberry focus:outline-none"
-            />
-          </label>
+          <Input
+            label="Nombre (opcional)"
+            name="paymentMethodName"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Yape principal"
+            className="h-11"
+            bgColor="bg-white"
+          />
 
-          <label className="grid gap-1 text-sm">
-            <span className="font-semibold text-slate-700">Número de pago</span>
-            <input
-              value={number}
-              onChange={(event) => setNumber(event.target.value)}
-              placeholder="987654321"
-              inputMode="numeric"
-              className="h-10 rounded-md border border-slate-300 px-3 focus:border-mulberry focus:outline-none"
-            />
-          </label>
+          <Input
+            label="Número de pago"
+            name="paymentMethodNumber"
+            required
+            value={number}
+            onChange={(event) => setNumber(event.target.value)}
+            placeholder="987654321"
+            inputMode="numeric"
+            className="h-11"
+            bgColor="bg-white"
+          />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -374,7 +376,7 @@ export default function PaymentMethodsAdminPage() {
             type="file"
             accept="image/*"
             onChange={handleQrFileChange}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-mulberry file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white focus:border-mulberry focus:outline-none"
+            className="h-11 w-full rounded-lg border-2 border-mulberry bg-white px-3 py-1 text-sm text-slate-700 focus:outline-none focus:border-mulberry file:mr-3 file:rounded-md file:border-0 file:bg-mulberry file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
           />
           <p className="text-xs text-slate-500">Sube una imagen PNG, JPG o WEBP (máximo 5MB).</p>
 

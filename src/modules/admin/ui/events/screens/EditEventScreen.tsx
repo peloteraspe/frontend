@@ -25,6 +25,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
       supabase
         .from('paymentMethod')
         .select('id,name,type,number,is_active')
+        .eq('created_by', user?.id || '')
         .order('is_active', { ascending: false })
         .order('created_at', { ascending: false }),
       supabase.from('eventPaymentMethod').select('paymentMethod').eq('event', id),
@@ -64,11 +65,13 @@ export default async function EditEventScreen({ id }: { id: string }) {
     }))
     .filter((method) => Number.isInteger(method.id) && method.id > 0);
 
+  const availablePaymentMethodIds = new Set(paymentMethods.map((method) => method.id));
+
   const selectedPaymentMethodIds = Array.from(
     new Set(
       (eventPaymentMethodsRes.data ?? [])
         .map((row) => Number(row.paymentMethod))
-        .filter((value) => Number.isInteger(value) && value > 0)
+        .filter((value) => Number.isInteger(value) && value > 0 && availablePaymentMethodIds.has(value))
     )
   );
 

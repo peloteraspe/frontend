@@ -3,6 +3,8 @@ import { getServerSupabase } from '@core/api/supabase.server';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
 import { log } from '@core/lib/logger';
 
+const QR_VALIDATION_MODULE_ENABLED = false;
+
 function isMissingTicketTableError(error: any) {
   const message = String(error?.message ?? '').toLowerCase();
   return message.includes('ticket') && message.includes('does not exist');
@@ -10,6 +12,13 @@ function isMissingTicketTableError(error: any) {
 
 export async function POST(request: Request) {
   try {
+    if (!QR_VALIDATION_MODULE_ENABLED) {
+      return NextResponse.json(
+        { error: 'El módulo de validación QR está deshabilitado temporalmente.' },
+        { status: 503 }
+      );
+    }
+
     const supabase = await getServerSupabase();
     const {
       data: { user },
