@@ -4,7 +4,7 @@ import {
   getPaymentPageData,
   PAYMENT_METHOD_NOT_CONFIGURED,
 } from '@modules/payments/api/queries/getPaymentPageData';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 
 export default async function PaymentPage({ id }: { id: string }) {
@@ -47,7 +47,40 @@ export default async function PaymentPage({ id }: { id: string }) {
     notFound();
   }
 
-  const { event, paymentMethods, user } = data;
+  const { event, paymentMethods, user, isVersus } = data;
+  const rawStartTime = event?.start_time ?? event?.startTime ?? null;
+  const eventStart = rawStartTime ? new Date(String(rawStartTime)) : null;
+  const isRegistrationClosed =
+    eventStart instanceof Date &&
+    !Number.isNaN(eventStart.getTime()) &&
+    eventStart.getTime() <= Date.now();
+
+  if (isRegistrationClosed) {
+    return (
+      <section className="mx-auto w-full max-w-2xl px-4 py-10">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+          <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+            Inscripciones cerradas
+          </span>
+          <h1 className="mt-3 text-2xl font-bold text-[#54086F]">Este evento ya pasó</h1>
+          <p className="mt-3 text-sm text-slate-700 sm:text-base">
+            Ya no es posible completar el pago para este evento.
+          </p>
+
+          <Link
+            href={`/events/${id}`}
+            className="mt-6 inline-flex h-11 items-center justify-center rounded-xl border border-btnBg-light px-4 text-sm font-semibold text-btnBg-light transition hover:bg-btnBg-light hover:text-white"
+          >
+            Volver al evento
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  if (isVersus) {
+    redirect(`/versus/${id}`);
+  }
 
   return (
     <section className="w-full">

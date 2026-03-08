@@ -9,12 +9,14 @@ type GoogleButtonProps = {
   disabled?: boolean;
   isLoading?: boolean;
   onLoadingChange?: (loading: boolean) => void;
+  nextPath?: string | null;
 };
 
 export default function GoogleButton({
   disabled,
   isLoading = false,
   onLoadingChange,
+  nextPath = null,
 }: GoogleButtonProps) {
   const router = useRouter();
 
@@ -29,7 +31,7 @@ export default function GoogleButton({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: oauthRedirectTo(),
+          redirectTo: oauthRedirectTo({ nextPath }),
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });

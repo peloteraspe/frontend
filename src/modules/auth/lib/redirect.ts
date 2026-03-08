@@ -5,6 +5,15 @@ type RedirectOptions = {
   query?: Record<string, RedirectQueryValue>;
 };
 
+export function sanitizeNextPath(value: string | null | undefined) {
+  const next = String(value || '').trim();
+  if (!next) return null;
+  if (!next.startsWith('/')) return null;
+  if (next.startsWith('//')) return null;
+  if (next.startsWith('/auth/callback')) return null;
+  return next;
+}
+
 function normalizeOrigin(value: string | null | undefined): string | null {
   if (!value) return null;
   try {
@@ -47,11 +56,16 @@ function buildAuthUrl(pathname: string, options?: RedirectOptions) {
 
 export function authCallbackUrl(options?: {
   email?: string | null;
+  nextPath?: string | null;
   fallbackOrigin?: string | null;
 }) {
+  const safeNextPath = sanitizeNextPath(options?.nextPath ?? null);
   return buildAuthUrl('/auth/callback', {
     fallbackOrigin: options?.fallbackOrigin,
-    query: options?.email ? { email: options.email } : undefined,
+    query: {
+      ...(options?.email ? { email: options.email } : {}),
+      ...(safeNextPath ? { next: safeNextPath } : {}),
+    },
   });
 }
 
@@ -65,6 +79,9 @@ export function authRecoveryUrl(
   });
 }
 
-export function oauthRedirectTo(options?: { fallbackOrigin?: string | null }) {
-  return authCallbackUrl({ fallbackOrigin: options?.fallbackOrigin });
+export function oauthRedirectTo(options?: { nextPath?: string | null; fallbackOrigin?: string | null }) {
+  return authCallbackUrl({
+    nextPath: options?.nextPath,
+    fallbackOrigin: options?.fallbackOrigin,
+  });
 }

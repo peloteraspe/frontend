@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     const { data: eventRow, error: eventError } = await admin
       .from('event')
-      .select('id')
+      .select('id,start_time')
       .eq('id', eventId)
       .maybeSingle();
 
@@ -52,6 +52,14 @@ export async function POST(request: Request) {
 
     if (!eventRow) {
       return NextResponse.json({ error: 'Evento no encontrado.' }, { status: 404 });
+    }
+
+    const eventStart = eventRow?.start_time ? new Date(String(eventRow.start_time)) : null;
+    if (eventStart && !Number.isNaN(eventStart.getTime()) && eventStart.getTime() <= Date.now()) {
+      return NextResponse.json(
+        { error: 'Este evento ya inició o finalizó. La inscripción está cerrada.' },
+        { status: 409 }
+      );
     }
 
     const { data: existingAssistant, error: existingError } = await admin

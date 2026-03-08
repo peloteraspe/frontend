@@ -16,7 +16,7 @@ import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 
 import type { Step, SignupStep1Values } from './signup.types';
 import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
-import { authCallbackUrl } from '@modules/auth/lib/redirect';
+import { authCallbackUrl, sanitizeNextPath } from '@modules/auth/lib/redirect';
 import { fetchLevelsOptions, fetchPositionsOptions } from '@modules/users/api/lookups.client';
 import {
   checkUsernameAvailabilityAction,
@@ -41,9 +41,16 @@ function isGenderIdentityConfirmed(value: unknown) {
   return value === true || value === 'true';
 }
 
+function appendNextPath(path: string, nextPath: string | null) {
+  if (!nextPath) return path;
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}next=${encodeURIComponent(nextPath)}`;
+}
+
 export default function SignupClient() {
   const LOGIN_ONBOARDING_KEY = 'login-onboarding-state';
   const sp = useSearchParams();
+  const requestedNextPath = useMemo(() => sanitizeNextPath(sp.get('next')), [sp]);
   const prefilledEmail = (sp.get('email') || '').trim();
   const requestedStep = Number(sp.get('step') || '1');
 
@@ -100,8 +107,11 @@ export default function SignupClient() {
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
   const signupRedirectTo = useMemo(() => {
-    return authCallbackUrl({ email: signupEmail.trim() || undefined });
-  }, [signupEmail]);
+    return authCallbackUrl({
+      email: signupEmail.trim() || undefined,
+      nextPath: requestedNextPath,
+    });
+  }, [requestedNextPath, signupEmail]);
 
   const fetchOnboardingStateByEmail = async (email: string) => {
     try {
@@ -301,7 +311,7 @@ export default function SignupClient() {
         setIsIdentityConfirmed(isGenderIdentityConfirmed(metadata.gender_identity_confirmed));
 
         if (nextStep === null) {
-          window.location.href = destination;
+          window.location.href = requestedNextPath || destination;
           return;
         }
 
@@ -316,7 +326,7 @@ export default function SignupClient() {
     return () => {
       cancelled = true;
     };
-  }, [initialStep, prefilledEmail, setValue, supabase]);
+  }, [initialStep, prefilledEmail, requestedNextPath, setValue, supabase]);
 
   // load options
   useEffect(() => {
@@ -520,7 +530,7 @@ export default function SignupClient() {
       if (isGoogleOnboarding && authenticatedUser?.email_confirmed_at) {
         toast.success('Perfil completado. Bienvenida.');
         refreshProfile().catch(() => undefined);
-        window.location.href = '/';
+        window.location.href = requestedNextPath || '/';
         return;
       }
 
@@ -534,7 +544,10 @@ export default function SignupClient() {
         toast.error(
           'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesion.'
         );
-        window.location.href = '/login?message=Completa tu perfil al iniciar sesion';
+        window.location.href = appendNextPath(
+          '/login?message=Completa tu perfil al iniciar sesion',
+          requestedNextPath
+        );
         return;
       }
       if (String(err).includes('profile_username_key')) {
@@ -574,7 +587,7 @@ export default function SignupClient() {
           const { destination } = await fetchCurrentOnboardingState(supabase);
           toast.success('Cuenta verificada. Bienvenida.');
           refreshProfile().catch(() => undefined);
-          window.location.href = destination;
+          window.location.href = requestedNextPath || destination;
           return true;
         }
 
@@ -610,7 +623,7 @@ export default function SignupClient() {
       const { destination } = await fetchCurrentOnboardingState(supabase);
       toast.success('Cuenta verificada. Bienvenida.');
       refreshProfile().catch(() => undefined);
-      window.location.href = destination;
+      window.location.href = requestedNextPath || destination;
       return true;
     } catch {
       toast.error('No se pudo validar tu verificacion.');
@@ -670,7 +683,7 @@ export default function SignupClient() {
               </span>
             ) : (
               <Link
-                href="/login"
+                href={appendNextPath('/login', requestedNextPath)}
                 className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
               >
                 Iniciar sesion
@@ -777,6 +790,7 @@ export default function SignupClient() {
               disabled={loading || isGoogleLoading}
               isLoading={isGoogleLoading}
               onLoadingChange={setIsGoogleLoading}
+              nextPath={requestedNextPath}
             />
           </form>
         </div>
@@ -792,7 +806,7 @@ export default function SignupClient() {
               </span>
             ) : (
               <Link
-                href="/login"
+                href={appendNextPath('/login', requestedNextPath)}
                 className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
               >
                 Iniciar sesion
@@ -932,7 +946,7 @@ export default function SignupClient() {
 
           <p className="text-slate-700 mt-3 text-sm md:text-base">
             Te enviamos un enlace a <strong>{signupEmail}</strong>. Cuando verifiques, te
-            redirigiremos automaticamente al inicio.
+            redirigiremos automaticamente para continuar.
           </p>
 
           <div className="mt-5 flex flex-col gap-3">
@@ -967,7 +981,7 @@ export default function SignupClient() {
               </span>
             ) : (
               <Link
-                href="/login"
+                href={appendNextPath('/login', requestedNextPath)}
                 className="text-sm text-center text-mulberry font-semibold hover:text-mulberry/80"
               >
                 Volver a iniciar sesion

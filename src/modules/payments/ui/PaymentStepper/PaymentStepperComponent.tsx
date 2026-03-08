@@ -139,7 +139,11 @@ const PaymentStepper = (props: any) => {
         message: 'Inicia sesión para completar la inscripción.',
       });
       toast.error('Inicia sesión para completar la inscripción.');
-      router.push('/login?message=Inicia sesion para completar la inscripcion');
+      router.push(
+        `/login?message=Inicia sesion para completar la inscripcion&next=${encodeURIComponent(
+          `/payments/${post.id}`
+        )}`
+      );
       return;
     }
 
@@ -190,6 +194,18 @@ const PaymentStepper = (props: any) => {
 
       if (!registerResponse.ok) {
         const body = await registerResponse.json().catch(() => ({}));
+        if (registerResponse.status === 409) {
+          const message =
+            String(body?.error || '').trim() ||
+            'Este evento ya inició o finalizó. La inscripción está cerrada.';
+          toast.error(message);
+          setError('operationNumber', {
+            type: 'manual',
+            message,
+          });
+          setCurrentStep(2);
+          return;
+        }
         log.warn('Payment confirm failed', 'PAYMENTS', {
           status: registerResponse.status,
           body,

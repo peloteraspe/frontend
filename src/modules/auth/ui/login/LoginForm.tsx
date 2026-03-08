@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -10,6 +10,7 @@ import Input from '@core/ui/Input';
 import { log } from '@core/lib/logger';
 import { useAuth } from '@core/auth/AuthProvider';
 import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
+import { sanitizeNextPath } from '@modules/auth/lib/redirect';
 import GoogleButton from './google-button';
 
 function getSafeAuthErrorMessage(rawMessage: string) {
@@ -30,6 +31,12 @@ type LoginValues = {
   password: string;
 };
 
+function appendNextPath(path: string, nextPath: string | null) {
+  if (!nextPath) return path;
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}next=${encodeURIComponent(nextPath)}`;
+}
+
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
   return Promise.race<T>([
     promise,
@@ -46,6 +53,10 @@ export default function LoginForm() {
   const LOGIN_ONBOARDING_KEY = 'login-onboarding-state';
   const router = useRouter();
   const searchParams = useSearchParams();
+  const requestedNextPath = useMemo(
+    () => sanitizeNextPath(searchParams.get('next')),
+    [searchParams]
+  );
   const { user, loading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -106,15 +117,16 @@ export default function LoginForm() {
           6_000,
           'authenticated redirect timeout'
         );
-        const finalDestination = state.nextStep === null ? '/' : state.destination;
+        const finalDestination =
+          state.nextStep === null ? requestedNextPath || '/' : state.destination;
         window.location.replace(finalDestination);
       } catch {
-        window.location.replace('/');
+        window.location.replace(requestedNextPath || '/');
       }
     };
 
     void redirectAuthenticatedUser();
-  }, [authLoading, user]);
+  }, [authLoading, requestedNextPath, user]);
 
   const onSubmit = async (data: LoginValues) => {
     setIsSubmitting(true);
@@ -154,7 +166,10 @@ export default function LoginForm() {
 
         if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
           const normalizedEmail = data.email.trim().toLowerCase();
-          let destination = `/signUp?step=3&email=${encodeURIComponent(data.email.trim())}`;
+          let destination = appendNextPath(
+            `/signUp?step=3&email=${encodeURIComponent(data.email.trim())}`,
+            requestedNextPath
+          );
           let resolvedFromServer = false;
 
           try {
@@ -167,10 +182,12 @@ export default function LoginForm() {
             if (onboardingResponse.ok) {
               const onboarding = (await onboardingResponse.json()) as { onboardingStep?: number | null };
               const completedStep = Number(onboarding.onboardingStep || 0);
-              destination =
+              destination = appendNextPath(
                 completedStep >= 2
                   ? `/signUp?step=3&email=${encodeURIComponent(data.email.trim())}`
-                  : `/signUp?step=2&email=${encodeURIComponent(data.email.trim())}`;
+                  : `/signUp?step=2&email=${encodeURIComponent(data.email.trim())}`,
+                requestedNextPath
+              );
               resolvedFromServer = true;
             }
           } catch {
@@ -184,9 +201,15 @@ export default function LoginForm() {
                 const parsed = JSON.parse(raw) as { email?: string; completedStep?: number };
                 if (parsed.email === normalizedEmail) {
                   if (parsed.completedStep && parsed.completedStep >= 2) {
-                    destination = `/signUp?step=3&email=${encodeURIComponent(data.email.trim())}`;
+                    destination = appendNextPath(
+                      `/signUp?step=3&email=${encodeURIComponent(data.email.trim())}`,
+                      requestedNextPath
+                    );
                   } else {
-                    destination = `/signUp?step=2&email=${encodeURIComponent(data.email.trim())}`;
+                    destination = appendNextPath(
+                      `/signUp?step=2&email=${encodeURIComponent(data.email.trim())}`,
+                      requestedNextPath
+                    );
                   }
                 }
               } catch {
@@ -241,7 +264,7 @@ export default function LoginForm() {
         }
       }
 
-      const finalDestination = nextStep === null ? '/' : destination;
+      const finalDestination = nextStep === null ? requestedNextPath || '/' : destination;
 
       toast.success('Bienvenida de vuelta.');
       window.location.assign(finalDestination);
@@ -253,6 +276,8 @@ export default function LoginForm() {
       setIsSubmitting(false);
     }
   };
+
+  const signUpHref = appendNextPath('/signUp', requestedNextPath);
 
   return (
     <div className="w-full max-w-[560px] mx-auto px-4 pt-8 pb-12 md:pt-12">
@@ -271,7 +296,7 @@ export default function LoginForm() {
             Iniciar sesion
           </span>
           <Link
-            href="/signUp"
+            href={signUpHref}
             className="rounded-xl text-slate-600 text-center py-2.5 hover:text-slate-900 transition-colors"
           >
             Crear cuenta
@@ -326,6 +351,7 @@ export default function LoginForm() {
             disabled={isSubmitting || isGoogleLoading}
             isLoading={isGoogleLoading}
             onLoadingChange={setIsGoogleLoading}
+            nextPath={requestedNextPath}
           />
         </form>
 

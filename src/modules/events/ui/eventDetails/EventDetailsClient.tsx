@@ -10,6 +10,7 @@ import Map from '@core/ui/Map';
 import Collapse from '@core/ui/Collapse';
 import { ButtonWrapper } from '@core/ui/Button';
 import { useAuth } from '@core/auth/AuthProvider';
+import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 
 import arrowAnotarse from '@core/assets/images/arrow-anotarse.svg';
 import Calendar from '@core/assets/images/calendar.png';
@@ -17,6 +18,8 @@ import Calendar from '@core/assets/images/calendar.png';
 type Props = {
   data: any;
 };
+
+const DEFAULT_TIMEZONE = 'America/Lima';
 
 function extractExtraNames(post: any, event: any) {
   const candidates = [
@@ -99,6 +102,11 @@ export default function EventDetailsClient({ data }: Props) {
 
   const organizer = toText(event?.created_by ?? event?.createdBy, 'Peloteras');
   const locationText = toText(event?.location_text ?? event?.locationText, 'Ubicación por confirmar');
+  const eventTypeName = toText(
+    event?.eventTypeName ?? event?.eventType?.name ?? post?.eventTypeName ?? post?.eventType?.name,
+    'Partido'
+  );
+  const isVersus = isVersusEventTypeName(eventTypeName);
 
   const startTimeIso = event?.start_time ?? event?.startTime ?? null;
   const startDate = startTimeIso ? new Date(startTimeIso) : null;
@@ -111,6 +119,7 @@ export default function EventDetailsClient({ data }: Props) {
           hour: 'numeric',
           minute: '2-digit',
           hour12: true,
+          timeZone: DEFAULT_TIMEZONE,
         })
       : 'Fecha por confirmar';
   const shortDate =
@@ -118,8 +127,12 @@ export default function EventDetailsClient({ data }: Props) {
       ? startDate.toLocaleDateString('es-PE', {
           day: 'numeric',
           month: 'short',
+          timeZone: DEFAULT_TIMEZONE,
         })
       : 'Fecha por confirmar';
+  const eventStartTimestamp = startDate && !Number.isNaN(startDate.getTime()) ? startDate.getTime() : null;
+  const isRegistrationClosed =
+    typeof eventStartTimestamp === 'number' && eventStartTimestamp <= Date.now();
 
   const price = toNumber(event?.price, 0);
   const minUsers = toNumber(event?.min_users ?? event?.minUsers, 0);
@@ -150,18 +163,47 @@ export default function EventDetailsClient({ data }: Props) {
       };
     });
 
-  const occupancyText = maxUsers > 0 ? `${assistants.length}/${maxUsers}` : `${assistants.length}`;
+  const teamRegistrationsSource = Array.isArray(post?.teamRegistrations)
+    ? post.teamRegistrations
+    : Array.isArray(event?.teamRegistrations)
+    ? event.teamRegistrations
+    : [];
+
+  const teamRegistrations = teamRegistrationsSource
+    .map((row: any, index: number) => {
+      const teamName = toText(row?.teamName ?? row?.name, `Equipo ${index + 1}`);
+      const id = toText(row?.id, `${teamName}-${index}`);
+      return {
+        id,
+        teamName,
+      };
+    })
+    .filter((row: { id: string; teamName: string }) => Boolean(row.id));
+
+  const occupancyText = isVersus
+    ? `${teamRegistrations.length} equipos`
+    : maxUsers > 0
+    ? `${assistants.length}/${maxUsers}`
+    : `${assistants.length}`;
 
   const handleJoinClick = () => {
+    if (isRegistrationClosed) {
+      toast.error('Este evento ya inició o finalizó. La inscripción está cerrada.');
+      return;
+    }
+
     if (!user) {
-      router.push('/login?message=Inicia sesion para inscribirte a un evento');
+      const nextPath = `/events/${event.id}`;
+      router.push(
+        `/login?message=Inicia sesion para inscribirte a un evento&next=${encodeURIComponent(nextPath)}`
+      );
       return;
     }
     if (!user.email_confirmed_at) {
       toast.error('Verifica tu identidad para poder inscribirte a este evento.');
       return;
     }
-    router.push(`/payments/${event.id}`);
+    router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
   };
 
   return (
@@ -211,44 +253,70 @@ export default function EventDetailsClient({ data }: Props) {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-bold text-slate-900">Alineación</h2>
-              <span
-                className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
-                title="Las posiciones son una referencia visual y cambian en cada ingreso al evento."
-              >
-                Distribución referencial
-              </span>
-            </div>
-            <SoccerField
-              minUsers={minUsers}
-              maxUsers={maxUsers}
-              participants={assistants}
-              onSelect={(position) => console.log('Posición seleccionada:', position)}
-            />
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-            <h3 className="mb-3 text-xl font-bold text-slate-900">Participantes ({assistants.length})</h3>
-            {assistants.length ? (
-              <ul className="grid gap-2 sm:grid-cols-2">
-                {assistants.map((assistant) => (
-                  <li
-                    key={assistant.id}
-                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+          {isVersus ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <h3 className="mb-3 text-xl font-bold text-slate-900">
+                Equipos inscritos ({teamRegistrations.length})
+              </h3>
+              {teamRegistrations.length ? (
+                <ul className="grid gap-2 sm:grid-cols-2">
+                  {teamRegistrations.map((team) => (
+                    <li
+                      key={team.id}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800"
+                    >
+                      {team.teamName}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-600">Aún no hay equipos confirmados.</p>
+              )}
+            </section>
+          ) : (
+            <>
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-900">Alineación</h2>
+                  <span
+                    className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+                    title="Las posiciones son una referencia visual y cambian en cada ingreso al evento."
                   >
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#54086F] text-xs font-semibold text-white">
-                      {assistant.initials}
-                    </span>
-                    <span className="text-sm text-slate-800">{assistant.name}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-slate-600">Aún no hay participantes confirmados.</p>
-            )}
-          </section>
+                    Distribución referencial
+                  </span>
+                </div>
+                <SoccerField
+                  minUsers={minUsers}
+                  maxUsers={maxUsers}
+                  participants={assistants}
+                  onSelect={(position) => console.log('Posición seleccionada:', position)}
+                />
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <h3 className="mb-3 text-xl font-bold text-slate-900">
+                  Participantes ({assistants.length})
+                </h3>
+                {assistants.length ? (
+                  <ul className="grid gap-2 sm:grid-cols-2">
+                    {assistants.map((assistant) => (
+                      <li
+                        key={assistant.id}
+                        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                      >
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#54086F] text-xs font-semibold text-white">
+                          {assistant.initials}
+                        </span>
+                        <span className="text-sm text-slate-800">{assistant.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-600">Aún no hay participantes confirmados.</p>
+                )}
+              </section>
+            </>
+          )}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
             <div className="space-y-4">
@@ -325,17 +393,31 @@ export default function EventDetailsClient({ data }: Props) {
               </ul>
 
               <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Participantes</p>
-                <p className="mt-1 text-sm font-semibold text-slate-800">{occupancyText} inscritas</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">
+                  {isVersus ? 'Equipos' : 'Participantes'}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-800">
+                  {isVersus ? occupancyText : `${occupancyText} inscritas`}
+                </p>
               </div>
 
               <div className="mt-5">
+                {isRegistrationClosed && (
+                  <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                    Inscripciones cerradas: este evento ya pasó.
+                  </p>
+                )}
                 <ButtonWrapper
                   onClick={handleJoinClick}
                   icon={<Image src={arrowAnotarse} alt="arrow" width={24} height={24} />}
                   className="!my-0"
+                  disabled={isRegistrationClosed}
                 >
-                  Anotarme
+                  {isRegistrationClosed
+                    ? 'Evento finalizado'
+                    : isVersus
+                    ? 'Anotar a mi equipo'
+                    : 'Anotarme'}
                 </ButtonWrapper>
               </div>
             </div>
