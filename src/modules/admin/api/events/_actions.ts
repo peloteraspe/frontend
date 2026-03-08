@@ -195,6 +195,20 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
   await syncEventFeatures(supabase, id, input.featureIds);
   await syncEventPaymentMethods(supabase, id, input.paymentMethodIds);
 
+  try {
+    await ensureGoogleWalletEventClass({
+      eventId: id,
+      eventTitle: input.title,
+      eventStartTime: input.startTime,
+      eventEndTime: input.endTime,
+    });
+  } catch (walletError) {
+    log.warn('Could not provision Google Wallet class on event update', 'ADMIN_EVENTS', {
+      eventId: id,
+      error: walletError,
+    });
+  }
+
   revalidatePath('/admin/events');
   revalidatePath(`/admin/events/${id}/edit`);
   revalidatePath('/events');
