@@ -6,6 +6,7 @@
 import { enforceOnboardingGuard } from '@modules/auth/lib/onboarding.server';
 
 import CardEventList from '@modules/events/ui/cardEvents/CardEventList';
+import LandingGrowthBlocks from '@modules/home/ui/LandingGrowthBlocks';
 import MainSection from '@modules/home/ui/MainSection';
 
 export default async function Index() {
@@ -18,6 +19,7 @@ export default async function Index() {
         <div className="w-full" data-sticky-container>
           <div className="w-full">
             <CardEventList />
+            <LandingGrowthBlocks />
           </div>
         </div>
       </section>
