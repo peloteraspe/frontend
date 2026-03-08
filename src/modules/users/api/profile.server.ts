@@ -4,6 +4,45 @@ import { ProfileRequestBody, UserProfileUpdate } from '@modules/users/model/type
 import { backendFetch, isAbortError } from '@core/api/backend';
 import { log } from '../../../core/lib/logger';
 
+type BackendErrorWithStatus = Error & {
+  status?: number;
+  bodyText?: string;
+};
+
+async function readBackendResponse(response: Response) {
+  const bodyText = await response.text().catch(() => '');
+  if (!bodyText) {
+    return { bodyText, data: null as any };
+  }
+
+  try {
+    return {
+      bodyText,
+      data: JSON.parse(bodyText) as any,
+    };
+  } catch {
+    return { bodyText, data: null as any };
+  }
+}
+
+function toBackendError(
+  response: Response,
+  parsed: { bodyText: string; data: any },
+  fallbackMessage: string
+): BackendErrorWithStatus {
+  const payloadMessage =
+    (typeof parsed.data?.message === 'string' && parsed.data.message.trim()) ||
+    (typeof parsed.data?.error === 'string' && parsed.data.error.trim()) ||
+    '';
+  const rawMessage = payloadMessage || parsed.bodyText || response.statusText || fallbackMessage;
+  const error = new Error(
+    `HTTP ${response.status}: ${String(rawMessage || fallbackMessage).trim()}`
+  ) as BackendErrorWithStatus;
+  error.status = response.status;
+  error.bodyText = parsed.bodyText;
+  return error;
+}
+
 export async function createProfile(requestBody: ProfileRequestBody) {
   try {
     const response = await backendFetch(`${process.env.BACKEND_URL}/profile`, {
@@ -16,11 +55,12 @@ export async function createProfile(requestBody: ProfileRequestBody) {
 
     log.apiCall('POST', `/profile`, response.status, { userId: requestBody.user });
 
-    const data = await response.json();
+    const parsed = await readBackendResponse(response);
     if (!response.ok) {
-      throw new Error(data.message || response.statusText);
+      throw toBackendError(response, parsed, 'No se pudo crear el perfil');
     }
-    return data;
+
+    return parsed.data;
   } catch (error: any) {
     if (isAbortError(error)) {
       throw new Error('La creación de perfil tardó demasiado. Intenta nuevamente.');
@@ -38,13 +78,13 @@ export async function getProfile(userId: string) {
 
     log.apiCall('GET', `/profile/${userId}`, response.status);
 
-    const data = await response.json();
+    const parsed = await readBackendResponse(response);
 
     if (!response.ok) {
-      throw new Error(data.message || response.statusText);
+      throw toBackendError(response, parsed, 'No se pudo obtener el perfil');
     }
 
-    return data;
+    return parsed.data;
   } catch (error) {
     if (isAbortError(error)) {
       log.warn('Timeout fetching profile', 'PROFILE_ACTION', { userId });
@@ -73,12 +113,12 @@ export async function updateProfileByUserId(userId: string, requestBody: UserPro
 
     log.apiCall('PATCH', `/profile/${userId}`, response.status, { userId });
 
-    const data = await response.json();
+    const parsed = await readBackendResponse(response);
     if (!response.ok) {
-      throw new Error(data.message || response.statusText);
+      throw toBackendError(response, parsed, 'No se pudo actualizar el perfil');
     }
 
-    return data;
+    return parsed.data;
   } catch (error: any) {
     if (isAbortError(error)) {
       throw new Error('La actualización de perfil tardó demasiado. Intenta nuevamente.');

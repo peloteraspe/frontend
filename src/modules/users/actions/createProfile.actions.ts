@@ -48,6 +48,28 @@ function isProfileUserFkError(message: string) {
   return message.includes('profile_user_fkey') || message.includes('foreign key constraint');
 }
 
+function getErrorStatusCode(error: unknown) {
+  const status = Number((error as any)?.status);
+  return Number.isFinite(status) ? status : null;
+}
+
+function isRecoverableBackendProfileError(message: string, statusCode: number | null) {
+  if (statusCode !== null && statusCode >= 500) {
+    return true;
+  }
+
+  return (
+    message.includes('internal server error') ||
+    message.includes('http 5') ||
+    message.includes('failed to fetch') ||
+    message.includes('fetch failed') ||
+    message.includes('unexpected end of json input') ||
+    message.includes('temporarily unavailable') ||
+    message.includes('service unavailable') ||
+    message.includes('timeout')
+  );
+}
+
 function tryGetAdminSupabase(context: string) {
   try {
     return getAdminSupabase();
@@ -60,12 +82,10 @@ function tryGetAdminSupabase(context: string) {
   }
 }
 
-async function saveProfileAndPositionsDirectly(payload: CreateProfilePayload) {
-  const supabase = tryGetAdminSupabase('saveProfileAndPositionsDirectly');
-  if (!supabase) {
-    throw new Error('Supabase admin client is unavailable');
-  }
-
+async function saveProfileAndPositionsWithSupabase(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>> | ReturnType<typeof getAdminSupabase>,
+  payload: CreateProfilePayload
+) {
   const normalizedUsername = payload.username.trim();
   const levelId = Number(payload.level_id);
   const positionIds = payload.player_position
@@ -141,6 +161,53 @@ async function saveProfileAndPositionsDirectly(payload: CreateProfilePayload) {
       throw new Error(insertPositionsError.message);
     }
   }
+}
+
+async function saveProfileAndPositionsDirectly(payload: CreateProfilePayload) {
+  const clients: Array<{
+    name: string;
+    client: Awaited<ReturnType<typeof getServerSupabase>> | ReturnType<typeof getAdminSupabase> | null;
+  }> = [];
+
+  try {
+    clients.push({
+      name: 'session',
+      client: await getServerSupabase(),
+    });
+  } catch (error: any) {
+    log.warn('Session Supabase client unavailable in onboarding action', 'SIGNUP', {
+      context: 'saveProfileAndPositionsDirectly',
+      error: String(error?.message || error || 'Unknown error'),
+    });
+  }
+
+  clients.push({
+    name: 'admin',
+    client: tryGetAdminSupabase('saveProfileAndPositionsDirectly'),
+  });
+
+  let lastError: unknown = null;
+
+  for (const entry of clients) {
+    if (!entry.client) continue;
+    try {
+      await saveProfileAndPositionsWithSupabase(entry.client, payload);
+      return;
+    } catch (error: any) {
+      lastError = error;
+      log.warn('Direct onboarding profile persistence failed with Supabase client', 'SIGNUP', {
+        userId: payload.user,
+        client: entry.name,
+        error: String(error?.message || error || 'Unknown error'),
+      });
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new Error('Supabase client is unavailable');
 }
 
 async function saveOnboardingProfileState(
@@ -289,7 +356,9 @@ export async function completeOnboardingProfileAction(payload: CreateProfilePayl
     await updateProfileByUserId(payload.user, profilePayload);
   } catch (error: any) {
     const message = normalizeErrorMessage(error);
-    const shouldFallbackToCreate = isUserMissingError(message);
+    const statusCode = getErrorStatusCode(error);
+    const shouldFallbackToCreate =
+      isUserMissingError(message) || isRecoverableBackendProfileError(message, statusCode);
 
     if (!shouldFallbackToCreate) {
       throw error;
@@ -302,7 +371,12 @@ export async function completeOnboardingProfileAction(payload: CreateProfilePayl
       });
     } catch (createError: any) {
       const createMessage = normalizeErrorMessage(createError);
-      if (!isProfileUserFkError(createMessage) && !isUserMissingError(createMessage)) {
+      const createStatusCode = getErrorStatusCode(createError);
+      const shouldFallbackDirectly =
+        isProfileUserFkError(createMessage) ||
+        isUserMissingError(createMessage) ||
+        isRecoverableBackendProfileError(createMessage, createStatusCode);
+      if (!shouldFallbackDirectly) {
         throw createError;
       }
 
