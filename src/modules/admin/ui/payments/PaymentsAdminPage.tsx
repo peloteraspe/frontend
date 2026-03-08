@@ -4,6 +4,7 @@ import { approveAssistant, rejectAssistant } from '../../api/payments/_actions';
 import Link from 'next/link';
 import { getServerSupabase } from '@core/api/supabase.server';
 import PaymentsEventSelect from './PaymentsEventSelect';
+import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 
 export default async function PaymentsAdminPage({
   searchParams,
@@ -11,10 +12,18 @@ export default async function PaymentsAdminPage({
   searchParams?: { state?: string; q?: string; event?: string };
 }) {
   const supabase = await getServerSupabase();
-  const { data: rawEvents, error: eventsError } = await supabase
-    .from('event')
-    .select('id,title,start_time')
-    .order('start_time', { ascending: false });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const canViewAllEvents = isSuperAdmin(user as any);
+
+  let eventsQuery = supabase.from('event').select('id,title,start_time');
+  if (!canViewAllEvents && user?.id) {
+    eventsQuery = eventsQuery.eq('created_by_id', user.id);
+  }
+  const { data: rawEvents, error: eventsError } = await eventsQuery.order('start_time', {
+    ascending: false,
+  });
 
   const events = eventsError || !rawEvents ? [] : rawEvents;
   const eventOptions = events.map((event) => ({
@@ -31,12 +40,14 @@ export default async function PaymentsAdminPage({
     requestedState === 'approved' || requestedState === 'rejected' ? requestedState : 'pending';
   const q = searchParams?.q || '';
 
-  const [counts, items] = await Promise.all([
-    getAssistantsCounts({ eventId: selectedEventId || undefined }),
+  const [counts, items] = await Promise.all(
     selectedEventId
-      ? getAssistantsWithDetails(state, { search: q, limit: 50, offset: 0, eventId: selectedEventId })
-      : Promise.resolve([]),
-  ]);
+      ? [
+          getAssistantsCounts({ eventId: selectedEventId }),
+          getAssistantsWithDetails(state, { search: q, limit: 50, offset: 0, eventId: selectedEventId }),
+        ]
+      : [Promise.resolve({ pending: 0, approved: 0, rejected: 0, all: 0 }), Promise.resolve([])]
+  );
 
   return (
     <div className="rounded-md bg-white shadow">

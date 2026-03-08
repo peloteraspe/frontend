@@ -4,33 +4,81 @@ import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { log } from '@core/lib/logger';
 import { ensureTicketForAssistant } from '@modules/tickets/api/services/tickets.service';
+import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
+
+function normalizeAssistantId(value: string) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function assertCanManageAssistant(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  assistantId: number
+) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!isAdmin(user as any)) {
+    throw new Error('No autorizado para gestionar pagos.');
+  }
+
+  if (isSuperAdmin(user as any)) return;
+
+  const { data: assistant, error: assistantError } = await supabase
+    .from('assistants')
+    .select('event')
+    .eq('id', assistantId)
+    .maybeSingle();
+
+  if (assistantError || !assistant?.event) {
+    throw new Error('No se encontró el pago.');
+  }
+
+  const { data: event, error: eventError } = await supabase
+    .from('event')
+    .select('created_by_id')
+    .eq('id', assistant.event)
+    .maybeSingle();
+
+  if (eventError || !event) {
+    throw new Error('No se encontró el evento asociado al pago.');
+  }
+
+  if (String(event.created_by_id || '') !== String(user?.id || '')) {
+    throw new Error('No autorizado para gestionar pagos de este evento.');
+  }
+}
 
 export async function approveAssistant(id: string) {
   try {
     const supabase = await getServerSupabase();
-    const assistantId = Number(id);
+    const assistantId = normalizeAssistantId(id);
+    if (!assistantId) throw new Error('Id de pago inválido.');
+    await assertCanManageAssistant(supabase, assistantId);
 
-    const { error } = await supabase.from('assistants').update({ state: 'approved' }).eq('id', id);
+    const { error } = await supabase
+      .from('assistants')
+      .update({ state: 'approved' })
+      .eq('id', assistantId);
 
     if (error) {
       log.database('UPDATE approve assistant', 'assistants', error, { id });
       throw new Error('Failed to approve assistant');
     }
 
-    if (Number.isFinite(assistantId)) {
-      try {
-        const result = await ensureTicketForAssistant(supabase, assistantId);
-        if (result.reason === 'ticket_table_missing') {
-          log.warn('Ticket table missing while approving assistant', 'ADMIN_PAYMENTS', {
-            assistantId,
-          });
-        }
-      } catch (ticketError: any) {
-        log.warn('Ticket sync failed after assistant approval', 'ADMIN_PAYMENTS', {
+    try {
+      const result = await ensureTicketForAssistant(supabase, assistantId);
+      if (result.reason === 'ticket_table_missing') {
+        log.warn('Ticket table missing while approving assistant', 'ADMIN_PAYMENTS', {
           assistantId,
-          message: ticketError?.message,
         });
       }
+    } catch (ticketError: any) {
+      log.warn('Ticket sync failed after assistant approval', 'ADMIN_PAYMENTS', {
+        assistantId,
+        message: ticketError?.message,
+      });
     }
 
     log.info('Assistant approved', 'ADMIN_PAYMENTS', { assistantId: id });
@@ -46,29 +94,32 @@ export async function approveAssistant(id: string) {
 export async function rejectAssistant(id: string) {
   try {
     const supabase = await getServerSupabase();
-    const assistantId = Number(id);
+    const assistantId = normalizeAssistantId(id);
+    if (!assistantId) throw new Error('Id de pago inválido.');
+    await assertCanManageAssistant(supabase, assistantId);
 
-    const { error } = await supabase.from('assistants').update({ state: 'rejected' }).eq('id', id);
+    const { error } = await supabase
+      .from('assistants')
+      .update({ state: 'rejected' })
+      .eq('id', assistantId);
 
     if (error) {
       log.database('UPDATE reject assistant', 'assistants', error, { id });
       throw new Error('Failed to reject assistant');
     }
 
-    if (Number.isFinite(assistantId)) {
-      try {
-        const result = await ensureTicketForAssistant(supabase, assistantId);
-        if (result.reason === 'ticket_table_missing') {
-          log.warn('Ticket table missing while rejecting assistant', 'ADMIN_PAYMENTS', {
-            assistantId,
-          });
-        }
-      } catch (ticketError: any) {
-        log.warn('Ticket sync failed after assistant rejection', 'ADMIN_PAYMENTS', {
+    try {
+      const result = await ensureTicketForAssistant(supabase, assistantId);
+      if (result.reason === 'ticket_table_missing') {
+        log.warn('Ticket table missing while rejecting assistant', 'ADMIN_PAYMENTS', {
           assistantId,
-          message: ticketError?.message,
         });
       }
+    } catch (ticketError: any) {
+      log.warn('Ticket sync failed after assistant rejection', 'ADMIN_PAYMENTS', {
+        assistantId,
+        message: ticketError?.message,
+      });
     }
 
     log.info('Assistant rejected', 'ADMIN_PAYMENTS', { assistantId: id });

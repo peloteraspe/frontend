@@ -48,6 +48,34 @@ function isProfileUserFkError(message: string) {
   return message.includes('profile_user_fkey') || message.includes('foreign key constraint');
 }
 
+function isProfileUsernameConflictError(message: string) {
+  return (
+    message.includes('profile_username_key') ||
+    message.includes('duplicate key value violates unique constraint') ||
+    (message.includes('unique') && message.includes('username'))
+  );
+}
+
+function isTransientProfileBackendError(message: string) {
+  return (
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('tardo demasiado') ||
+    message.includes('fetch failed') ||
+    message.includes('network') ||
+    message.includes('internal server error') ||
+    message.includes('service unavailable') ||
+    message.includes('bad gateway') ||
+    message.includes('gateway timeout') ||
+    message.includes(' 500') ||
+    message.startsWith('500')
+  );
+}
+
+async function wait(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function tryGetAdminSupabase(context: string) {
   try {
     return getAdminSupabase();
@@ -72,52 +100,30 @@ async function saveProfileAndPositionsDirectly(payload: CreateProfilePayload) {
     .map((positionId) => Number(positionId))
     .filter((positionId) => Number.isFinite(positionId));
 
-  const { data: existingRows, error: lookupError } = await supabase
+  const { data: upsertedProfile, error: upsertError } = await supabase
     .from('profile')
-    .select('id')
-    .eq('user', payload.user)
-    .order('id', { ascending: true })
-    .limit(1);
-
-  if (lookupError) {
-    throw new Error(lookupError.message);
-  }
-
-  let profileId: number;
-
-  if ((existingRows?.length ?? 0) > 0) {
-    profileId = Number(existingRows?.[0]?.id);
-    const { error: updateError } = await supabase
-      .from('profile')
-      .update({
-        username: normalizedUsername,
-        level_id: levelId,
-        onboarding_step: 2,
-        is_profile_complete: true,
-      })
-      .eq('id', profileId);
-
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
-  } else {
-    const { data: insertedProfile, error: insertError } = await supabase
-      .from('profile')
-      .insert({
+    .upsert(
+      {
         user: payload.user,
         username: normalizedUsername,
         level_id: levelId,
         onboarding_step: 2,
         is_profile_complete: true,
-      })
-      .select('id')
-      .single();
+      },
+      {
+        onConflict: 'user',
+      }
+    )
+    .select('id')
+    .single();
 
-    if (insertError) {
-      throw new Error(insertError.message);
-    }
+  if (upsertError) {
+    throw new Error(upsertError.message);
+  }
 
-    profileId = Number(insertedProfile?.id);
+  const profileId = Number(upsertedProfile?.id);
+  if (!Number.isFinite(profileId) || profileId <= 0) {
+    throw new Error('No se pudo resolver el perfil para completar onboarding.');
   }
 
   const { error: deletePositionsError } = await supabase
@@ -141,6 +147,35 @@ async function saveProfileAndPositionsDirectly(payload: CreateProfilePayload) {
       throw new Error(insertPositionsError.message);
     }
   }
+}
+
+async function saveProfileAndPositionsWithRetry(payload: CreateProfilePayload, attempts = 3) {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await saveProfileAndPositionsDirectly(payload);
+      return;
+    } catch (error: any) {
+      lastError = error;
+      const message = normalizeErrorMessage(error);
+      const canRetry = isProfileUserFkError(message) || isTransientProfileBackendError(message);
+      if (!canRetry || attempt >= attempts) {
+        throw error;
+      }
+
+      const delayMs = 200 * attempt;
+      log.warn('Retrying direct profile persistence for onboarding', 'SIGNUP', {
+        userId: payload.user,
+        attempt,
+        delayMs,
+        reason: message,
+      });
+      await wait(delayMs);
+    }
+  }
+
+  throw lastError || new Error('No se pudo guardar el perfil.');
 }
 
 async function saveOnboardingProfileState(
@@ -284,25 +319,39 @@ export async function completeOnboardingProfileAction(payload: CreateProfilePayl
   };
 
   let usedDirectSupabaseFallback = false;
+  const normalizedUsername = payload.username.trim();
 
   try {
     await updateProfileByUserId(payload.user, profilePayload);
   } catch (error: any) {
     const message = normalizeErrorMessage(error);
-    const shouldFallbackToCreate = isUserMissingError(message);
-
-    if (!shouldFallbackToCreate) {
+    if (isProfileUsernameConflictError(message)) {
       throw error;
     }
+
+    log.warn('Backend update profile failed in onboarding; trying create/fallback', 'SIGNUP', {
+      userId: payload.user,
+      reason: message,
+    });
 
     try {
       await createProfile({
         ...payload,
-        username: payload.username.trim(),
+        username: normalizedUsername,
       });
     } catch (createError: any) {
       const createMessage = normalizeErrorMessage(createError);
-      if (!isProfileUserFkError(createMessage) && !isUserMissingError(createMessage)) {
+      if (isProfileUsernameConflictError(createMessage)) {
+        throw createError;
+      }
+
+      const shouldUseDirectFallback =
+        isProfileUserFkError(createMessage) ||
+        isUserMissingError(createMessage) ||
+        isTransientProfileBackendError(createMessage) ||
+        isTransientProfileBackendError(message);
+
+      if (!shouldUseDirectFallback) {
         throw createError;
       }
 
@@ -311,11 +360,18 @@ export async function completeOnboardingProfileAction(payload: CreateProfilePayl
         'SIGNUP',
         {
           userId: payload.user,
-          reason: createMessage,
+          updateReason: message,
+          createReason: createMessage,
         }
       );
 
-      await saveProfileAndPositionsDirectly(payload);
+      await saveProfileAndPositionsWithRetry(
+        {
+          ...payload,
+          username: normalizedUsername,
+        },
+        4
+      );
       usedDirectSupabaseFallback = true;
     }
   }

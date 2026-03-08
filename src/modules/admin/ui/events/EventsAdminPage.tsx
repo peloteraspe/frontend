@@ -83,7 +83,8 @@ export default async function AdminEventsPage({ searchParams }: Props) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const canManageFeatured = isSuperAdmin(user as any);
+  const isUserSuperAdmin = isSuperAdmin(user as any);
+  const canManageFeatured = isUserSuperAdmin;
   const dateOrder = searchParams?.dateOrder === 'desc' ? 'desc' : 'asc';
   const nextDateOrder = dateOrder === 'asc' ? 'desc' : 'asc';
 
@@ -94,7 +95,7 @@ export default async function AdminEventsPage({ searchParams }: Props) {
     await setEventFeatured(id, isFeatured);
   }
 
-  const events = (await getEvents({ dateOrder })) ?? [];
+  const events = (await getEvents({ dateOrder, createdById: isUserSuperAdmin ? '' : user?.id || '' })) ?? [];
   const approvedParticipantsByEventId = await getApprovedParticipantsCountByEventIds(
     events.map((event: any) => event.id)
   );
