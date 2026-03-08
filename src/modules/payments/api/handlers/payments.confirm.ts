@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
+import { sendPaymentStatusEmail } from '../services/payment-status-email.service';
 
 function parseEventId(value: unknown) {
   const n = Number(value);
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
 
     const { data: eventRow, error: eventError } = await admin
       .from('event')
-      .select('id,start_time')
+      .select('id,start_time,title,location_text')
       .eq('id', eventId)
       .maybeSingle();
 
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
 
     const { data: existingAssistant, error: existingError } = await admin
       .from('assistants')
-      .select('id')
+      .select('id,state,operationNumber')
       .eq('event', eventId)
       .eq('user', user.id)
       .order('id', { ascending: false })
@@ -80,6 +81,10 @@ export async function POST(request: Request) {
     }
 
     if (existingAssistant?.id) {
+      const shouldNotifyPending =
+        String(existingAssistant?.state || '') !== 'pending' ||
+        String(existingAssistant?.operationNumber || '') !== operationNumber;
+
       const { data: updated, error: updateError } = await admin
         .from('assistants')
         .update({
@@ -97,6 +102,18 @@ export async function POST(request: Request) {
           userId: user.id,
         });
         return NextResponse.json({ error: 'No se pudo actualizar la inscripción.' }, { status: 500 });
+      }
+
+      if (shouldNotifyPending) {
+        await sendPaymentStatusEmail({
+          status: 'pending',
+          toEmail: String(user.email || ''),
+          toName: String(user.user_metadata?.username || user.user_metadata?.name || '').trim() || null,
+          eventTitle: String((eventRow as any)?.title || ''),
+          eventStartTime: String((eventRow as any)?.start_time || ''),
+          eventLocation: String((eventRow as any)?.location_text || ''),
+          ticketsUrl: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || ''}/tickets/${user.id}`,
+        });
       }
 
       return NextResponse.json({ ok: true, assistantId: updated.id }, { status: 200 });
@@ -120,6 +137,16 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ error: 'No se pudo registrar la inscripción.' }, { status: 500 });
     }
+
+    await sendPaymentStatusEmail({
+      status: 'pending',
+      toEmail: String(user.email || ''),
+      toName: String(user.user_metadata?.username || user.user_metadata?.name || '').trim() || null,
+      eventTitle: String((eventRow as any)?.title || ''),
+      eventStartTime: String((eventRow as any)?.start_time || ''),
+      eventLocation: String((eventRow as any)?.location_text || ''),
+      ticketsUrl: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || ''}/tickets/${user.id}`,
+    });
 
     return NextResponse.json({ ok: true, assistantId: inserted.id }, { status: 200 });
   } catch (error: any) {
