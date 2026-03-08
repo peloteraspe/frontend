@@ -10,6 +10,7 @@ export type BuildGoogleWalletSaveUrlInput = {
   qrToken: string;
   ticketNumber: string;
   ticketHolderName: string;
+  classId?: string | null;
 };
 
 type WalletSettingsRow = {
@@ -59,6 +60,21 @@ export type UpsertGoogleWalletSettingsInput = {
   updatedBy?: string | null;
 };
 
+export type EnsureGoogleWalletEventClassInput = {
+  eventId: string | number;
+  eventTitle: string;
+  eventDescription?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  locationText?: string | null;
+  eventUrl?: string | null;
+};
+
+export type EnsureGoogleWalletEventClassResult = {
+  classId: string;
+  created: boolean;
+};
+
 function getEnvValue(keys: string[]) {
   for (const key of keys) {
     const value = process.env[key];
@@ -84,6 +100,52 @@ function toBase64Url(value: string | Buffer) {
 
 function sanitizeObjectSuffix(value: string) {
   return value.replace(/[^A-Za-z0-9._-]/g, '_');
+}
+
+function toLocalizedString(value: string, language = 'es-PE') {
+  return {
+    defaultValue: {
+      language,
+      value,
+    },
+  };
+}
+
+function toErrorMessage(body: any, fallback: string) {
+  return (
+    String(body?.error?.message || body?.error_description || body?.error || '').trim() || fallback
+  );
+}
+
+function truncateText(value: string, maxLength: number) {
+  const text = String(value || '').trim();
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength).trim();
+}
+
+function normalizeWalletDateTime(value: string | null | undefined) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const timestamp = new Date(raw).getTime();
+  if (Number.isFinite(timestamp)) {
+    return new Date(timestamp).toISOString();
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) {
+    return raw;
+  }
+
+  return null;
+}
+
+function normalizeEventUrl(rawUrl: string | null | undefined) {
+  const explicit = String(rawUrl || '').trim();
+  if (explicit) return explicit;
+
+  const baseUrl = getEnvValue(['NEXT_PUBLIC_APP_URL', 'APP_URL', 'NEXT_PUBLIC_SITE_URL']);
+  if (!baseUrl) return null;
+  return baseUrl.replace(/\/+$/, '');
 }
 
 function normalizeOrigins(value: string[] | null | undefined) {
@@ -295,7 +357,9 @@ function buildGoogleWalletSaveUrlWithConfig(
   config: GoogleWalletConfig,
   input: BuildGoogleWalletSaveUrlInput
 ): string | null {
-  if (!config.classId) return null;
+  const classId =
+    typeof input.classId === 'string' && input.classId.trim() ? input.classId.trim() : config.classId;
+  if (!classId) return null;
 
   try {
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -312,7 +376,7 @@ function buildGoogleWalletSaveUrlWithConfig(
         eventTicketObjects: [
           {
             id: objectId,
-            classId: config.classId,
+            classId,
             state: 'ACTIVE',
             ticketHolderName: input.ticketHolderName,
             ticketNumber: input.ticketNumber,
@@ -341,7 +405,7 @@ function buildGoogleWalletSaveUrlWithConfig(
   } catch (error) {
     log.warn('Failed to sign Google Wallet JWT', 'TICKETS', {
       error,
-      hasClassId: Boolean(config.classId),
+      hasClassId: Boolean(classId),
       hasIssuerId: Boolean(config.issuerId),
       hasServiceAccountEmail: Boolean(config.serviceAccountEmail),
       source: config.source,
@@ -416,6 +480,133 @@ async function getGoogleWalletAccessToken(config: GoogleWalletConfig) {
   }
 
   return tokenJson.access_token;
+}
+
+function buildEventWalletClassId(config: GoogleWalletConfig, eventId: string | number) {
+  return `${config.issuerId}.peloteras_event_${sanitizeObjectSuffix(String(eventId))}`;
+}
+
+export async function ensureGoogleWalletEventClass(
+  input: EnsureGoogleWalletEventClassInput,
+  config?: GoogleWalletConfig | null
+): Promise<EnsureGoogleWalletEventClassResult | null> {
+  const resolvedConfig = config ?? (await getGoogleWalletConfig());
+  if (!resolvedConfig) return null;
+
+  const eventTitle = truncateText(String(input.eventTitle || '').trim() || `Evento ${input.eventId}`, 90);
+  const classId = buildEventWalletClassId(resolvedConfig, input.eventId);
+  const token = await getGoogleWalletAccessToken(resolvedConfig);
+  const classEndpoint = `https://walletobjects.googleapis.com/walletobjects/v1/eventTicketClass/${encodeURIComponent(
+    classId
+  )}`;
+
+  let getResponse: Response;
+  try {
+    getResponse = await fetchWithTimeout(
+      classEndpoint,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: 'no-store',
+      },
+      5000
+    );
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error('Tiempo de espera agotado al consultar clase de Google Wallet.');
+    }
+    throw error;
+  }
+
+  if (getResponse.ok) {
+    return { classId, created: false };
+  }
+
+  const getBody = (await getResponse.json().catch(() => ({}))) as {
+    error?: { message?: string } | string;
+    error_description?: string;
+  };
+
+  if (getResponse.status !== 404) {
+    throw new Error(toErrorMessage(getBody, 'No se pudo consultar la clase en Google Wallet.'));
+  }
+
+  const description = truncateText(String(input.eventDescription || '').trim(), 1000);
+  const locationText = truncateText(String(input.locationText || '').trim(), 240);
+  const venueName = truncateText(locationText.split(',')[0] || locationText, 80);
+  const start = normalizeWalletDateTime(input.startTime);
+  const end = normalizeWalletDateTime(input.endTime);
+  const eventId = truncateText(`event_${sanitizeObjectSuffix(String(input.eventId))}`, 64);
+  const appBaseUrl = normalizeEventUrl(input.eventUrl);
+  const eventUrl = appBaseUrl ? `${appBaseUrl}/events/${encodeURIComponent(String(input.eventId))}` : null;
+
+  const createPayload = {
+    id: classId,
+    issuerName: 'Peloteras',
+    localizedIssuerName: toLocalizedString('Peloteras'),
+    eventName: toLocalizedString(eventTitle),
+    eventId,
+    venue:
+      venueName && locationText
+        ? {
+            name: toLocalizedString(venueName),
+            address: toLocalizedString(locationText),
+          }
+        : undefined,
+    dateTime: start || end ? { start: start || undefined, end: end || undefined } : undefined,
+    textModulesData: description
+      ? [
+          {
+            id: `event_desc_${sanitizeObjectSuffix(String(input.eventId))}`,
+            header: 'Descripcion',
+            body: description,
+          },
+        ]
+      : undefined,
+    homepageUri: eventUrl
+      ? {
+          uri: eventUrl,
+          description: 'Detalle del evento',
+        }
+      : undefined,
+    reviewStatus: 'UNDER_REVIEW',
+  };
+
+  let createResponse: Response;
+  try {
+    createResponse = await fetchWithTimeout(
+      'https://walletobjects.googleapis.com/walletobjects/v1/eventTicketClass',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(createPayload),
+      },
+      7000
+    );
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error('Tiempo de espera agotado al crear clase de Google Wallet.');
+    }
+    throw error;
+  }
+
+  const createBody = (await createResponse.json().catch(() => ({}))) as {
+    error?: { message?: string } | string;
+    error_description?: string;
+  };
+
+  if (!createResponse.ok) {
+    if (createResponse.status === 409) {
+      return { classId, created: false };
+    }
+    throw new Error(toErrorMessage(createBody, 'No se pudo crear clase de Google Wallet.'));
+  }
+
+  return { classId, created: true };
 }
 
 export async function listGoogleWalletEventClasses(

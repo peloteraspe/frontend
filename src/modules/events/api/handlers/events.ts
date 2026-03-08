@@ -8,8 +8,14 @@ import {
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
 import { CreateEventPayload, EventEntity } from '@modules/events/model/types';
+import { ensureGoogleWalletEventClass } from '@modules/tickets/api/services/google-wallet.service';
 
 const EVENTS_TIMEOUT_MS = 4500;
+
+function isMissingEventWalletClassColumnError(error: any) {
+  const message = String(error?.message ?? '').toLowerCase();
+  return message.includes('google_wallet_class_id') && message.includes('does not exist');
+}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error) {
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -280,6 +286,45 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    try {
+      const walletClass = await ensureGoogleWalletEventClass({
+        eventId: data.id,
+        eventTitle: payload.title,
+        eventDescription: payload.description,
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        locationText: payload.locationText,
+      });
+
+      if (walletClass?.classId) {
+        const { error: walletClassUpdateError } = await supabase
+          .from('event')
+          .update({ google_wallet_class_id: walletClass.classId })
+          .eq('id', data.id);
+
+        if (walletClassUpdateError) {
+          if (isMissingEventWalletClassColumnError(walletClassUpdateError)) {
+            throw new Error('Falta la migración de Google Wallet en event. Ejecuta migraciones.');
+          }
+          throw new Error(walletClassUpdateError.message);
+        }
+      }
+    } catch (walletError: any) {
+      const { error: rollbackError } = await supabase.from('event').delete().eq('id', data.id);
+      if (rollbackError) {
+        return NextResponse.json(
+          {
+            error: `${walletError?.message || 'No se pudo crear la clase en Google Wallet.'} Además, no se pudo revertir el evento creado.`,
+          },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json(
+        { error: walletError?.message || 'No se pudo crear la clase en Google Wallet.' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ id: data.id }, { status: 201 });

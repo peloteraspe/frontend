@@ -30,6 +30,7 @@ type EventRow = {
   max_users: number | null;
   EventType: number | null;
   level: number | null;
+  google_wallet_class_id?: string | null;
 };
 
 type EventTypeRow = {
@@ -61,6 +62,11 @@ const DEFAULT_TIMEZONE = 'America/Lima';
 function isMissingTicketTableError(error: any) {
   const message = String(error?.message ?? '').toLowerCase();
   return message.includes('ticket') && message.includes('does not exist');
+}
+
+function isMissingEventWalletClassColumnError(error: any) {
+  const message = String(error?.message ?? '').toLowerCase();
+  return message.includes('google_wallet_class_id') && message.includes('does not exist');
 }
 
 function toTicketStatus(state: string | null | undefined): 'pending' | 'active' | 'used' | 'revoked' {
@@ -208,10 +214,22 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
 
   if (!eventIds.length) return [];
 
-  const { data: eventsData, error: eventsError } = await supabase
+  const baseEventSelect =
+    'id, title, start_time, end_time, location_text, price, min_users, max_users, EventType, level';
+
+  const withWalletClass = await supabase
     .from('event')
-    .select('id, title, start_time, end_time, location_text, price, min_users, max_users, EventType, level')
+    .select(`${baseEventSelect}, google_wallet_class_id`)
     .in('id', eventIds);
+  let eventsData = (withWalletClass.data ?? null) as any[] | null;
+  let eventsError = withWalletClass.error;
+
+  if (eventsError && isMissingEventWalletClassColumnError(eventsError)) {
+    log.warn('event.google_wallet_class_id is missing. Run migrations.', 'TICKETS');
+    const fallback = await supabase.from('event').select(baseEventSelect).in('id', eventIds);
+    eventsData = (fallback.data ?? null) as any[] | null;
+    eventsError = fallback.error;
+  }
 
   if (eventsError) {
     log.database('SELECT enrolled events', 'event', eventsError as any, { userId, eventIds });
@@ -293,7 +311,12 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
   }
 
   const eventsById = new Map<string, any>();
+  const eventWalletClassByEventId = new Map<string, string>();
   for (const event of eventRows) {
+    const walletClassId = String(event.google_wallet_class_id || '').trim();
+    if (walletClassId) {
+      eventWalletClassByEventId.set(String(event.id), walletClassId);
+    }
     eventsById.set(
       String(event.id),
       mapSupabaseEventToCardEvent(event, eventTypeById, levelById, featuresByEventId)
@@ -308,6 +331,7 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
       const ticket = ticketsByAssistantId.get(String(assistant.id));
       const qrToken = ticket?.qr_token ?? null;
       const qrValue = qrToken ? `PELOTERAS:TICKET:${qrToken}` : null;
+      const eventWalletClassId = eventWalletClassByEventId.get(eventId) ?? null;
       const qrImageUrl = qrValue
         ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrValue)}`
         : null;
@@ -319,6 +343,7 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
                 qrToken,
                 ticketNumber: String(ticket?.id ?? assistant.id),
                 ticketHolderName,
+                classId: eventWalletClassId,
               },
               googleWalletConfig
             )

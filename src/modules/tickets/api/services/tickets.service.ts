@@ -16,6 +16,10 @@ type ProfileRow = {
   username: string | null;
 };
 
+type EventWalletClassRow = {
+  google_wallet_class_id: string | null;
+};
+
 type TicketRow = {
   id: number;
   assistant_id: number;
@@ -35,6 +39,11 @@ export type EnsureTicketResult = {
 function isMissingTicketTableError(error: any) {
   const message = String(error?.message ?? '').toLowerCase();
   return message.includes('ticket') && message.includes('does not exist');
+}
+
+function isMissingEventWalletClassColumnError(error: any) {
+  const message = String(error?.message ?? '').toLowerCase();
+  return message.includes('google_wallet_class_id') && message.includes('does not exist');
 }
 
 function mapAssistantStateToTicketStatus(state: string | null | undefined): TicketStatus {
@@ -72,6 +81,28 @@ async function resolveTicketHolderName(supabase: any, userId: string) {
   }
 
   return 'Peloteras';
+}
+
+async function resolveEventGoogleWalletClassId(supabase: any, eventId: number) {
+  const { data, error } = await supabase
+    .from('event')
+    .select('google_wallet_class_id')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingEventWalletClassColumnError(error)) {
+      log.warn('event.google_wallet_class_id is missing. Run migrations.', 'TICKETS');
+      return null;
+    }
+
+    log.database('SELECT event google wallet class id', 'event', error, { eventId });
+    return null;
+  }
+
+  const row = data as EventWalletClassRow | null;
+  const classId = String(row?.google_wallet_class_id || '').trim();
+  return classId || null;
 }
 
 export async function ensureTicketForAssistant(
@@ -121,6 +152,7 @@ export async function ensureTicketForAssistant(
   const qrToken = existing?.qr_token || buildQrToken();
   const finalStatus: TicketStatus = existing?.status === 'used' ? 'used' : mappedStatus;
   const googleWalletConfig = await getGoogleWalletConfig();
+  const eventGoogleWalletClassId = await resolveEventGoogleWalletClassId(supabase, row.event);
   const appleWalletUrl =
     existing?.apple_wallet_url || resolveWalletUrl(process.env.APPLE_WALLET_URL_TEMPLATE, qrToken);
 
@@ -133,6 +165,7 @@ export async function ensureTicketForAssistant(
           qrToken,
           ticketNumber: String(row.id),
           ticketHolderName,
+          classId: eventGoogleWalletClassId,
         },
         googleWalletConfig
       )) || resolveWalletUrl(process.env.GOOGLE_WALLET_URL_TEMPLATE, qrToken);

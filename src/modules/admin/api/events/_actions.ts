@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@src/core/api/supabase.server';
 import { EventUpsertInput, validateEventFormInput } from '@modules/admin/model/eventForm';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import { ensureGoogleWalletEventClass } from '@modules/tickets/api/services/google-wallet.service';
 
 function toInsertPayload(
   input: EventUpsertInput,
@@ -96,6 +97,50 @@ async function syncEventPaymentMethods(
   if (insertError) throw new Error(insertError.message);
 }
 
+function isMissingEventWalletClassColumnError(error: any) {
+  const message = String(error?.message ?? '').toLowerCase();
+  return message.includes('google_wallet_class_id') && message.includes('does not exist');
+}
+
+async function syncGoogleWalletClassForEvent(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  input: {
+    eventId: string | number;
+    eventTitle: string;
+    eventDescription?: string;
+    startTime?: string;
+    endTime?: string;
+    locationText?: string;
+  }
+) {
+  const walletClass = await ensureGoogleWalletEventClass({
+    eventId: input.eventId,
+    eventTitle: input.eventTitle,
+    eventDescription: input.eventDescription,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    locationText: input.locationText,
+  });
+
+  if (!walletClass?.classId) {
+    return null;
+  }
+
+  const { error } = await supabase
+    .from('event')
+    .update({ google_wallet_class_id: walletClass.classId })
+    .eq('id', input.eventId);
+
+  if (error) {
+    if (isMissingEventWalletClassColumnError(error)) {
+      throw new Error('Falta la migración de Google Wallet en event. Ejecuta migraciones.');
+    }
+    throw new Error(error.message);
+  }
+
+  return walletClass.classId;
+}
+
 export async function createEvent(input: EventUpsertInput) {
   validateEventFormInput(input);
 
@@ -123,6 +168,25 @@ export async function createEvent(input: EventUpsertInput) {
     .single();
   if (error) throw new Error(error.message);
   if (!createdEvent?.id) throw new Error('No se pudo obtener el id del evento creado.');
+
+  try {
+    await syncGoogleWalletClassForEvent(supabase, {
+      eventId: createdEvent.id,
+      eventTitle: input.title,
+      eventDescription: input.description,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      locationText: input.locationText,
+    });
+  } catch (walletError: any) {
+    const { error: rollbackError } = await supabase.from('event').delete().eq('id', createdEvent.id);
+    if (rollbackError) {
+      throw new Error(
+        `${walletError?.message || 'No se pudo crear la clase en Google Wallet.'} Además, no se pudo revertir el evento creado.`
+      );
+    }
+    throw walletError;
+  }
 
   await syncEventFeatures(supabase, createdEvent.id, input.featureIds);
   await syncEventPaymentMethods(supabase, createdEvent.id, input.paymentMethodIds);
