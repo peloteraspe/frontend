@@ -320,7 +320,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(740px,820px)_minmax(520px,1fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className={['order-2 xl:order-1', mobileView === 'map' ? 'hidden xl:block' : 'block'].join(' ')}>
           <EventListPanel
             events={events}
