@@ -51,10 +51,29 @@ function shouldClearSessionForError(rawMessage: string) {
   );
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error ?? '');
+}
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [user, setUser] = useState<UserLite>(null);
   const [loading, setLoading] = useState(true);
+
+  const mapAuthUserToLite = (authUser: {
+    id: string;
+    email?: string | null;
+    email_confirmed_at?: string | null;
+    user_metadata?: Record<string, any>;
+  }) => ({
+    id: authUser.id,
+    email: authUser.email,
+    username: authUser.user_metadata?.username ?? null,
+    email_confirmed_at: authUser.email_confirmed_at ?? null,
+    emailConfirmed: Boolean(authUser.email_confirmed_at),
+    eventsVerified: isEventsVerified(authUser.user_metadata?.events_verified),
+  });
 
   const clearInvalidLocalSession = async (reason: string) => {
     console.warn('⚠️ Clearing invalid local session:', reason);
@@ -89,6 +108,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  const hydrateUsernameFromProfile = (userId: string) => {
+    void loadProfileUsername(userId).then((profileUsername) => {
+      if (profileUsername) {
+        setUser((prev) => (prev ? { ...prev, username: profileUsername } : prev));
+      }
+    });
+  };
+
   const hydrateFromSession = async () => {
     console.log('🔄 AuthProvider: Starting session hydration...');
     setLoading(true);
@@ -118,16 +145,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         if (directUser && !directUserError) {
           console.log('✅ User found in localStorage:', directUser.id);
-          const profileUsername = await loadProfileUsername(directUser.id);
-          const userData = {
-            id: directUser.id,
-            email: directUser.email,
-            username: profileUsername || directUser.user_metadata?.username || null,
-            email_confirmed_at: directUser.email_confirmed_at ?? null,
-            emailConfirmed: Boolean(directUser.email_confirmed_at),
-            eventsVerified: isEventsVerified(directUser.user_metadata?.events_verified),
-          };
+          const userData = mapAuthUserToLite(directUser);
           setUser(userData);
+          hydrateUsernameFromProfile(directUser.id);
           return;
         } else {
           if (directUserError) {
@@ -148,24 +168,31 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         }
       }
 
-      // We have a session, get the user
-      const {
-        data: { user: sessionUser },
-        error: userError,
-      } = await supabase.auth.getUser();
+      let sessionUser = session.user;
+      let userErrorMessage: string | undefined;
+
+      // `getSession` already carries the user; only hit `getUser` if session.user is missing.
+      if (!sessionUser) {
+        const {
+          data: { user: fetchedUser },
+          error: userError,
+        } = await supabase.auth.getUser();
+        sessionUser = fetchedUser;
+        userErrorMessage = userError?.message;
+      }
 
       console.log('👤 User from session:', {
         user: !!sessionUser,
         id: sessionUser?.id,
         email: sessionUser?.email,
-        error: userError?.message,
+        error: userErrorMessage,
       });
 
-      if (!sessionUser || userError) {
+      if (!sessionUser) {
         console.log('❌ Could not get user from session');
-        if (shouldClearSessionForError(userError?.message || '')) {
+        if (shouldClearSessionForError(userErrorMessage || '')) {
           await clearInvalidLocalSession(
-            `session user lookup failed: ${userError?.message || 'missing user'}`
+            `session user lookup failed: ${userErrorMessage || 'missing user'}`
           );
         } else {
           setUser(null);
@@ -174,26 +201,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         return;
       }
 
-      const userData = {
-        id: sessionUser.id,
-        email: sessionUser.email,
-        username: sessionUser.user_metadata?.username ?? null,
-        email_confirmed_at: sessionUser.email_confirmed_at ?? null,
-        emailConfirmed: Boolean(sessionUser.email_confirmed_at),
-        eventsVerified: isEventsVerified(sessionUser.user_metadata?.events_verified),
-      };
+      const userData = mapAuthUserToLite(sessionUser);
 
       setUser(userData);
       console.log('✅ User set successfully:', userData);
-
-      const profileUsername = await loadProfileUsername(sessionUser.id);
-      if (profileUsername) {
-        setUser((prev) => (prev ? { ...prev, username: profileUsername } : prev));
-        console.log('✅ Profile loaded:', profileUsername);
-      }
+      hydrateUsernameFromProfile(sessionUser.id);
     } catch (err) {
       console.error('❌ Session hydration error:', err);
-      setUser(null);
+      const message = errorMessage(err);
+      if (shouldClearSessionForError(message)) {
+        await clearInvalidLocalSession(`session hydration failed: ${message || 'unknown error'}`);
+      } else {
+        // Keep current user state for transient failures (timeouts/network blips).
+        console.warn('⚠️ Preserving auth state after transient hydration error:', message);
+      }
     } finally {
       setLoading(false);
       console.log('🔄 Session hydration complete');
@@ -217,25 +238,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         return;
       }
 
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (
+        event === 'SIGNED_IN' ||
+        event === 'TOKEN_REFRESHED' ||
+        event === 'INITIAL_SESSION' ||
+        event === 'USER_UPDATED'
+      ) {
         const u = session.user;
-        const userData = {
-          id: u.id,
-          email: u.email,
-          username: u.user_metadata?.username ?? null,
-          email_confirmed_at: u.email_confirmed_at ?? null,
-          emailConfirmed: Boolean(u.email_confirmed_at),
-          eventsVerified: isEventsVerified(u.user_metadata?.events_verified),
-        };
+        const userData = mapAuthUserToLite(u);
 
         setUser(userData);
         setLoading(false);
         console.log('✅ User updated from auth event:', userData);
-
-        const profileUsername = await loadProfileUsername(u.id);
-        if (profileUsername) {
-          setUser((prev) => (prev ? { ...prev, username: profileUsername } : prev));
-        }
+        hydrateUsernameFromProfile(u.id);
       }
     });
 
