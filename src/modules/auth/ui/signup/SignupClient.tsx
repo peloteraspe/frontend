@@ -527,7 +527,33 @@ export default function SignupClient() {
 
       // We create the final profile here. If a draft exists and backend treats it as duplicate,
       // show a guided message instead of failing silently.
-      await completeOnboardingProfileAction(profilePayload);
+      const onboardingResult = await completeOnboardingProfileAction(profilePayload);
+      if ('code' in onboardingResult) {
+        if (onboardingResult.code === 'USERNAME_TAKEN') {
+          setError('username', {
+            type: 'manual',
+            message: 'El nombre de usuario ya está en uso, elige otro.',
+          });
+          setStep(1);
+          toast.error('Ese nombre de usuario ya está en uso, elige otro.');
+          return;
+        }
+
+        if (onboardingResult.code === 'USER_NOT_READY') {
+          toast.error(
+            'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesion.'
+          );
+          window.location.href = appendNextPath(
+            '/login?message=Completa tu perfil al iniciar sesion',
+            requestedNextPath
+          );
+          return;
+        }
+
+        toast.error(onboardingResult.message || 'No se pudo crear el perfil.');
+        return;
+      }
+
       const {
         data: { user: authenticatedUser },
       } = await supabase.auth.getUser();

@@ -18,6 +18,14 @@ export type UpdateProfilePayload = {
   player_position: number[];
 };
 
+export type CompleteOnboardingProfileResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code: 'USERNAME_TAKEN' | 'USER_NOT_READY' | 'TRANSIENT' | 'UNKNOWN';
+      message: string;
+    };
+
 export async function createProfileAction(payload: CreateProfilePayload) {
   return createProfile(payload);
 }
@@ -337,81 +345,122 @@ async function syncAuthUserMetadata(userId: string, username: string) {
   }
 }
 
-export async function completeOnboardingProfileAction(payload: CreateProfilePayload) {
-  const profilePayload: UpdateProfilePayload = {
-    username: payload.username.trim(),
-    level_id: payload.level_id as number,
-    player_position: payload.player_position,
-  };
-
-  let usedDirectSupabaseFallback = false;
-  const normalizedUsername = payload.username.trim();
-
+export async function completeOnboardingProfileAction(
+  payload: CreateProfilePayload
+): Promise<CompleteOnboardingProfileResult> {
   try {
-    await updateProfileByUserId(payload.user, profilePayload);
-  } catch (error: any) {
-    const message = normalizeErrorMessage(error);
-    if (isProfileUsernameConflictError(message)) {
-      throw error;
+    const profilePayload: UpdateProfilePayload = {
+      username: payload.username.trim(),
+      level_id: payload.level_id as number,
+      player_position: payload.player_position,
+    };
+
+    let usedDirectSupabaseFallback = false;
+    const normalizedUsername = payload.username.trim();
+
+    try {
+      await updateProfileByUserId(payload.user, profilePayload);
+    } catch (error: any) {
+      const message = normalizeErrorMessage(error);
+      if (isProfileUsernameConflictError(message)) {
+        throw error;
+      }
+
+      log.warn('Backend update profile failed in onboarding; trying create/fallback', 'SIGNUP', {
+        userId: payload.user,
+        reason: message,
+      });
+
+      try {
+        await createProfile({
+          ...payload,
+          username: normalizedUsername,
+        });
+      } catch (createError: any) {
+        const createMessage = normalizeErrorMessage(createError);
+        if (isProfileUsernameConflictError(createMessage)) {
+          throw createError;
+        }
+
+        const shouldUseDirectFallback =
+          isProfileUserFkError(createMessage) ||
+          isUserMissingError(createMessage) ||
+          isTransientProfileBackendError(createMessage) ||
+          isTransientProfileBackendError(message);
+
+        if (!shouldUseDirectFallback) {
+          throw createError;
+        }
+
+        log.warn(
+          'Backend profile endpoints could not persist onboarding profile; using direct Supabase fallback',
+          'SIGNUP',
+          {
+            userId: payload.user,
+            updateReason: message,
+            createReason: createMessage,
+          }
+        );
+
+        await saveProfileAndPositionsWithRetry(
+          {
+            ...payload,
+            username: normalizedUsername,
+          },
+          4
+        );
+        usedDirectSupabaseFallback = true;
+      }
     }
 
-    log.warn('Backend update profile failed in onboarding; trying create/fallback', 'SIGNUP', {
+    if (!usedDirectSupabaseFallback) {
+      await saveOnboardingProfileState(payload.user, {
+        username: payload.username,
+        level_id: payload.level_id,
+        onboarding_step: 2,
+        is_profile_complete: true,
+      });
+    }
+
+    await syncAuthUserMetadata(payload.user, payload.username);
+    return { ok: true };
+  } catch (error: any) {
+    const message = normalizeErrorMessage(error);
+    log.warn('Complete onboarding profile action failed', 'SIGNUP', {
       userId: payload.user,
       reason: message,
     });
 
-    try {
-      await createProfile({
-        ...payload,
-        username: normalizedUsername,
-      });
-    } catch (createError: any) {
-      const createMessage = normalizeErrorMessage(createError);
-      if (isProfileUsernameConflictError(createMessage)) {
-        throw createError;
-      }
-
-      const shouldUseDirectFallback =
-        isProfileUserFkError(createMessage) ||
-        isUserMissingError(createMessage) ||
-        isTransientProfileBackendError(createMessage) ||
-        isTransientProfileBackendError(message);
-
-      if (!shouldUseDirectFallback) {
-        throw createError;
-      }
-
-      log.warn(
-        'Backend profile endpoints could not persist onboarding profile; using direct Supabase fallback',
-        'SIGNUP',
-        {
-          userId: payload.user,
-          updateReason: message,
-          createReason: createMessage,
-        }
-      );
-
-      await saveProfileAndPositionsWithRetry(
-        {
-          ...payload,
-          username: normalizedUsername,
-        },
-        4
-      );
-      usedDirectSupabaseFallback = true;
+    if (isProfileUsernameConflictError(message)) {
+      return {
+        ok: false,
+        code: 'USERNAME_TAKEN',
+        message: 'El nombre de usuario ya está en uso, elige otro.',
+      };
     }
-  }
 
-  if (!usedDirectSupabaseFallback) {
-    await saveOnboardingProfileState(payload.user, {
-      username: payload.username,
-      level_id: payload.level_id,
-      onboarding_step: 2,
-      is_profile_complete: true,
-    });
-  }
+    if (isProfileUserFkError(message) || isUserMissingError(message)) {
+      return {
+        ok: false,
+        code: 'USER_NOT_READY',
+        message: 'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesión.',
+      };
+    }
 
-  await syncAuthUserMetadata(payload.user, payload.username);
+    if (isTransientProfileBackendError(message)) {
+      return {
+        ok: false,
+        code: 'TRANSIENT',
+        message: 'No pudimos completar tu perfil ahora. Intenta nuevamente en unos segundos.',
+      };
+    }
+
+    return {
+      ok: false,
+      code: 'UNKNOWN',
+      message: 'No se pudo crear el perfil.',
+    };
+  }
 }
 
 export async function checkUsernameAvailabilityAction(
