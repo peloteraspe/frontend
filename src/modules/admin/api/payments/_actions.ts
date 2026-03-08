@@ -2,13 +2,117 @@
 
 import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@core/api/supabase.server';
+import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
 import { ensureTicketForAssistant } from '@modules/tickets/api/services/tickets.service';
+import { sendPaymentStatusEmail } from '@modules/payments/api/services/payment-status-email.service';
 import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
 
 function normalizeAssistantId(value: string) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function loadAssistantEmailContext(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  assistantId: number
+) {
+  const { data: assistant, error: assistantError } = await supabase
+    .from('assistants')
+    .select('id,user,event')
+    .eq('id', assistantId)
+    .maybeSingle();
+
+  if (assistantError || !assistant?.user || !assistant?.event) {
+    log.warn('Could not load assistant for payment status email', 'EMAIL', {
+      assistantId,
+      assistantError,
+    });
+    return null;
+  }
+
+  const { data: eventData, error: eventError } = await supabase
+    .from('event')
+    .select('title,start_time,location_text')
+    .eq('id', assistant.event)
+    .maybeSingle();
+
+  if (eventError) {
+    log.database('SELECT event for payment status email', 'event', eventError as any, {
+      assistantId,
+      eventId: assistant.event,
+    });
+  }
+
+  let toEmail = '';
+  const admin = getAdminSupabase();
+  try {
+    const { data, error } = await admin.auth.admin.getUserById(String(assistant.user));
+    if (error) {
+      log.warn('Could not load auth user for payment status email', 'EMAIL', {
+        assistantId,
+        userId: assistant.user,
+        error,
+      });
+    } else {
+      toEmail = String(data?.user?.email || '').trim();
+    }
+  } catch (error) {
+    log.error('Payment status email user lookup failed', 'EMAIL', error, {
+      assistantId,
+      userId: assistant.user,
+    });
+  }
+
+  const { data: profile } = await supabase
+    .from('profile')
+    .select('username')
+    .eq('user', assistant.user)
+    .maybeSingle();
+
+  const toName = String((profile as any)?.username || '').trim() || null;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
+
+  return {
+    toEmail,
+    toName,
+    eventTitle: String((eventData as any)?.title || ''),
+    eventStartTime: String((eventData as any)?.start_time || ''),
+    eventLocation: String((eventData as any)?.location_text || ''),
+    ticketsUrl: `${baseUrl}/tickets/${assistant.user}`,
+  };
+}
+
+async function notifyAssistantPaymentStatus(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  assistantId: number,
+  status: 'approved' | 'rejected'
+) {
+  try {
+    const context = await loadAssistantEmailContext(supabase, assistantId);
+    if (!context?.toEmail) {
+      log.warn('Skipping payment status email: no recipient email for assistant', 'EMAIL', {
+        assistantId,
+        status,
+      });
+      return;
+    }
+
+    await sendPaymentStatusEmail({
+      status,
+      toEmail: context.toEmail,
+      toName: context.toName,
+      eventTitle: context.eventTitle,
+      eventStartTime: context.eventStartTime,
+      eventLocation: context.eventLocation,
+      ticketsUrl: context.ticketsUrl,
+    });
+  } catch (error) {
+    log.error('Payment status email dispatch failed', 'EMAIL', error, {
+      assistantId,
+      status,
+    });
+  }
 }
 
 async function assertCanManageAssistant(
@@ -57,6 +161,17 @@ export async function approveAssistant(id: string) {
     if (!assistantId) throw new Error('Id de pago inválido.');
     await assertCanManageAssistant(supabase, assistantId);
 
+    const { data: assistantBefore, error: assistantBeforeError } = await supabase
+      .from('assistants')
+      .select('state')
+      .eq('id', assistantId)
+      .maybeSingle();
+
+    if (assistantBeforeError || !assistantBefore) {
+      throw new Error('No se encontro el pago antes de aprobar.');
+    }
+    const shouldNotify = assistantBefore.state !== 'approved';
+
     const { error } = await supabase
       .from('assistants')
       .update({ state: 'approved' })
@@ -81,6 +196,10 @@ export async function approveAssistant(id: string) {
       });
     }
 
+    if (shouldNotify) {
+      await notifyAssistantPaymentStatus(supabase, assistantId, 'approved');
+    }
+
     log.info('Assistant approved', 'ADMIN_PAYMENTS', { assistantId: id });
     revalidatePath('/admin/payments');
 
@@ -97,6 +216,17 @@ export async function rejectAssistant(id: string) {
     const assistantId = normalizeAssistantId(id);
     if (!assistantId) throw new Error('Id de pago inválido.');
     await assertCanManageAssistant(supabase, assistantId);
+
+    const { data: assistantBefore, error: assistantBeforeError } = await supabase
+      .from('assistants')
+      .select('state')
+      .eq('id', assistantId)
+      .maybeSingle();
+
+    if (assistantBeforeError || !assistantBefore) {
+      throw new Error('No se encontro el pago antes de rechazar.');
+    }
+    const shouldNotify = assistantBefore.state !== 'rejected';
 
     const { error } = await supabase
       .from('assistants')
@@ -120,6 +250,10 @@ export async function rejectAssistant(id: string) {
         assistantId,
         message: ticketError?.message,
       });
+    }
+
+    if (shouldNotify) {
+      await notifyAssistantPaymentStatus(supabase, assistantId, 'rejected');
     }
 
     log.info('Assistant rejected', 'ADMIN_PAYMENTS', { assistantId: id });
