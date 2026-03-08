@@ -15,6 +15,7 @@ export type BuildGoogleWalletSaveUrlInput = {
   eventTitle?: string | null;
   eventStartTime?: string | null;
   eventEndTime?: string | null;
+  classId?: string | null;
 };
 
 type WalletSettingsRow = {
@@ -91,6 +92,12 @@ function sanitizeObjectSuffix(value: string) {
   return value.replace(/[^A-Za-z0-9._-]/g, '_');
 }
 
+function getWalletClassObjectKey(classId: string) {
+  const suffix = classId.split('.').pop() || classId;
+  const normalized = sanitizeObjectSuffix(suffix).slice(0, 40);
+  return normalized || 'class';
+}
+
 function normalizeOrigins(value: string[] | null | undefined) {
   return (value ?? []).map((item) => item.trim()).filter(Boolean);
 }
@@ -140,6 +147,10 @@ function asIssuerFromClassId(classId: string | null | undefined) {
   if (!classId) return null;
   const parts = classId.split('.');
   return parts.length > 1 ? parts[0] : null;
+}
+
+function resolveClassId(config: GoogleWalletConfig, inputClassId?: string | null) {
+  return normalizeWalletClassId(inputClassId, config.issuerId) ?? config.classId;
 }
 
 function getGoogleWalletConfigFromEnv(): GoogleWalletConfig | null {
@@ -345,11 +356,13 @@ function buildGoogleWalletSaveUrlWithConfig(
   config: GoogleWalletConfig,
   input: BuildGoogleWalletSaveUrlInput
 ): string | null {
-  if (!config.classId) return null;
+  const classId = resolveClassId(config, input.classId);
+  if (!classId) return null;
 
   try {
     const nowSeconds = Math.floor(Date.now() / 1000);
-    const objectId = `${config.issuerId}.ticket_${sanitizeObjectSuffix(input.qrToken)}`;
+    const classObjectKey = getWalletClassObjectKey(classId);
+    const objectId = `${config.issuerId}.ticket_${classObjectKey}_${sanitizeObjectSuffix(input.qrToken)}`;
     const qrValue = `PELOTERAS:TICKET:${input.qrToken}`;
 
     const payload = {
@@ -362,7 +375,7 @@ function buildGoogleWalletSaveUrlWithConfig(
         eventTicketObjects: [
           {
             id: objectId,
-            classId: config.classId,
+            classId,
             state: 'ACTIVE',
             ticketHolderName: input.ticketHolderName,
             ticketNumber: input.ticketNumber,
@@ -406,8 +419,11 @@ export async function buildGoogleWalletSaveUrl(
 ): Promise<string | null> {
   const resolvedConfig = config ?? (await getGoogleWalletConfig());
   if (!resolvedConfig) return null;
-  await ensureWalletClassEventName(resolvedConfig, input);
-  return buildGoogleWalletSaveUrlWithConfig(resolvedConfig, input);
+  const classId = resolveClassId(resolvedConfig, input.classId);
+  if (!classId) return null;
+  const configWithClass = classId === resolvedConfig.classId ? resolvedConfig : { ...resolvedConfig, classId };
+  await ensureWalletClassEventName(configWithClass, input);
+  return buildGoogleWalletSaveUrlWithConfig(configWithClass, input);
 }
 
 async function getGoogleWalletAccessToken(config: GoogleWalletConfig) {
