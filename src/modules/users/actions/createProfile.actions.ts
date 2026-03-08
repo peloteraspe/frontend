@@ -126,28 +126,54 @@ async function saveProfileAndPositionsDirectly(payload: CreateProfilePayload) {
     .map((positionId) => Number(positionId))
     .filter((positionId) => Number.isFinite(positionId));
 
-  const { data: upsertedProfile, error: upsertError } = await supabase
+  const { data: existingRows, error: lookupError } = await supabase
     .from('profile')
-    .upsert(
-      {
+    .select('id')
+    .eq('user', payload.user)
+    .order('id', { ascending: true })
+    .limit(1);
+
+  if (lookupError) {
+    throw new Error(lookupError.message);
+  }
+
+  let profileId: number;
+
+  if ((existingRows?.length ?? 0) > 0) {
+    profileId = Number(existingRows?.[0]?.id);
+    const { error: updateError } = await supabase
+      .from('profile')
+      .update({
+        username: normalizedUsername,
+        level_id: levelId,
+        onboarding_step: 2,
+        is_profile_complete: true,
+      })
+      .eq('id', profileId);
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+  } else {
+    const { data: insertedProfile, error: insertError } = await supabase
+      .from('profile')
+      .insert({
         user: payload.user,
         username: normalizedUsername,
         level_id: levelId,
         onboarding_step: 2,
         is_profile_complete: true,
-      },
-      {
-        onConflict: 'user',
-      }
-    )
-    .select('id')
-    .single();
+      })
+      .select('id')
+      .single();
 
-  if (upsertError) {
-    throw new Error(upsertError.message);
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+
+    profileId = Number(insertedProfile?.id);
   }
 
-  const profileId = Number(upsertedProfile?.id);
   if (!Number.isFinite(profileId) || profileId <= 0) {
     throw new Error('No se pudo resolver el perfil para completar onboarding.');
   }
