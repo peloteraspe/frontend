@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -11,6 +12,8 @@ import Collapse from '@core/ui/Collapse';
 import { ButtonWrapper } from '@core/ui/Button';
 import { useAuth } from '@core/auth/AuthProvider';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
+import EventShareModal from './EventShareModal';
+import { trackEvent } from '@shared/lib/analytics';
 
 import arrowAnotarse from '@core/assets/images/arrow-anotarse.svg';
 import Calendar from '@core/assets/images/calendar.png';
@@ -20,6 +23,20 @@ type Props = {
 };
 
 const DEFAULT_TIMEZONE = 'America/Lima';
+
+function resolvePublicOrigin() {
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin;
+  return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://peloteras.com';
+}
+
+function buildEventShareUrl(eventId: string | number, medium: string, refUserId?: string | null) {
+  const url = new URL(`/events/${eventId}`, resolvePublicOrigin());
+  url.searchParams.set('utm_source', 'player_share');
+  url.searchParams.set('utm_medium', medium);
+  url.searchParams.set('utm_campaign', `event_${eventId}`);
+  if (refUserId) url.searchParams.set('ref_user', refUserId);
+  return url.toString();
+}
 
 function extractExtraNames(post: any, event: any) {
   const candidates = [
@@ -88,6 +105,8 @@ export default function EventDetailsClient({ data }: Props) {
   const post = data;
   const router = useRouter();
   const { user } = useAuth();
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState('');
 
   if (!post) return <div>No se encuentra el evento</div>;
 
@@ -185,6 +204,79 @@ export default function EventDetailsClient({ data }: Props) {
     : maxUsers > 0
     ? `${assistants.length}/${maxUsers}`
     : `${assistants.length}`;
+
+  const shareText = useMemo(() => {
+    const safeLocation = locationText || 'Ubicación por confirmar';
+    return `¿Te sumas a esta pichanga en Peloteras? ${eventTitle} · ${shortDate} · ${safeLocation} · S/ ${price.toFixed(
+      2
+    )}.`;
+  }, [eventTitle, shortDate, locationText, price]);
+
+  const shareLinks = useMemo(() => {
+    const refUserId = user?.id ? String(user.id) : null;
+    const nativeUrl = buildEventShareUrl(event.id, 'native_share', refUserId);
+    const copyUrl = buildEventShareUrl(event.id, 'copy_link', refUserId);
+    const whatsappUrlTarget = buildEventShareUrl(event.id, 'whatsapp', refUserId);
+    const whatsappText = `${shareText} Inscríbete aquí: ${whatsappUrlTarget}`;
+    return {
+      nativeUrl,
+      copyUrl,
+      whatsappUrl: `https://wa.me/?text=${encodeURIComponent(whatsappText)}`,
+    };
+  }, [event.id, user?.id, shareText]);
+
+  const handleOpenShare = () => {
+    setShareFeedback('');
+    setIsShareModalOpen(true);
+    trackEvent('event_share_opened', {
+      event_id: String(event.id),
+      ref_user: user?.id ? String(user.id) : null,
+      event_type: eventTypeName,
+      registration_closed: isRegistrationClosed,
+    });
+  };
+
+  const handleNativeShare = async () => {
+    trackEvent('event_share_channel_clicked', {
+      event_id: String(event.id),
+      channel: 'native_share',
+      ref_user: user?.id ? String(user.id) : null,
+    });
+
+    if (!navigator.share) {
+      toast('Tu navegador no permite compartir directo. Usa copiar enlace.');
+      return;
+    }
+
+    try {
+      await navigator.share({
+        title: eventTitle,
+        text: shareText,
+        url: shareLinks.nativeUrl,
+      });
+      setShareFeedback('Compartido.');
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
+      toast.error('No se pudo abrir compartir. Puedes copiar el enlace.');
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    trackEvent('event_share_channel_clicked', {
+      event_id: String(event.id),
+      channel: 'copy_link',
+      ref_user: user?.id ? String(user.id) : null,
+    });
+
+    try {
+      await navigator.clipboard.writeText(shareLinks.copyUrl);
+      setShareFeedback('Enlace copiado.');
+      toast.success('Enlace copiado.');
+    } catch {
+      setShareFeedback('No se pudo copiar automáticamente.');
+      toast.error('No se pudo copiar el enlace.');
+    }
+  };
 
   const handleJoinClick = () => {
     if (isRegistrationClosed) {
@@ -419,12 +511,36 @@ export default function EventDetailsClient({ data }: Props) {
                     ? 'Anotar a mi equipo'
                     : 'Anotarme'}
                 </ButtonWrapper>
+                <button
+                  type="button"
+                  onClick={handleOpenShare}
+                  className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-btnBg-light px-4 text-sm font-semibold text-btnBg-light transition hover:bg-btnBg-light hover:text-white"
+                >
+                  Compartir evento
+                </button>
               </div>
             </div>
 
           </div>
         </aside>
       </div>
+
+      <EventShareModal
+        isOpen={isShareModalOpen}
+        eventTitle={eventTitle}
+        whatsappShareUrl={shareLinks.whatsappUrl}
+        copyFeedback={shareFeedback}
+        onCopyLink={handleCopyShareLink}
+        onNativeShare={handleNativeShare}
+        onWhatsappClick={() =>
+          trackEvent('event_share_channel_clicked', {
+            event_id: String(event.id),
+            channel: 'whatsapp',
+            ref_user: user?.id ? String(user.id) : null,
+          })
+        }
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </div>
   );
 }
