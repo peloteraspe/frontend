@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type WalletSettings = {
   issuerId: string;
@@ -8,7 +8,7 @@ type WalletSettings = {
   serviceAccountEmail: string;
   origins: string[];
   hasCredentials: boolean;
-  source: 'db' | 'env';
+  source: 'db';
 };
 
 type WalletClass = {
@@ -39,8 +39,6 @@ export default function WalletAdminPage() {
   const [classes, setClasses] = useState<WalletClass[]>([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-
-  const hasRemoteConfig = useMemo(() => settings?.source === 'db', [settings?.source]);
 
   async function loadSettings() {
     setLoading(true);
@@ -203,7 +201,7 @@ export default function WalletAdminPage() {
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-semibold text-mulberry">Google Wallet (Superadmin)</h2>
         <p className="text-sm text-slate-600">
-          Configura issuer, credenciales y clase activa para emitir enlaces de Wallet sin tocar `.env`.
+          Configura issuer, credenciales y clase activa para emitir enlaces de Wallet desde base de datos.
         </p>
       </div>
 
@@ -285,7 +283,7 @@ export default function WalletAdminPage() {
         ) : settings ? (
           <div className="space-y-1">
             <p>
-              <strong>Fuente:</strong> {settings.source === 'db' ? 'Base de datos' : '.env (fallback)'}
+              <strong>Fuente:</strong> Base de datos
             </p>
             <p>
               <strong>Email service account:</strong> {settings.serviceAccountEmail}
@@ -349,12 +347,6 @@ export default function WalletAdminPage() {
           </ul>
         )}
       </div>
-
-      {hasRemoteConfig ? null : (
-        <p className="mt-4 text-xs text-amber-700">
-          Actualmente estás usando fallback desde `.env`. Guarda configuración para operar 100% desde panel.
-        </p>
-      )}
     </section>
   );
 }

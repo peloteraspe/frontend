@@ -32,7 +32,7 @@ export type GoogleWalletConfig = {
   serviceAccountEmail: string;
   privateKey: string;
   origins: string[];
-  source: 'db' | 'env';
+  source: 'db';
 };
 
 export type GoogleWalletSettingsSummary = {
@@ -41,7 +41,7 @@ export type GoogleWalletSettingsSummary = {
   serviceAccountEmail: string;
   origins: string[];
   hasCredentials: boolean;
-  source: 'db' | 'env';
+  source: 'db';
 };
 
 export type GoogleWalletClassSummary = {
@@ -64,16 +64,6 @@ export type UpsertGoogleWalletSettingsInput = {
   origins?: string[] | null;
   updatedBy?: string | null;
 };
-
-function getEnvValue(keys: string[]) {
-  for (const key of keys) {
-    const value = process.env[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-  }
-  return null;
-}
 
 function normalizePrivateKey(rawKey: string) {
   const trimmed = rawKey.trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1');
@@ -153,36 +143,6 @@ function resolveClassId(config: GoogleWalletConfig, inputClassId?: string | null
   return normalizeWalletClassId(inputClassId, config.issuerId) ?? config.classId;
 }
 
-function getGoogleWalletConfigFromEnv(): GoogleWalletConfig | null {
-  const classIdRaw = getEnvValue(['GOOGLE_WALLET_CLASS_ID', 'GW_CLASS_ID']);
-  const issuerId =
-    getEnvValue(['GOOGLE_WALLET_ISSUER_ID', 'GW_ISSUER_ID']) || asIssuerFromClassId(classIdRaw);
-  const classId = normalizeWalletClassId(classIdRaw, issuerId);
-  const serviceAccountEmail = getEnvValue([
-    'GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL',
-    'GW_SERVICE_ACCOUNT_EMAIL',
-  ]);
-  const privateKey = getEnvValue(['GOOGLE_WALLET_PRIVATE_KEY', 'GW_PRIVATE_KEY']);
-  const origins = normalizeOrigins(
-    getEnvValue(['GOOGLE_WALLET_ORIGINS', 'NEXT_PUBLIC_APP_URL'])
-      ?.split(',')
-      .map((origin) => origin.trim())
-  );
-
-  if (!issuerId || !serviceAccountEmail || !privateKey) {
-    return null;
-  }
-
-  return {
-    issuerId,
-    classId: classId || null,
-    serviceAccountEmail,
-    privateKey: normalizePrivateKey(privateKey),
-    origins,
-    source: 'env',
-  };
-}
-
 async function getGoogleWalletConfigFromDb(): Promise<GoogleWalletConfig | null> {
   try {
     const supabase = getAdminSupabase();
@@ -217,15 +177,13 @@ async function getGoogleWalletConfigFromDb(): Promise<GoogleWalletConfig | null>
       source: 'db',
     };
   } catch (error) {
-    log.warn('Wallet settings unavailable in DB, using env fallback', 'TICKETS', { error });
+    log.warn('Wallet settings unavailable in DB', 'TICKETS', { error });
     return null;
   }
 }
 
 export async function getGoogleWalletConfig(): Promise<GoogleWalletConfig | null> {
-  const dbConfig = await getGoogleWalletConfigFromDb();
-  if (dbConfig) return dbConfig;
-  return getGoogleWalletConfigFromEnv();
+  return getGoogleWalletConfigFromDb();
 }
 
 export async function getGoogleWalletSettingsSummary(): Promise<GoogleWalletSettingsSummary | null> {
@@ -267,7 +225,6 @@ export function parseGoogleServiceAccountJson(rawJson: string): ParsedServiceAcc
 
 export async function upsertGoogleWalletSettings(input: UpsertGoogleWalletSettingsInput) {
   const supabase = getAdminSupabase();
-  const envConfig = getGoogleWalletConfigFromEnv();
 
   const { data: current, error: currentError } = await supabase
     .from('wallet_provider_settings')
@@ -285,31 +242,26 @@ export async function upsertGoogleWalletSettings(input: UpsertGoogleWalletSettin
   const currentRow = (current ?? null) as WalletSettingsRow | null;
 
   const issuerId =
-    (input.issuerId ?? currentRow?.issuer_id ?? envConfig?.issuerId ?? '').trim() ||
+    (input.issuerId ?? currentRow?.issuer_id ?? '').trim() ||
     asIssuerFromClassId(input.activeClassId ?? currentRow?.active_class_id ?? undefined) ||
     '';
   const activeClassId =
     normalizeWalletClassId(
       typeof input.activeClassId === 'string'
         ? input.activeClassId.trim() || null
-        : (currentRow?.active_class_id ?? envConfig?.classId ?? null),
+        : (currentRow?.active_class_id ?? null),
       issuerId
     );
   const serviceAccountEmail =
-    (
-      input.serviceAccountEmail ??
-      currentRow?.service_account_email ??
-      envConfig?.serviceAccountEmail ??
-      ''
-    ).trim() || '';
+    (input.serviceAccountEmail ?? currentRow?.service_account_email ?? '').trim() || '';
   const serviceAccountPrivateKey =
     input.serviceAccountPrivateKey != null
       ? normalizePrivateKey(input.serviceAccountPrivateKey)
-      : normalizePrivateKey(currentRow?.service_account_private_key ?? envConfig?.privateKey ?? '');
+      : normalizePrivateKey(currentRow?.service_account_private_key ?? '');
   const origins =
     input.origins != null
       ? normalizeOrigins(input.origins)
-      : normalizeOrigins(currentRow?.origins ?? envConfig?.origins);
+      : normalizeOrigins(currentRow?.origins);
 
   if (!issuerId) throw new Error('issuerId es obligatorio.');
   if (!serviceAccountEmail) {
