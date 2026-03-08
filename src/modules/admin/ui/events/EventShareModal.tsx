@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import soccerBall from '@core/assets/soccer-ball.svg';
 
 export type EventShareModalStatus = 'loading' | 'success' | 'error';
@@ -137,13 +138,26 @@ export default function EventShareModal({
                   Comparte el enlace de inscripción del evento.
                 </p>
 
-                <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
-                  <p className="break-all text-xs leading-relaxed text-slate-600">
-                    {shareUrl || 'Enlace no disponible'}
-                  </p>
+                <div className="relative mt-3">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareUrl || 'Enlace no disponible'}
+                    className="h-11 w-full rounded-xl border-2 border-mulberry bg-white px-3 pr-12 text-sm text-slate-700 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="absolute inset-y-0 right-1 inline-flex h-9 w-9 my-auto items-center justify-center rounded-lg text-mulberry transition hover:bg-mulberry hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Copiar enlace del evento"
+                    title="Copiar enlace"
+                    disabled={!shareUrl}
+                  >
+                    <ClipboardDocumentIcon className="h-5 w-5" />
+                  </button>
                 </div>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {whatsappShareUrl ? (
                     <a
                       href={whatsappShareUrl}
@@ -157,13 +171,6 @@ export default function EventShareModal({
                       Compartir por WhatsApp
                     </a>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-[#54086F] px-4 text-sm font-semibold text-[#54086F] transition hover:bg-[#54086F] hover:text-white"
-                  >
-                    Copiar enlace
-                  </button>
                   <button
                     type="button"
                     onClick={onClose}

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import OperationNumberModal from '../OperationNumberModal';
 import operationGuideImage from '@core/assets/images/donde-nro-operacion.png';
 import Link from 'next/link';
@@ -59,6 +60,7 @@ const PaymentStepper = (props: any) => {
   const paymentQr =
     typeof selectedPaymentMethod?.QR === 'string' ? selectedPaymentMethod.QR.replace(/^"|"$/g, '') : '';
   const paymentNumber = selectedPaymentMethod?.number ?? '';
+  const paymentNumberText = String(paymentNumber || '').trim();
   const paymentMethodName = getPaymentMethodName(selectedPaymentMethod);
   const eventTitle = typeof post?.title === 'string' ? post.title : 'Evento';
   const price = Number(post?.price ?? 0);
@@ -100,6 +102,16 @@ const PaymentStepper = (props: any) => {
     // Aquí podrías validar el cupón via API. Por ahora, forzamos error de ejemplo:
     setError('promCode', { type: 'manual', message: 'Código inválido o expirado' });
   };
+
+  async function handleCopyPaymentNumber() {
+    if (!paymentNumberText) return;
+    try {
+      await navigator.clipboard.writeText(paymentNumberText);
+      toast.success('Número copiado.');
+    } catch {
+      toast.error('No se pudo copiar el número.');
+    }
+  }
 
   const issueTicketInBackground = (assistantId: number) => {
     const controller = new AbortController();
@@ -354,12 +366,35 @@ const PaymentStepper = (props: any) => {
 
               <ol className="mt-5 space-y-3 text-sm text-slate-700 sm:text-base">
                 <li>
-                  1. Escanea el código QR o paga al número <strong>{paymentNumber || 'No disponible'}</strong>{' '}
-                  usando <strong>{paymentMethodName}</strong>.
+                  1. Escanea el código QR o realiza el pago usando <strong>{paymentMethodName}</strong>.
                 </li>
                 <li>2. Guarda el número de operación de 8 dígitos.</li>
                 <li>3. Regresa aquí para confirmar tu pago.</li>
               </ol>
+
+              <div className="mt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Número para pagar
+                </p>
+                <div className="relative mt-1">
+                  <input
+                    type="text"
+                    readOnly
+                    value={paymentNumberText || 'No disponible'}
+                    className="h-11 w-full rounded-xl border-2 border-mulberry bg-white px-3 pr-12 text-sm text-slate-700 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyPaymentNumber}
+                    disabled={!paymentNumberText}
+                    className="absolute inset-y-0 right-1 my-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-mulberry transition hover:bg-mulberry hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Copiar número de pago"
+                    title="Copiar número de pago"
+                  >
+                    <ClipboardDocumentIcon className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
 
               <button
                 type="button"

@@ -14,6 +14,12 @@ function parseEventDate(event: TicketEvent): Date | null {
   return isNaN(fallback.getTime()) ? null : fallback;
 }
 
+function compareByEventDateAsc(a: TicketEvent, b: TicketEvent) {
+  const aTime = parseEventDate(a)?.getTime() ?? 0;
+  const bTime = parseEventDate(b)?.getTime() ?? 0;
+  return aTime - bTime;
+}
+
 export function splitTicketsByDate(events: TicketEvent[]) {
   const now = new Date();
 
@@ -29,6 +35,10 @@ export function splitTicketsByDate(events: TicketEvent[]) {
     if (d > now) upcoming.push(ev);
     else past.push(ev);
   }
+
+  // Próximas entradas: ordenadas por fecha del evento (más próxima primero),
+  // nunca por fecha de creación del registro.
+  upcoming.sort(compareByEventDateAsc);
 
   return { upcoming, past };
 }

@@ -289,7 +289,7 @@ export default function EventDetailsClient({ data }: Props) {
                   minUsers={minUsers}
                   maxUsers={maxUsers}
                   participants={assistants}
-                  onSelect={(position) => console.log('Posición seleccionada:', position)}
+                  interactive={false}
                 />
               </section>
 

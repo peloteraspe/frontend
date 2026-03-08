@@ -22,6 +22,7 @@ export type SoccerFieldDynamicProps = {
   maxUsers?: number;
   selectedId?: string | null;
   onSelect?: (pos: Position) => void;
+  interactive?: boolean;
   className?: string;
   participants?: ParticipantMarker[];
 };
@@ -33,6 +34,7 @@ export default function SoccerField({
   maxUsers,
   selectedId = null,
   onSelect,
+  interactive = true,
   className,
   participants = [],
 }: SoccerFieldDynamicProps) {
@@ -176,6 +178,7 @@ export default function SoccerField({
   }, [selected]);
 
   const selectByClick = (p: Position, el: HTMLElement) => {
+    if (!interactive) return;
     setSelected(p);
     setAnchorAtElement(el);
     onSelect?.(p);
@@ -197,13 +200,16 @@ export default function SoccerField({
           participant
             ? 'bg-[#5b1c70] border-2 border-[#8d4aa0] text-white shadow-md'
             : 'bg-white/80 backdrop-blur-sm border-2 border-gray-400/60 shadow-sm',
-          'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60',
+          interactive
+            ? 'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60'
+            : '',
           isSelected ? 'border-gray-700 ring-2 ring-gray-500/40' : '',
           'w-12 h-12 md:w-12 md:h-12',
-          'active:scale-[0.97] transition-transform',
+          interactive ? 'active:scale-[0.97] transition-transform' : 'cursor-default',
         ].join(' ')}
         style={{ left: `${p.x}%`, top: `${p.y}%` }}
         onClick={(e) => selectByClick(p, e.currentTarget as HTMLElement)}
+        disabled={!interactive}
       >
         {participant ? <span className="text-[10px] font-semibold tracking-wide">{participant.initials}</span> : null}
       </button>
@@ -306,11 +312,16 @@ export default function SoccerField({
                       ? 'rounded-full border-2 border-[#8d4aa0] bg-[#5b1c70] text-white shadow-md'
                       : 'rounded-full bg-gray-100 border-2 border-gray-400/70 shadow-sm',
                     'focus:outline-none touch-manipulation',
-                    'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60',
+                    interactive
+                      ? 'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60'
+                      : '',
                     selected?.id === p.id ? 'border-gray-700 ring-2 ring-gray-500/40' : '',
-                    'w-12 h-12 active:scale-[0.97] transition-transform flex items-center justify-center',
+                    interactive
+                      ? 'w-12 h-12 active:scale-[0.97] transition-transform flex items-center justify-center'
+                      : 'w-12 h-12 cursor-default flex items-center justify-center',
                   ].join(' ')}
                   onClick={(e) => selectByClick(p, e.currentTarget as HTMLElement)}
+                  disabled={!interactive}
                 >
                   {participantBySpotId.get(p.id) ? (
                     <span className="text-[10px] font-semibold tracking-wide">

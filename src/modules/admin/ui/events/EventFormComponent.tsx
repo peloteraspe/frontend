@@ -772,15 +772,25 @@ const EventForm = ({
       </label>
 
       {canManageFeatured ? (
-        <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            name="isFeatured"
-            value="true"
-            defaultChecked={Boolean(initial?.isFeatured)}
-            className="h-4 w-4 accent-mulberry"
-          />
-          Mostrar como partido destacado en la landing
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              Mostrar como partido destacado en la landing
+            </p>
+            <p className="text-xs text-slate-500">Visible en la sección de destacados del inicio.</p>
+          </div>
+
+          <span className="relative inline-flex h-6 w-11 shrink-0">
+            <input
+              type="checkbox"
+              name="isFeatured"
+              value="true"
+              defaultChecked={Boolean(initial?.isFeatured)}
+              className="peer sr-only"
+            />
+            <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-mulberry" />
+            <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+          </span>
         </label>
       ) : (
         <p className="text-xs text-slate-500">

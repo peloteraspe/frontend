@@ -6,6 +6,12 @@ import { setEventFeatured } from '@modules/admin/api/events/_actions';
 import EventShareActionButton from '@modules/admin/ui/events/EventShareActionButton';
 import { getApprovedParticipantsCountByEventIds } from '@modules/admin/api/events/services/eventParticipants.service';
 
+type Props = {
+  searchParams?: {
+    dateOrder?: string;
+  };
+};
+
 const DEFAULT_TIMEZONE = 'America/Lima';
 
 function parseDate(value: unknown) {
@@ -72,12 +78,14 @@ function formatTimeRange(startRaw: unknown, endRaw: unknown) {
   return `${dateTimeFormatter.format(start)} - ${dateTimeFormatter.format(end)}`;
 }
 
-export default async function AdminEventsPage() {
+export default async function AdminEventsPage({ searchParams }: Props) {
   const supabase = await getServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const canManageFeatured = isSuperAdmin(user as any);
+  const dateOrder = searchParams?.dateOrder === 'desc' ? 'desc' : 'asc';
+  const nextDateOrder = dateOrder === 'asc' ? 'desc' : 'asc';
 
   async function handleToggleFeatured(formData: FormData) {
     'use server';
@@ -86,107 +94,121 @@ export default async function AdminEventsPage() {
     await setEventFeatured(id, isFeatured);
   }
 
-  const events = (await getEvents()) ?? [];
+  const events = (await getEvents({ dateOrder })) ?? [];
   const approvedParticipantsByEventId = await getApprovedParticipantsCountByEventIds(
     events.map((event: any) => event.id)
   );
 
   return (
-    <div className="rounded-md bg-white shadow overflow-x-auto">
-      <div className="p-4 flex justify-end">
+    <div className="rounded-md bg-white shadow">
+      <div className="sticky top-0 z-20 flex justify-end border-b border-slate-200 bg-white/95 p-4 backdrop-blur">
         <Link href="/admin/events/new" className="px-3 py-2 rounded-md bg-mulberry text-white">
           Crear evento
         </Link>
       </div>
-      <table className="min-w-full text-sm">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-4 py-2 text-left">Título</th>
-            <th className="px-4 py-2 text-left">Fecha</th>
-            <th className="px-4 py-2 text-left">Hora</th>
-            <th className="px-4 py-2 text-left">Destacado</th>
-            <th className="px-4 py-2 text-left">Precio</th>
-            <th className="px-4 py-2 text-left">Cupos</th>
-            <th className="px-4 py-2 text-left">Participantes</th>
-            <th className="px-4 py-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((e: any) => {
-            const approvedParticipants = approvedParticipantsByEventId.get(String(e.id)) ?? 0;
-            return (
-              <tr key={e.id} className="border-t">
-                <td className="px-4 py-2">{e.title}</td>
-                <td className="px-4 py-2">{formatDateRange(e.start_time, e.end_time)}</td>
-                <td className="px-4 py-2 whitespace-nowrap">{formatTimeRange(e.start_time, e.end_time)}</td>
-                <td className="px-4 py-2">
-                  {canManageFeatured ? (
-                    <form action={handleToggleFeatured} className="inline-flex items-center gap-2">
-                      <input type="hidden" name="id" value={e.id} />
-                      <input type="hidden" name="isFeatured" value={e.is_featured ? 'false' : 'true'} />
-                      <button
-                        type="submit"
-                        role="switch"
-                        aria-checked={Boolean(e.is_featured)}
-                        aria-label={`Marcar ${e.title || 'evento'} como destacado`}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                          e.is_featured ? 'bg-mulberry' : 'bg-slate-300'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
-                            e.is_featured ? 'translate-x-5' : 'translate-x-1'
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left">Título</th>
+              <th className="px-4 py-2 text-left">
+                <Link
+                  href={{
+                    pathname: '/admin/events',
+                    query: { dateOrder: nextDateOrder },
+                  }}
+                  className="inline-flex items-center gap-1 font-semibold text-slate-700 transition hover:text-mulberry"
+                  title={`Ordenar por fecha ${dateOrder === 'asc' ? 'descendente' : 'ascendente'}`}
+                >
+                  Fecha
+                  <span aria-hidden="true">{dateOrder === 'asc' ? '↑' : '↓'}</span>
+                </Link>
+              </th>
+              <th className="px-4 py-2 text-left">Hora</th>
+              <th className="px-4 py-2 text-left">Destacado</th>
+              <th className="px-4 py-2 text-left">Precio</th>
+              <th className="px-4 py-2 text-left">Cupos</th>
+              <th className="px-4 py-2 text-left">Participantes</th>
+              <th className="px-4 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((e: any) => {
+              const approvedParticipants = approvedParticipantsByEventId.get(String(e.id)) ?? 0;
+              return (
+                <tr key={e.id} className="border-t">
+                  <td className="px-4 py-2">{e.title}</td>
+                  <td className="px-4 py-2">{formatDateRange(e.start_time, e.end_time)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">{formatTimeRange(e.start_time, e.end_time)}</td>
+                  <td className="px-4 py-2">
+                    {canManageFeatured ? (
+                      <form action={handleToggleFeatured} className="inline-flex items-center gap-2">
+                        <input type="hidden" name="id" value={e.id} />
+                        <input type="hidden" name="isFeatured" value={e.is_featured ? 'false' : 'true'} />
+                        <button
+                          type="submit"
+                          role="switch"
+                          aria-checked={Boolean(e.is_featured)}
+                          aria-label={`Marcar ${e.title || 'evento'} como destacado`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                            e.is_featured ? 'bg-mulberry' : 'bg-slate-300'
                           }`}
-                        />
-                      </button>
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                              e.is_featured ? 'translate-x-5' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                        <span
+                          className={`text-xs font-semibold ${
+                            e.is_featured ? 'text-emerald-700' : 'text-slate-600'
+                          }`}
+                        >
+                          {e.is_featured ? 'Destacado' : 'No destacado'}
+                        </span>
+                      </form>
+                    ) : (
                       <span
-                        className={`text-xs font-semibold ${
-                          e.is_featured ? 'text-emerald-700' : 'text-slate-600'
+                        className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                          e.is_featured
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-slate-100 text-slate-600'
                         }`}
                       >
                         {e.is_featured ? 'Destacado' : 'No destacado'}
                       </span>
-                    </form>
-                  ) : (
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                        e.is_featured
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {e.is_featured ? 'Destacado' : 'No destacado'}
+                    )}
+                  </td>
+                  <td className="px-4 py-2">{e.price}</td>
+                  <td className="px-4 py-2">
+                    {e.min_users} - {e.max_users}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                      {approvedParticipants}
                     </span>
-                  )}
-                </td>
-                <td className="px-4 py-2">{e.price}</td>
-                <td className="px-4 py-2">
-                  {e.min_users} - {e.max_users}
-                </td>
-                <td className="px-4 py-2">
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
-                    {approvedParticipants}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-right">
-                  <div className="flex gap-3 justify-end">
-                    <a href={`/events/${e.id}`} className="text-mulberry hover:underline">
-                      Ver
-                    </a>
-                    <Link href={`/admin/events/${e.id}/participants`} className="text-mulberry hover:underline">
-                      Participantes
-                    </Link>
-                    <EventShareActionButton eventId={String(e.id)} eventTitle={String(e.title || 'Evento')} />
-                    <Link href={`/admin/events/${e.id}/edit`} className="text-mulberry hover:underline">
-                      Editar
-                    </Link>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="flex gap-3 justify-end">
+                      <a href={`/events/${e.id}`} className="text-mulberry hover:underline">
+                        Ver
+                      </a>
+                      <Link href={`/admin/events/${e.id}/participants`} className="text-mulberry hover:underline">
+                        Participantes
+                      </Link>
+                      <EventShareActionButton eventId={String(e.id)} eventTitle={String(e.title || 'Evento')} />
+                      <Link href={`/admin/events/${e.id}/edit`} className="text-mulberry hover:underline">
+                        Editar
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
