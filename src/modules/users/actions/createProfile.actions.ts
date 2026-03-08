@@ -72,6 +72,24 @@ function isTransientProfileBackendError(message: string) {
   );
 }
 
+function resolveAvatarFromMetadata(metadata: Record<string, unknown>) {
+  const candidates = [
+    metadata.avatar,
+    metadata.avatar_url,
+    metadata.picture,
+    metadata.photoURL,
+    metadata.profile_image_url,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
 async function wait(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -295,12 +313,20 @@ async function syncAuthUserMetadata(userId: string, username: string) {
   }
 
   const currentMetadata = (authUserData?.user?.user_metadata ?? {}) as Record<string, unknown>;
+  const avatarUrl = resolveAvatarFromMetadata(currentMetadata);
+  const nextMetadata: Record<string, unknown> = {
+    ...currentMetadata,
+    username: normalizedUsername,
+    gender_identity_confirmed: true,
+  };
+
+  if (avatarUrl) {
+    nextMetadata.avatar = avatarUrl;
+    nextMetadata.avatar_url = avatarUrl;
+  }
+
   const { error: updateError } = await adminSupabase.auth.admin.updateUserById(userId, {
-    user_metadata: {
-      ...currentMetadata,
-      username: normalizedUsername,
-      gender_identity_confirmed: true,
-    },
+    user_metadata: nextMetadata,
   });
 
   if (updateError) {

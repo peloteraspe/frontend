@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useEffect, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
 
 type PaymentMethodSummary = {
   id: number;
@@ -21,6 +21,7 @@ type PaymentMethodResponse = {
 };
 
 const DEFAULT_TIMEZONE = 'America/Lima';
+const MAX_QR_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 function formatError(error: unknown) {
   if (!error) return 'Ocurrió un error.';
@@ -114,13 +115,16 @@ function SwitchControl({
 export default function PaymentMethodsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodSummary[]>([]);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [number, setNumber] = useState('');
-  const [qr, setQr] = useState('');
+  const [qrFile, setQrFile] = useState<File | null>(null);
+  const [storedQrUrl, setStoredQrUrl] = useState('');
+  const [qrPreview, setQrPreview] = useState('');
   const [allowYape, setAllowYape] = useState(true);
   const [allowPlin, setAllowPlin] = useState(false);
   const [isActive, setIsActive] = useState(true);
@@ -128,11 +132,29 @@ export default function PaymentMethodsAdminPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  function setQrPreviewValue(nextPreview: string) {
+    setQrPreview((current) => {
+      if (current.startsWith('blob:')) {
+        URL.revokeObjectURL(current);
+      }
+      return nextPreview;
+    });
+  }
+
+  function clearFileInput() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+
   function resetForm() {
     setEditingId(null);
     setName('');
     setNumber('');
-    setQr('');
+    setQrFile(null);
+    setStoredQrUrl('');
+    setQrPreviewValue('');
+    clearFileInput();
     setAllowYape(true);
     setAllowPlin(false);
     setIsActive(true);
@@ -144,11 +166,52 @@ export default function PaymentMethodsAdminPage() {
     setEditingId(method.id);
     setName(String(method.name || ''));
     setNumber(String(method.number ?? ''));
-    setQr(String(method.QR || ''));
+    const nextQrUrl = String(method.QR || '');
+    setQrFile(null);
+    setStoredQrUrl(nextQrUrl);
+    setQrPreviewValue(nextQrUrl);
+    clearFileInput();
     const flags = paymentTypeToFlags(method.type);
     setAllowYape(flags.allowYape);
     setAllowPlin(flags.allowPlin);
     setIsActive(method.is_active !== false);
+  }
+
+  function handleQrFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] || null;
+
+    if (!file) {
+      setQrFile(null);
+      setQrPreviewValue(storedQrUrl);
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setError('Solo se permiten imágenes para el QR.');
+      setQrFile(null);
+      setQrPreviewValue(storedQrUrl);
+      clearFileInput();
+      return;
+    }
+
+    if (file.size > MAX_QR_IMAGE_SIZE_BYTES) {
+      setError('La imagen QR no puede superar 5MB.');
+      setQrFile(null);
+      setQrPreviewValue(storedQrUrl);
+      clearFileInput();
+      return;
+    }
+
+    setError('');
+    setMessage('');
+    setQrFile(file);
+    setQrPreviewValue(URL.createObjectURL(file));
+  }
+
+  function clearSelectedQrImage() {
+    setQrFile(null);
+    setQrPreviewValue(storedQrUrl);
+    clearFileInput();
   }
 
   async function loadData() {
@@ -187,31 +250,31 @@ export default function PaymentMethodsAdminPage() {
       return;
     }
 
-    if (!qr.trim()) {
-      setError('El QR es obligatorio.');
+    if (!allowYape && !allowPlin) {
+      setError('Activa Yape, Plin o ambos para definir el tipo.');
       return;
     }
 
-    if (!allowYape && !allowPlin) {
-      setError('Activa Yape, Plin o ambos para definir el tipo.');
+    if (!qrFile && !storedQrUrl.trim()) {
+      setError('Debes subir una imagen QR.');
       return;
     }
 
     setSaving(true);
 
     try {
+      const formData = new FormData();
+      if (editingId) formData.append('id', String(editingId));
+      if (name.trim()) formData.append('name', name.trim());
+      formData.append('number', normalizedNumber);
+      formData.append('allowYape', String(allowYape));
+      formData.append('allowPlin', String(allowPlin));
+      formData.append('isActive', String(isActive));
+      if (qrFile) formData.append('qrFile', qrFile);
+
       const response = await fetch('/api/admin/payment-methods', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingId ?? undefined,
-          name: name.trim() || undefined,
-          number: normalizedNumber,
-          qr: qr.trim(),
-          allowYape,
-          allowPlin,
-          isActive,
-        }),
+        body: formData,
       });
 
       const body = (await response.json().catch(() => ({}))) as PaymentMethodResponse;
@@ -243,6 +306,14 @@ export default function PaymentMethodsAdminPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (qrPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(qrPreview);
+      }
+    };
+  }, [qrPreview]);
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -297,13 +368,51 @@ export default function PaymentMethodsAdminPage() {
         </div>
 
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-slate-700">QR (URL o base64)</span>
-          <textarea
-            value={qr}
-            onChange={(event) => setQr(event.target.value)}
-            placeholder="https://... o data:image/png;base64,..."
-            className="min-h-[120px] rounded-md border border-slate-300 p-3 text-xs focus:border-mulberry focus:outline-none"
+          <span className="font-semibold text-slate-700">Imagen QR</span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleQrFileChange}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-mulberry file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white focus:border-mulberry focus:outline-none"
           />
+          <p className="text-xs text-slate-500">Sube una imagen PNG, JPG o WEBP (máximo 5MB).</p>
+
+          {qrPreview ? (
+            <div className="mt-1 flex flex-col gap-2 rounded-md border border-slate-200 p-2">
+              <img
+                src={qrPreview}
+                alt="Vista previa del QR"
+                className="h-36 w-36 rounded border border-slate-200 object-contain"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                {qrFile ? (
+                  <span className="text-xs text-slate-600">{qrFile.name}</span>
+                ) : (
+                  <span className="text-xs text-slate-600">QR guardado actualmente</span>
+                )}
+                {storedQrUrl && !qrFile && isOpenableQr(storedQrUrl) ? (
+                  <a
+                    href={storedQrUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-semibold text-sky-600 underline underline-offset-2"
+                  >
+                    Abrir imagen
+                  </a>
+                ) : null}
+                {qrFile ? (
+                  <button
+                    type="button"
+                    onClick={clearSelectedQrImage}
+                    className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700"
+                  >
+                    Quitar selección
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </label>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -389,8 +498,13 @@ export default function PaymentMethodsAdminPage() {
                             href={qrValue}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-sky-600 underline underline-offset-2"
+                            className="inline-flex items-center gap-2 text-sky-600 underline underline-offset-2"
                           >
+                            <img
+                              src={qrValue}
+                              alt={`QR ${item.name || item.id}`}
+                              className="h-8 w-8 rounded border border-slate-200 object-contain"
+                            />
                             Ver QR
                           </a>
                         ) : (

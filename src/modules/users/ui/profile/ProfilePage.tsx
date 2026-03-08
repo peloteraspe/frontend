@@ -8,6 +8,7 @@ import soccerBall from '@core/assets/soccer-ball.svg';
 
 import ProfileUpdateForm from '@modules/users/ui/ProfileUpdateForm';
 import TeamSection from '@modules/teams/ui/TeamSection';
+import UserImage from '@shared/ui/UserImage';
 
 import {
   fetchProfile,
@@ -188,9 +189,21 @@ export default function ProfilePage() {
               Mantén tus datos al día para que los eventos y equipos encajen mejor contigo.
             </p>
           </div>
-          <div className="rounded-xl border border-[#54086F]/20 bg-[#54086F]/5 px-3 py-2 text-right">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#54086F]">Cuenta activa</p>
-            <p className="text-sm font-semibold text-slate-800">{user.email || 'Sin correo'}</p>
+          <div className="rounded-xl border border-[#54086F]/20 bg-[#54086F]/5 px-3 py-2">
+            <div className="flex items-center justify-end gap-3">
+              <UserImage
+                src={user.avatar_url}
+                name={profileData?.username || user.email || 'Usuario'}
+                size={48}
+              />
+              <div className="text-right">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#54086F]">Cuenta activa</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {profileData?.username || user.email || 'Sin nombre'}
+                </p>
+              </div>
+            </div>
+            <p className="mt-1 text-right text-xs text-slate-600">{user.email || 'Sin correo'}</p>
           </div>
         </div>
       </header>

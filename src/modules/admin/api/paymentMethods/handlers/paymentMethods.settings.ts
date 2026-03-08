@@ -1,17 +1,11 @@
 import { NextResponse } from 'next/server';
+import { getAdminSupabase } from '@core/api/supabase.admin';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { log } from '@core/lib/logger';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
 
-type SavePaymentMethodPayload = {
-  id?: string | number;
-  name?: string;
-  qr?: string;
-  number?: string | number;
-  allowYape?: boolean;
-  allowPlin?: boolean;
-  isActive?: boolean;
-};
+const PAYMENT_METHOD_QR_BUCKET = process.env.NEXT_PUBLIC_PAYMENT_METHODS_BUCKET || 'payment-methods';
+const MAX_QR_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 type PaymentMethodRow = {
   id: number;
@@ -28,6 +22,106 @@ function normalizeDigits(raw: string | number | undefined) {
   return String(raw ?? '')
     .trim()
     .replace(/\D+/g, '');
+}
+
+function normalizeTextField(raw: FormDataEntryValue | null) {
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
+function normalizeBooleanField(raw: FormDataEntryValue | null) {
+  if (typeof raw !== 'string') return false;
+  const value = raw.trim().toLowerCase();
+  return value === 'true' || value === '1' || value === 'on';
+}
+
+function resolveFileExtension(file: File) {
+  const fromName = file.name.split('.').pop()?.trim().toLowerCase();
+  if (fromName && /^[a-z0-9]+$/.test(fromName)) return fromName;
+
+  const mime = file.type.trim().toLowerCase();
+  if (mime === 'image/jpeg' || mime === 'image/jpg') return 'jpg';
+  if (mime === 'image/webp') return 'webp';
+  if (mime === 'image/gif') return 'gif';
+  return 'png';
+}
+
+async function ensureQrBucket() {
+  const adminSupabase = getAdminSupabase();
+  const { data: bucket } = await adminSupabase.storage.getBucket(PAYMENT_METHOD_QR_BUCKET);
+
+  if (bucket) {
+    if (!bucket.public) {
+      const { error: updateBucketError } = await adminSupabase.storage.updateBucket(
+        PAYMENT_METHOD_QR_BUCKET,
+        { public: true }
+      );
+      if (updateBucketError) {
+        log.database('UPDATE payment qr bucket visibility', 'storage.buckets', updateBucketError);
+        throw new Error('No se pudo preparar el almacenamiento de imágenes.');
+      }
+    }
+    return adminSupabase;
+  }
+
+  const { error: createBucketError } = await adminSupabase.storage.createBucket(PAYMENT_METHOD_QR_BUCKET, {
+    public: true,
+    fileSizeLimit: '5MB',
+    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'],
+  });
+
+  if (createBucketError) {
+    const bucketAlreadyExists =
+      String((createBucketError as any)?.message || '')
+        .trim()
+        .toLowerCase()
+        .includes('already exists') || Number((createBucketError as any)?.statusCode) === 409;
+
+    if (!bucketAlreadyExists) {
+      log.database('CREATE payment qr bucket', 'storage.buckets', createBucketError);
+      throw new Error('No se pudo preparar el almacenamiento de imágenes.');
+    }
+  }
+
+  return adminSupabase;
+}
+
+async function uploadQrImage(file: File, userId: string) {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Solo se permiten imágenes para el QR.');
+  }
+
+  if (!file.size) {
+    throw new Error('El archivo QR está vacío.');
+  }
+
+  if (file.size > MAX_QR_IMAGE_SIZE_BYTES) {
+    throw new Error('La imagen QR no puede superar 5MB.');
+  }
+
+  const adminSupabase = await ensureQrBucket();
+  const extension = resolveFileExtension(file);
+  const path = `${userId}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  const { error: uploadError } = await adminSupabase.storage.from(PAYMENT_METHOD_QR_BUCKET).upload(path, bytes, {
+    contentType: file.type || `image/${extension}`,
+    cacheControl: '3600',
+    upsert: false,
+  });
+
+  if (uploadError) {
+    log.database('UPLOAD payment qr image', 'storage.objects', uploadError, { bucket: PAYMENT_METHOD_QR_BUCKET });
+    throw new Error('No se pudo subir la imagen QR.');
+  }
+
+  const { data: publicData } = adminSupabase.storage.from(PAYMENT_METHOD_QR_BUCKET).getPublicUrl(path);
+  const publicUrl = String(publicData?.publicUrl || '').trim();
+
+  if (!publicUrl) {
+    throw new Error('No se pudo obtener la URL de la imagen QR.');
+  }
+
+  return publicUrl;
 }
 
 function parseTypeFromFlags(allowYape: boolean, allowPlin: boolean) {
@@ -102,16 +196,18 @@ export async function POST(request: Request) {
     const auth = await requireAdminUser();
     if ('errorResponse' in auth) return auth.errorResponse;
 
-    const body = (await request.json().catch(() => ({}))) as SavePaymentMethodPayload;
-    const methodId = Number(body?.id);
+    const formData = await request.formData();
+    const methodId = Number(normalizeTextField(formData.get('id')));
     const isEditing = Number.isFinite(methodId) && methodId > 0;
 
-    const allowYape = body?.allowYape === true;
-    const allowPlin = body?.allowPlin === true;
+    const allowYape = normalizeBooleanField(formData.get('allowYape'));
+    const allowPlin = normalizeBooleanField(formData.get('allowPlin'));
     const type = parseTypeFromFlags(allowYape, allowPlin);
-    const qr = String(body?.qr || '').trim();
-    const numberDigits = normalizeDigits(body?.number);
-    const isActive = body?.isActive !== false;
+    const numberDigits = normalizeDigits(normalizeTextField(formData.get('number')));
+    const isActiveField = formData.get('isActive');
+    const isActive = isActiveField === null ? true : normalizeBooleanField(isActiveField);
+    const qrImageEntry = formData.get('qrFile');
+    const qrImageFile = qrImageEntry instanceof File && qrImageEntry.size > 0 ? qrImageEntry : null;
 
     if (!type) {
       return NextResponse.json(
@@ -131,11 +227,36 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!qr) {
-      return NextResponse.json({ error: 'El QR es obligatorio.' }, { status: 400 });
+    let currentMethodQr = '';
+    if (isEditing) {
+      const { data: currentMethod, error: currentMethodError } = await auth.supabase
+        .from('paymentMethod')
+        .select('id,QR')
+        .eq('id', methodId)
+        .maybeSingle();
+
+      if (currentMethodError) {
+        log.database('SELECT payment method before update', 'paymentMethod', currentMethodError, { id: methodId });
+        throw new Error('No se pudo obtener el método de pago a actualizar.');
+      }
+
+      if (!currentMethod) {
+        return NextResponse.json({ error: 'El método de pago no existe.' }, { status: 404 });
+      }
+
+      currentMethodQr = String((currentMethod as { QR?: string | null })?.QR || '').trim();
     }
 
-    const rawName = String(body?.name || '').trim();
+    let qr = currentMethodQr;
+    if (qrImageFile) {
+      qr = await uploadQrImage(qrImageFile, auth.user.id);
+    }
+
+    if (!qr) {
+      return NextResponse.json({ error: 'Debes subir una imagen QR.' }, { status: 400 });
+    }
+
+    const rawName = normalizeTextField(formData.get('name'));
     const fallbackName = `${typeLabel(type)} ${numberDigits.slice(-4)}`;
     const name = rawName || fallbackName;
     const now = new Date().toISOString();

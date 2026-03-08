@@ -8,6 +8,7 @@ type UserLite = {
   id: string;
   email?: string | null;
   username?: string | null;
+  avatar_url?: string | null;
   email_confirmed_at?: string | null;
   emailConfirmed?: boolean;
   eventsVerified?: boolean;
@@ -58,6 +59,25 @@ function errorMessage(error: unknown) {
   return String(error ?? '');
 }
 
+function resolveAvatarUrl(metadata: Record<string, any> | undefined) {
+  if (!metadata) return null;
+  const candidates = [
+    metadata.avatar,
+    metadata.avatar_url,
+    metadata.picture,
+    metadata.photoURL,
+    metadata.profile_image_url,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [user, setUser] = useState<UserLite>(null);
@@ -73,6 +93,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     id: authUser.id,
     email: authUser.email,
     username: authUser.user_metadata?.username ?? null,
+    avatar_url: resolveAvatarUrl(authUser.user_metadata),
     email_confirmed_at: authUser.email_confirmed_at ?? null,
     emailConfirmed: Boolean(authUser.email_confirmed_at),
     eventsVerified: isEventsVerified(authUser.user_metadata?.events_verified),

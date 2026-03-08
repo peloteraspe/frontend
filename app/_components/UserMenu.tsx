@@ -8,6 +8,7 @@ type UserLite = {
   id: string;
   email?: string | null;
   username?: string | null;
+  avatar_url?: string | null;
   email_confirmed_at?: string;
 } | null;
 
@@ -65,7 +66,10 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
                   aria-expanded={isOpen}
                   className="inline-flex items-center gap-2 justify-center text-xl rounded-full cursor-pointer transition"
                 >
-                  <UserImage src={''} />
+                  <UserImage
+                    src={user.avatar_url}
+                    name={user.username || user.email || 'Usuario'}
+                  />
                   <ChevronDownIcon className="h-6 w-6 text-slate-400" aria-hidden="true" />
                 </button>
                 {isOpen && (
