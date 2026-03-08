@@ -1,9 +1,9 @@
 import Link from 'next/link';
 
-const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'soporte@peloteras.com';
-const supportPhone = process.env.NEXT_PUBLIC_SUPPORT_PHONE || '+51 900 000 000';
+const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'contacto@peloteras.com';
+const supportPhone = process.env.NEXT_PUBLIC_SUPPORT_PHONE || '+51 920856087';
 const supportWhatsapp =
-  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP_URL || 'https://wa.me/51900000000';
+  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP_URL || 'https://wa.me/51920856087';
 const supportHours = process.env.NEXT_PUBLIC_SUPPORT_HOURS || 'Lunes a viernes, 9:00 a 18:00 (PET)';
 
 export default function CustomerSupportPage() {

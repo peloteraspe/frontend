@@ -2,16 +2,14 @@ import React from 'react';
 import Logo from '@core/assets/Logo-text.svg';
 import Image from 'next/image';
 import InstagramIcon from '@shared/ui/icons/social/InstagramIcon';
-import FacebookIcon from '@shared/ui/icons/social/FacebookIcon';
 import TiktokIcon from '@shared/ui/icons/social/TiktokIcon';
 import { ParagraphM, SubtitleM } from './Typography';
 import Link from 'next/link';
 
 // URLs de redes sociales (actualizar con las reales)
 const SOCIAL_LINKS = {
-  instagram: 'https://instagram.com/peloteras',
-  facebook: 'https://facebook.com/peloteras',
-  tiktok: 'https://tiktok.com/@peloteras',
+  instagram: 'https://instagram.com/peloteraspe',
+  tiktok: 'https://tiktok.com/@peloteras.com',
 };
 
 const Footer: React.FC = () => {
@@ -59,15 +57,6 @@ const Footer: React.FC = () => {
               className="p-2 rounded-xl border-2 border-btnBg-light text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark transition-colors focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
             >
               <InstagramIcon />
-            </a>
-            <a
-              href={SOCIAL_LINKS.facebook}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Siguenos en Facebook"
-              className="p-2 rounded-xl border-2 border-btnBg-light text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark transition-colors focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
-            >
-              <FacebookIcon />
             </a>
             <a
               href={SOCIAL_LINKS.tiktok}
