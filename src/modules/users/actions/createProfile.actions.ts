@@ -48,8 +48,23 @@ function isProfileUserFkError(message: string) {
   return message.includes('profile_user_fkey') || message.includes('foreign key constraint');
 }
 
+function tryGetAdminSupabase(context: string) {
+  try {
+    return getAdminSupabase();
+  } catch (error: any) {
+    log.warn('Supabase admin client unavailable in onboarding action', 'SIGNUP', {
+      context,
+      error: String(error?.message || error || 'Unknown error'),
+    });
+    return null;
+  }
+}
+
 async function saveProfileAndPositionsDirectly(payload: CreateProfilePayload) {
-  const supabase = getAdminSupabase();
+  const supabase = tryGetAdminSupabase('saveProfileAndPositionsDirectly');
+  if (!supabase) {
+    throw new Error('Supabase admin client is unavailable');
+  }
 
   const normalizedUsername = payload.username.trim();
   const levelId = Number(payload.level_id);
@@ -168,35 +183,68 @@ async function saveOnboardingProfileState(
     }
   };
 
+  let persisted = false;
+
   try {
     const sessionSupabase = await getServerSupabase();
     await upsertProfileState(sessionSupabase);
+    persisted = true;
   } catch (error: any) {
     log.warn('Saving onboarding profile state with session client failed; using admin fallback', 'SIGNUP', {
       userId,
       error: String(error?.message || error || 'Unknown error'),
     });
-    const adminSupabase = getAdminSupabase();
-    await upsertProfileState(adminSupabase as any);
+
+    const adminSupabase = tryGetAdminSupabase('saveOnboardingProfileState');
+    if (adminSupabase) {
+      try {
+        await upsertProfileState(adminSupabase as any);
+        persisted = true;
+      } catch (adminError: any) {
+        log.warn('Saving onboarding profile state with admin client failed', 'SIGNUP', {
+          userId,
+          error: String(adminError?.message || adminError || 'Unknown error'),
+        });
+      }
+    }
   }
 
-  const adminSupabase = getAdminSupabase();
-  const { data: persistedRow, error: verifyError } = await adminSupabase
-    .from('profile')
-    .select('user, onboarding_step, is_profile_complete, level_id, username')
-    .eq('user', userId)
-    .maybeSingle();
-
-  if (verifyError) {
-    throw new Error(verifyError.message);
+  if (!persisted) {
+    // Do not block signup completion for metadata-only persistence failures.
+    log.warn('Skipping onboarding profile state verification because persistence failed', 'SIGNUP', {
+      userId,
+    });
+    return;
   }
-  if (!persistedRow) {
-    throw new Error('No se pudo persistir el profile del onboarding.');
+
+  try {
+    const sessionSupabase = await getServerSupabase();
+    const { data: persistedRow, error: verifyError } = await sessionSupabase
+      .from('profile')
+      .select('user')
+      .eq('user', userId)
+      .maybeSingle();
+
+    if (verifyError || !persistedRow) {
+      log.warn('Could not verify onboarding profile state after persistence', 'SIGNUP', {
+        userId,
+        error: String(verifyError?.message || 'Missing persisted row'),
+      });
+    }
+  } catch (error: any) {
+    log.warn('Onboarding profile state verification failed', 'SIGNUP', {
+      userId,
+      error: String(error?.message || error || 'Unknown error'),
+    });
   }
 }
 
 async function syncAuthUserMetadata(userId: string, username: string) {
-  const adminSupabase = getAdminSupabase();
+  const adminSupabase = tryGetAdminSupabase('syncAuthUserMetadata');
+  if (!adminSupabase) {
+    return;
+  }
+
   const normalizedUsername = username.trim();
 
   const { data: authUserData, error: getUserError } = await adminSupabase.auth.admin.getUserById(
