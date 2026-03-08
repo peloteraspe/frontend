@@ -71,7 +71,7 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
         </div>
       ) : (
         <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
-          <div className="order-2 xl:order-1">
+          <div className="order-2 xl:order-1 [&>div]:gap-5">
             <CardEventItem cardEvents={cardEvents} variant="landing" />
           </div>
           <div className="order-1 xl:order-2">
