@@ -122,6 +122,20 @@ function toTrimmedOrNull(value: string | null | undefined) {
   return normalized || null;
 }
 
+function normalizeWalletClassId(
+  classId: string | null | undefined,
+  issuerId: string | null | undefined
+) {
+  const normalizedClassId = toTrimmedOrNull(classId);
+  if (!normalizedClassId) return null;
+  if (normalizedClassId.includes('.')) return normalizedClassId;
+
+  const normalizedIssuerId = toTrimmedOrNull(issuerId);
+  if (!normalizedIssuerId) return normalizedClassId;
+
+  return `${normalizedIssuerId}.${normalizedClassId}`;
+}
+
 function asIssuerFromClassId(classId: string | null | undefined) {
   if (!classId) return null;
   const parts = classId.split('.');
@@ -129,9 +143,10 @@ function asIssuerFromClassId(classId: string | null | undefined) {
 }
 
 function getGoogleWalletConfigFromEnv(): GoogleWalletConfig | null {
-  const classId = getEnvValue(['GOOGLE_WALLET_CLASS_ID', 'GW_CLASS_ID']);
+  const classIdRaw = getEnvValue(['GOOGLE_WALLET_CLASS_ID', 'GW_CLASS_ID']);
   const issuerId =
-    getEnvValue(['GOOGLE_WALLET_ISSUER_ID', 'GW_ISSUER_ID']) || asIssuerFromClassId(classId);
+    getEnvValue(['GOOGLE_WALLET_ISSUER_ID', 'GW_ISSUER_ID']) || asIssuerFromClassId(classIdRaw);
+  const classId = normalizeWalletClassId(classIdRaw, issuerId);
   const serviceAccountEmail = getEnvValue([
     'GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL',
     'GW_SERVICE_ACCOUNT_EMAIL',
@@ -184,7 +199,7 @@ async function getGoogleWalletConfigFromDb(): Promise<GoogleWalletConfig | null>
 
     return {
       issuerId: row.issuer_id,
-      classId: row.active_class_id ?? null,
+      classId: normalizeWalletClassId(row.active_class_id, row.issuer_id),
       serviceAccountEmail: row.service_account_email,
       privateKey: normalizePrivateKey(row.service_account_private_key),
       origins: normalizeOrigins(row.origins),
@@ -263,9 +278,12 @@ export async function upsertGoogleWalletSettings(input: UpsertGoogleWalletSettin
     asIssuerFromClassId(input.activeClassId ?? currentRow?.active_class_id ?? undefined) ||
     '';
   const activeClassId =
-    typeof input.activeClassId === 'string'
-      ? input.activeClassId.trim() || null
-      : (currentRow?.active_class_id ?? envConfig?.classId ?? null);
+    normalizeWalletClassId(
+      typeof input.activeClassId === 'string'
+        ? input.activeClassId.trim() || null
+        : (currentRow?.active_class_id ?? envConfig?.classId ?? null),
+      issuerId
+    );
   const serviceAccountEmail =
     (
       input.serviceAccountEmail ??
