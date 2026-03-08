@@ -1,3 +1,5 @@
+import { normalizeDateTimeLocalToLima } from '@shared/lib/dateTime';
+
 export type EventUpsertInput = {
   title: string;
   description: string;
@@ -18,7 +20,9 @@ export type EventUpsertInput = {
 };
 
 function toTimestamp(value: string) {
-  const timestamp = new Date(value).getTime();
+  const normalized = normalizeDateTimeLocalToLima(value);
+  if (!normalized) return null;
+  const timestamp = new Date(normalized).getTime();
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
@@ -52,11 +56,14 @@ function normalizeDistrict(value: FormDataEntryValue | null) {
 }
 
 export function parseEventFormData(fd: FormData): EventUpsertInput {
+  const rawStartTime = String(fd.get('startTime') || '').trim();
+  const rawEndTime = String(fd.get('endTime') || '').trim();
+
   return {
     title: String(fd.get('title') || ''),
     description: String(fd.get('description') || ''),
-    startTime: String(fd.get('startTime') || ''),
-    endTime: String(fd.get('endTime') || ''),
+    startTime: normalizeDateTimeLocalToLima(rawStartTime) ?? rawStartTime,
+    endTime: normalizeDateTimeLocalToLima(rawEndTime) ?? rawEndTime,
     price: parseNumber(fd.get('price'), 0),
     minUsers: parseNumber(fd.get('minUsers'), 0),
     maxUsers: parseNumber(fd.get('maxUsers'), 0),

@@ -8,6 +8,7 @@ import {
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
 import { CreateEventPayload, EventEntity } from '@modules/events/model/types';
+import { getIsoDateInTimeZone, normalizeDateTimeLocalToLima } from '@shared/lib/dateTime';
 
 const EVENTS_TIMEOUT_MS = 4500;
 
@@ -55,9 +56,9 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number) {
 
 function isSameDate(dateIso: string | null, dateFilter: string) {
   if (!dateIso) return false;
-  const dt = new Date(dateIso);
-  if (Number.isNaN(dt.getTime())) return false;
-  return dt.toISOString().slice(0, 10) === dateFilter;
+  const eventDate = getIsoDateInTimeZone(dateIso);
+  if (!eventDate) return false;
+  return eventDate === dateFilter;
 }
 
 function applyFilters(events: EventEntity[], requestUrl: string) {
@@ -112,11 +113,14 @@ function applyFilters(events: EventEntity[], requestUrl: string) {
 }
 
 function validatePayload(body: any): CreateEventPayload {
+  const startTime = normalizeDateTimeLocalToLima(body?.startTime);
+  const endTime = normalizeDateTimeLocalToLima(body?.endTime);
+
   const payload: CreateEventPayload = {
     title: String(body?.title ?? '').trim(),
     description: String(body?.description ?? '').trim(),
-    startTime: String(body?.startTime ?? '').trim(),
-    endTime: String(body?.endTime ?? '').trim(),
+    startTime: startTime ?? '',
+    endTime: endTime ?? '',
     price: parseNumber(body?.price),
     minUsers: parseNumber(body?.minUsers),
     maxUsers: parseNumber(body?.maxUsers),

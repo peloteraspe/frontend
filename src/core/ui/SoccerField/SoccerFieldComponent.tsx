@@ -38,8 +38,12 @@ export default function SoccerField({
   className,
   participants = [],
 }: SoccerFieldDynamicProps) {
-  const nPerTeam = Math.max(0, Math.floor(minUsers / 2));
-  const extras = Math.max(0, (maxUsers ?? minUsers) - minUsers);
+  const registeredCount = participants.length;
+  const rosterTarget = Math.max(minUsers, maxUsers ?? minUsers, registeredCount);
+  const useSixVsSixLayout = rosterTarget >= 24;
+  const nPerTeam = useSixVsSixLayout ? 6 : Math.max(0, Math.floor(minUsers / 2));
+  const fieldSpots = nPerTeam * 2;
+  const extras = Math.max(0, rosterTarget - fieldSpots);
   const [placementSeed] = useState(() => Math.floor(Math.random() * 2147483647));
 
   const fieldPositionsPortrait = useMemo(() => {

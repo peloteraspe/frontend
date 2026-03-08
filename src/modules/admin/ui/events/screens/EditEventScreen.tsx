@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
+import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
 
 export default async function EditEventScreen({ id }: { id: string }) {
   const supabase = await getServerSupabase();
@@ -102,8 +103,8 @@ export default async function EditEventScreen({ id }: { id: string }) {
           title: event.title,
           description:
             typeof event.description === 'object' ? event.description?.description : event.description,
-          startTime: event.start_time?.slice?.(0, 16),
-          endTime: event.end_time?.slice?.(0, 16),
+          startTime: toDateTimeLocalInTimeZone(event.start_time),
+          endTime: toDateTimeLocalInTimeZone(event.end_time),
           price: event.price,
           minUsers: event.min_users,
           maxUsers: event.max_users,
