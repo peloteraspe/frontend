@@ -16,6 +16,12 @@ type ProfileRow = {
   username: string | null;
 };
 
+type EventRow = {
+  title: string | null;
+  start_time: string | null;
+  end_time: string | null;
+};
+
 type TicketRow = {
   id: number;
   assistant_id: number;
@@ -97,6 +103,36 @@ export async function ensureTicketForAssistant(
   const mappedStatus = mapAssistantStateToTicketStatus(row.state);
   const nowIso = new Date().toISOString();
 
+  let eventTitle: string | null = null;
+  let eventStartTime: string | null = null;
+  let eventEndTime: string | null = null;
+
+  try {
+    const { data: eventData, error: eventError } = await supabase
+      .from('event')
+      .select('title, start_time, end_time')
+      .eq('id', row.event)
+      .maybeSingle();
+
+    if (eventError) {
+      log.database('SELECT event metadata for wallet ticket', 'event', eventError, {
+        assistantId,
+        eventId: row.event,
+      });
+    } else {
+      const eventRow = eventData as EventRow | null;
+      eventTitle = typeof eventRow?.title === 'string' ? eventRow.title.trim() : null;
+      eventStartTime = typeof eventRow?.start_time === 'string' ? eventRow.start_time.trim() : null;
+      eventEndTime = typeof eventRow?.end_time === 'string' ? eventRow.end_time.trim() : null;
+    }
+  } catch (eventLookupError) {
+    log.warn('Could not load event metadata for wallet ticket', 'TICKETS', {
+      assistantId,
+      eventId: row.event,
+      error: eventLookupError,
+    });
+  }
+
   const { data: existingByEventUser, error: existingError } = await supabase
     .from('ticket')
     .select('*')
@@ -123,20 +159,22 @@ export async function ensureTicketForAssistant(
   const googleWalletConfig = await getGoogleWalletConfig();
   const appleWalletUrl =
     existing?.apple_wallet_url || resolveWalletUrl(process.env.APPLE_WALLET_URL_TEMPLATE, qrToken);
-
-  let googleWalletUrl = existing?.google_wallet_url ?? null;
-  if (!googleWalletUrl) {
-    const ticketHolderName = await resolveTicketHolderName(supabase, row.user);
-    googleWalletUrl =
-      (await buildGoogleWalletSaveUrl(
-        {
-          qrToken,
-          ticketNumber: String(row.id),
-          ticketHolderName,
-        },
-        googleWalletConfig
-      )) || resolveWalletUrl(process.env.GOOGLE_WALLET_URL_TEMPLATE, qrToken);
-  }
+  const ticketHolderName = await resolveTicketHolderName(supabase, row.user);
+  const generatedGoogleWalletUrl = await buildGoogleWalletSaveUrl(
+    {
+      qrToken,
+      ticketNumber: String(row.id),
+      ticketHolderName,
+      eventTitle,
+      eventStartTime,
+      eventEndTime,
+    },
+    googleWalletConfig
+  );
+  const googleWalletUrl =
+    generatedGoogleWalletUrl ||
+    existing?.google_wallet_url ||
+    resolveWalletUrl(process.env.GOOGLE_WALLET_URL_TEMPLATE, qrToken);
 
   if (existing) {
     const { data: updated, error: updateError } = await supabase

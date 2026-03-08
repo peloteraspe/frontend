@@ -12,6 +12,9 @@ export type BuildGoogleWalletSaveUrlInput = {
   qrToken: string;
   ticketNumber: string;
   ticketHolderName: string;
+  eventTitle?: string | null;
+  eventStartTime?: string | null;
+  eventEndTime?: string | null;
 };
 
 type WalletSettingsRow = {
@@ -112,6 +115,11 @@ function toLocalizedString(value: string) {
       value,
     },
   };
+}
+
+function toTrimmedOrNull(value: string | null | undefined) {
+  const normalized = String(value || '').trim();
+  return normalized || null;
 }
 
 function asIssuerFromClassId(classId: string | null | undefined) {
@@ -380,7 +388,7 @@ export async function buildGoogleWalletSaveUrl(
 ): Promise<string | null> {
   const resolvedConfig = config ?? (await getGoogleWalletConfig());
   if (!resolvedConfig) return null;
-  await ensureWalletClassEventName(resolvedConfig);
+  await ensureWalletClassEventName(resolvedConfig, input);
   return buildGoogleWalletSaveUrlWithConfig(resolvedConfig, input);
 }
 
@@ -443,10 +451,18 @@ async function getGoogleWalletAccessToken(config: GoogleWalletConfig) {
   return tokenJson.access_token;
 }
 
-async function ensureWalletClassEventName(config: GoogleWalletConfig) {
+async function ensureWalletClassEventName(
+  config: GoogleWalletConfig,
+  input?: Pick<BuildGoogleWalletSaveUrlInput, 'eventTitle' | 'eventStartTime' | 'eventEndTime'>
+) {
   const classId = String(config.classId || '').trim();
   if (!classId) return;
-  if (walletClassValidationCache.has(classId)) return;
+
+  const desiredEventName = toTrimmedOrNull(input?.eventTitle) || WALLET_CLASS_DEFAULT_EVENT_NAME;
+  const desiredStartTime = toTrimmedOrNull(input?.eventStartTime);
+  const desiredEndTime = toTrimmedOrNull(input?.eventEndTime);
+  const cacheKey = `${classId}::${desiredEventName}::${desiredStartTime || ''}::${desiredEndTime || ''}`;
+  if (walletClassValidationCache.has(cacheKey)) return;
 
   try {
     const token = await getGoogleWalletAccessToken(config);
@@ -471,6 +487,10 @@ async function ensureWalletClassEventName(config: GoogleWalletConfig) {
           value?: string;
         };
       };
+      dateTime?: {
+        start?: string;
+        end?: string;
+      };
       error?: {
         message?: string;
       };
@@ -486,8 +506,29 @@ async function ensureWalletClassEventName(config: GoogleWalletConfig) {
     }
 
     const currentEventName = classBody?.eventName?.defaultValue?.value ?? null;
-    if (!isPlaceholderWalletEventName(currentEventName)) {
+    const currentStartTime = toTrimmedOrNull(classBody?.dateTime?.start ?? null);
+    const currentEndTime = toTrimmedOrNull(classBody?.dateTime?.end ?? null);
+
+    const shouldPatchEventName =
+      isPlaceholderWalletEventName(currentEventName) || currentEventName !== desiredEventName;
+    const shouldPatchDateTime =
+      Boolean(desiredStartTime) &&
+      (currentStartTime !== desiredStartTime ||
+        (desiredEndTime ? currentEndTime !== desiredEndTime : false));
+
+    if (!shouldPatchEventName && !shouldPatchDateTime) {
       return;
+    }
+
+    const patchPayload: Record<string, unknown> = {};
+    if (shouldPatchEventName) {
+      patchPayload.eventName = toLocalizedString(desiredEventName);
+    }
+    if (shouldPatchDateTime && desiredStartTime) {
+      patchPayload.dateTime = {
+        start: desiredStartTime,
+        ...(desiredEndTime ? { end: desiredEndTime } : {}),
+      };
     }
 
     const patchResponse = await fetchWithTimeout(
@@ -498,9 +539,7 @@ async function ensureWalletClassEventName(config: GoogleWalletConfig) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          eventName: toLocalizedString(WALLET_CLASS_DEFAULT_EVENT_NAME),
-        }),
+        body: JSON.stringify(patchPayload),
       },
       5000
     );
@@ -512,7 +551,7 @@ async function ensureWalletClassEventName(config: GoogleWalletConfig) {
     };
 
     if (!patchResponse.ok) {
-      log.warn('Could not normalize Google Wallet class eventName placeholder', 'TICKETS', {
+      log.warn('Could not normalize Google Wallet class metadata', 'TICKETS', {
         classId,
         status: patchResponse.status,
         error: patchBody?.error?.message || 'Unknown error',
@@ -520,17 +559,19 @@ async function ensureWalletClassEventName(config: GoogleWalletConfig) {
       return;
     }
 
-    log.info('Google Wallet class eventName placeholder normalized', 'TICKETS', {
+    log.info('Google Wallet class metadata normalized', 'TICKETS', {
       classId,
-      eventName: WALLET_CLASS_DEFAULT_EVENT_NAME,
+      eventName: desiredEventName,
+      startTime: desiredStartTime,
+      endTime: desiredEndTime,
     });
   } catch (error) {
-    log.warn('Wallet class eventName validation failed; continuing with current class', 'TICKETS', {
+    log.warn('Wallet class metadata validation failed; continuing with current class', 'TICKETS', {
       classId,
       error,
     });
   } finally {
-    walletClassValidationCache.add(classId);
+    walletClassValidationCache.add(cacheKey);
   }
 }
 
