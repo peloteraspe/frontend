@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
     const { data: eventRow, error: eventError } = await admin
       .from('event')
-      .select('id,start_time,title,location_text')
+      .select('id,start_time,title,location_text,is_published')
       .eq('id', eventId)
       .maybeSingle();
 
@@ -53,6 +53,13 @@ export async function POST(request: Request) {
 
     if (!eventRow) {
       return NextResponse.json({ error: 'Evento no encontrado.' }, { status: 404 });
+    }
+
+    if ((eventRow as any)?.is_published === false) {
+      return NextResponse.json(
+        { error: 'Las inscripciones para este evento no están disponibles por el momento.' },
+        { status: 409 }
+      );
     }
 
     const eventStart = eventRow?.start_time ? new Date(String(eventRow.start_time)) : null;

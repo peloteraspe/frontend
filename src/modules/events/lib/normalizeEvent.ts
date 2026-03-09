@@ -79,6 +79,7 @@ export function normalizeEvent(raw: any, eventTypeById: Dictionary, levelById: D
     levelName: levelId ? levelById[levelId] ?? 'Sin nivel' : 'Sin nivel',
     createdBy: asString(raw?.created_by, 'Peloteras'),
     createdById: raw?.created_by_id ? String(raw.created_by_id) : null,
+    isPublished: raw?.is_published !== false,
     isFeatured: raw?.is_featured === true,
   };
 }

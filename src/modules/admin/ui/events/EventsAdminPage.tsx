@@ -2,7 +2,7 @@ import { getEvents } from '@shared/lib/data/getEvents';
 import Link from 'next/link';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
-import { setEventFeatured } from '@modules/admin/api/events/_actions';
+import { setEventFeatured, setEventPublished } from '@modules/admin/api/events/_actions';
 import EventShareActionButton from '@modules/admin/ui/events/EventShareActionButton';
 import { getApprovedParticipantsCountByEventIds } from '@modules/admin/api/events/services/eventParticipants.service';
 
@@ -95,6 +95,13 @@ export default async function AdminEventsPage({ searchParams }: Props) {
     await setEventFeatured(id, isFeatured);
   }
 
+  async function handleTogglePublished(formData: FormData) {
+    'use server';
+    const id = String(formData.get('id') || '');
+    const isPublished = String(formData.get('isPublished') || '') === 'true';
+    await setEventPublished(id, isPublished);
+  }
+
   const events = (await getEvents({ dateOrder, createdById: isUserSuperAdmin ? '' : user?.id || '' })) ?? [];
   const approvedParticipantsByEventId = await getApprovedParticipantsCountByEventIds(
     events.map((event: any) => event.id)
@@ -126,6 +133,7 @@ export default async function AdminEventsPage({ searchParams }: Props) {
                 </Link>
               </th>
               <th className="px-4 py-2 text-left">Hora</th>
+              <th className="px-4 py-2 text-left">Publicado</th>
               <th className="px-4 py-2 text-left">Destacado</th>
               <th className="px-4 py-2 text-left">Precio</th>
               <th className="px-4 py-2 text-left">Cupos</th>
@@ -141,6 +149,34 @@ export default async function AdminEventsPage({ searchParams }: Props) {
                   <td className="px-4 py-2">{e.title}</td>
                   <td className="px-4 py-2">{formatDateRange(e.start_time, e.end_time)}</td>
                   <td className="px-4 py-2 whitespace-nowrap">{formatTimeRange(e.start_time, e.end_time)}</td>
+                  <td className="px-4 py-2">
+                    <form action={handleTogglePublished} className="inline-flex items-center gap-2">
+                      <input type="hidden" name="id" value={e.id} />
+                      <input type="hidden" name="isPublished" value={e.is_published ? 'false' : 'true'} />
+                      <button
+                        type="submit"
+                        role="switch"
+                        aria-checked={Boolean(e.is_published)}
+                        aria-label={`${e.is_published ? 'Ocultar' : 'Publicar'} ${e.title || 'evento'}`}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                          e.is_published ? 'bg-emerald-600' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                            e.is_published ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                      <span
+                        className={`text-xs font-semibold ${
+                          e.is_published ? 'text-emerald-700' : 'text-slate-600'
+                        }`}
+                      >
+                        {e.is_published ? 'Publicado' : 'Borrador'}
+                      </span>
+                    </form>
+                  </td>
                   <td className="px-4 py-2">
                     {canManageFeatured ? (
                       <form action={handleToggleFeatured} className="inline-flex items-center gap-2">
@@ -196,9 +232,11 @@ export default async function AdminEventsPage({ searchParams }: Props) {
                         Ver
                       </a>
                       <Link href={`/admin/events/${e.id}/participants`} className="text-mulberry hover:underline">
-                        Participantes
+                        Inscripciones
                       </Link>
-                      <EventShareActionButton eventId={String(e.id)} eventTitle={String(e.title || 'Evento')} />
+                      {e.is_published ? (
+                        <EventShareActionButton eventId={String(e.id)} eventTitle={String(e.title || 'Evento')} />
+                      ) : null}
                       <Link href={`/admin/events/${e.id}/edit`} className="text-mulberry hover:underline">
                         Editar
                       </Link>

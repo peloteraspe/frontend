@@ -1,6 +1,7 @@
 import { getServerSupabase } from '@core/api/supabase.server';
 import { backendFetch, backendUrl } from '@core/api/backend';
 import { log } from '@core/lib/logger';
+import { isAdmin } from '@shared/lib/auth/isAdmin';
 
 type EventFeatureRow = {
   feature: number | string | null;
@@ -151,6 +152,16 @@ export async function getEventDetails(id: string) {
   }
 
   if (data) {
+    if (data.is_published === false) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!isAdmin(user as any)) {
+        return null;
+      }
+    }
+
     const eventId = String(data.id ?? id);
     const [featuresData, assistants] = await Promise.all([
       getEventFeaturesByEventId(supabase, eventId),

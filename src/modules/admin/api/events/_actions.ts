@@ -32,10 +32,32 @@ function toInsertPayload(
     price: input.price,
     EventType: input.eventTypeId,
     level: input.levelId,
+    is_published: input.isPublished,
     is_featured: isFeatured,
     created_by_id: userId,
     created_by: createdBy,
   };
+}
+
+async function assertCanManageEvent(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  eventId: string,
+  user: { id?: string | null; email?: string | null } | null
+) {
+  if (!user?.id) throw new Error('Debes iniciar sesión para gestionar eventos.');
+  if (isSuperAdmin(user as any)) return;
+
+  const { data: event, error } = await supabase
+    .from('event')
+    .select('created_by_id')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!event) throw new Error('Evento no encontrado.');
+  if (String(event.created_by_id || '') !== String(user.id || '')) {
+    throw new Error('No tienes permisos para gestionar este evento.');
+  }
 }
 
 function normalizeFeatureIds(ids: number[]) {
@@ -182,6 +204,7 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
   } = await supabase.auth.getUser();
 
   if (!user) throw new Error('Debes iniciar sesión para editar eventos.');
+  await assertCanManageEvent(supabase, id, user);
 
   const { data: profile } = await supabase
     .from('profile')
@@ -245,6 +268,7 @@ export async function deleteEvent(id: string) {
   } = await supabase.auth.getUser();
 
   if (!user) throw new Error('Debes iniciar sesión para eliminar eventos.');
+  await assertCanManageEvent(supabase, id, user);
 
   const { error } = await supabase.from('event').delete().eq('id', id);
   if (error) throw new Error(error.message);
@@ -272,5 +296,27 @@ export async function setEventFeatured(id: string, isFeatured: boolean) {
   revalidatePath('/admin/events');
   revalidatePath('/events');
   revalidatePath(`/events/${id}`);
+  revalidatePath('/');
+}
+
+export async function setEventPublished(id: string, isPublished: boolean) {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('Debes iniciar sesión para gestionar publicación.');
+  if (!id) throw new Error('Id de evento inválido.');
+
+  await assertCanManageEvent(supabase, id, user);
+
+  const { error } = await supabase.from('event').update({ is_published: isPublished }).eq('id', id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath('/admin/events');
+  revalidatePath(`/admin/events/${id}/edit`);
+  revalidatePath('/events');
+  revalidatePath(`/events/${id}`);
+  revalidatePath(`/payments/${id}`);
   revalidatePath('/');
 }

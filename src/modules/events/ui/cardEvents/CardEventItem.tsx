@@ -7,6 +7,7 @@ import CardEvent from '../CardEvent';
 import { ButtonWrapper } from '@src/core/ui/Button';
 
 import { useRouter } from 'next/navigation';
+import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import { formattedPrice } from '@src/shared/lib/utils';
 
 interface CardEventItemProps {
@@ -76,6 +77,7 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
       {cardEvents?.map((event) => {
         const eventTypeName = getEventTypeName(event);
         const badges = getBadges(event);
+        const isVersus = isVersusEventTypeName(eventTypeName);
 
         return (
           <div
@@ -95,11 +97,9 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
                   icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
-                    router.push(`/payments/${event.id}`);
+                    router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
                   }}
-                  children={
-                    eventTypeName.toLowerCase().includes('libre') ? 'Anotarme' : 'Anotar a mi equipo'
-                  }
+                  children={isVersus ? 'Anotar a mi equipo' : 'Anotarme'}
                 />
               }
               price={formattedPrice(Number(event.price ?? 0))}

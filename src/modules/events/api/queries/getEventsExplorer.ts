@@ -22,6 +22,7 @@ export async function getEventsExplorer(): Promise<EventEntity[]> {
     supabase
       .from('event')
       .select('*')
+      .eq('is_published', true)
       .order('start_time', { ascending: true, nullsFirst: false }),
     getEventCatalogs(),
   ]);
@@ -39,7 +40,7 @@ export async function getEventsExplorer(): Promise<EventEntity[]> {
 export async function getEventExplorerById(id: string): Promise<EventEntity | null> {
   const supabase = await getServerSupabase();
   const [eventRes, catalogs] = await Promise.all([
-    supabase.from('event').select('*').eq('id', id).maybeSingle(),
+    supabase.from('event').select('*').eq('id', id).eq('is_published', true).maybeSingle(),
     getEventCatalogs(),
   ]);
 

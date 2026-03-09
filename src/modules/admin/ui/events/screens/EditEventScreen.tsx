@@ -119,6 +119,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
           levelId: event.level,
           featureIds: selectedFeatureIds,
           paymentMethodIds: selectedPaymentMethodIds,
+          isPublished: event.is_published !== false,
           isFeatured: Boolean(event.is_featured),
         }}
         canManageFeatured={canManageFeatured}

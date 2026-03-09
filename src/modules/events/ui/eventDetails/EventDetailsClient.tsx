@@ -126,6 +126,7 @@ export default function EventDetailsClient({ data }: Props) {
     'Partido'
   );
   const isVersus = isVersusEventTypeName(eventTypeName);
+  const isPublished = event?.is_published !== false;
 
   const startTimeIso = event?.start_time ?? event?.startTime ?? null;
   const startDate = startTimeIso ? new Date(startTimeIso) : null;
@@ -232,7 +233,7 @@ export default function EventDetailsClient({ data }: Props) {
       event_id: String(event.id),
       ref_user: user?.id ? String(user.id) : null,
       event_type: eventTypeName,
-      registration_closed: isRegistrationClosed,
+      registration_closed: !isPublished || isRegistrationClosed,
     });
   };
 
@@ -281,6 +282,11 @@ export default function EventDetailsClient({ data }: Props) {
   const handleJoinClick = () => {
     if (isRegistrationClosed) {
       toast.error('Este evento ya inició o finalizó. La inscripción está cerrada.');
+      return;
+    }
+
+    if (!isPublished) {
+      toast('La convocatoria de este evento será anunciada próximamente.');
       return;
     }
 
@@ -494,6 +500,11 @@ export default function EventDetailsClient({ data }: Props) {
               </div>
 
               <div className="mt-5">
+                {!isPublished && (
+                  <p className="mb-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800">
+                    Este evento está en borrador. La convocatoria se anunciará próximamente.
+                  </p>
+                )}
                 {isRegistrationClosed && (
                   <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
                     Inscripciones cerradas: este evento ya pasó.
@@ -503,10 +514,12 @@ export default function EventDetailsClient({ data }: Props) {
                   onClick={handleJoinClick}
                   icon={<Image src={arrowAnotarse} alt="arrow" width={24} height={24} />}
                   className="!my-0"
-                  disabled={isRegistrationClosed}
+                  disabled={isRegistrationClosed || !isPublished}
                 >
                   {isRegistrationClosed
                     ? 'Evento finalizado'
+                    : !isPublished
+                    ? 'Próximamente'
                     : isVersus
                     ? 'Anotar a mi equipo'
                     : 'Anotarme'}

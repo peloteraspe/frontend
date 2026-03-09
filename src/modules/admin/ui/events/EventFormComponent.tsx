@@ -30,6 +30,7 @@ type Props = {
     levelId: number;
     featureIds: number[];
     paymentMethodIds: number[];
+    isPublished: boolean;
     isFeatured: boolean;
   }>;
   eventTypes: CatalogOption[];
@@ -770,6 +771,50 @@ const EventForm = ({
           <input key={featureId} type="hidden" name="featureIds" value={featureId} readOnly />
         ))}
       </label>
+
+      {canManageFeatured ? (
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Visible al público</p>
+            <p className="text-xs text-slate-500">
+              Si lo desactivas, el evento sale del listado público y se bloquean nuevas inscripciones.
+            </p>
+          </div>
+
+          <span className="relative inline-flex h-6 w-11 shrink-0">
+            <input
+              type="checkbox"
+              name="isPublished"
+              value="true"
+              defaultChecked={Boolean(initial?.isPublished ?? true)}
+              className="peer sr-only"
+            />
+            <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-emerald-600" />
+            <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+          </span>
+        </label>
+      ) : (
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Visible al público</p>
+            <p className="text-xs text-slate-500">
+              Si lo desactivas, el evento sale del listado público y se bloquean nuevas inscripciones.
+            </p>
+          </div>
+
+          <span className="relative inline-flex h-6 w-11 shrink-0">
+            <input
+              type="checkbox"
+              name="isPublished"
+              value="true"
+              defaultChecked={Boolean(initial?.isPublished ?? true)}
+              className="peer sr-only"
+            />
+            <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-emerald-600" />
+            <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+          </span>
+        </label>
+      )}
 
       {canManageFeatured ? (
         <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
