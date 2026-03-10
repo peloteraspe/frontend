@@ -6,7 +6,41 @@ import ResendSentEmailHistory from '@modules/admin/ui/events/ResendSentEmailHist
 import { getResendSentEmailHistory } from '@modules/admin/api/events/services/resendSentEmailHistory.service';
 import { redirect } from 'next/navigation';
 
-export default async function GlobalEventAnnouncementHistoryPage() {
+type SearchParams = {
+  cursor?: string | string[];
+  history?: string | string[];
+};
+
+type Props = {
+  searchParams?: SearchParams;
+};
+
+function readSingleValue(value?: string | string[]) {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+function normalizeCursor(value?: string | null) {
+  const normalizedValue = String(value || '').trim();
+  return normalizedValue || null;
+}
+
+function getCursorHistory(searchParams?: SearchParams) {
+  const historyValue = readSingleValue(searchParams?.history);
+  const cursorValue = normalizeCursor(readSingleValue(searchParams?.cursor));
+  const history = String(historyValue || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (cursorValue && history[history.length - 1] !== cursorValue) {
+    history.push(cursorValue);
+  }
+
+  return history;
+}
+
+export default async function GlobalEventAnnouncementHistoryPage({ searchParams }: Props) {
   const supabase = await getServerSupabase();
   const {
     data: { user },
@@ -16,8 +50,16 @@ export default async function GlobalEventAnnouncementHistoryPage() {
     redirect('/admin');
   }
 
-  const history = await getGlobalEventAnnouncementHistory();
-  const resendHistory = await getResendSentEmailHistory();
+  const cursorHistory = getCursorHistory(searchParams);
+  const currentCursor = cursorHistory.length ? cursorHistory[cursorHistory.length - 1] : null;
+  const currentPage = cursorHistory.length + 1;
+  const [history, resendHistory] = await Promise.all([
+    getGlobalEventAnnouncementHistory(),
+    getResendSentEmailHistory({
+      after: currentCursor,
+      limit: 100,
+    }),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -29,14 +71,20 @@ export default async function GlobalEventAnnouncementHistoryPage() {
         </p>
       </div>
 
+      <ResendSentEmailHistory
+        history={resendHistory.items}
+        hasMore={resendHistory.hasMore}
+        limit={resendHistory.limit}
+        currentPage={currentPage}
+        cursorHistory={cursorHistory}
+      />
+
       <EventAnnouncementHistory
         history={history}
         title="Historial global"
         description="Incluye campañas de todos los eventos. El botón de reenvío solo intenta nuevamente las destinatarias fallidas de cada envío."
         showEventContext
       />
-
-      <ResendSentEmailHistory history={resendHistory.items} hasMore={resendHistory.hasMore} limit={resendHistory.limit} />
     </div>
   );
 }

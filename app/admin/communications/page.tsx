@@ -1,4 +1,4 @@
-import CommunicationsAdminPage from '@modules/admin/ui/communications/CommunicationsAdminPage';
+import GlobalEventAnnouncementHistoryPage from '@modules/admin/ui/events/GlobalEventAnnouncementHistoryPage';
 
 type PageSearchParams = {
   cursor?: string | string[];
@@ -14,5 +14,5 @@ export default async function Page({
   searchParams?: PageSearchParams | Promise<PageSearchParams>;
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  return <CommunicationsAdminPage searchParams={resolvedSearchParams} />;
+  return <GlobalEventAnnouncementHistoryPage searchParams={resolvedSearchParams} />;
 }
