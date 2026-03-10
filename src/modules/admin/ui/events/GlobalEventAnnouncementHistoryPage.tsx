@@ -2,6 +2,8 @@ import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getGlobalEventAnnouncementHistory } from '@modules/admin/api/events/services/eventAnnouncementHistory.service';
 import EventAnnouncementHistory from '@modules/admin/ui/events/EventAnnouncementHistory';
+import ResendSentEmailHistory from '@modules/admin/ui/events/ResendSentEmailHistory';
+import { getResendSentEmailHistory } from '@modules/admin/api/events/services/resendSentEmailHistory.service';
 import { redirect } from 'next/navigation';
 
 export default async function GlobalEventAnnouncementHistoryPage() {
@@ -15,6 +17,7 @@ export default async function GlobalEventAnnouncementHistoryPage() {
   }
 
   const history = await getGlobalEventAnnouncementHistory();
+  const resendHistory = await getResendSentEmailHistory();
 
   return (
     <div className="space-y-5">
@@ -32,6 +35,8 @@ export default async function GlobalEventAnnouncementHistoryPage() {
         description="Incluye campañas de todos los eventos. El botón de reenvío solo intenta nuevamente las destinatarias fallidas de cada envío."
         showEventContext
       />
+
+      <ResendSentEmailHistory history={resendHistory} />
     </div>
   );
 }
