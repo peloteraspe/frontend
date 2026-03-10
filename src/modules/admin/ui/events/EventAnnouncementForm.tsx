@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState } from 'react';
+import { startTransition, useActionState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useFormStatus } from 'react-dom';
 import {
   sendEventAnnouncement,
@@ -46,8 +47,20 @@ export default function EventAnnouncementForm({
   defaultBody,
   recipientCount,
 }: Props) {
+  const router = useRouter();
+  const lastHandledMessageRef = useRef('');
   const [state, formAction] = useActionState(sendEventAnnouncement, INITIAL_EVENT_ANNOUNCEMENT_ACTION_STATE);
   const canSend = recipientCount > 0;
+
+  useEffect(() => {
+    if (!state.message || state.message === lastHandledMessageRef.current) return;
+    if (state.sentCount + state.failedCount <= 0) return;
+
+    lastHandledMessageRef.current = state.message;
+    startTransition(() => {
+      router.refresh();
+    });
+  }, [router, state.failedCount, state.message, state.sentCount]);
 
   return (
     <form action={formAction} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

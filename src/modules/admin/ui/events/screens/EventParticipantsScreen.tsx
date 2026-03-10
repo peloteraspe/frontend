@@ -5,7 +5,10 @@ import {
 import {
   getDefaultEventAnnouncementEmail,
 } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
+import { assertCanManageEvent } from '@modules/admin/api/events/services/eventPermissions.service';
+import { getEventAnnouncementHistory } from '@modules/admin/api/events/services/eventAnnouncementHistory.service';
 import EventAnnouncementForm from '@modules/admin/ui/events/EventAnnouncementForm';
+import EventAnnouncementHistory from '@modules/admin/ui/events/EventAnnouncementHistory';
 import { getEventById } from '@shared/lib/data/getEventById';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -27,10 +30,17 @@ function stateClasses(state: string) {
 }
 
 export default async function EventParticipantsScreen({ id }: { id: string }) {
+  try {
+    await assertCanManageEvent(id);
+  } catch {
+    redirect('/admin/events');
+  }
+
   const event = await getEventById(id);
   if (!event) redirect('/admin/events');
 
   const participants = await getParticipantContactsByEventId(id);
+  const history = await getEventAnnouncementHistory(id);
   const eventTitle = String(event.title || '').trim() || `Evento #${id}`;
   const approvedCount = participants.filter((participant) => participant.state === 'approved').length;
   const pendingCount = participants.filter((participant) => participant.state === 'pending').length;
@@ -112,6 +122,8 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
         defaultBody={defaults.body}
         recipientCount={recipients.length}
       />
+
+      <EventAnnouncementHistory history={history} />
     </div>
   );
 }

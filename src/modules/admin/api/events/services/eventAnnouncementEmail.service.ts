@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { randomUUID } from 'node:crypto';
+
 import { log } from '@core/lib/logger';
 
 type SendEventAnnouncementEmailInput = {
@@ -8,12 +10,29 @@ type SendEventAnnouncementEmailInput = {
   recipients: string[];
 };
 
+export type EventAnnouncementRecipientResult = {
+  email: string;
+  status: 'queued' | 'failed';
+  providerMessageId: string | null;
+  errorMessage: string | null;
+};
+
+export type SendEventAnnouncementEmailResult = {
+  sentCount: number;
+  failedCount: number;
+  recipientResults: EventAnnouncementRecipientResult[];
+};
+
 const DEFAULT_SITE_URL = 'https://peloteras.com';
 const DEFAULT_INSTAGRAM_URL = 'https://www.instagram.com/peloteraspe/';
 const DEFAULT_TIKTOK_URL = 'https://www.tiktok.com/@peloteras.com';
 const DEFAULT_SUPPORT_EMAIL = 'contacto@peloteras.com';
 const DEFAULT_FROM_EMAIL = 'Peloteras <contacto@peloteras.com>';
-const SEND_CHUNK_SIZE = 10;
+const SEND_BATCH_SIZE = 100;
+const INTER_BATCH_DELAY_MS = 150;
+const MAX_BATCH_ATTEMPTS = 4;
+const INITIAL_BACKOFF_MS = 400;
+const MAX_BACKOFF_MS = 5000;
 
 const DEFAULT_SUBJECT = '⚽ Actualización de tu evento en Peloteras';
 const DEFAULT_BODY = `Hola,
@@ -181,34 +200,171 @@ function buildEmailHtml(input: {
 </html>`;
 }
 
-async function sendEmailRequest(input: {
-  apiKey: string;
+type ResendBatchEmail = {
   from: string;
-  to: string;
+  to: string[];
   subject: string;
   html: string;
   text: string;
-}) {
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${input.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: input.from,
-      to: [input.to],
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-      reply_to: DEFAULT_SUPPORT_EMAIL,
-    }),
-  });
+  reply_to: string;
+};
 
-  if (!response.ok) {
-    const details = await response.text().catch(() => '');
-    throw new Error(details || `Resend respondió con ${response.status}.`);
+type ResendBatchResponse = {
+  data?: Array<{ id?: string }>;
+  errors?: Array<{
+    index?: number;
+    message?: string;
+  }>;
+};
+
+type SendBatchEmailRequestResult = {
+  queuedResults: Array<{
+    email: string;
+    providerMessageId: string | null;
+  }>;
+  failedResults: Array<{
+    email: string;
+    errorMessage: string;
+  }>;
+};
+
+async function wait(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function safeJsonParse<T>(value: string) {
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
   }
+}
+
+function getErrorMessage(details: string, status: number) {
+  const parsed = safeJsonParse<{ message?: string; error?: string }>(details);
+  if (parsed?.message?.trim()) return parsed.message.trim();
+  if (parsed?.error?.trim()) return parsed.error.trim();
+
+  const message = String(details || '').trim();
+  return message || `Resend respondió con ${status}.`;
+}
+
+function parseRetryAfterMs(value: string | null) {
+  if (!value) return null;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.max(Math.ceil(seconds * 1000), 1000);
+  }
+
+  const timestamp = Date.parse(value);
+  if (Number.isFinite(timestamp)) {
+    return Math.max(timestamp - Date.now(), 1000);
+  }
+
+  return null;
+}
+
+function getRetryDelayMs(attempt: number, retryAfterHeader: string | null) {
+  const retryAfterMs = parseRetryAfterMs(retryAfterHeader);
+  if (retryAfterMs !== null) return retryAfterMs;
+
+  const exponentialDelay = Math.min(INITIAL_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS);
+  const jitterMs = Math.floor(Math.random() * 250);
+  return exponentialDelay + jitterMs;
+}
+
+function isRetryableStatus(status: number) {
+  return status === 429 || status >= 500;
+}
+
+async function sendBatchEmailRequest(input: {
+  apiKey: string;
+  emails: ResendBatchEmail[];
+  batchNumber: number;
+}): Promise<SendBatchEmailRequestResult> {
+  const idempotencyKey = `event-announcement-${randomUUID()}`;
+
+  for (let attempt = 1; attempt <= MAX_BATCH_ATTEMPTS; attempt += 1) {
+    let response: Response;
+
+    try {
+      response = await fetch('https://api.resend.com/emails/batch', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${input.apiKey}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify(input.emails),
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error || 'Unknown error');
+      if (attempt >= MAX_BATCH_ATTEMPTS) {
+        throw new Error(reason);
+      }
+
+      const delayMs = getRetryDelayMs(attempt, null);
+      log.warn('Retrying event announcement batch after network error', 'EMAIL', {
+        batchNumber: input.batchNumber,
+        batchSize: input.emails.length,
+        attempt,
+        delayMs,
+        reason,
+      });
+      await wait(delayMs);
+      continue;
+    }
+
+    const details = await response.text().catch(() => '');
+    if (!response.ok) {
+      const reason = getErrorMessage(details, response.status);
+      if (isRetryableStatus(response.status) && attempt < MAX_BATCH_ATTEMPTS) {
+        const delayMs = getRetryDelayMs(attempt, response.headers.get('Retry-After'));
+        log.warn('Retrying event announcement batch after provider response', 'EMAIL', {
+          batchNumber: input.batchNumber,
+          batchSize: input.emails.length,
+          attempt,
+          delayMs,
+          status: response.status,
+          reason,
+        });
+        await wait(delayMs);
+        continue;
+      }
+
+      throw new Error(reason);
+    }
+
+    const parsed = safeJsonParse<ResendBatchResponse>(details) ?? {};
+    const errors = Array.isArray(parsed.errors) ? parsed.errors : [];
+    const failedIndexes = new Set<number>();
+    const failedResults = errors.map((error, resultIndex) => {
+      const recipientIndex = Number(error?.index);
+      const fallbackIndex = Number.isInteger(recipientIndex) ? recipientIndex : resultIndex;
+      failedIndexes.add(fallbackIndex);
+      return {
+        email: input.emails[fallbackIndex]?.to[0] || '',
+        errorMessage: String(error?.message || 'Unknown batch error'),
+      };
+    });
+
+    const queuedEmails = input.emails.filter((_, index) => !failedIndexes.has(index));
+    const providerIds = Array.isArray(parsed.data) ? parsed.data : [];
+    const queuedResults = queuedEmails.map((email, index) => ({
+      email: email.to[0] || '',
+      providerMessageId: String(providerIds[index]?.id || '').trim() || null,
+    }));
+
+    return {
+      queuedResults,
+      failedResults,
+    };
+  }
+
+  throw new Error('No se pudo enviar el lote de correos.');
 }
 
 export function getDefaultEventAnnouncementEmail() {
@@ -218,7 +374,9 @@ export function getDefaultEventAnnouncementEmail() {
   };
 }
 
-export async function sendEventAnnouncementEmail(input: SendEventAnnouncementEmailInput) {
+export async function sendEventAnnouncementEmail(
+  input: SendEventAnnouncementEmailInput
+): Promise<SendEventAnnouncementEmailResult> {
   const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
 
   if (!resendApiKey) {
@@ -227,7 +385,7 @@ export async function sendEventAnnouncementEmail(input: SendEventAnnouncementEma
 
   const normalizedBody = normalizeBodyText(input.body).trim();
   if (!normalizedBody) {
-    return { sentCount: 0, failedCount: 0 };
+    return { sentCount: 0, failedCount: 0, recipientResults: [] };
   }
 
   const recipients = Array.from(
@@ -239,7 +397,7 @@ export async function sendEventAnnouncementEmail(input: SendEventAnnouncementEma
   );
 
   if (!recipients.length) {
-    return { sentCount: 0, failedCount: 0 };
+    return { sentCount: 0, failedCount: 0, recipientResults: [] };
   }
 
   const homeUrl = resolveBaseUrl();
@@ -255,35 +413,101 @@ export async function sendEventAnnouncementEmail(input: SendEventAnnouncementEma
 
   let sentCount = 0;
   let failedCount = 0;
+  const recipientResults: EventAnnouncementRecipientResult[] = [];
 
-  for (let index = 0; index < recipients.length; index += SEND_CHUNK_SIZE) {
-    const chunk = recipients.slice(index, index + SEND_CHUNK_SIZE);
-    const results = await Promise.allSettled(
-      chunk.map((email) =>
-        sendEmailRequest({
-          apiKey: resendApiKey,
+  for (let index = 0; index < recipients.length; index += SEND_BATCH_SIZE) {
+    const chunk = recipients.slice(index, index + SEND_BATCH_SIZE);
+    const batchNumber = Math.floor(index / SEND_BATCH_SIZE) + 1;
+
+    try {
+      const result = await sendBatchEmailRequest({
+        apiKey: resendApiKey,
+        batchNumber,
+        emails: chunk.map((email) => ({
           from: DEFAULT_FROM_EMAIL,
-          to: email,
+          to: [email],
           subject: input.subject,
           html,
           text: normalizedBody,
-        })
-      )
-    );
-
-    results.forEach((result, resultIndex) => {
-      const recipient = chunk[resultIndex];
-      if (result.status === 'fulfilled') {
-        sentCount += 1;
-        return;
-      }
-
-      failedCount += 1;
-      log.warn('Event announcement email failed for recipient', 'EMAIL', {
-        recipient,
-        reason: result.reason instanceof Error ? result.reason.message : String(result.reason || ''),
+          reply_to: DEFAULT_SUPPORT_EMAIL,
+        })),
       });
-    });
+
+      sentCount += result.queuedResults.length;
+      failedCount += result.failedResults.length;
+
+      result.queuedResults.forEach((queued) => {
+        recipientResults.push({
+          email: queued.email,
+          status: 'queued',
+          providerMessageId: queued.providerMessageId,
+          errorMessage: null,
+        });
+      });
+
+      result.failedResults.forEach((failed) => {
+        recipientResults.push({
+          email: failed.email,
+          status: 'failed',
+          providerMessageId: null,
+          errorMessage: failed.errorMessage,
+        });
+
+        log.warn('Event announcement email failed for recipient in batch', 'EMAIL', {
+          batchNumber,
+          recipient: failed.email || 'Desconocido',
+          reason: failed.errorMessage,
+        });
+      });
+
+      const accountedCount = result.queuedResults.length + result.failedResults.length;
+      if (accountedCount < chunk.length) {
+        const accountedEmails = new Set(
+          [...result.queuedResults.map((item) => item.email), ...result.failedResults.map((item) => item.email)].filter(
+            Boolean
+          )
+        );
+
+        chunk
+          .filter((email) => !accountedEmails.has(email))
+          .forEach((email) => {
+            failedCount += 1;
+            recipientResults.push({
+              email,
+              status: 'failed',
+              providerMessageId: null,
+              errorMessage: 'Resend no devolvió resultado para esta destinataria.',
+            });
+          });
+
+        log.warn('Event announcement batch completed with unaccounted recipients', 'EMAIL', {
+          batchNumber,
+          batchSize: chunk.length,
+          queuedCount: result.queuedResults.length,
+          errorCount: result.failedResults.length,
+          missingCount: chunk.length - accountedCount,
+        });
+      }
+    } catch (error) {
+      failedCount += chunk.length;
+      chunk.forEach((email) => {
+        recipientResults.push({
+          email,
+          status: 'failed',
+          providerMessageId: null,
+          errorMessage: error instanceof Error ? error.message : String(error || 'Unknown error'),
+        });
+      });
+      log.warn('Event announcement batch failed', 'EMAIL', {
+        batchNumber,
+        batchSize: chunk.length,
+        reason: error instanceof Error ? error.message : String(error || ''),
+      });
+    }
+
+    if (index + SEND_BATCH_SIZE < recipients.length) {
+      await wait(INTER_BATCH_DELAY_MS);
+    }
   }
 
   log.info('Event announcement email completed', 'EMAIL', {
@@ -293,5 +517,5 @@ export async function sendEventAnnouncementEmail(input: SendEventAnnouncementEma
     failedCount,
   });
 
-  return { sentCount, failedCount };
+  return { sentCount, failedCount, recipientResults };
 }
