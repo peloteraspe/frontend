@@ -3,18 +3,17 @@
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import {
-  sendEventAnnouncement,
-  type EventAnnouncementActionState,
-} from '@modules/admin/api/events/communications/_actions';
+  sendUsersBroadcast,
+  type UsersBroadcastActionState,
+} from '@modules/admin/api/users/communications/_actions';
 
 type Props = {
-  eventId: string;
   defaultSubject: string;
   defaultBody: string;
   recipientCount: number;
 };
 
-const INITIAL_EVENT_ANNOUNCEMENT_ACTION_STATE: EventAnnouncementActionState = {
+const INITIAL_USERS_BROADCAST_ACTION_STATE: UsersBroadcastActionState = {
   status: 'idle',
   message: '',
   sentCount: 0,
@@ -35,50 +34,41 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
           : 'bg-mulberry hover:bg-mulberry/90',
       ].join(' ')}
     >
-      {pending ? 'Enviando...' : 'Enviar correo'}
+      {pending ? 'Enviando...' : 'Enviar correo a todas'}
     </button>
   );
 }
 
-export default function EventAnnouncementForm({
-  eventId,
-  defaultSubject,
-  defaultBody,
-  recipientCount,
-}: Props) {
-  const [state, formAction] = useActionState(sendEventAnnouncement, INITIAL_EVENT_ANNOUNCEMENT_ACTION_STATE);
+export default function UsersBroadcastForm({ defaultSubject, defaultBody, recipientCount }: Props) {
+  const [state, formAction] = useActionState(sendUsersBroadcast, INITIAL_USERS_BROADCAST_ACTION_STATE);
   const canSend = recipientCount > 0;
 
   return (
     <form action={formAction} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <input type="hidden" name="eventId" value={eventId} readOnly />
-
       <div className="mb-4 flex flex-col gap-2">
-        <h3 className="text-lg font-semibold text-mulberry">Enviar correo a inscritas</h3>
+        <h3 className="text-lg font-semibold text-mulberry">Enviar correo a todas las usuarias</h3>
         <p className="text-sm text-slate-600">
-          Tu mensaje se enviará con el template oficial a las inscritas con pago pendiente o aprobado.
+          Escribe el mensaje que quieras comunicar. Se enviará con el template oficial de Peloteras.
         </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-1">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Destinatarias</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">{recipientCount}</p>
-        </div>
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Destinatarias</p>
+        <p className="mt-1 text-2xl font-bold text-slate-900">{recipientCount}</p>
       </div>
 
       {recipientCount === 0 ? (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          No hay inscritas activas con correo para este evento.
+          No hay usuarias con correo válido para enviar.
         </div>
       ) : null}
 
       <div className="mt-4">
-        <label htmlFor="event-announcement-subject" className="mb-2 block text-sm font-semibold text-slate-800">
+        <label htmlFor="users-broadcast-subject" className="mb-2 block text-sm font-semibold text-slate-800">
           Asunto
         </label>
         <input
-          id="event-announcement-subject"
+          id="users-broadcast-subject"
           name="subject"
           type="text"
           defaultValue={defaultSubject}
@@ -87,14 +77,14 @@ export default function EventAnnouncementForm({
       </div>
 
       <div className="mt-4">
-        <label htmlFor="event-announcement-body" className="mb-2 block text-sm font-semibold text-slate-800">
+        <label htmlFor="users-broadcast-body" className="mb-2 block text-sm font-semibold text-slate-800">
           Contenido
         </label>
         <textarea
-          id="event-announcement-body"
+          id="users-broadcast-body"
           name="body"
           defaultValue={defaultBody}
-          rows={16}
+          rows={14}
           className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-mulberry focus:ring-2 focus:ring-mulberry/20"
         />
         <p className="mt-2 text-xs text-slate-500">

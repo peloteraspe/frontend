@@ -4,7 +4,6 @@ import {
 } from '@modules/admin/api/events/services/eventParticipants.service';
 import {
   getDefaultEventAnnouncementEmail,
-  isEventAnnouncementEmailConfigured,
 } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
 import EventAnnouncementForm from '@modules/admin/ui/events/EventAnnouncementForm';
 import { getEventById } from '@shared/lib/data/getEventById';
@@ -112,7 +111,6 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
         defaultSubject={defaults.subject}
         defaultBody={defaults.body}
         recipientCount={recipients.length}
-        providerReady={isEventAnnouncementEmailConfigured()}
       />
     </div>
   );

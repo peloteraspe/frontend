@@ -2,6 +2,23 @@ import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getAdminUsersList, setAdminRoleByUserId } from '@modules/admin/api/users/services/adminUsers.service';
+import UsersBroadcastPanel from '@modules/admin/ui/users/UsersBroadcastPanel';
+
+const USERS_BROADCAST_DEFAULT_SUBJECT = '📣 Novedades de Peloteras';
+const USERS_BROADCAST_DEFAULT_BODY = `Hola,
+
+Queremos compartirte una actualización de Peloteras.
+
+[Escribe aquí tu mensaje para todas las usuarias.]
+
+Gracias por ser parte de esta comunidad 💜⚽
+
+Equipo Peloteras
+Conectando mujeres y disidencias a través del fútbol`;
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 export default async function UsersAdminScreen() {
   const supabase = await getServerSupabase();
@@ -11,6 +28,13 @@ export default async function UsersAdminScreen() {
 
   const canManageAdmins = isSuperAdmin(user as any);
   const users = await getAdminUsersList();
+  const recipientCount = Array.from(
+    new Set(
+      users
+        .map((row) => String(row.email || '').trim().toLowerCase())
+        .filter((email) => isValidEmail(email))
+    )
+  ).length;
 
   async function handleToggleAdmin(formData: FormData) {
     'use server';
@@ -43,6 +67,16 @@ export default async function UsersAdminScreen() {
       {!canManageAdmins ? (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Solo superadmin puede activar o desactivar permisos admin.
+        </div>
+      ) : null}
+
+      {canManageAdmins ? (
+        <div className="mb-5">
+          <UsersBroadcastPanel
+            defaultSubject={USERS_BROADCAST_DEFAULT_SUBJECT}
+            defaultBody={USERS_BROADCAST_DEFAULT_BODY}
+            recipientCount={recipientCount}
+          />
         </div>
       ) : null}
 

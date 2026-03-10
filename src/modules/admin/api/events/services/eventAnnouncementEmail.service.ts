@@ -12,24 +12,19 @@ const DEFAULT_SITE_URL = 'https://peloteras.com';
 const DEFAULT_INSTAGRAM_URL = 'https://www.instagram.com/peloteraspe/';
 const DEFAULT_TIKTOK_URL = 'https://www.tiktok.com/@peloteras.com';
 const DEFAULT_SUPPORT_EMAIL = 'contacto@peloteras.com';
+const DEFAULT_FROM_EMAIL = 'Peloteras <contacto@peloteras.com>';
 const SEND_CHUNK_SIZE = 10;
 
-const DEFAULT_SUBJECT = '⚽💜 Actualización sobre el lanzamiento de Peloteras';
+const DEFAULT_SUBJECT = '⚽ Actualización de tu evento en Peloteras';
 const DEFAULT_BODY = `Hola,
 
-Queríamos contarles una pequeña actualización sobre el evento de lanzamiento de Peloteras.
+Queremos contarte una actualización sobre el evento en el que te inscribiste.
 
-El evento de pichanga que estábamos organizando cambiará de fecha y de lugar. Estamos ajustando algunos detalles porque queremos preparar algo realmente lindo para celebrar el inicio de esta comunidad y que sea una experiencia especial para todas.
+[Escribe aquí el mensaje principal para las inscritas.]
 
-Por eso, muy pronto estaremos anunciando la nueva convocatoria oficial con todos los detalles del evento.
-
-⚽ Publicaremos la convocatoria en nuestras redes
-⚽ Compartiremos la nueva fecha y el nuevo lugar
-⚽ Invitaremos a todas a sumarse para formar equipos y disfrutar una gran tarde de fútbol
-
-Si ya te habías inscrito o estabas pensando en participar, ¡gracias por el entusiasmo! Nos emociona mucho ver que esta comunidad ya está empezando a crecer.
-
-Te recomendamos estar atenta a nuestras redes para enterarte primero cuando abramos la convocatoria.
+⚽ Fecha y hora: [completa aquí]
+⚽ Lugar: [completa aquí]
+⚽ Detalles importantes: [completa aquí]
 
 Nos vemos pronto en la cancha 💜⚽
 
@@ -62,9 +57,17 @@ function resolveBaseUrl() {
   return normalizeUrl(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL, DEFAULT_SITE_URL);
 }
 
+function normalizeBodyText(body: string) {
+  return String(body || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u2028|\u2029/g, '\n');
+}
+
 function getBodyBlocks(body: string) {
-  return body
-    .split(/\n{2,}/)
+  const normalizedBody = normalizeBodyText(body);
+
+  return normalizedBody
+    .split(/\n\s*\n+/)
     .map((block) => block.trim())
     .filter(Boolean)
     .map((block) => {
@@ -215,16 +218,16 @@ export function getDefaultEventAnnouncementEmail() {
   };
 }
 
-export function isEventAnnouncementEmailConfigured() {
-  return Boolean(String(process.env.RESEND_API_KEY || '').trim() && String(process.env.EMAIL_FROM || '').trim());
-}
-
 export async function sendEventAnnouncementEmail(input: SendEventAnnouncementEmailInput) {
   const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
-  const from = String(process.env.EMAIL_FROM || '').trim();
 
-  if (!resendApiKey || !from) {
-    throw new Error('Faltan RESEND_API_KEY o EMAIL_FROM para enviar correos.');
+  if (!resendApiKey) {
+    throw new Error('No se pudo enviar el correo en este momento. Inténtalo nuevamente.');
+  }
+
+  const normalizedBody = normalizeBodyText(input.body).trim();
+  if (!normalizedBody) {
+    return { sentCount: 0, failedCount: 0 };
   }
 
   const recipients = Array.from(
@@ -244,7 +247,7 @@ export async function sendEventAnnouncementEmail(input: SendEventAnnouncementEma
   const tiktokUrl = normalizeUrl(process.env.NEXT_PUBLIC_TIKTOK_URL, DEFAULT_TIKTOK_URL);
   const html = buildEmailHtml({
     subject: input.subject,
-    body: input.body,
+    body: normalizedBody,
     homeUrl,
     instagramUrl,
     tiktokUrl,
@@ -259,11 +262,11 @@ export async function sendEventAnnouncementEmail(input: SendEventAnnouncementEma
       chunk.map((email) =>
         sendEmailRequest({
           apiKey: resendApiKey,
-          from,
+          from: DEFAULT_FROM_EMAIL,
           to: email,
           subject: input.subject,
           html,
-          text: input.body,
+          text: normalizedBody,
         })
       )
     );

@@ -13,13 +13,6 @@ export type EventAnnouncementActionState = {
   failedCount: number;
 };
 
-export const initialEventAnnouncementActionState: EventAnnouncementActionState = {
-  status: 'idle',
-  message: '',
-  sentCount: 0,
-  failedCount: 0,
-};
-
 async function assertCanManageEvent(eventId: string) {
   const supabase = await getServerSupabase();
   const {

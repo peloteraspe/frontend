@@ -23,6 +23,10 @@ export type AdminUserListItem = {
   isSuperAdmin: boolean;
 };
 
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 function normalizeName(user: AuthUserLite, profileByUserId: Map<string, string>) {
   const profileName = profileByUserId.get(user.id);
   if (profileName) return profileName;
@@ -137,4 +141,16 @@ export async function setAdminRoleByUserId(userId: string, enableAdmin: boolean)
     user_metadata: nextUserMetadata,
   });
   if (updateError) throw new Error(updateError.message);
+}
+
+export async function getAllUserEmailsForBroadcast(): Promise<string[]> {
+  const authUsers = await listAllAuthUsers();
+
+  return Array.from(
+    new Set(
+      authUsers
+        .map((user) => String(user?.email || '').trim().toLowerCase())
+        .filter((email) => isValidEmail(email))
+    )
+  ).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 }

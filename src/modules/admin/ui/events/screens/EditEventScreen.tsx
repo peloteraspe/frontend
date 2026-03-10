@@ -7,6 +7,8 @@ import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
+import { getDefaultEventAnnouncementEmail } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
+import { getParticipantContactsByEventId } from '@modules/admin/api/events/services/eventParticipants.service';
 
 export default async function EditEventScreen({ id }: { id: string }) {
   const supabase = await getServerSupabase();
@@ -17,7 +19,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
 
   const event = await getEventById(id);
   if (!event) redirect('/admin/events');
-  const [catalogs, featuresRes, eventFeaturesRes, paymentMethodsRes, eventPaymentMethodsRes] =
+  const [catalogs, featuresRes, eventFeaturesRes, paymentMethodsRes, eventPaymentMethodsRes, participants] =
     await Promise.all([
       getEventCatalogs(),
       supabase.from('features').select('id,name').order('name', { ascending: true }),
@@ -29,6 +31,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
         .order('is_active', { ascending: false })
         .order('created_at', { ascending: false }),
       supabase.from('eventPaymentMethod').select('paymentMethod').eq('event', id),
+      getParticipantContactsByEventId(id, ['pending', 'approved']),
     ]);
 
   if (featuresRes.error) throw new Error(featuresRes.error.message);
@@ -74,6 +77,9 @@ export default async function EditEventScreen({ id }: { id: string }) {
         .filter((value) => Number.isInteger(value) && value > 0 && availablePaymentMethodIds.has(value))
     )
   );
+  const announcementDefaults = getDefaultEventAnnouncementEmail();
+  const recipientCount = participants.filter((participant) => participant.email && participant.email !== 'Sin correo')
+    .length;
 
   async function handleUpdate(fd: FormData) {
     'use server';
@@ -123,6 +129,12 @@ export default async function EditEventScreen({ id }: { id: string }) {
           isFeatured: Boolean(event.is_featured),
         }}
         canManageFeatured={canManageFeatured}
+        postEditAnnouncement={{
+          eventId: id,
+          defaultSubject: announcementDefaults.subject,
+          defaultBody: announcementDefaults.body,
+          recipientCount,
+        }}
       />
     </div>
   );

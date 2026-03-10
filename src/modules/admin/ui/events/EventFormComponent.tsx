@@ -8,6 +8,7 @@ import Map, { MapRef, Marker, NavigationControl } from 'react-map-gl/mapbox';
 import { CatalogOption } from '@modules/events/model/types';
 import { useRouter } from 'next/navigation';
 import EventShareModal, { EventShareModalStatus } from '@modules/admin/ui/events/EventShareModal';
+import EventAnnouncementForm from '@modules/admin/ui/events/EventAnnouncementForm';
 
 type SubmitResult = {
   eventId?: string | number;
@@ -41,6 +42,12 @@ type Props = {
   submitLabel: string;
   canManageFeatured?: boolean;
   successRedirectTo?: string;
+  postEditAnnouncement?: {
+    eventId: string;
+    defaultSubject: string;
+    defaultBody: string;
+    recipientCount: number;
+  };
 };
 
 const DEFAULT_LAT = -12.0464;
@@ -179,6 +186,7 @@ const EventForm = ({
   submitLabel,
   canManageFeatured = false,
   successRedirectTo,
+  postEditAnnouncement,
 }: Props) => {
   const router = useRouter();
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -186,6 +194,7 @@ const EventForm = ({
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showPostEditAnnouncementModal, setShowPostEditAnnouncementModal] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [shareTitle, setShareTitle] = useState('');
   const [startTime, setStartTime] = useState(initial?.startTime ?? '');
@@ -441,6 +450,7 @@ const EventForm = ({
     setSubmitMessage('');
     setShareUrl('');
     setShareTitle('');
+    setShowPostEditAnnouncementModal(false);
     if (isCreateMode) {
       setShowCreateModal(true);
     }
@@ -468,6 +478,9 @@ const EventForm = ({
       } else {
         setSubmitStatus('success');
         setSubmitMessage('Evento guardado con éxito.');
+        if (postEditAnnouncement) {
+          setShowPostEditAnnouncementModal(true);
+        }
       }
     } catch (error: any) {
       setSubmitStatus('error');
@@ -492,6 +505,21 @@ const EventForm = ({
     return 'success';
   }, [pending, submitStatus]);
 
+  useEffect(() => {
+    if (!showPostEditAnnouncementModal) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowPostEditAnnouncementModal(false);
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showPostEditAnnouncementModal]);
+
   return (
     <>
       <form
@@ -507,7 +535,7 @@ const EventForm = ({
           name="description"
           defaultValue={initial?.description ?? ''}
           rows={4}
-          className="w-full rounded-lg border-2 border-mulberry bg-white px-4 py-2"
+          className="w-full rounded-lg border-2 border-mulberry bg-white px-4 py-3 text-slate-900 focus:outline-none focus:border-mulberry focus:ring-0"
           required
         />
       </label>
@@ -876,6 +904,51 @@ const EventForm = ({
           shareUrl={shareUrl}
           onClose={handleCloseCreateModal}
         />
+      ) : null}
+
+      {!isCreateMode && postEditAnnouncement && showPostEditAnnouncementModal ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/70 px-4 backdrop-blur-[2px]"
+          onClick={() => setShowPostEditAnnouncementModal(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="post-edit-announcement-title"
+            className="relative w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white text-left shadow-[0_30px_80px_-30px_rgba(15,23,42,0.6)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              aria-label="Cerrar"
+              className="absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+              onClick={() => setShowPostEditAnnouncementModal(false)}
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="max-h-[88vh] overflow-y-auto p-5 sm:p-6">
+              <div className="mb-3 rounded-2xl border border-mulberry/20 bg-mulberry/5 px-4 py-3">
+                <p id="post-edit-announcement-title" className="text-sm font-semibold text-mulberry">
+                  Comunicado para inscritas
+                </p>
+                <p className="mt-1 text-sm text-slate-700">
+                  Puedes usar el mensaje base y ajustar solo los detalles del evento. Todo lo que escribas en el box
+                  se enviará con el template de correo de Peloteras.
+                </p>
+              </div>
+
+              <EventAnnouncementForm
+                eventId={postEditAnnouncement.eventId}
+                defaultSubject={postEditAnnouncement.defaultSubject}
+                defaultBody={postEditAnnouncement.defaultBody}
+                recipientCount={postEditAnnouncement.recipientCount}
+              />
+            </div>
+          </div>
+        </div>
       ) : null}
     </>
   );
