@@ -1,6 +1,7 @@
 // src/modules/payments/ui/screens/PaymentPage.tsx
 import PaymentStepper from '../PaymentStepper/PaymentStepperComponent';
 import {
+  EVENT_NOT_AVAILABLE,
   getPaymentPageData,
   PAYMENT_METHOD_NOT_CONFIGURED,
 } from '@modules/payments/api/queries/getPaymentPageData';
@@ -19,6 +20,29 @@ export default async function PaymentPage({ id }: { id: string }) {
   }
 
   if (!data) {
+    if (loadError instanceof Error && loadError.message === EVENT_NOT_AVAILABLE) {
+      return (
+        <section className="mx-auto w-full max-w-2xl px-4 py-10">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+            <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+              Próximamente
+            </span>
+            <h1 className="mt-3 text-2xl font-bold text-[#54086F]">Inscripción temporalmente cerrada</h1>
+            <p className="mt-3 text-sm text-slate-700 sm:text-base">
+              Este evento no está disponible públicamente por el momento.
+            </p>
+
+            <Link
+              href="/events"
+              className="mt-6 inline-flex h-11 items-center justify-center rounded-xl border border-btnBg-light px-4 text-sm font-semibold text-btnBg-light transition hover:bg-btnBg-light hover:text-white"
+            >
+              Volver a eventos
+            </Link>
+          </div>
+        </section>
+      );
+    }
+
     if (loadError instanceof Error && loadError.message === PAYMENT_METHOD_NOT_CONFIGURED) {
       return (
         <section className="mx-auto w-full max-w-2xl px-4 py-10">

@@ -16,6 +16,7 @@ export type EventUpsertInput = {
   levelId: number;
   featureIds: number[];
   paymentMethodIds: number[];
+  isPublished: boolean;
   isFeatured: boolean;
 };
 
@@ -75,6 +76,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     levelId: parseNumber(fd.get('levelId'), 1),
     featureIds: parseNumberList(fd.getAll('featureIds')),
     paymentMethodIds: parseNumberList(fd.getAll('paymentMethodIds')),
+    isPublished: parseBoolean(fd.get('isPublished')),
     isFeatured: parseBoolean(fd.get('isFeatured')),
   };
 }

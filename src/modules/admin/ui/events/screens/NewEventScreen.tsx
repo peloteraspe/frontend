@@ -78,6 +78,7 @@ export default async function NewEventScreen() {
           levelId: catalogs.levels[0]?.id ?? 1,
           featureIds: [],
           paymentMethodIds: [],
+          isPublished: true,
         }}
         canManageFeatured={canManageFeatured}
         successRedirectTo="/admin/events"

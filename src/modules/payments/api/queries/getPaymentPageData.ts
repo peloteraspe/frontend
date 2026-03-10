@@ -7,6 +7,7 @@ export type PaymentPageData = {
 };
 
 export const PAYMENT_METHOD_NOT_CONFIGURED = 'PAYMENT_METHOD_NOT_CONFIGURED';
+export const EVENT_NOT_AVAILABLE = 'EVENT_NOT_AVAILABLE';
 
 export async function getPaymentPageData(id: string) {
   const supabase = await getServerSupabase();
@@ -19,6 +20,10 @@ export async function getPaymentPageData(id: string) {
 
   if (eventError || !event) {
     throw new Error('Event not found');
+  }
+
+  if (event.is_published === false) {
+    throw new Error(EVENT_NOT_AVAILABLE);
   }
 
   const { data: links, error: linksError } = await supabase

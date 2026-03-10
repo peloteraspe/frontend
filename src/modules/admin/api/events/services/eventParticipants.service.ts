@@ -17,6 +17,7 @@ export type EventParticipant = {
   userId: string;
   name: string;
   email: string;
+  state: string;
 };
 
 function normalizeId(value: unknown) {
@@ -118,30 +119,42 @@ async function getAuthUsersByIds(userIds: string[]) {
 }
 
 export async function getApprovedParticipantsByEventId(eventId: string): Promise<EventParticipant[]> {
+  return getParticipantContactsByEventId(eventId, ['approved']);
+}
+
+export async function getParticipantContactsByEventId(
+  eventId: string,
+  allowedStates: string[] = ['pending', 'approved']
+): Promise<EventParticipant[]> {
   const normalizedEventId = normalizeId(eventId);
   if (!normalizedEventId) return [];
+  const allowedStateSet = new Set(
+    allowedStates.map((state) => String(state || '').trim().toLowerCase()).filter(Boolean)
+  );
 
   const supabase = await getServerSupabase();
   const { data: assistants, error: assistantsError } = await supabase
     .from('assistants')
-    .select('user')
+    .select('id,user,state')
     .eq('event', normalizedEventId)
-    .eq('state', 'approved');
+    .order('id', { ascending: false });
 
   if (assistantsError) {
-    log.database('SELECT approved participants by event', 'assistants', assistantsError, {
+    log.database('SELECT participants by event', 'assistants', assistantsError, {
       eventId: normalizedEventId,
     });
     return [];
   }
 
-  const userIds = Array.from(
-    new Set(
-      (assistants ?? [])
-        .map((assistant: any) => normalizeId(assistant?.user))
-        .filter((userId) => userId.length > 0)
-    )
-  );
+  const assistantsByUserId = new Map<string, string>();
+  (assistants ?? []).forEach((assistant: any) => {
+    const userId = normalizeId(assistant?.user);
+    const state = normalizeName(assistant?.state).toLowerCase();
+    if (!userId || !state || !allowedStateSet.has(state) || assistantsByUserId.has(userId)) return;
+    assistantsByUserId.set(userId, state);
+  });
+
+  const userIds = Array.from(assistantsByUserId.keys());
   if (!userIds.length) return [];
 
   const [profilesRes, authUsersById] = await Promise.all([
@@ -178,6 +191,7 @@ export async function getApprovedParticipantsByEventId(eventId: string): Promise
           email,
         }),
         email: email || 'Sin correo',
+        state: assistantsByUserId.get(userId) || '',
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));

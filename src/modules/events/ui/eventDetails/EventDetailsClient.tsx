@@ -126,6 +126,7 @@ export default function EventDetailsClient({ data }: Props) {
     'Partido'
   );
   const isVersus = isVersusEventTypeName(eventTypeName);
+  const isPublished = event?.is_published !== false;
 
   const startTimeIso = event?.start_time ?? event?.startTime ?? null;
   const startDate = startTimeIso ? new Date(startTimeIso) : null;
@@ -232,7 +233,7 @@ export default function EventDetailsClient({ data }: Props) {
       event_id: String(event.id),
       ref_user: user?.id ? String(user.id) : null,
       event_type: eventTypeName,
-      registration_closed: isRegistrationClosed,
+      registration_closed: !isPublished || isRegistrationClosed,
     });
   };
 
@@ -284,6 +285,11 @@ export default function EventDetailsClient({ data }: Props) {
       return;
     }
 
+    if (!isPublished) {
+      toast('La convocatoria de este evento será anunciada próximamente.');
+      return;
+    }
+
     if (!user) {
       const nextPath = `/events/${event.id}`;
       router.push(
@@ -328,7 +334,7 @@ export default function EventDetailsClient({ data }: Props) {
         <main className="order-2 space-y-6 lg:order-1">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
             <h1 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">{eventTitle}</h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">{eventDescription}</p>
+            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-600">{eventDescription}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Fecha</p>
@@ -412,7 +418,11 @@ export default function EventDetailsClient({ data }: Props) {
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
             <div className="space-y-4">
-              <Collapse title="Descripción" content={eventDescription} defaultOpen />
+              <Collapse
+                title="Descripción"
+                content={<p className="whitespace-pre-line leading-6">{eventDescription}</p>}
+                defaultOpen
+              />
               <Collapse
                 title="Extras"
                 content={
@@ -494,6 +504,11 @@ export default function EventDetailsClient({ data }: Props) {
               </div>
 
               <div className="mt-5">
+                {!isPublished && (
+                  <p className="mb-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800">
+                    Este evento está en borrador. La convocatoria se anunciará próximamente.
+                  </p>
+                )}
                 {isRegistrationClosed && (
                   <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
                     Inscripciones cerradas: este evento ya pasó.
@@ -503,10 +518,12 @@ export default function EventDetailsClient({ data }: Props) {
                   onClick={handleJoinClick}
                   icon={<Image src={arrowAnotarse} alt="arrow" width={24} height={24} />}
                   className="!my-0"
-                  disabled={isRegistrationClosed}
+                  disabled={isRegistrationClosed || !isPublished}
                 >
                   {isRegistrationClosed
                     ? 'Evento finalizado'
+                    : !isPublished
+                    ? 'Próximamente'
                     : isVersus
                     ? 'Anotar a mi equipo'
                     : 'Anotarme'}

@@ -23,6 +23,7 @@ export type EventEntity = {
   levelName: string;
   createdBy: string;
   createdById: string | null;
+  isPublished: boolean;
   isFeatured: boolean;
   distanceKm?: number;
 };
