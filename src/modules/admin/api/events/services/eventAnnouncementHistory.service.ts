@@ -22,6 +22,8 @@ export type EventAnnouncementHistoryFailure = {
 export type EventAnnouncementHistoryItem = {
   id: number;
   createdAt: string;
+  eventId: number | null;
+  eventTitle: string | null;
   subject: string;
   totalRecipients: number;
   sentCount: number;
@@ -189,6 +191,8 @@ export async function getEventAnnouncementHistory(eventId: string, limit = 8): P
   return announcementRows.map((row) => ({
     id: Number(row.id),
     createdAt: String(row.created_at || ''),
+    eventId: numericEventId,
+    eventTitle: null,
     subject: String(row.subject || '').trim(),
     totalRecipients: Number(row.total_recipients || 0),
     sentCount: Number(row.sent_count || 0),
@@ -198,6 +202,95 @@ export async function getEventAnnouncementHistory(eventId: string, limit = 8): P
     canRetryFailed: Number(row.failed_count || 0) > 0 && !sourceAnnouncementIds.has(Number(row.id)),
     failedRecipients: failuresByAnnouncementId.get(Number(row.id)) ?? [],
   }));
+}
+
+export async function getGlobalEventAnnouncementHistory(limit = 30): Promise<EventAnnouncementHistoryItem[]> {
+  const adminSupabase = getAdminSupabase();
+
+  const { data: announcements, error: announcementsError } = await adminSupabase
+    .from('event_announcement')
+    .select(
+      'id, created_at, event_id, subject, total_recipients, sent_count, failed_count, status, source_announcement_id, event(title)'
+    )
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (announcementsError) {
+    log.database('SELECT global event announcements', 'event_announcement', announcementsError);
+    return [];
+  }
+
+  const announcementRows = (announcements ?? []) as Array<{
+    id: number;
+    created_at: string;
+    event_id: number | null;
+    subject: string;
+    total_recipients: number;
+    sent_count: number;
+    failed_count: number;
+    status: 'completed' | 'partial' | 'failed';
+    source_announcement_id: number | null;
+    event?: { title?: string | null } | Array<{ title?: string | null }> | null;
+  }>;
+
+  if (!announcementRows.length) return [];
+
+  const announcementIds = announcementRows.map((row) => Number(row.id)).filter((id) => Number.isInteger(id) && id > 0);
+  const sourceAnnouncementIds = new Set(
+    announcementRows
+      .map((row) => Number(row.source_announcement_id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  );
+
+  const { data: failures, error: failuresError } = await adminSupabase
+    .from('event_announcement_recipient')
+    .select('announcement_id, recipient_name, recipient_email, error_message')
+    .in('announcement_id', announcementIds as any)
+    .eq('status', 'failed')
+    .order('created_at', { ascending: false });
+
+  if (failuresError) {
+    log.database('SELECT global event announcement failures', 'event_announcement_recipient', failuresError, {
+      announcementIds,
+    });
+  }
+
+  const failuresByAnnouncementId = new Map<number, EventAnnouncementHistoryFailure[]>();
+  ((failures ?? []) as Array<{
+    announcement_id: number;
+    recipient_name: string | null;
+    recipient_email: string;
+    error_message: string | null;
+  }>).forEach((failure) => {
+    const announcementId = Number(failure.announcement_id);
+    if (!Number.isInteger(announcementId) || announcementId <= 0) return;
+
+    const bucket = failuresByAnnouncementId.get(announcementId) ?? [];
+    bucket.push({
+      name: String(failure.recipient_name || '').trim() || 'Sin nombre',
+      email: String(failure.recipient_email || '').trim(),
+      errorMessage: String(failure.error_message || '').trim() || 'Sin detalle',
+    });
+    failuresByAnnouncementId.set(announcementId, bucket);
+  });
+
+  return announcementRows.map((row) => {
+    const eventRelation = Array.isArray(row.event) ? row.event[0] : row.event;
+    return {
+      id: Number(row.id),
+      createdAt: String(row.created_at || ''),
+      eventId: row.event_id === null ? null : Number(row.event_id),
+      eventTitle: String(eventRelation?.title || '').trim() || null,
+      subject: String(row.subject || '').trim(),
+      totalRecipients: Number(row.total_recipients || 0),
+      sentCount: Number(row.sent_count || 0),
+      failedCount: Number(row.failed_count || 0),
+      status: (row.status || 'completed') as 'completed' | 'partial' | 'failed',
+      sourceAnnouncementId: row.source_announcement_id === null ? null : Number(row.source_announcement_id),
+      canRetryFailed: Number(row.failed_count || 0) > 0 && !sourceAnnouncementIds.has(Number(row.id)),
+      failedRecipients: failuresByAnnouncementId.get(Number(row.id)) ?? [],
+    };
+  });
 }
 
 export async function getEventAnnouncementById(announcementId: number) {

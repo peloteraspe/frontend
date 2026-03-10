@@ -1,6 +1,7 @@
 'use client';
 
 import { startTransition, useActionState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useFormStatus } from 'react-dom';
 import {
@@ -11,6 +12,9 @@ import type { EventAnnouncementHistoryItem } from '@modules/admin/api/events/ser
 
 type Props = {
   history: EventAnnouncementHistoryItem[];
+  title?: string;
+  description?: string;
+  showEventContext?: boolean;
 };
 
 const INITIAL_EVENT_ANNOUNCEMENT_ACTION_STATE: EventAnnouncementActionState = {
@@ -100,14 +104,17 @@ function ResendFailedForm({ announcementId }: { announcementId: number }) {
   );
 }
 
-export default function EventAnnouncementHistory({ history }: Props) {
+export default function EventAnnouncementHistory({
+  history,
+  title = 'Historial de envíos',
+  description = 'Aquí verás qué campañas salieron, cuáles fallaron y podrás reenviar solo las destinatarias pendientes.',
+  showEventContext = false,
+}: Props) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-col gap-2">
-        <h3 className="text-lg font-semibold text-mulberry">Historial de envíos</h3>
-        <p className="text-sm text-slate-600">
-          Aquí verás qué campañas salieron, cuáles fallaron y podrás reenviar solo las destinatarias pendientes.
-        </p>
+        <h3 className="text-lg font-semibold text-mulberry">{title}</h3>
+        <p className="text-sm text-slate-600">{description}</p>
       </div>
 
       {history.length === 0 ? (
@@ -138,6 +145,14 @@ export default function EventAnnouncementHistory({ history }: Props) {
 
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{item.subject || 'Sin asunto'}</p>
+                    {showEventContext && item.eventId ? (
+                      <p className="mt-1 text-xs text-slate-600">
+                        Evento:{' '}
+                        <Link href={`/admin/events/${item.eventId}/participants`} className="font-medium text-mulberry hover:underline">
+                          {item.eventTitle || `Evento #${item.eventId}`}
+                        </Link>
+                      </p>
+                    ) : null}
                     <p className="mt-1 text-xs text-slate-600">
                       Total: {item.totalRecipients} · Enviados: {item.sentCount} · Fallidos: {item.failedCount}
                     </p>

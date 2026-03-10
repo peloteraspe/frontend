@@ -7,10 +7,11 @@ import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 const links = [
   { href: '/admin', label: 'Resumen' },
   { href: '/admin/events', label: 'Eventos' },
+  { href: '/admin/communications', label: 'Correos', superadminOnly: true },
   { href: '/admin/payments', label: 'Pagos' },
   { href: '/admin/payment-methods', label: 'Formas de pago' },
   { href: '/admin/scan', label: 'Validar QR', disabled: true },
-  { href: '/admin/users', label: 'Usuarios' },
+  { href: '/admin/users', label: 'Usuarios', superadminOnly: true },
 ];
 
 export default function SubNav() {
@@ -21,7 +22,7 @@ export default function SubNav() {
   const canViewUsersModule = isSuperAdmin(user as any);
   const visibleLinks = canViewUsersModule
     ? links
-    : links.filter((link) => link.href !== '/admin/users');
+    : links.filter((link) => !link.superadminOnly);
 
   function getTarget(href: string, active: boolean) {
     return { pathname: href, query: active ? Object.fromEntries(search.entries()) : {} };
