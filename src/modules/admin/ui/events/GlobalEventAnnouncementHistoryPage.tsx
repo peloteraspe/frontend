@@ -24,8 +24,8 @@ export default async function GlobalEventAnnouncementHistoryPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-mulberry">Correos de eventos</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Vista global para superadmin. Puedes revisar campañas de todos los eventos y reenviar solo las destinatarias
-          que no se enviaron.
+          Vista global para superadmin. Puedes revisar campañas de todos los eventos, reenviar fallidos locales y
+          reenviar correos rebotados que ya quedaron registrados en Resend.
         </p>
       </div>
 
@@ -36,7 +36,7 @@ export default async function GlobalEventAnnouncementHistoryPage() {
         showEventContext
       />
 
-      <ResendSentEmailHistory history={resendHistory} />
+      <ResendSentEmailHistory history={resendHistory.items} hasMore={resendHistory.hasMore} limit={resendHistory.limit} />
     </div>
   );
 }

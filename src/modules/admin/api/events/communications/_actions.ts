@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getServerSupabase } from '@core/api/supabase.server';
 import { log } from '@core/lib/logger';
+import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { assertCanManageEvent } from '../services/eventPermissions.service';
 import {
   getEventAnnouncementById,
@@ -10,6 +12,7 @@ import {
 } from '../services/eventAnnouncementHistory.service';
 import { getParticipantContactsByEventId } from '../services/eventParticipants.service';
 import { sendEventAnnouncementEmail } from '../services/eventAnnouncementEmail.service';
+import { retryResendHistoricalEmail } from '../services/resendSentEmailHistory.service';
 
 export type EventAnnouncementActionState = {
   status: 'idle' | 'success' | 'error';
@@ -27,6 +30,27 @@ export const initialEventAnnouncementActionState: EventAnnouncementActionState =
 
 function buildPath(eventId: string) {
   return `/admin/events/${eventId}/participants`;
+}
+
+function buildGlobalCommunicationsPath() {
+  return '/admin/communications';
+}
+
+async function assertSuperAdminAccess() {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('Debes iniciar sesión para gestionar correos.');
+  }
+
+  if (!isSuperAdmin(user as any)) {
+    throw new Error('Solo superadmin puede reenviar correos históricos.');
+  }
+
+  return { user };
 }
 
 function buildRecipientMetadata(
@@ -164,6 +188,7 @@ export async function sendEventAnnouncement(
     });
 
     revalidatePath(buildPath(eventId));
+    revalidatePath(buildGlobalCommunicationsPath());
 
     if (result.sentCount === 0 && result.failedCount > 0) {
       return {
@@ -280,6 +305,7 @@ export async function resendFailedEventAnnouncement(
     });
 
     revalidatePath(buildPath(eventId));
+    revalidatePath(buildGlobalCommunicationsPath());
 
     if (result.sentCount === 0 && result.failedCount > 0) {
       return {
@@ -313,6 +339,43 @@ export async function resendFailedEventAnnouncement(
     return {
       status: 'error',
       message: error instanceof Error ? error.message : 'No se pudo reenviar el lote fallido.',
+      sentCount: 0,
+      failedCount: 0,
+    };
+  }
+}
+
+export async function resendHistoricalBouncedEmail(
+  _previousState: EventAnnouncementActionState,
+  formData: FormData
+): Promise<EventAnnouncementActionState> {
+  try {
+    await assertSuperAdminAccess();
+
+    const emailId = String(formData.get('emailId') || '').trim();
+    if (!emailId) {
+      return {
+        status: 'error',
+        message: 'No se pudo identificar el correo histórico a reenviar.',
+        sentCount: 0,
+        failedCount: 0,
+      };
+    }
+
+    const result = await retryResendHistoricalEmail(emailId);
+    revalidatePath(buildGlobalCommunicationsPath());
+
+    return {
+      status: 'success',
+      message: 'Correo rebotado reenviado correctamente.',
+      sentCount: result.sentCount,
+      failedCount: result.failedCount,
+    };
+  } catch (error) {
+    log.error('Failed to resend bounced historical email', 'ADMIN_EVENTS', error);
+    return {
+      status: 'error',
+      message: error instanceof Error ? error.message : 'No se pudo reenviar el correo rebotado.',
       sentCount: 0,
       failedCount: 0,
     };
