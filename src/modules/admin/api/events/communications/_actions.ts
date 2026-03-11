@@ -21,13 +21,6 @@ export type EventAnnouncementActionState = {
   failedCount: number;
 };
 
-export const initialEventAnnouncementActionState: EventAnnouncementActionState = {
-  status: 'idle',
-  message: '',
-  sentCount: 0,
-  failedCount: 0,
-};
-
 function buildPath(eventId: string) {
   return `/admin/events/${eventId}/participants`;
 }
