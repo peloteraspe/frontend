@@ -2,10 +2,15 @@
 
 import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@src/core/api/supabase.server';
+import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
 import { EventUpsertInput, validateEventFormInput } from '@modules/admin/model/eventForm';
-import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { ensureGoogleWalletEventClass } from '@modules/tickets/api/services/google-wallet.service';
+
+type SupabaseClientLike =
+  | Awaited<ReturnType<typeof getServerSupabase>>
+  | ReturnType<typeof getAdminSupabase>;
 
 function toInsertPayload(
   input: EventUpsertInput,
@@ -39,8 +44,68 @@ function toInsertPayload(
   };
 }
 
+function toUpdatePayload(input: EventUpsertInput, isFeatured: boolean) {
+  return {
+    title: input.title,
+    description: {
+      title: input.title,
+      description: input.description,
+    },
+    start_time: input.startTime,
+    end_time: input.endTime,
+    location: {
+      lat: input.lat,
+      long: input.lng,
+    },
+    location_text: input.locationText,
+    district: input.district,
+    min_users: input.minUsers,
+    max_users: input.maxUsers,
+    price: input.price,
+    EventType: input.eventTypeId,
+    level: input.levelId,
+    is_published: input.isPublished,
+    is_featured: isFeatured,
+  };
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    return message || fallback;
+  }
+
+  if (typeof error === 'string') {
+    const message = error.trim();
+    return message || fallback;
+  }
+
+  return fallback;
+}
+
+async function getAuthenticatedAdminContext(action: string) {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error(`Debes iniciar sesión para ${action} eventos.`);
+  }
+
+  if (!isAdmin(user as any)) {
+    throw new Error('No tienes permisos para gestionar eventos.');
+  }
+
+  return {
+    supabase,
+    adminSupabase: getAdminSupabase(),
+    user,
+  };
+}
+
 async function assertCanManageEvent(
-  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  supabase: SupabaseClientLike,
   eventId: string,
   user: { id?: string | null; email?: string | null } | null
 ) {
@@ -73,7 +138,7 @@ function normalizePaymentMethodIds(ids: number[]) {
 }
 
 async function syncEventFeatures(
-  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  supabase: SupabaseClientLike,
   eventId: string | number,
   featureIds: number[]
 ) {
@@ -95,7 +160,7 @@ async function syncEventFeatures(
 }
 
 async function syncEventPaymentMethods(
-  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  supabase: SupabaseClientLike,
   eventId: string | number,
   ownerUserId: string,
   paymentMethodIds: number[]
@@ -141,85 +206,114 @@ async function syncEventPaymentMethods(
   if (insertError) throw new Error(insertError.message);
 }
 
+async function clearEventRelations(supabase: SupabaseClientLike, eventId: string | number) {
+  const { error: deletePaymentMethodsError } = await supabase
+    .from('eventPaymentMethod')
+    .delete()
+    .eq('event', eventId);
+
+  if (deletePaymentMethodsError) {
+    throw new Error(deletePaymentMethodsError.message);
+  }
+
+  const { error: deleteFeaturesError } = await supabase.from('eventFeatures').delete().eq('event', eventId);
+
+  if (deleteFeaturesError) {
+    throw new Error(deleteFeaturesError.message);
+  }
+}
+
 export async function createEvent(input: EventUpsertInput) {
   validateEventFormInput(input);
 
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { adminSupabase, user } = await getAuthenticatedAdminContext('crear');
 
-  if (!user) throw new Error('Debes iniciar sesión para crear eventos.');
-
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await adminSupabase
     .from('profile')
     .select('username')
     .eq('user', user.id)
     .maybeSingle();
+  if (profileError) throw new Error(profileError.message);
 
   const createdBy = profile?.username || user.email?.split('@')[0] || 'Peloteras';
   const canManageFeatured = isSuperAdmin(user as any);
   const isFeatured = canManageFeatured ? Boolean(input.isFeatured) : false;
-
-  const { data: createdEvent, error } = await supabase
-    .from('event')
-    .insert(toInsertPayload(input, user.id, createdBy, isFeatured))
-    .select('id')
-    .single();
-  if (error) throw new Error(error.message);
-  if (!createdEvent?.id) throw new Error('No se pudo obtener el id del evento creado.');
-
-  await syncEventFeatures(supabase, createdEvent.id, input.featureIds);
-  await syncEventPaymentMethods(supabase, createdEvent.id, user.id, input.paymentMethodIds);
+  let createdEventId: string | number | null = null;
 
   try {
-    await ensureGoogleWalletEventClass({
-      eventId: createdEvent.id,
-      eventTitle: input.title,
-      eventStartTime: input.startTime,
-      eventEndTime: input.endTime,
+    const { data: createdEvent, error } = await adminSupabase
+      .from('event')
+      .insert(toInsertPayload(input, user.id, createdBy, isFeatured))
+      .select('id')
+      .single();
+
+    if (error) throw new Error(error.message);
+    if (!createdEvent?.id) throw new Error('No se pudo obtener el id del evento creado.');
+
+    createdEventId = createdEvent.id;
+
+    await syncEventFeatures(adminSupabase, createdEvent.id, input.featureIds);
+    await syncEventPaymentMethods(adminSupabase, createdEvent.id, user.id, input.paymentMethodIds);
+
+    try {
+      await ensureGoogleWalletEventClass({
+        eventId: createdEvent.id,
+        eventTitle: input.title,
+        eventStartTime: input.startTime,
+        eventEndTime: input.endTime,
+      });
+    } catch (walletError) {
+      log.warn('Could not provision Google Wallet class on event creation', 'ADMIN_EVENTS', {
+        eventId: createdEvent.id,
+        error: walletError,
+      });
+    }
+  } catch (error) {
+    if (createdEventId !== null) {
+      try {
+        await clearEventRelations(adminSupabase, createdEventId);
+        const { error: deleteEventError } = await adminSupabase.from('event').delete().eq('id', createdEventId);
+        if (deleteEventError) {
+          log.database('ROLLBACK create event', 'event', deleteEventError as any, {
+            eventId: createdEventId,
+          });
+        }
+      } catch (rollbackError) {
+        log.error('Event rollback failed after create error', 'ADMIN_EVENTS', rollbackError, {
+          eventId: createdEventId,
+        });
+      }
+    }
+
+    log.error('Event creation failed', 'ADMIN_EVENTS', error, {
+      userId: user.id,
+      paymentMethodIds: input.paymentMethodIds,
+      featureIds: input.featureIds,
     });
-  } catch (walletError) {
-    log.warn('Could not provision Google Wallet class on event creation', 'ADMIN_EVENTS', {
-      eventId: createdEvent.id,
-      error: walletError,
-    });
+    throw new Error(getErrorMessage(error, 'No se pudo crear el evento.'));
   }
 
   revalidatePath('/admin/events');
   revalidatePath('/events');
-  revalidatePath(`/events/${createdEvent.id}`);
-  revalidatePath(`/payments/${createdEvent.id}`);
+  revalidatePath(`/events/${createdEventId}`);
+  revalidatePath(`/payments/${createdEventId}`);
   revalidatePath('/');
 
-  return { id: String(createdEvent.id) };
+  return { id: String(createdEventId) };
 }
 
 export async function updateEvent(id: string, input: EventUpsertInput) {
   validateEventFormInput(input);
 
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) throw new Error('Debes iniciar sesión para editar eventos.');
-  await assertCanManageEvent(supabase, id, user);
-
-  const { data: profile } = await supabase
-    .from('profile')
-    .select('username')
-    .eq('user', user.id)
-    .maybeSingle();
-
-  const createdBy = profile?.username || user.email?.split('@')[0] || 'Peloteras';
+  const { adminSupabase, user } = await getAuthenticatedAdminContext('editar');
+  await assertCanManageEvent(adminSupabase, id, user);
   const canManageFeatured = isSuperAdmin(user as any);
   let isFeatured = false;
 
   if (canManageFeatured) {
     isFeatured = Boolean(input.isFeatured);
   } else {
-    const { data: existingEvent, error: existingEventError } = await supabase
+    const { data: existingEvent, error: existingEventError } = await adminSupabase
       .from('event')
       .select('is_featured')
       .eq('id', id)
@@ -229,15 +323,15 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
     isFeatured = Boolean(existingEvent?.is_featured);
   }
 
-  const { error } = await supabase
+  const { error } = await adminSupabase
     .from('event')
-    .update(toInsertPayload(input, user.id, createdBy, isFeatured))
+    .update(toUpdatePayload(input, isFeatured))
     .eq('id', id);
 
   if (error) throw new Error(error.message);
 
-  await syncEventFeatures(supabase, id, input.featureIds);
-  await syncEventPaymentMethods(supabase, id, user.id, input.paymentMethodIds);
+  await syncEventFeatures(adminSupabase, id, input.featureIds);
+  await syncEventPaymentMethods(adminSupabase, id, user.id, input.paymentMethodIds);
 
   try {
     await ensureGoogleWalletEventClass({
@@ -262,15 +356,11 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
 }
 
 export async function deleteEvent(id: string) {
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { adminSupabase, user } = await getAuthenticatedAdminContext('eliminar');
+  await assertCanManageEvent(adminSupabase, id, user);
+  await clearEventRelations(adminSupabase, id);
 
-  if (!user) throw new Error('Debes iniciar sesión para eliminar eventos.');
-  await assertCanManageEvent(supabase, id, user);
-
-  const { error } = await supabase.from('event').delete().eq('id', id);
+  const { error } = await adminSupabase.from('event').delete().eq('id', id);
   if (error) throw new Error(error.message);
 
   revalidatePath('/admin/events');
@@ -279,18 +369,13 @@ export async function deleteEvent(id: string) {
 }
 
 export async function setEventFeatured(id: string, isFeatured: boolean) {
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) throw new Error('Debes iniciar sesión para gestionar destacados.');
+  const { adminSupabase, user } = await getAuthenticatedAdminContext('gestionar');
   if (!isSuperAdmin(user as any)) {
     throw new Error('Solo superadmin puede gestionar partidos destacados.');
   }
   if (!id) throw new Error('Id de evento inválido.');
 
-  const { error } = await supabase.from('event').update({ is_featured: isFeatured }).eq('id', id);
+  const { error } = await adminSupabase.from('event').update({ is_featured: isFeatured }).eq('id', id);
   if (error) throw new Error(error.message);
 
   revalidatePath('/admin/events');
@@ -300,17 +385,12 @@ export async function setEventFeatured(id: string, isFeatured: boolean) {
 }
 
 export async function setEventPublished(id: string, isPublished: boolean) {
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) throw new Error('Debes iniciar sesión para gestionar publicación.');
+  const { adminSupabase, user } = await getAuthenticatedAdminContext('gestionar');
   if (!id) throw new Error('Id de evento inválido.');
 
-  await assertCanManageEvent(supabase, id, user);
+  await assertCanManageEvent(adminSupabase, id, user);
 
-  const { error } = await supabase.from('event').update({ is_published: isPublished }).eq('id', id);
+  const { error } = await adminSupabase.from('event').update({ is_published: isPublished }).eq('id', id);
   if (error) throw new Error(error.message);
 
   revalidatePath('/admin/events');

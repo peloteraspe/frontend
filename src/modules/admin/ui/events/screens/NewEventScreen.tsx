@@ -59,8 +59,14 @@ export default async function NewEventScreen() {
 
   async function handleCreate(fd: FormData) {
     'use server';
-    const created = await createEvent(parseEventFormData(fd));
-    return { eventId: created.id };
+    try {
+      const created = await createEvent(parseEventFormData(fd));
+      return { eventId: created.id };
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'No se pudo crear el evento.',
+      };
+    }
   }
 
   return (

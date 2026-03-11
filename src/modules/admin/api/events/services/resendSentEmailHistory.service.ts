@@ -52,7 +52,8 @@ type ResendSendEmailResponse = {
   id?: string;
 };
 
-const DEFAULT_HISTORY_LIMIT = 500;
+const DEFAULT_HISTORY_LIMIT = 100;
+const MAX_HISTORY_LIMIT = 100;
 const MAX_SEND_ATTEMPTS = 4;
 const INITIAL_BACKOFF_MS = 400;
 const MAX_BACKOFF_MS = 5000;
@@ -82,8 +83,24 @@ function normalizeEmailList(value: string[] | string | null | undefined) {
 
 function getRetryDisabledReason(lastEvent: string, recipients: string[]) {
   const normalizedEvent = normalizeEvent(lastEvent);
-  if (normalizedEvent === 'complained') {
+  if (normalizedEvent === 'complained' || normalizedEvent === 'complaint') {
     return 'No se puede reenviar porque la destinataria reportó ese correo.';
+  }
+
+  if (normalizedEvent === 'suppressed') {
+    return 'Resend lo suprimió por un rebote o spam previo. Revisa la suppression list antes de reenviar.';
+  }
+
+  if (normalizedEvent === 'delivery_delayed') {
+    return 'Resend todavía lo tiene en cola o con entrega demorada. Espera antes de reenviarlo.';
+  }
+
+  if (normalizedEvent === 'failed') {
+    return 'Resend marcó este envío como fallido. Desde este histórico no hay detalle por destinataria para reintentar de forma segura.';
+  }
+
+  if (normalizedEvent === 'canceled') {
+    return 'Ese correo fue cancelado y no aplica reenvío desde este historial.';
   }
 
   if (normalizedEvent !== 'bounced') {
@@ -99,6 +116,13 @@ function getRetryDisabledReason(lastEvent: string, recipients: string[]) {
 
 function getResendApiKey() {
   return String(process.env.RESEND_API_KEY || '').trim();
+}
+
+function sanitizeHistoryLimit(limit?: number) {
+  const numericLimit = Number(limit);
+  if (!Number.isFinite(numericLimit)) return DEFAULT_HISTORY_LIMIT;
+
+  return Math.min(Math.max(Math.floor(numericLimit), 1), MAX_HISTORY_LIMIT);
 }
 
 function resolveRetryFrom(originalFrom: string) {
@@ -276,7 +300,12 @@ async function sendResendEmail(input: {
   throw new Error('No se pudo reenviar el correo rebotado.');
 }
 
-export async function getResendSentEmailHistory(limit = DEFAULT_HISTORY_LIMIT): Promise<ResendSentEmailHistoryResult> {
+export async function getResendSentEmailHistory(input?: {
+  limit?: number;
+  after?: string | null;
+}): Promise<ResendSentEmailHistoryResult> {
+  const limit = sanitizeHistoryLimit(input?.limit);
+  const initialAfter = String(input?.after || '').trim() || undefined;
   const resendApiKey = getResendApiKey();
   if (!resendApiKey) {
     return {
@@ -287,7 +316,7 @@ export async function getResendSentEmailHistory(limit = DEFAULT_HISTORY_LIMIT): 
   }
 
   const results: ResendSentEmailHistoryItem[] = [];
-  let after: string | undefined;
+  let after = initialAfter;
   let hasMore = false;
 
   try {

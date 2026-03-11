@@ -83,7 +83,14 @@ export default async function EditEventScreen({ id }: { id: string }) {
 
   async function handleUpdate(fd: FormData) {
     'use server';
-    await updateEvent(id, parseEventFormData(fd));
+    try {
+      await updateEvent(id, parseEventFormData(fd));
+      return {};
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'No se pudo guardar el evento.',
+      };
+    }
   }
 
   async function handleDelete() {

@@ -12,6 +12,7 @@ import EventAnnouncementForm from '@modules/admin/ui/events/EventAnnouncementFor
 
 type SubmitResult = {
   eventId?: string | number;
+  error?: string;
 };
 
 type Props = {
@@ -449,7 +450,7 @@ const EventForm = ({
     setSubmitStatus('idle');
     setSubmitMessage('');
     setShareUrl('');
-    setShareTitle('');
+    setShareTitle(String(fd.get('title') || 'Evento'));
     setShowPostEditAnnouncementModal(false);
     if (isCreateMode) {
       setShowCreateModal(true);
@@ -464,13 +465,19 @@ const EventForm = ({
 
     try {
       const result = await onSubmit(fd);
+      const serverError = String((result && 'error' in result ? result.error : '') || '').trim();
+      if (serverError) {
+        setSubmitStatus('error');
+        setSubmitMessage(serverError);
+        return;
+      }
+
       if (isCreateMode) {
         const createdEventId = String((result && 'eventId' in result ? result.eventId : '') || '').trim();
         setSubmitStatus('success');
         if (createdEventId) {
           const origin = window.location.origin;
           setShareUrl(`${origin}/events/${createdEventId}`);
-          setShareTitle(String(fd.get('title') || 'Evento'));
           setSubmitMessage('Evento creado con éxito. Ahora compártelo para que se inscriban.');
         } else {
           setSubmitMessage('Evento creado con éxito.');
