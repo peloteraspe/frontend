@@ -37,15 +37,9 @@ function normalizePaymentType(rawType: unknown) {
 
 function getPaymentMethodLabel(rawType: unknown) {
   const normalized = normalizePaymentType(rawType);
-  if (normalized === 'yape_plin') return 'Yape o Plin';
+  if (normalized === 'yape_plin') return 'Yape/Plin';
   if (normalized === 'plin') return 'Plin';
   return 'Yape';
-}
-
-function getPaymentMethodName(method: any) {
-  const customName = typeof method?.name === 'string' ? method.name.trim() : '';
-  if (customName) return customName;
-  return getPaymentMethodLabel(method?.type);
 }
 
 const PaymentStepper = (props: any) => {
@@ -61,7 +55,7 @@ const PaymentStepper = (props: any) => {
     typeof selectedPaymentMethod?.QR === 'string' ? selectedPaymentMethod.QR.replace(/^"|"$/g, '') : '';
   const paymentNumber = selectedPaymentMethod?.number ?? '';
   const paymentNumberText = String(paymentNumber || '').trim();
-  const paymentMethodName = getPaymentMethodName(selectedPaymentMethod);
+  const paymentMethodLabel = getPaymentMethodLabel(selectedPaymentMethod?.type);
   const eventTitle = typeof post?.title === 'string' ? post.title : 'Evento';
   const price = Number(post?.price ?? 0);
   const formattedPrice = Number.isFinite(price) ? price.toFixed(2) : '0.00';
@@ -337,13 +331,13 @@ const PaymentStepper = (props: any) => {
                   <div className="mt-2 flex flex-wrap gap-2">
                     {paymentMethods.map((method) => {
                       const methodId = Number(method?.id);
-                      const methodName = getPaymentMethodName(method);
+                      const methodLabel = getPaymentMethodLabel(method?.type);
                       const isActive =
                         Number.isFinite(methodId) && methodId > 0 && methodId === selectedPaymentMethodId;
 
                       return (
                         <button
-                          key={String(method?.id || methodName)}
+                          key={String(method?.id || methodLabel)}
                           type="button"
                           onClick={() => {
                             if (Number.isFinite(methodId) && methodId > 0) {
@@ -356,7 +350,7 @@ const PaymentStepper = (props: any) => {
                               : 'border-slate-300 bg-white text-slate-700'
                           }`}
                         >
-                          {methodName}
+                          {methodLabel}
                         </button>
                       );
                     })}
@@ -366,7 +360,7 @@ const PaymentStepper = (props: any) => {
 
               <ol className="mt-5 space-y-3 text-sm text-slate-700 sm:text-base">
                 <li>
-                  1. Escanea el código QR o realiza el pago usando <strong>{paymentMethodName}</strong>.
+                  1. Escanea el código QR o realiza el pago usando <strong>{paymentMethodLabel}</strong>.
                 </li>
                 <li>2. Guarda el número de operación de 8 dígitos.</li>
                 <li>3. Regresa aquí para confirmar tu pago.</li>
@@ -406,13 +400,15 @@ const PaymentStepper = (props: any) => {
 
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 {paymentQr ? (
-                  <img
-                    className="mx-auto h-56 w-56 rounded-xl border border-slate-200 bg-white p-2"
-                    src={paymentQr}
-                    alt="QR Code"
-                    width={224}
-                    height={224}
-                  />
+                  <div className="mx-auto flex w-full max-w-[320px] items-center justify-center rounded-xl border border-slate-200 bg-white p-4">
+                    <img
+                      className="block h-auto max-h-[320px] w-full object-contain"
+                      src={paymentQr}
+                      alt={`QR de pago ${paymentMethodLabel}`}
+                      width={320}
+                      height={320}
+                    />
+                  </div>
                 ) : (
                   <p className="text-sm text-slate-500">QR no disponible por el momento.</p>
                 )}
@@ -470,7 +466,7 @@ const PaymentStepper = (props: any) => {
           <section className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
             <h2 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Verificación</h2>
             <p className="mt-2 text-sm text-slate-600 sm:text-base">
-              Ingresa tu número de operación de {paymentMethodName} para validar el pago.
+              Ingresa tu número de operación de {paymentMethodLabel} para validar el pago.
             </p>
 
             <form className="mt-5" onSubmit={handleSubmit(handlePaymentConfirmation)} noValidate>

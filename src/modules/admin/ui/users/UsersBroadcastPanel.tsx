@@ -6,11 +6,20 @@ import UsersBroadcastForm from '@modules/admin/ui/users/UsersBroadcastForm';
 type Props = {
   defaultSubject: string;
   defaultBody: string;
-  recipientCount: number;
+  selectedUserIds: string[];
+  selectedCount: number;
+  totalSelectableCount: number;
 };
 
-export default function UsersBroadcastPanel({ defaultSubject, defaultBody, recipientCount }: Props) {
+export default function UsersBroadcastPanel({
+  defaultSubject,
+  defaultBody,
+  selectedUserIds,
+  selectedCount,
+  totalSelectableCount,
+}: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const canOpen = selectedCount > 0;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -32,11 +41,25 @@ export default function UsersBroadcastPanel({ defaultSubject, defaultBody, recip
     <div>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
-        className="inline-flex h-10 items-center justify-center rounded-md bg-mulberry px-4 text-sm font-semibold text-white transition hover:bg-mulberry/90"
+        onClick={() => {
+          if (canOpen) setIsOpen(true);
+        }}
+        disabled={!canOpen}
+        className={[
+          'inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition',
+          canOpen ? 'bg-mulberry hover:bg-mulberry/90' : 'cursor-not-allowed bg-slate-400',
+        ].join(' ')}
       >
         Enviar correo
       </button>
+
+      <p className="mt-2 text-xs text-slate-500">
+        {canOpen
+          ? `${selectedCount} usuaria${selectedCount === 1 ? '' : 's'} seleccionada${
+              selectedCount === 1 ? '' : 's'
+            } para enviar.`
+          : 'Selecciona 1 o más usuarias para habilitar el envío.'}
+      </p>
 
       {isOpen ? (
         <div
@@ -67,14 +90,16 @@ export default function UsersBroadcastPanel({ defaultSubject, defaultBody, recip
                   Comunicado a usuarias
                 </p>
                 <p className="mt-1 text-sm text-slate-700">
-                  Redacta tu mensaje y envíalo a todas las usuarias con correo válido usando el template de Peloteras.
+                  Redacta tu mensaje y envíalo solo a las usuarias seleccionadas usando el template de Peloteras.
                 </p>
               </div>
 
               <UsersBroadcastForm
                 defaultSubject={defaultSubject}
                 defaultBody={defaultBody}
-                recipientCount={recipientCount}
+                selectedUserIds={selectedUserIds}
+                selectedCount={selectedCount}
+                totalSelectableCount={totalSelectableCount}
               />
             </div>
           </div>

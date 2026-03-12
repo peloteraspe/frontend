@@ -6,11 +6,14 @@ import {
   sendUsersBroadcast,
   type UsersBroadcastActionState,
 } from '@modules/admin/api/users/communications/_actions';
+import UsersRichTextEditor from '@modules/admin/ui/users/UsersRichTextEditor';
 
 type Props = {
   defaultSubject: string;
   defaultBody: string;
-  recipientCount: number;
+  selectedUserIds: string[];
+  selectedCount: number;
+  totalSelectableCount: number;
 };
 
 const INITIAL_USERS_BROADCAST_ACTION_STATE: UsersBroadcastActionState = {
@@ -34,32 +37,49 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
           : 'bg-mulberry hover:bg-mulberry/90',
       ].join(' ')}
     >
-      {pending ? 'Enviando...' : 'Enviar correo a todas'}
+      {pending ? 'Enviando...' : 'Enviar correo a seleccionadas'}
     </button>
   );
 }
 
-export default function UsersBroadcastForm({ defaultSubject, defaultBody, recipientCount }: Props) {
+export default function UsersBroadcastForm({
+  defaultSubject,
+  defaultBody,
+  selectedUserIds,
+  selectedCount,
+  totalSelectableCount,
+}: Props) {
   const [state, formAction] = useActionState(sendUsersBroadcast, INITIAL_USERS_BROADCAST_ACTION_STATE);
-  const canSend = recipientCount > 0;
+  const canSend = selectedCount > 0;
 
   return (
     <form action={formAction} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {selectedUserIds.map((userId) => (
+        <input key={userId} type="hidden" name="userIds" value={userId} readOnly />
+      ))}
+
       <div className="mb-4 flex flex-col gap-2">
-        <h3 className="text-lg font-semibold text-mulberry">Enviar correo a todas las usuarias</h3>
+        <h3 className="text-lg font-semibold text-mulberry">Enviar correo a usuarias seleccionadas</h3>
         <p className="text-sm text-slate-600">
-          Escribe el mensaje que quieras comunicar. Se enviará con el template oficial de Peloteras.
+          Escribe el mensaje que quieras comunicar. Solo se enviará a las usuarias marcadas en la tabla usando el
+          template oficial de Peloteras.
         </p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Destinatarias</p>
-        <p className="mt-1 text-2xl font-bold text-slate-900">{recipientCount}</p>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Seleccionadas</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{selectedCount}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Con correo válido</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{totalSelectableCount}</p>
+        </div>
       </div>
 
-      {recipientCount === 0 ? (
+      {selectedCount === 0 ? (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          No hay usuarias con correo válido para enviar.
+          Selecciona 1 o más usuarias antes de enviar.
         </div>
       ) : null}
 
@@ -80,16 +100,12 @@ export default function UsersBroadcastForm({ defaultSubject, defaultBody, recipi
         <label htmlFor="users-broadcast-body" className="mb-2 block text-sm font-semibold text-slate-800">
           Contenido
         </label>
-        <textarea
+        <UsersRichTextEditor
           id="users-broadcast-body"
-          name="body"
+          textName="body"
+          htmlName="bodyHtml"
           defaultValue={defaultBody}
-          rows={14}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-mulberry focus:ring-2 focus:ring-mulberry/20"
         />
-        <p className="mt-2 text-xs text-slate-500">
-          Las líneas que empiecen con <code>⚽</code>, <code>•</code> o <code>-</code> se enviarán como lista.
-        </p>
       </div>
 
       {state.status !== 'idle' ? (

@@ -143,12 +143,24 @@ export async function setAdminRoleByUserId(userId: string, enableAdmin: boolean)
   if (updateError) throw new Error(updateError.message);
 }
 
-export async function getAllUserEmailsForBroadcast(): Promise<string[]> {
+export async function getUserEmailsForBroadcastByIds(userIds: string[]): Promise<string[]> {
+  const normalizedIds = Array.from(
+    new Set(
+      userIds
+        .map((userId) => String(userId || '').trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (!normalizedIds.length) return [];
+
+  const allowedIds = new Set(normalizedIds);
   const authUsers = await listAllAuthUsers();
 
   return Array.from(
     new Set(
       authUsers
+        .filter((user) => allowedIds.has(String(user?.id || '').trim()))
         .map((user) => String(user?.email || '').trim().toLowerCase())
         .filter((email) => isValidEmail(email))
     )

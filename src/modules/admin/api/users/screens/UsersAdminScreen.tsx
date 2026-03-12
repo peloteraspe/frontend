@@ -2,23 +2,19 @@ import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getAdminUsersList, setAdminRoleByUserId } from '@modules/admin/api/users/services/adminUsers.service';
-import UsersBroadcastPanel from '@modules/admin/ui/users/UsersBroadcastPanel';
+import UsersAdminManager from '@modules/admin/ui/users/UsersAdminManager';
 
 const USERS_BROADCAST_DEFAULT_SUBJECT = '📣 Novedades de Peloteras';
 const USERS_BROADCAST_DEFAULT_BODY = `Hola,
 
 Queremos compartirte una actualización de Peloteras.
 
-[Escribe aquí tu mensaje para todas las usuarias.]
+[Escribe aquí tu mensaje para las usuarias seleccionadas.]
 
 Gracias por ser parte de esta comunidad 💜⚽
 
 Equipo Peloteras
-Conectando mujeres y disidencias a través del fútbol`;
-
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
+Más jugadoras, más fútbol`;
 
 export default async function UsersAdminScreen() {
   const supabase = await getServerSupabase();
@@ -28,13 +24,6 @@ export default async function UsersAdminScreen() {
 
   const canManageAdmins = isSuperAdmin(user as any);
   const users = await getAdminUsersList();
-  const recipientCount = Array.from(
-    new Set(
-      users
-        .map((row) => String(row.email || '').trim().toLowerCase())
-        .filter((email) => isValidEmail(email))
-    )
-  ).length;
 
   async function handleToggleAdmin(formData: FormData) {
     'use server';
@@ -70,81 +59,13 @@ export default async function UsersAdminScreen() {
         </div>
       ) : null}
 
-      {canManageAdmins ? (
-        <div className="mb-5">
-          <UsersBroadcastPanel
-            defaultSubject={USERS_BROADCAST_DEFAULT_SUBJECT}
-            defaultBody={USERS_BROADCAST_DEFAULT_BODY}
-            recipientCount={recipientCount}
-          />
-        </div>
-      ) : null}
-
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700">Nombre</th>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700">Correo</th>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700">Admin</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
-                  No hay usuarias para mostrar.
-                </td>
-              </tr>
-            ) : (
-              users.map((row) => {
-                const nextAdminValue = row.isAdmin ? 'false' : 'true';
-                const isDisabled = !canManageAdmins || row.isSuperAdmin;
-
-                return (
-                  <tr key={row.id} className="border-t border-slate-100">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-slate-900">{row.name}</span>
-                        {row.isSuperAdmin ? (
-                          <span className="rounded-full bg-mulberry/10 px-2 py-0.5 text-xs font-semibold text-mulberry">
-                            Superadmin
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{row.email}</td>
-                    <td className="px-4 py-3">
-                      <form action={handleToggleAdmin}>
-                        <input type="hidden" name="userId" value={row.id} />
-                        <input type="hidden" name="enableAdmin" value={nextAdminValue} />
-                        <button
-                          type="submit"
-                          role="switch"
-                          aria-checked={row.isAdmin}
-                          disabled={isDisabled}
-                          className={[
-                            'relative inline-flex h-7 w-14 items-center rounded-full transition',
-                            row.isAdmin ? 'bg-emerald-500' : 'bg-slate-300',
-                            isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
-                          ].join(' ')}
-                        >
-                          <span
-                            className={[
-                              'inline-block h-5 w-5 transform rounded-full bg-white transition',
-                              row.isAdmin ? 'translate-x-8' : 'translate-x-1',
-                            ].join(' ')}
-                          />
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <UsersAdminManager
+        users={users}
+        canManageAdmins={canManageAdmins}
+        defaultSubject={USERS_BROADCAST_DEFAULT_SUBJECT}
+        defaultBody={USERS_BROADCAST_DEFAULT_BODY}
+        onToggleAdmin={handleToggleAdmin}
+      />
     </div>
   );
 }
