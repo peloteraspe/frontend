@@ -7,6 +7,7 @@ import { log } from '@core/lib/logger';
 type SendEventAnnouncementEmailInput = {
   subject: string;
   body: string;
+  bodyHtml?: string | null;
   recipients: string[];
 };
 
@@ -48,7 +49,12 @@ Queremos contarte una actualización sobre el evento en el que te inscribiste.
 Nos vemos pronto en la cancha 💜⚽
 
 Equipo Peloteras
-Conectando mujeres y disidencias a través del fútbol`;
+Más jugadoras, más fútbol`;
+
+function normalizeAnnouncementSubject(subject: string | undefined | null) {
+  const normalized = String(subject || '').trim();
+  return normalized || DEFAULT_SUBJECT;
+}
 
 function escapeHtml(value: unknown) {
   return String(value ?? '')
@@ -57,6 +63,25 @@ function escapeHtml(value: unknown) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function escapeAttribute(value: unknown) {
+  return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
+function normalizeRichHref(value: string | undefined | null) {
+  const candidate = String(value || '').trim();
+  if (!candidate) return '';
+
+  const normalizedCandidate = /^www\./i.test(candidate) ? `https://${candidate}` : candidate;
+
+  try {
+    const parsed = new URL(normalizedCandidate);
+    if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
 }
 
 function normalizeUrl(value: string | undefined | null, fallback: string) {
@@ -110,7 +135,136 @@ function getBodyBlocks(body: string) {
     });
 }
 
-function renderBodyHtml(body: string) {
+function getRichTextStyleDefaults(tagName: string) {
+  switch (tagName) {
+    case 'p':
+      return 'margin:0 0 18px 0;color:#1f2937;font-size:16px;line-height:1.7;';
+    case 'ul':
+    case 'ol':
+      return 'margin:0 0 22px 20px;padding:0;color:#1f2937;font-size:16px;line-height:1.6;';
+    case 'li':
+      return 'margin:0 0 10px 0;';
+    case 'a':
+      return 'color:#175cd3;font-weight:700;text-decoration:underline;';
+    default:
+      return '';
+  }
+}
+
+function getRichTextAttribute(attributes: string, attributeName: string) {
+  const escapedAttributeName = attributeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`${escapedAttributeName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\\x60]+))`, 'i');
+  const match = regex.exec(attributes);
+  return String(match?.[1] ?? match?.[2] ?? match?.[3] ?? '').trim();
+}
+
+function sanitizeRichTextStyle(rawStyle: string, tagName: string) {
+  const allowIndentation = new Set(['p', 'ul', 'ol', 'li']);
+  if (!allowIndentation.has(tagName)) return '';
+
+  const rules = String(rawStyle || '')
+    .split(';')
+    .map((rule) => rule.trim())
+    .filter(Boolean);
+
+  const sanitizedRules: string[] = [];
+
+  rules.forEach((rule) => {
+    const separatorIndex = rule.indexOf(':');
+    if (separatorIndex <= 0) return;
+
+    const property = rule.slice(0, separatorIndex).trim().toLowerCase();
+    const value = rule.slice(separatorIndex + 1).trim().toLowerCase();
+
+    if (['margin-left', 'padding-left', 'text-indent'].includes(property)) {
+      if (/^\d+(\.\d+)?(px|pt|em|rem|%)$/.test(value)) {
+        sanitizedRules.push(`${property}:${value}`);
+      }
+      return;
+    }
+
+    if (property === 'text-align' && ['left', 'center', 'right', 'justify'].includes(value)) {
+      sanitizedRules.push(`${property}:${value}`);
+    }
+  });
+
+  return sanitizedRules.join(';');
+}
+
+function sanitizeRichTextHtml(bodyHtml: string | undefined | null) {
+  const normalized = normalizeBodyText(String(bodyHtml || '')).trim();
+  if (!normalized) return '';
+
+  const strippedUnsafeTags = normalized
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<\s*(script|style|iframe|object|embed|meta|link)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(/<\s*(script|style|iframe|object|embed|meta|link)[^>]*\/?\s*>/gi, '');
+
+  const tagPattern = /<\/?([a-z0-9]+)\b([^>]*)>/gi;
+  const tagNameMap: Record<string, string> = {
+    a: 'a',
+    b: 'strong',
+    br: 'br',
+    div: 'p',
+    em: 'em',
+    i: 'em',
+    li: 'li',
+    ol: 'ol',
+    p: 'p',
+    strong: 'strong',
+    u: 'u',
+    ul: 'ul',
+  };
+
+  let lastIndex = 0;
+  let output = '';
+  let match: RegExpExecArray | null;
+
+  while ((match = tagPattern.exec(strippedUnsafeTags))) {
+    output += escapeHtml(strippedUnsafeTags.slice(lastIndex, match.index));
+    lastIndex = tagPattern.lastIndex;
+
+    const isClosingTag = match[0].startsWith('</');
+    const rawTagName = String(match[1] || '').toLowerCase();
+    const tagName = tagNameMap[rawTagName];
+    if (!tagName) continue;
+
+    if (isClosingTag) {
+      if (tagName === 'br') continue;
+      output += `</${tagName}>`;
+      continue;
+    }
+
+    if (tagName === 'br') {
+      output += '<br />';
+      continue;
+    }
+
+    if (tagName === 'a') {
+      const href = normalizeRichHref(getRichTextAttribute(match[2] || '', 'href'));
+      const defaultStyle = getRichTextStyleDefaults(tagName);
+      output += href
+        ? `<a href="${escapeAttribute(href)}" target="_blank" rel="noreferrer" style="${escapeAttribute(defaultStyle)}">`
+        : '<a>';
+      continue;
+    }
+
+    const customStyle = sanitizeRichTextStyle(getRichTextAttribute(match[2] || '', 'style'), tagName);
+    const defaultStyle = getRichTextStyleDefaults(tagName);
+    const styleValue = [defaultStyle, customStyle].filter(Boolean).join('');
+    output += styleValue
+      ? `<${tagName} style="${escapeAttribute(styleValue)}">`
+      : `<${tagName}>`;
+  }
+
+  output += escapeHtml(strippedUnsafeTags.slice(lastIndex));
+  return output.trim();
+}
+
+function renderBodyHtml(body: string, bodyHtml?: string | null) {
+  const richTextHtml = sanitizeRichTextHtml(bodyHtml);
+  if (richTextHtml) return richTextHtml;
+
   return getBodyBlocks(body)
     .map((block) => {
       if (block.type === 'list') {
@@ -134,62 +288,103 @@ function renderBodyHtml(body: string) {
 function buildEmailHtml(input: {
   subject: string;
   body: string;
+  bodyHtml?: string | null;
   homeUrl: string;
   instagramUrl: string;
   tiktokUrl: string;
 }) {
+  const normalizedSubject = normalizeAnnouncementSubject(input.subject);
+  const normalizedHomeUrl = input.homeUrl.replace(/\/+$/, '');
+  const logoUrl = `${normalizedHomeUrl}/assets/logo.png`;
+  const bodyContent = renderBodyHtml(input.body, input.bodyHtml);
+
   return `
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(input.subject)}</title>
+  <meta name="x-apple-disable-message-reformatting">
+  <title>${escapeHtml(normalizedSubject)}</title>
 </head>
-<body style="margin:0;background:#f4edf7;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+<body style="margin:0;padding:0;background-color:#f1f3f5;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f3f5;padding:28px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:680px;background:#ffffff;border-radius:24px;overflow:hidden;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;background-color:#ffffff;border-radius:24px;border:1px solid #e5e7eb;">
           <tr>
-            <td style="background:linear-gradient(135deg,#54086f 0%,#8d42ab 100%);padding:36px 28px 30px 28px;text-align:center;">
-              <img
-                src="https://res.cloudinary.com/dtisme9jg/image/upload/v1772667120/peloteras_bdvyxk.png"
-                alt="Peloteras"
-                width="180"
-                style="display:block;margin:0 auto 18px auto;border:0;max-width:100%;height:auto;"
-              />
-              <div style="display:inline-block;border-radius:999px;background:rgba(255,255,255,.14);padding:8px 14px;color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">
-                Actualización de evento
-              </div>
-              <h1 style="margin:18px 0 0 0;color:#ffffff;font-size:34px;line-height:1.1;font-weight:800;">
-                ${escapeHtml(input.subject)}
+            <td style="padding:30px 32px 10px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td valign="middle">
+                    <span style="display:inline-block;background-color:#ece5f0;color:#54086f;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:7px 12px;border-radius:999px;">
+                      Comunidad Peloteras
+                    </span>
+                  </td>
+                  <td align="right" valign="middle">
+                    <img
+                      src="${escapeAttribute(logoUrl)}"
+                      alt="Peloteras"
+                      width="132"
+                      style="display:block;border:0;outline:none;text-decoration:none;height:auto;"
+                    />
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 6px;">
+              <h1 style="margin:0 0 12px 0;font-size:36px;line-height:1.2;color:#111827;font-weight:800;">
+                ${escapeHtml(normalizedSubject)}
               </h1>
             </td>
           </tr>
           <tr>
-            <td style="padding:32px 28px 18px 28px;">
-              ${renderBodyHtml(input.body)}
+            <td style="padding:12px 32px 8px;">
+              ${bodyContent}
             </td>
           </tr>
           <tr>
-            <td style="padding:0 28px 28px 28px;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-top:1px solid #eadcf0;padding-top:22px;">
+            <td style="padding:4px 32px 8px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="padding-top:22px;color:#6b7280;font-size:13px;line-height:1.6;">
-                    Sigue nuestras novedades en
-                    <a href="${escapeHtml(input.instagramUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;font-weight:700;text-decoration:none;">Instagram</a>
-                    y
-                    <a href="${escapeHtml(input.tiktokUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;font-weight:700;text-decoration:none;">TikTok</a>.
-                    <br />
-                    Peloteras · Conectando mujeres y disidencias a través del fútbol
-                    <br />
-                    <a href="${escapeHtml(input.homeUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;text-decoration:none;">${escapeHtml(
-                      input.homeUrl
-                    )}</a>
+                  <td align="center" bgcolor="#54086F" style="border-radius:14px;">
+                    <a
+                      href="${escapeAttribute(input.homeUrl)}"
+                      target="_blank"
+                      rel="noreferrer"
+                      style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;"
+                    >
+                      Ir a Peloteras
+                    </a>
                   </td>
                 </tr>
               </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 32px 30px;">
+              <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">
+                También puedes abrir Peloteras desde este enlace:
+              </p>
+              <p style="margin:6px 0 16px 0;font-size:13px;line-height:1.5;word-break:break-all;">
+                <a href="${escapeAttribute(input.homeUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;text-decoration:underline;">
+                  ${escapeHtml(input.homeUrl)}
+                </a>
+              </p>
+
+              <hr style="border:0;border-top:1px solid #e8e8ee;margin:0 0 14px;">
+
+              <p style="margin:0;font-size:12px;line-height:1.6;color:#94a3b8;">
+                Sigue nuestras novedades en
+                <a href="${escapeAttribute(input.instagramUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;text-decoration:underline;">Instagram</a>
+                y
+                <a href="${escapeAttribute(input.tiktokUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;text-decoration:underline;">TikTok</a>.
+              </p>
+              <p style="margin:6px 0 0 0;font-size:12px;line-height:1.6;color:#94a3b8;">
+                Equipo Peloteras
+              </p>
             </td>
           </tr>
         </table>
@@ -205,7 +400,6 @@ type ResendBatchEmail = {
   to: string[];
   subject: string;
   html: string;
-  text: string;
   reply_to: string;
 };
 
@@ -384,7 +578,8 @@ export async function sendEventAnnouncementEmail(
   }
 
   const normalizedBody = normalizeBodyText(input.body).trim();
-  if (!normalizedBody) {
+  const normalizedBodyHtml = String(input.bodyHtml || '').trim();
+  if (!normalizedBody && !normalizedBodyHtml) {
     return { sentCount: 0, failedCount: 0, recipientResults: [] };
   }
 
@@ -403,9 +598,11 @@ export async function sendEventAnnouncementEmail(
   const homeUrl = resolveBaseUrl();
   const instagramUrl = normalizeUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, DEFAULT_INSTAGRAM_URL);
   const tiktokUrl = normalizeUrl(process.env.NEXT_PUBLIC_TIKTOK_URL, DEFAULT_TIKTOK_URL);
+  const normalizedSubject = normalizeAnnouncementSubject(input.subject);
   const html = buildEmailHtml({
-    subject: input.subject,
+    subject: normalizedSubject,
     body: normalizedBody,
+    bodyHtml: normalizedBodyHtml,
     homeUrl,
     instagramUrl,
     tiktokUrl,
@@ -426,9 +623,8 @@ export async function sendEventAnnouncementEmail(
         emails: chunk.map((email) => ({
           from: DEFAULT_FROM_EMAIL,
           to: [email],
-          subject: input.subject,
+          subject: normalizedSubject,
           html,
-          text: normalizedBody,
           reply_to: DEFAULT_SUPPORT_EMAIL,
         })),
       });
@@ -511,7 +707,7 @@ export async function sendEventAnnouncementEmail(
   }
 
   log.info('Event announcement email completed', 'EMAIL', {
-    subject: input.subject,
+    subject: normalizedSubject,
     recipientCount: recipients.length,
     sentCount,
     failedCount,
