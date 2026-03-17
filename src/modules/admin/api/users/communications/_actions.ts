@@ -13,6 +13,34 @@ export type UsersBroadcastActionState = {
   failedCount: number;
 };
 
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function parseManualEmails(rawValue: unknown) {
+  const tokens = String(rawValue || '')
+    .split(/[\s,;]+/)
+    .map((token) => token.trim().toLowerCase())
+    .filter(Boolean);
+
+  const valid = new Set<string>();
+  const invalid = new Set<string>();
+
+  tokens.forEach((token) => {
+    if (isValidEmail(token)) {
+      valid.add(token);
+      return;
+    }
+
+    invalid.add(token);
+  });
+
+  return {
+    valid: Array.from(valid),
+    invalid: Array.from(invalid),
+  };
+}
+
 async function assertSuperAdmin() {
   const supabase = await getServerSupabase();
   const {
@@ -46,11 +74,21 @@ export async function sendUsersBroadcast(
     const subject = String(formData.get('subject') || '').trim();
     const body = String(formData.get('body') || '').trim();
     const bodyHtml = String(formData.get('bodyHtml') || '').trim();
+    const manualRecipients = parseManualEmails(formData.get('manualEmails'));
 
-    if (!selectedUserIds.length) {
+    if (!selectedUserIds.length && !manualRecipients.valid.length) {
       return {
         status: 'error',
-        message: 'Selecciona al menos una usuaria antes de enviar.',
+        message: 'Selecciona al menos una usuaria o agrega un correo manual antes de enviar.',
+        sentCount: 0,
+        failedCount: 0,
+      };
+    }
+
+    if (manualRecipients.invalid.length > 0) {
+      return {
+        status: 'error',
+        message: 'Revisa los correos manuales inválidos antes de enviar.',
         sentCount: 0,
         failedCount: 0,
       };
@@ -74,11 +112,12 @@ export async function sendUsersBroadcast(
       };
     }
 
-    const recipients = await getUserEmailsForBroadcastByIds(selectedUserIds);
+    const selectedRecipients = selectedUserIds.length ? await getUserEmailsForBroadcastByIds(selectedUserIds) : [];
+    const recipients = Array.from(new Set([...selectedRecipients, ...manualRecipients.valid].filter(Boolean)));
     if (!recipients.length) {
       return {
         status: 'error',
-        message: 'Las usuarias seleccionadas no tienen correo válido para enviar.',
+        message: 'No hay destinatarias con correo válido para enviar.',
         sentCount: 0,
         failedCount: 0,
       };
@@ -96,7 +135,7 @@ export async function sendUsersBroadcast(
       message:
         result.failedCount > 0
           ? `Correo enviado parcialmente. Salieron ${result.sentCount} y fallaron ${result.failedCount}.`
-          : 'Correo enviado correctamente a las usuarias seleccionadas.',
+          : 'Correo enviado correctamente.',
       sentCount: result.sentCount,
       failedCount: result.failedCount,
     };
