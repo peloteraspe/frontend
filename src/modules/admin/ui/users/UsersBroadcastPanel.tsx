@@ -7,6 +7,7 @@ type Props = {
   defaultSubject: string;
   defaultBody: string;
   selectedUserIds: string[];
+  selectedRecipientEmails: string[];
   selectedCount: number;
   totalSelectableCount: number;
 };
@@ -15,11 +16,12 @@ export default function UsersBroadcastPanel({
   defaultSubject,
   defaultBody,
   selectedUserIds,
+  selectedRecipientEmails,
   selectedCount,
   totalSelectableCount,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
-  const canOpen = selectedCount > 0;
+  const hasSelection = selectedCount > 0;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -42,23 +44,22 @@ export default function UsersBroadcastPanel({
       <button
         type="button"
         onClick={() => {
-          if (canOpen) setIsOpen(true);
+          setIsOpen(true);
         }}
-        disabled={!canOpen}
         className={[
           'inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-semibold text-white transition',
-          canOpen ? 'bg-mulberry hover:bg-mulberry/90' : 'cursor-not-allowed bg-slate-400',
+          'bg-mulberry hover:bg-mulberry/90',
         ].join(' ')}
       >
         Enviar correo
       </button>
 
       <p className="mt-2 text-xs text-slate-500">
-        {canOpen
+        {hasSelection
           ? `${selectedCount} usuaria${selectedCount === 1 ? '' : 's'} seleccionada${
               selectedCount === 1 ? '' : 's'
             } para enviar.`
-          : 'Selecciona 1 o más usuarias para habilitar el envío.'}
+          : 'Sin selección. Puedes escribir un correo manual dentro del envío.'}
       </p>
 
       {isOpen ? (
@@ -90,7 +91,8 @@ export default function UsersBroadcastPanel({
                   Comunicado a usuarias
                 </p>
                 <p className="mt-1 text-sm text-slate-700">
-                  Redacta tu mensaje y envíalo solo a las usuarias seleccionadas usando el template de Peloteras.
+                  Redacta tu mensaje y revísalo antes de enviar. Puedes usar la selección actual, agregar uno o varios
+                  correos manuales, o combinar ambos sin duplicados.
                 </p>
               </div>
 
@@ -98,6 +100,7 @@ export default function UsersBroadcastPanel({
                 defaultSubject={defaultSubject}
                 defaultBody={defaultBody}
                 selectedUserIds={selectedUserIds}
+                selectedRecipientEmails={selectedRecipientEmails}
                 selectedCount={selectedCount}
                 totalSelectableCount={totalSelectableCount}
               />

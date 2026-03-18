@@ -30,7 +30,11 @@ export default function UsersAdminManager({
   defaultBody,
   onToggleAdmin,
 }: Props) {
-  const selectableUserIds = users.filter((user) => isValidEmail(user.email)).map((user) => user.id);
+  const selectableUsers = users.filter((user) => isValidEmail(user.email));
+  const selectableUserIds = selectableUsers.map((user) => user.id);
+  const selectableEmailByUserId = new Map(
+    selectableUsers.map((user) => [user.id, String(user.email || '').trim().toLowerCase()])
+  );
   const selectableUserIdSet = new Set(selectableUserIds);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
@@ -39,6 +43,9 @@ export default function UsersAdminManager({
   }, [users]);
 
   const selectedUserIdSet = new Set(selectedUserIds);
+  const selectedRecipientEmails = selectedUserIds
+    .map((userId) => selectableEmailByUserId.get(userId))
+    .filter((email): email is string => Boolean(email));
   const selectedCount = selectedUserIds.length;
   const totalSelectableCount = selectableUserIds.length;
   const allSelectableSelected =
@@ -52,7 +59,7 @@ export default function UsersAdminManager({
             <div>
               <p className="text-sm font-semibold text-slate-900">Selección para correo</p>
               <p className="mt-1 text-sm text-slate-600">
-                Marca 1 o más usuarias y el correo solo se enviará a esa selección.
+                Marca 1 o más usuarias o abre el modal para agregar uno o varios correos manuales.
               </p>
             </div>
 
@@ -60,6 +67,7 @@ export default function UsersAdminManager({
               defaultSubject={defaultSubject}
               defaultBody={defaultBody}
               selectedUserIds={selectedUserIds}
+              selectedRecipientEmails={selectedRecipientEmails}
               selectedCount={selectedCount}
               totalSelectableCount={totalSelectableCount}
             />
