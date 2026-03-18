@@ -9,6 +9,28 @@ type SendEventAnnouncementEmailInput = {
   body: string;
   bodyHtml?: string | null;
   recipients: string[];
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  eventPromotionLayout?: EventPromotionLayout | null;
+};
+
+type EventPromotionDetail = {
+  label: string;
+  value: string;
+};
+
+type EventPromotionLayout = {
+  eventTitle: string;
+  intro?: string | null;
+  eventDate: string;
+  eventTime: string;
+  eventLocation: string;
+  registrationCtaLabel?: string | null;
+  registrationCtaUrl?: string | null;
+  organizerName?: string | null;
+  organizerEmail?: string | null;
+  details?: EventPromotionDetail[] | null;
+  description?: string | null;
 };
 
 export type EventAnnouncementRecipientResult = {
@@ -29,6 +51,9 @@ const DEFAULT_INSTAGRAM_URL = 'https://www.instagram.com/peloteraspe/';
 const DEFAULT_TIKTOK_URL = 'https://www.tiktok.com/@peloteras.com';
 const DEFAULT_SUPPORT_EMAIL = 'contacto@peloteras.com';
 const DEFAULT_FROM_EMAIL = 'Peloteras <contacto@peloteras.com>';
+const DEFAULT_CTA_LABEL = 'Ir a Peloteras';
+const DEFAULT_LOCAL_SITE_URL = 'http://localhost:3000';
+const DEFAULT_LOGO_URL = 'https://res.cloudinary.com/dtisme9jg/image/upload/v1772667120/peloteras_bdvyxk.png';
 const SEND_BATCH_SIZE = 100;
 const INTER_BATCH_DELAY_MS = 150;
 const MAX_BATCH_ATTEMPTS = 4;
@@ -54,6 +79,11 @@ Más jugadoras, más fútbol`;
 function normalizeAnnouncementSubject(subject: string | undefined | null) {
   const normalized = String(subject || '').trim();
   return normalized || DEFAULT_SUBJECT;
+}
+
+function normalizeCtaLabel(value: string | undefined | null) {
+  const normalized = String(value || '').trim();
+  return normalized || DEFAULT_CTA_LABEL;
 }
 
 function escapeHtml(value: unknown) {
@@ -97,8 +127,31 @@ function normalizeUrl(value: string | undefined | null, fallback: string) {
   }
 }
 
+function resolveCtaUrl(value: string | undefined | null, homeUrl: string) {
+  const candidate = String(value || '').trim();
+  if (!candidate) return homeUrl;
+
+  try {
+    const parsed = new URL(candidate, homeUrl);
+    if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) return homeUrl;
+    return parsed.toString();
+  } catch {
+    return homeUrl;
+  }
+}
+
 function resolveBaseUrl() {
-  return normalizeUrl(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL, DEFAULT_SITE_URL);
+  const configured = String(
+    process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || ''
+  ).trim();
+  if (!configured) {
+    return process.env.NODE_ENV === 'production' ? DEFAULT_SITE_URL : DEFAULT_LOCAL_SITE_URL;
+  }
+
+  return normalizeUrl(
+    configured,
+    process.env.NODE_ENV === 'production' ? DEFAULT_SITE_URL : DEFAULT_LOCAL_SITE_URL
+  );
 }
 
 function normalizeBodyText(body: string) {
@@ -153,7 +206,10 @@ function getRichTextStyleDefaults(tagName: string) {
 
 function getRichTextAttribute(attributes: string, attributeName: string) {
   const escapedAttributeName = attributeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`${escapedAttributeName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\\x60]+))`, 'i');
+  const regex = new RegExp(
+    `${escapedAttributeName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\\x60]+))`,
+    'i'
+  );
   const match = regex.exec(attributes);
   return String(match?.[1] ?? match?.[2] ?? match?.[3] ?? '').trim();
 }
@@ -174,7 +230,10 @@ function sanitizeRichTextStyle(rawStyle: string, tagName: string) {
     if (separatorIndex <= 0) return;
 
     const property = rule.slice(0, separatorIndex).trim().toLowerCase();
-    const value = rule.slice(separatorIndex + 1).trim().toLowerCase();
+    const value = rule
+      .slice(separatorIndex + 1)
+      .trim()
+      .toLowerCase();
 
     if (['margin-left', 'padding-left', 'text-indent'].includes(property)) {
       if (/^\d+(\.\d+)?(px|pt|em|rem|%)$/.test(value)) {
@@ -249,12 +308,13 @@ function sanitizeRichTextHtml(bodyHtml: string | undefined | null) {
       continue;
     }
 
-    const customStyle = sanitizeRichTextStyle(getRichTextAttribute(match[2] || '', 'style'), tagName);
+    const customStyle = sanitizeRichTextStyle(
+      getRichTextAttribute(match[2] || '', 'style'),
+      tagName
+    );
     const defaultStyle = getRichTextStyleDefaults(tagName);
     const styleValue = [defaultStyle, customStyle].filter(Boolean).join('');
-    output += styleValue
-      ? `<${tagName} style="${escapeAttribute(styleValue)}">`
-      : `<${tagName}>`;
+    output += styleValue ? `<${tagName} style="${escapeAttribute(styleValue)}">` : `<${tagName}>`;
   }
 
   output += escapeHtml(strippedUnsafeTags.slice(lastIndex));
@@ -285,6 +345,282 @@ function renderBodyHtml(body: string, bodyHtml?: string | null) {
     .join('');
 }
 
+function buildPromotionDetailsCardHtml(
+  title: string,
+  details: EventPromotionDetail[] | null | undefined
+) {
+  const safeDetails = (details ?? []).filter(
+    (detail) => String(detail?.label || '').trim() && String(detail?.value || '').trim()
+  );
+  if (!safeDetails.length) return '';
+
+  return `
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="padding:0 24px 18px 24px;">
+                  <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:18px 20px;text-align:left;">
+                    <p style="margin:0 0 12px 0;color:#54086f;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">
+                      ${escapeHtml(title)}
+                    </p>
+                    ${safeDetails
+                      .map(
+                        (detail, index) => `
+                      <p style="margin:0${index < safeDetails.length - 1 ? ' 0 10px' : ''};color:#111827;font-size:14px;font-family:Arial,Helvetica,sans-serif;line-height:1.5;">
+                        <strong style="color:#54086f;">${escapeHtml(detail.label)}:</strong> ${escapeHtml(detail.value)}
+                      </p>
+                    `
+                      )
+                      .join('')}
+                  </div>
+                </td>
+              </tr>
+            </table>
+  `.trim();
+}
+
+function buildEventPromotionEmailHtml(input: {
+  subject: string;
+  homeUrl: string;
+  instagramUrl: string;
+  tiktokUrl: string;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  layout: EventPromotionLayout;
+}) {
+  const normalizedSubject = normalizeAnnouncementSubject(input.subject);
+  const logoUrl = DEFAULT_LOGO_URL;
+  const ctaLabel = normalizeCtaLabel(input.ctaLabel);
+  const ctaUrl = resolveCtaUrl(input.ctaUrl, input.homeUrl);
+  const registrationCtaLabel =
+    String(input.layout.registrationCtaLabel || '').trim() || 'Inscríbete';
+  const registrationCtaUrl = resolveCtaUrl(input.layout.registrationCtaUrl, input.homeUrl);
+  const organizerDetails = [
+    { label: 'Nombre', value: String(input.layout.organizerName || '').trim() },
+    { label: 'Correo', value: String(input.layout.organizerEmail || '').trim() },
+  ];
+  const extraDetails = (input.layout.details ?? []).filter(
+    (detail) => String(detail?.label || '').trim() && String(detail?.value || '').trim()
+  );
+  const description = String(input.layout.description || '').trim();
+  const descriptionHtml = description ? renderBodyHtml(description) : '';
+  const organizerCardHtml = buildPromotionDetailsCardHtml('Admin del evento', organizerDetails);
+  const extraCardHtml = buildPromotionDetailsCardHtml('Más información', extraDetails);
+
+  return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>${escapeHtml(normalizedSubject)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700;800&display=swap" rel="stylesheet" type="text/css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: inherit !important; }
+    #MessageViewBody a { color: inherit; text-decoration: none; }
+    .location-value, .location-value a {
+      color: #ffffff !important;
+      text-decoration: none !important;
+      -webkit-text-fill-color: #ffffff !important;
+    }
+    .metric-value {
+      white-space: normal !important;
+      word-break: break-word !important;
+      overflow-wrap: anywhere !important;
+    }
+    .metric-copy {
+      white-space: normal !important;
+      word-break: break-word !important;
+      overflow-wrap: anywhere !important;
+    }
+    p { line-height: inherit; }
+    @media (max-width: 720px) {
+      .row-content { width: 100% !important; }
+      .stack .column { width: 100% !important; display: block !important; }
+      .event-title { font-size: 46px !important; }
+      .event-intro { font-size: 16px !important; line-height: 1.45 !important; }
+      .metric-value { font-size: 24px !important; }
+      .location-value { font-size: 22px !important; }
+      .promo-row .promo-column { width: 100% !important; display: block !important; border-left: 0 !important; border-right: 0 !important; }
+      .promo-row .promo-column-middle,
+      .promo-row .promo-column-last { border-top: 8px solid #ffffff !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;background-color:#744d7c;padding:0;-webkit-text-size-adjust:none;text-size-adjust:none;">
+  <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#744d7c;">
+    <tr>
+      <td>
+        <table class="row-content stack" align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" width="700" style="background-color:#ffffff;color:#000000;width:700px;margin:0 auto;">
+          <tr>
+            <td class="column" width="100%" style="text-align:left;vertical-align:top;">
+              <div style="height:40px;line-height:40px;font-size:1px;">&#8202;</div>
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td style="width:100%;padding:0;">
+                    <div align="center">
+                      <div style="max-width:210px;">
+                        <a href="${escapeAttribute(input.homeUrl)}" target="_blank" rel="noreferrer">
+                          <img src="${escapeAttribute(logoUrl)}" style="display:block;height:auto;border:0;width:100%;" width="210" alt="Peloteras" />
+                        </a>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              <div style="height:26px;line-height:26px;font-size:1px;">&#8202;</div>
+              <table width="100%" border="0" cellpadding="10" cellspacing="0" role="presentation">
+                <tr>
+                  <td>
+                    <div align="center" style="margin-bottom:14px;">
+                      <span style="display:inline-block;background:#efe6f4;color:#54086f;font-weight:800;font-size:12px;letter-spacing:.6px;text-transform:uppercase;border-radius:999px;padding:7px 12px;font-family:Arial,Helvetica,sans-serif;">
+                        Nuevo evento
+                      </span>
+                    </div>
+                    <p class="event-intro" style="margin:0 auto 18px auto;max-width:560px;color:#374151;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:1.45;text-align:center;">
+                      ${escapeHtml(String(input.layout.intro || '').trim() || 'Hay un nuevo evento en Peloteras y queríamos compartirlo contigo. Mira los detalles y súmate a la cancha.')}
+                    </p>
+                    <h1 class="event-title" style="margin:0;color:#202020;direction:ltr;font-family:'Oswald',Arial,'Helvetica Neue',Helvetica,sans-serif;font-size:62px;font-weight:700;letter-spacing:-2px;line-height:1;text-align:center;word-break:break-word;padding:0 16px;">
+                      ${escapeHtml(input.layout.eventTitle)}
+                    </h1>
+                  </td>
+                </tr>
+              </table>
+              <div style="height:20px;line-height:20px;font-size:1px;">&#8202;</div>
+            </td>
+          </tr>
+        </table>
+
+        <table class="row-content stack" align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" width="700" style="background-color:#ffffff;color:#000000;padding:0 20px 20px 20px;width:700px;margin:0 auto;">
+          <tr>
+            <td>
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr class="promo-row">
+                  <td class="column promo-column promo-column-first" width="33.33%" valign="top" style="background-color:#744d7c;text-align:center;padding:0;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+                      <tr>
+                        <td style="padding:34px 18px 32px 18px;text-align:center;">
+                          <img src="https://d1oco4z2z1fhwp.cloudfront.net/templates/default/11021/03_Icon_calendar.png" width="39" alt="Fecha" style="display:block;height:auto;border:0;margin:0 auto 14px auto;">
+                          <p style="margin:0 0 26px 0;color:#d8bfdc;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">Fecha</p>
+                          <h3 class="metric-value" style="margin:0;color:#ffffff;font-family:'Oswald',Arial,'Helvetica Neue',Helvetica,sans-serif;font-size:27px;font-weight:600;letter-spacing:-1px;line-height:1.12;text-align:center;">
+                            ${escapeHtml(input.layout.eventDate)}
+                          </h3>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td class="column promo-column promo-column-middle" width="33.33%" valign="top" style="background-color:#744d7c;text-align:center;padding:0;border-left:8px solid #ffffff;border-right:8px solid #ffffff;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+                      <tr>
+                        <td style="padding:34px 18px 32px 18px;text-align:center;">
+                          <img src="https://d1oco4z2z1fhwp.cloudfront.net/templates/default/11021/03_Icon_Clock.png" width="39" alt="Hora" style="display:block;height:auto;border:0;margin:0 auto 14px auto;">
+                          <p style="margin:0 0 26px 0;color:#d8bfdc;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">Hora</p>
+                          <h3 class="metric-value" style="margin:0;color:#ffffff;font-family:'Oswald',Arial,'Helvetica Neue',Helvetica,sans-serif;font-size:27px;font-weight:600;letter-spacing:-1px;line-height:1.12;text-align:center;">
+                            ${escapeHtml(input.layout.eventTime)}
+                          </h3>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td class="column promo-column promo-column-last" width="33.33%" valign="top" style="background-color:#744d7c;text-align:center;padding:0;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+                      <tr>
+                        <td style="padding:34px 18px 32px 18px;text-align:center;">
+                          <img src="https://d1oco4z2z1fhwp.cloudfront.net/templates/default/11021/03_Icon_map-pin.png" width="39" alt="Lugar" style="display:block;height:auto;border:0;margin:0 auto 14px auto;">
+                          <p style="margin:0 0 26px 0;color:#d8bfdc;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">Lugar</p>
+                          <h3 class="metric-value location-value" style="margin:0;color:#ffffff;font-family:'Oswald',Arial,'Helvetica Neue',Helvetica,sans-serif;font-size:22px;font-weight:600;letter-spacing:-0.6px;line-height:1.16;text-align:center;">
+                            <span class="metric-copy location-value" style="display:block;color:#ffffff;text-decoration:none;-webkit-text-fill-color:#ffffff;white-space:normal;word-break:break-word;overflow-wrap:anywhere;">
+                              ${escapeHtml(input.layout.eventLocation)}
+                            </span>
+                          </h3>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:20px 0 0 0;">
+              <a href="${escapeAttribute(registrationCtaUrl)}" target="_blank" rel="noreferrer" style="display:inline-block;background:#54086f;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 26px;border-radius:12px;font-family:Arial,Helvetica,sans-serif;box-shadow:0 6px 18px rgba(84,8,111,.24);">
+                ${escapeHtml(registrationCtaLabel)}
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:12px 16px 0 16px;color:#6b7280;font-size:12px;font-family:Arial,Helvetica,sans-serif;word-break:break-all;">
+              Si el botón no abre, copia este enlace: ${escapeHtml(registrationCtaUrl)}
+            </td>
+          </tr>
+        </table>
+
+        <table class="row-content stack" align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" width="700" style="background-color:#ffffff;color:#000000;width:700px;margin:0 auto;">
+          <tr>
+            <td class="column" width="100%" style="text-align:left;vertical-align:top;">
+              ${organizerCardHtml}
+              ${extraCardHtml}
+              ${
+                descriptionHtml
+                  ? `
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td style="padding:0 24px 18px 24px;">
+                    <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;padding:18px 20px;text-align:left;">
+                      <p style="margin:0 0 12px 0;color:#54086f;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">
+                        Descripción del evento
+                      </p>
+                      ${descriptionHtml}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              `
+                  : ''
+              }
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td align="center" style="padding:8px 24px 20px 24px;">
+                    <a href="${escapeAttribute(ctaUrl)}" target="_blank" rel="noreferrer" style="display:inline-block;background:#54086f;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:13px 24px;border-radius:10px;font-family:Arial,Helvetica,sans-serif;box-shadow:0 6px 18px rgba(84,8,111,.24);">
+                      ${escapeHtml(ctaLabel)}
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding:0 24px 22px 24px;color:#6b7280;font-size:12px;font-family:Arial,Helvetica,sans-serif;word-break:break-all;">
+                    Si el botón no abre, copia este enlace: ${escapeHtml(ctaUrl)}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <table class="row-content stack" align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" width="700" style="background-color:#ffffff;color:#000000;width:700px;margin:0 auto;">
+          <tr>
+            <td class="column" width="100%" style="text-align:left;vertical-align:top;padding:0 24px 28px 24px;">
+              <hr style="border:0;border-top:1px solid #e5e7eb;margin:0 0 14px;">
+              <p style="margin:0;font-size:12px;line-height:1.6;color:#94a3b8;font-family:Arial,Helvetica,sans-serif;">
+                Sigue nuestras novedades en
+                <a href="${escapeAttribute(input.instagramUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;text-decoration:underline;">Instagram</a>
+                y
+                <a href="${escapeAttribute(input.tiktokUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;text-decoration:underline;">TikTok</a>.
+              </p>
+              <p style="margin:6px 0 0 0;font-size:12px;line-height:1.6;color:#94a3b8;font-family:Arial,Helvetica,sans-serif;">
+                Equipo Peloteras
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 function buildEmailHtml(input: {
   subject: string;
   body: string;
@@ -292,11 +628,14 @@ function buildEmailHtml(input: {
   homeUrl: string;
   instagramUrl: string;
   tiktokUrl: string;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
 }) {
   const normalizedSubject = normalizeAnnouncementSubject(input.subject);
-  const normalizedHomeUrl = input.homeUrl.replace(/\/+$/, '');
-  const logoUrl = `${normalizedHomeUrl}/assets/logo.png`;
+  const logoUrl = DEFAULT_LOGO_URL;
   const bodyContent = renderBodyHtml(input.body, input.bodyHtml);
+  const ctaLabel = normalizeCtaLabel(input.ctaLabel);
+  const ctaUrl = resolveCtaUrl(input.ctaUrl, input.homeUrl);
 
   return `
 <!DOCTYPE html>
@@ -351,12 +690,12 @@ function buildEmailHtml(input: {
                 <tr>
                   <td align="center" bgcolor="#54086F" style="border-radius:14px;">
                     <a
-                      href="${escapeAttribute(input.homeUrl)}"
+                      href="${escapeAttribute(ctaUrl)}"
                       target="_blank"
                       rel="noreferrer"
                       style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;"
                     >
-                      Ir a Peloteras
+                      ${escapeHtml(ctaLabel)}
                     </a>
                   </td>
                 </tr>
@@ -366,11 +705,11 @@ function buildEmailHtml(input: {
           <tr>
             <td style="padding:8px 32px 30px;">
               <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">
-                También puedes abrir Peloteras desde este enlace:
+                También puedes abrir este enlace:
               </p>
               <p style="margin:6px 0 16px 0;font-size:13px;line-height:1.5;word-break:break-all;">
-                <a href="${escapeAttribute(input.homeUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;text-decoration:underline;">
-                  ${escapeHtml(input.homeUrl)}
+                <a href="${escapeAttribute(ctaUrl)}" target="_blank" rel="noreferrer" style="color:#54086f;text-decoration:underline;">
+                  ${escapeHtml(ctaUrl)}
                 </a>
               </p>
 
@@ -579,14 +918,18 @@ export async function sendEventAnnouncementEmail(
 
   const normalizedBody = normalizeBodyText(input.body).trim();
   const normalizedBodyHtml = String(input.bodyHtml || '').trim();
-  if (!normalizedBody && !normalizedBodyHtml) {
+  if (!normalizedBody && !normalizedBodyHtml && !input.eventPromotionLayout) {
     return { sentCount: 0, failedCount: 0, recipientResults: [] };
   }
 
   const recipients = Array.from(
     new Set(
       input.recipients
-        .map((email) => String(email || '').trim().toLowerCase())
+        .map((email) =>
+          String(email || '')
+            .trim()
+            .toLowerCase()
+        )
         .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     )
   );
@@ -599,14 +942,26 @@ export async function sendEventAnnouncementEmail(
   const instagramUrl = normalizeUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, DEFAULT_INSTAGRAM_URL);
   const tiktokUrl = normalizeUrl(process.env.NEXT_PUBLIC_TIKTOK_URL, DEFAULT_TIKTOK_URL);
   const normalizedSubject = normalizeAnnouncementSubject(input.subject);
-  const html = buildEmailHtml({
-    subject: normalizedSubject,
-    body: normalizedBody,
-    bodyHtml: normalizedBodyHtml,
-    homeUrl,
-    instagramUrl,
-    tiktokUrl,
-  });
+  const html = input.eventPromotionLayout
+    ? buildEventPromotionEmailHtml({
+        subject: normalizedSubject,
+        homeUrl,
+        instagramUrl,
+        tiktokUrl,
+        ctaLabel: input.ctaLabel,
+        ctaUrl: input.ctaUrl,
+        layout: input.eventPromotionLayout,
+      })
+    : buildEmailHtml({
+        subject: normalizedSubject,
+        body: normalizedBody,
+        bodyHtml: normalizedBodyHtml,
+        homeUrl,
+        instagramUrl,
+        tiktokUrl,
+        ctaLabel: input.ctaLabel,
+        ctaUrl: input.ctaUrl,
+      });
 
   let sentCount = 0;
   let failedCount = 0;
@@ -659,9 +1014,10 @@ export async function sendEventAnnouncementEmail(
       const accountedCount = result.queuedResults.length + result.failedResults.length;
       if (accountedCount < chunk.length) {
         const accountedEmails = new Set(
-          [...result.queuedResults.map((item) => item.email), ...result.failedResults.map((item) => item.email)].filter(
-            Boolean
-          )
+          [
+            ...result.queuedResults.map((item) => item.email),
+            ...result.failedResults.map((item) => item.email),
+          ].filter(Boolean)
         );
 
         chunk
