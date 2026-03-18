@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import soccerBall from '@core/assets/soccer-ball.svg';
+import WhatsappIcon from '@shared/ui/icons/social/WhatsappIcon';
 
 export type EventShareModalStatus = 'loading' | 'success' | 'error';
 
@@ -165,9 +166,7 @@ export default function EventShareModal({
                       rel="noreferrer"
                       className="group inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#25D366] px-4 text-sm font-semibold text-white shadow-[0_10px_24px_-12px_rgba(37,211,102,0.9)] transition hover:bg-[#20be5c] hover:shadow-[0_14px_28px_-12px_rgba(32,190,92,0.95)] active:translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366] focus-visible:ring-offset-2"
                     >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-current" aria-hidden="true">
-                        <path d="M19.1 4.9A10.8 10.8 0 0 0 2.3 17.6L1 23l5.5-1.4A10.8 10.8 0 1 0 19.1 4.9Zm-7 15a9 9 0 0 1-4.6-1.3l-.3-.2-3.3.8.9-3.2-.2-.3a9 9 0 1 1 7.5 4.2Zm5-6.7c-.3-.2-1.6-.8-1.8-.9-.2-.1-.4-.1-.6.1l-.8.9c-.1.1-.3.2-.5.1a7.4 7.4 0 0 1-3.6-3.2c-.2-.3 0-.5.1-.6l.4-.5.3-.4c.1-.2.1-.3 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5 0-.7.3-.3.3-1 1-1 2.3s1 2.6 1.2 2.8a10.4 10.4 0 0 0 3.9 3.5c1.8.8 2.4.9 3.2.8.5-.1 1.6-.7 1.8-1.4.2-.7.2-1.2.1-1.3-.1-.1-.3-.2-.6-.3Z" />
-                      </svg>
+                      <WhatsappIcon className="h-4 w-4 shrink-0" />
                       Compartir por WhatsApp
                     </a>
                   ) : null}

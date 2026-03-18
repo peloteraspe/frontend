@@ -1,8 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getAdminSupabase } from '@core/api/supabase.admin';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { log } from '@core/lib/logger';
+import { getAllUserEmailsForBroadcast } from '@modules/admin/api/users/services/adminUsers.service';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { assertCanManageEvent } from '../services/eventPermissions.service';
 import {
@@ -20,6 +22,22 @@ export type EventAnnouncementActionState = {
   sentCount: number;
   failedCount: number;
 };
+
+type EventPromotionRow = {
+  id: string | number;
+  title: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  location_text: string | null;
+  district: string | null;
+  price: number | string | null;
+  description: unknown;
+  is_published: boolean | null;
+  created_by: string | null;
+  created_by_id: string | null;
+};
+
+const DEFAULT_TIMEZONE = 'America/Lima';
 
 function buildPath(eventId: string) {
   return `/admin/events/${eventId}/participants`;
@@ -40,10 +58,10 @@ async function assertSuperAdminAccess() {
   }
 
   if (!isSuperAdmin(user as any)) {
-    throw new Error('Solo superadmin puede reenviar correos históricos.');
+    throw new Error('Solo superadmin puede gestionar envíos globales de correo.');
   }
 
-  return { user };
+  return { supabase, user };
 }
 
 function buildRecipientMetadata(
@@ -64,7 +82,9 @@ function buildRecipientMetadata(
   >();
 
   recipients.forEach((recipient) => {
-    const email = String(recipient.email || '').trim().toLowerCase();
+    const email = String(recipient.email || '')
+      .trim()
+      .toLowerCase();
     if (!email || detailsByEmail.has(email)) return;
 
     detailsByEmail.set(email, {
@@ -80,6 +100,152 @@ function buildRecipientMetadata(
 function appendPersistenceWarning(message: string, persistenceError: string | null) {
   if (!persistenceError) return message;
   return `${message} No se pudo guardar el historial del envío.`;
+}
+
+function buildInvisibleThreadBreaker() {
+  const seed = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  return Array.from(seed)
+    .map((char, index) => {
+      const code = char.charCodeAt(0) + index;
+      if (code % 3 === 0) return '\u200B';
+      if (code % 3 === 1) return '\u200C';
+      return '\u2060';
+    })
+    .join('');
+}
+
+function parseDate(value: unknown) {
+  if (!value) return null;
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isSameCalendarDate(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function formatPromotionDateRange(startRaw: unknown, endRaw: unknown) {
+  const start = parseDate(startRaw);
+  if (!start) return 'Por confirmar';
+
+  const end = parseDate(endRaw);
+  const formatter = new Intl.DateTimeFormat('es-PE', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    timeZone: DEFAULT_TIMEZONE,
+  });
+
+  if (!end || isSameCalendarDate(start, end)) {
+    return formatter.format(start);
+  }
+
+  return `${formatter.format(start)} - ${formatter.format(end)}`;
+}
+
+function formatPromotionTimeRange(startRaw: unknown, endRaw: unknown) {
+  const start = parseDate(startRaw);
+  if (!start) return 'Por confirmar';
+
+  const end = parseDate(endRaw);
+  const timeFormatter = new Intl.DateTimeFormat('es-PE', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: DEFAULT_TIMEZONE,
+  });
+  const dateTimeFormatter = new Intl.DateTimeFormat('es-PE', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: DEFAULT_TIMEZONE,
+  });
+
+  if (!end) {
+    return `${timeFormatter.format(start)} - --:--`;
+  }
+
+  if (isSameCalendarDate(start, end)) {
+    return `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`;
+  }
+
+  return `${dateTimeFormatter.format(start)} - ${dateTimeFormatter.format(end)}`;
+}
+
+function extractEventDescription(value: unknown) {
+  if (value && typeof value === 'object') {
+    const maybe = value as { description?: string | null };
+    return String(maybe.description || '').trim();
+  }
+
+  return String(value || '').trim();
+}
+
+function formatPromotionPrice(value: unknown) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return 'Gratis';
+
+  const hasDecimals = Math.round(amount * 100) % 100 !== 0;
+  return new Intl.NumberFormat('es-PE', {
+    style: 'currency',
+    currency: 'PEN',
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function buildEventPromotionTemplate(event: EventPromotionRow) {
+  const eventTitle = String(event.title || 'Evento Peloteras').trim() || 'Evento Peloteras';
+  const description = extractEventDescription(event.description);
+  const locationLabel = String(event.location_text || '').trim() || 'Ubicación por confirmar';
+  const districtLabel = String(event.district || '').trim();
+  const extraDetails = [
+    { label: 'Precio', value: formatPromotionPrice(event.price) },
+    ...(districtLabel ? [{ label: 'Distrito', value: districtLabel }] : []),
+  ];
+
+  return {
+    subject: `⚽ Nuevo evento en Peloteras: ${eventTitle}`,
+    intro:
+      'Hay un nuevo evento en Peloteras y queríamos compartirlo contigo. Mira los detalles y súmate a la cancha.',
+    eventTitle,
+    eventDate: formatPromotionDateRange(event.start_time, event.end_time),
+    eventTime: formatPromotionTimeRange(event.start_time, event.end_time),
+    eventLocation: locationLabel,
+    details: extraDetails,
+    description,
+  };
+}
+
+async function getEventOrganizerEmail(userId: string | null | undefined) {
+  const normalizedUserId = String(userId || '').trim();
+  if (!normalizedUserId) return '';
+
+  try {
+    const adminSupabase = getAdminSupabase();
+    const { data, error } = await adminSupabase.auth.admin.getUserById(normalizedUserId);
+    if (error) {
+      log.warn('Could not load event organizer email for promotion email', 'ADMIN_EVENTS', {
+        userId: normalizedUserId,
+        reason: error.message,
+      });
+      return '';
+    }
+
+    return String(data?.user?.email || '').trim();
+  } catch (error) {
+    log.warn('Event organizer email lookup failed for promotion email', 'ADMIN_EVENTS', {
+      userId: normalizedUserId,
+      reason: error instanceof Error ? error.message : String(error || ''),
+    });
+    return '';
+  }
 }
 
 export async function sendEventAnnouncement(
@@ -131,7 +297,9 @@ export async function sendEventAnnouncement(
     }
 
     const contacts = await getParticipantContactsByEventId(eventId, ['pending', 'approved']);
-    const recipientContacts = contacts.filter((contact) => contact.email && contact.email !== 'Sin correo');
+    const recipientContacts = contacts.filter(
+      (contact) => contact.email && contact.email !== 'Sin correo'
+    );
     const recipients = recipientContacts.map((contact) => contact.email);
 
     if (!recipients.length) {
@@ -215,6 +383,121 @@ export async function sendEventAnnouncement(
     return {
       status: 'error',
       message: error instanceof Error ? error.message : 'No se pudo enviar el correo del evento.',
+      sentCount: 0,
+      failedCount: 0,
+    };
+  }
+}
+
+export async function sendEventPromotionToAllPlayers(
+  _previousState: EventAnnouncementActionState,
+  formData: FormData
+): Promise<EventAnnouncementActionState> {
+  try {
+    const eventId = String(formData.get('eventId') || '').trim();
+
+    if (!eventId) {
+      return {
+        status: 'error',
+        message: 'Falta el evento a promocionar.',
+        sentCount: 0,
+        failedCount: 0,
+      };
+    }
+
+    const { supabase } = await assertSuperAdminAccess();
+    const { data: event, error: eventError } = await supabase
+      .from('event')
+      .select(
+        'id, title, start_time, end_time, location_text, district, price, description, is_published, created_by, created_by_id'
+      )
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (eventError) {
+      throw new Error(eventError.message);
+    }
+
+    if (!event) {
+      return {
+        status: 'error',
+        message: 'El evento seleccionado ya no existe.',
+        sentCount: 0,
+        failedCount: 0,
+      };
+    }
+
+    if (!event.is_published) {
+      return {
+        status: 'error',
+        message: 'Publica el evento antes de enviar el correo de promoción.',
+        sentCount: 0,
+        failedCount: 0,
+      };
+    }
+
+    const recipients = await getAllUserEmailsForBroadcast();
+    if (!recipients.length) {
+      return {
+        status: 'error',
+        message: 'No hay jugadoras con correo válido para enviar esta promoción.',
+        sentCount: 0,
+        failedCount: 0,
+      };
+    }
+
+    const template = buildEventPromotionTemplate(event as EventPromotionRow);
+    const threadBreaker = buildInvisibleThreadBreaker();
+    const organizerEmail =
+      (await getEventOrganizerEmail(event.created_by_id)) || 'contacto@peloteras.com';
+    const organizerName = String(event.created_by || '').trim() || 'Equipo Peloteras';
+    const result = await sendEventAnnouncementEmail({
+      subject: `${template.subject}${threadBreaker}`,
+      body: `${template.intro}${threadBreaker}`,
+      recipients,
+      ctaLabel: 'Ver evento',
+      ctaUrl: `/events/${eventId}`,
+      eventPromotionLayout: {
+        eventTitle: template.eventTitle,
+        intro: `${template.intro}${threadBreaker}`,
+        eventDate: template.eventDate,
+        eventTime: template.eventTime,
+        eventLocation: template.eventLocation,
+        registrationCtaLabel: 'Inscríbete',
+        registrationCtaUrl: `/payments/${eventId}`,
+        organizerName,
+        organizerEmail,
+        details: template.details,
+        description: template.description,
+      },
+    });
+
+    revalidatePath('/admin/events');
+
+    if (result.sentCount === 0 && result.failedCount > 0) {
+      return {
+        status: 'error',
+        message: `No se pudo enviar la promoción de ${String(event.title || 'este evento')}. Fallaron ${result.failedCount} envíos.`,
+        sentCount: result.sentCount,
+        failedCount: result.failedCount,
+      };
+    }
+
+    return {
+      status: 'success',
+      message:
+        result.failedCount > 0
+          ? `Promoción enviada parcialmente para ${String(event.title || 'el evento')}. Salieron ${result.sentCount} y fallaron ${result.failedCount}.`
+          : `Promoción enviada correctamente para ${String(event.title || 'el evento')}.`,
+      sentCount: result.sentCount,
+      failedCount: result.failedCount,
+    };
+  } catch (error) {
+    log.error('Failed to send event promotion to all players', 'ADMIN_EVENTS', error);
+    return {
+      status: 'error',
+      message:
+        error instanceof Error ? error.message : 'No se pudo enviar la promoción del evento.',
       sentCount: 0,
       failedCount: 0,
     };

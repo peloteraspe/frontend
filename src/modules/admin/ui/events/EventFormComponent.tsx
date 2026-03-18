@@ -872,12 +872,7 @@ const EventForm = ({
             <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
           </span>
         </label>
-      ) : (
-        <p className="text-xs text-slate-500">
-          Solo superadmin puede gestionar partidos destacados.
-          {initial?.isFeatured ? ' Este evento está marcado como destacado.' : ''}
-        </p>
-      )}
+      ) : null}
 
         <div className="pt-2">
           <ButtonWrapper
