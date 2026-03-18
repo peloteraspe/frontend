@@ -4,14 +4,33 @@ import { log } from '@core/lib/logger';
 
 export type PaymentEmailStatus = 'pending' | 'approved' | 'rejected';
 
+type PaymentEmailDetail = {
+  label: string;
+  value: string;
+};
+
 type SendPaymentStatusEmailInput = {
   status: PaymentEmailStatus;
   toEmail: string;
   toName?: string | null;
+  baseUrl?: string | null;
   eventTitle?: string | null;
   eventStartTime?: string | null;
   eventLocation?: string | null;
   ticketsUrl?: string | null;
+};
+
+type SendAdminPaymentPendingReviewEmailInput = {
+  toEmail: string;
+  toName?: string | null;
+  baseUrl?: string | null;
+  eventId?: number | null;
+  eventTitle?: string | null;
+  eventStartTime?: string | null;
+  eventLocation?: string | null;
+  participantName?: string | null;
+  participantEmail?: string | null;
+  operationNumber?: string | null;
 };
 
 const DEFAULT_TZ = 'America/Lima';
@@ -41,8 +60,13 @@ function normalizeUrl(value: string | undefined | null, fallback: string) {
   }
 }
 
-function resolveBaseUrl() {
-  return normalizeUrl(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL, DEFAULT_SITE_URL);
+function trimTrailingSlash(value: string) {
+  return value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
+function resolveBaseUrl(preferred?: string | null) {
+  const configured = normalizeUrl(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL, DEFAULT_SITE_URL);
+  return trimTrailingSlash(normalizeUrl(preferred, configured));
 }
 
 function formatEventDate(startTime: string | null | undefined) {
@@ -102,6 +126,35 @@ function buildSubject(status: PaymentEmailStatus, eventTitle: string) {
   return `[Peloteras] ${copy.subjectPrefix} - ${eventTitle}`;
 }
 
+function buildAdminPendingReviewSubject(eventTitle: string) {
+  return `[Peloteras] Pago pendiente de revision - ${eventTitle}`;
+}
+
+function buildDetailsHtml(details: PaymentEmailDetail[] | undefined) {
+  const safeDetails = (details ?? []).filter((detail) => String(detail?.value || '').trim());
+  if (!safeDetails.length) return '';
+
+  return `
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td style="padding:0 24px 20px 24px;">
+                    <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:18px 20px;text-align:left;">
+                      ${safeDetails
+                        .map(
+                          (detail, index) => `
+                        <p style="margin:0${index < safeDetails.length - 1 ? ' 0 10px' : ''};color:#111827;font-size:14px;font-family:Arial,Helvetica,sans-serif;line-height:1.5;">
+                          <strong style="color:#54086f;">${escapeHtml(detail.label)}:</strong> ${escapeHtml(detail.value)}
+                        </p>
+                      `
+                        )
+                        .join('')}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+  `.trim();
+}
+
 function buildEmailHtml(input: {
   name: string;
   eventTitle: string;
@@ -115,7 +168,12 @@ function buildEmailHtml(input: {
   homeUrl: string;
   instagramUrl: string;
   tiktokUrl: string;
+  details?: PaymentEmailDetail[];
+  closingText?: string;
 }) {
+  const detailsHtml = buildDetailsHtml(input.details);
+  const closingText = String(input.closingText || '').trim() || 'Nos vemos en la cancha';
+
   return `
 <!DOCTYPE html>
 <html lang="es">
@@ -197,6 +255,7 @@ function buildEmailHtml(input: {
                   </td>
                 </tr>
               </table>
+              ${detailsHtml}
               <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
                   <td align="center" style="padding:8px 24px 20px 24px;">
@@ -251,7 +310,7 @@ function buildEmailHtml(input: {
                 <tr>
                   <td>
                     <div style="color:#101112;direction:ltr;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;line-height:1.2;text-align:center;">
-                      <p style="margin:0;">Nos vemos en la cancha</p>
+                      <p style="margin:0;">${escapeHtml(closingText)}</p>
                     </div>
                   </td>
                 </tr>
@@ -333,10 +392,15 @@ function buildEmailHtml(input: {
 `.trim();
 }
 
-export async function sendPaymentStatusEmail(input: SendPaymentStatusEmailInput) {
+async function sendPaymentEmail(input: {
+  toEmail: string;
+  subject: string;
+  html: string;
+  logContext: Record<string, unknown>;
+}) {
   const email = String(input.toEmail || '').trim();
   if (!email) {
-    log.warn('Skipping payment status email: missing recipient', 'EMAIL', { status: input.status });
+    log.warn('Skipping payment email: missing recipient', 'EMAIL', input.logContext);
     return { sent: false as const, reason: 'missing_recipient' as const };
   }
 
@@ -344,13 +408,55 @@ export async function sendPaymentStatusEmail(input: SendPaymentStatusEmailInput)
   const from = String(process.env.EMAIL_FROM || process.env.RESEND_FROM || '').trim();
 
   if (!resendApiKey || !from) {
-    log.warn('Skipping payment status email: missing RESEND_API_KEY or EMAIL_FROM', 'EMAIL', {
-      status: input.status,
-    });
+    log.warn('Skipping payment email: missing RESEND_API_KEY or EMAIL_FROM', 'EMAIL', input.logContext);
     return { sent: false as const, reason: 'not_configured' as const };
   }
 
-  const baseUrl = resolveBaseUrl();
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [email],
+        subject: input.subject,
+        html: input.html,
+      }),
+    });
+
+    if (!response.ok) {
+      const responseBody = await response.text().catch(() => '');
+      log.warn('Payment email provider rejected request', 'EMAIL', {
+        to: email,
+        providerStatus: response.status,
+        responseBody,
+        ...input.logContext,
+      });
+      return { sent: false as const, reason: 'provider_error' as const };
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    log.info('Payment email sent', 'EMAIL', {
+      to: email,
+      providerId: (payload as any)?.id || null,
+      ...input.logContext,
+    });
+
+    return { sent: true as const };
+  } catch (error) {
+    log.error('Payment email request failed', 'EMAIL', error, {
+      to: email,
+      ...input.logContext,
+    });
+    return { sent: false as const, reason: 'request_failed' as const };
+  }
+}
+
+export async function sendPaymentStatusEmail(input: SendPaymentStatusEmailInput) {
+  const baseUrl = resolveBaseUrl(input.baseUrl);
   const ticketsUrl = normalizeUrl(input.ticketsUrl, `${baseUrl}/tickets`);
   const homeUrl = baseUrl;
   const instagramUrl = normalizeUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, DEFAULT_INSTAGRAM_URL);
@@ -381,45 +487,72 @@ export async function sendPaymentStatusEmail(input: SendPaymentStatusEmailInput)
     tiktokUrl,
   });
 
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: [email],
-        subject,
-        html,
-      }),
-    });
-
-    if (!response.ok) {
-      const responseBody = await response.text().catch(() => '');
-      log.warn('Payment status email provider rejected request', 'EMAIL', {
-        status: input.status,
-        to: email,
-        providerStatus: response.status,
-        responseBody,
-      });
-      return { sent: false as const, reason: 'provider_error' as const };
-    }
-
-    const payload = await response.json().catch(() => ({}));
-    log.info('Payment status email sent', 'EMAIL', {
+  return sendPaymentEmail({
+    toEmail: input.toEmail,
+    subject,
+    html,
+    logContext: {
+      emailType: 'payment_status',
       status: input.status,
-      to: email,
-      providerId: (payload as any)?.id || null,
-    });
+    },
+  });
+}
 
-    return { sent: true as const };
-  } catch (error) {
-    log.error('Payment status email request failed', 'EMAIL', error, {
-      status: input.status,
-      to: email,
-    });
-    return { sent: false as const, reason: 'request_failed' as const };
-  }
+export async function sendAdminPaymentPendingReviewEmail(input: SendAdminPaymentPendingReviewEmailInput) {
+  const baseUrl = resolveBaseUrl(input.baseUrl);
+  const homeUrl = baseUrl;
+  const instagramUrl = normalizeUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, DEFAULT_INSTAGRAM_URL);
+  const tiktokUrl = normalizeUrl(process.env.NEXT_PUBLIC_TIKTOK_URL, DEFAULT_TIKTOK_URL);
+
+  const eventTitle = String(input.eventTitle || '').trim() || 'Tu pichanga';
+  const eventDate = formatEventDate(input.eventStartTime);
+  const eventTime = formatEventTime(input.eventStartTime);
+  const eventLocation = String(input.eventLocation || '').trim() || 'Por confirmar';
+  const name = String(input.toName || '').trim() || 'admin';
+  const participantName = String(input.participantName || '').trim();
+  const participantEmail = String(input.participantEmail || '').trim();
+  const operationNumber = String(input.operationNumber || '').trim();
+  const eventId = Number(input.eventId);
+  const reviewUrl = Number.isInteger(eventId) && eventId > 0
+    ? `${baseUrl}/admin/payments?event=${eventId}&state=pending`
+    : `${baseUrl}/admin/payments?state=pending`;
+
+  const title = 'Pago pendiente de revision';
+  const message = participantName
+    ? `${participantName} registro un pago en tu evento. Revisa el numero de operacion y apruebalo si corresponde.`
+    : 'Una jugadora registro un pago en tu evento. Revisa el numero de operacion y apruebalo si corresponde.';
+  const subject = buildAdminPendingReviewSubject(eventTitle);
+  const details: PaymentEmailDetail[] = [
+    { label: 'Evento', value: eventTitle },
+    ...(participantName ? [{ label: 'Jugadora', value: participantName }] : []),
+    ...(participantEmail ? [{ label: 'Correo', value: participantEmail }] : []),
+    ...(operationNumber ? [{ label: 'Numero de operacion', value: operationNumber }] : []),
+  ];
+
+  const html = buildEmailHtml({
+    name,
+    eventTitle,
+    eventDate,
+    eventTime,
+    eventLocation,
+    title,
+    message,
+    ctaText: 'Revisar pagos pendientes',
+    ctaUrl: reviewUrl,
+    homeUrl,
+    instagramUrl,
+    tiktokUrl,
+    details,
+    closingText: 'Tienes una inscripcion pendiente por revisar',
+  });
+
+  return sendPaymentEmail({
+    toEmail: input.toEmail,
+    subject,
+    html,
+    logContext: {
+      emailType: 'admin_payment_pending_review',
+      eventId: Number.isInteger(eventId) && eventId > 0 ? eventId : null,
+    },
+  });
 }
