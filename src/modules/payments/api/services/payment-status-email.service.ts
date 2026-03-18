@@ -98,7 +98,7 @@ function resolveCopy(status: PaymentEmailStatus) {
     return {
       subjectPrefix: 'Pago confirmado',
       title: 'Pago confirmado',
-      message: 'Tu entrada ya esta activa y lista para el ingreso.',
+      message: 'Tu entrada ya está activa y lista para el ingreso.',
       ctaText: 'Ver mi entrada',
     };
   }
@@ -108,15 +108,15 @@ function resolveCopy(status: PaymentEmailStatus) {
       subjectPrefix: 'Pago observado',
       title: 'No pudimos validar tu pago',
       message:
-        'Tu reserva fue cancelada. Si crees que se trata de un error, responde este correo con tu numero de operacion.',
+        'Tu reserva fue cancelada. Si crees que se trata de un error, responde este correo con tu número de operación.',
       ctaText: 'Contactar soporte',
     };
   }
 
   return {
     subjectPrefix: 'Registro recibido',
-    title: 'Ya estas registrada',
-    message: 'Recibimos tu pago y estamos validandolo. Cuando se apruebe, tu QR se activara automaticamente.',
+    title: 'Ya estás registrada',
+    message: 'Recibimos tu pago y estamos validándolo. Cuando se apruebe, tu QR se activará automáticamente.',
     ctaText: 'Ver estado de mi entrada',
   };
 }
@@ -127,7 +127,7 @@ function buildSubject(status: PaymentEmailStatus, eventTitle: string) {
 }
 
 function buildAdminPendingReviewSubject(eventTitle: string) {
-  return `[Peloteras] Pago pendiente de revision - ${eventTitle}`;
+  return `[Peloteras] Pago pendiente de revisión - ${eventTitle}`;
 }
 
 function buildDetailsHtml(details: PaymentEmailDetail[] | undefined) {
@@ -517,16 +517,16 @@ export async function sendAdminPaymentPendingReviewEmail(input: SendAdminPayment
     ? `${baseUrl}/admin/payments?event=${eventId}&state=pending`
     : `${baseUrl}/admin/payments?state=pending`;
 
-  const title = 'Pago pendiente de revision';
+  const title = 'Pago pendiente de revisión';
   const message = participantName
-    ? `${participantName} registro un pago en tu evento. Revisa el numero de operacion y apruebalo si corresponde.`
-    : 'Una jugadora registro un pago en tu evento. Revisa el numero de operacion y apruebalo si corresponde.';
+    ? `${participantName} registró un pago en tu evento. Revisa el número de operación y apruébalo si corresponde.`
+    : 'Una jugadora registró un pago en tu evento. Revisa el número de operación y apruébalo si corresponde.';
   const subject = buildAdminPendingReviewSubject(eventTitle);
   const details: PaymentEmailDetail[] = [
     { label: 'Evento', value: eventTitle },
     ...(participantName ? [{ label: 'Jugadora', value: participantName }] : []),
     ...(participantEmail ? [{ label: 'Correo', value: participantEmail }] : []),
-    ...(operationNumber ? [{ label: 'Numero de operacion', value: operationNumber }] : []),
+    ...(operationNumber ? [{ label: 'Número de operación', value: operationNumber }] : []),
   ];
 
   const html = buildEmailHtml({
@@ -543,7 +543,7 @@ export async function sendAdminPaymentPendingReviewEmail(input: SendAdminPayment
     instagramUrl,
     tiktokUrl,
     details,
-    closingText: 'Tienes una inscripcion pendiente por revisar',
+    closingText: 'Tienes una inscripción pendiente por revisar',
   });
 
   return sendPaymentEmail({
