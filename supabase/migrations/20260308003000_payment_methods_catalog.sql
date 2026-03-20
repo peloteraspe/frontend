@@ -5,10 +5,24 @@ alter table "public"."paymentMethod"
   add column if not exists "updated_by" uuid,
   add column if not exists "updated_at" timestamp with time zone not null default now();
 
-update "public"."paymentMethod"
-set "created_by" = "user"
-where "created_by" is null
-  and "user" is not null;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'paymentMethod'
+      and column_name = 'user'
+  ) then
+    execute $sql$
+      update "public"."paymentMethod"
+      set "created_by" = "user"
+      where "created_by" is null
+        and "user" is not null
+    $sql$;
+  end if;
+end
+$$;
 
 update "public"."paymentMethod"
 set "type" = case
@@ -69,11 +83,25 @@ create index if not exists "eventPaymentMethod_event_idx"
 create index if not exists "eventPaymentMethod_paymentMethod_idx"
   on "public"."eventPaymentMethod" using btree ("paymentMethod");
 
-insert into "public"."eventPaymentMethod" ("event", "paymentMethod")
-select distinct "event", "id"
-from "public"."paymentMethod"
-where "event" is not null
-on conflict ("event", "paymentMethod") do nothing;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'paymentMethod'
+      and column_name = 'event'
+  ) then
+    execute $sql$
+      insert into "public"."eventPaymentMethod" ("event", "paymentMethod")
+      select distinct "event", "id"
+      from "public"."paymentMethod"
+      where "event" is not null
+      on conflict ("event", "paymentMethod") do nothing
+    $sql$;
+  end if;
+end
+$$;
 
 alter table "public"."paymentMethod"
   drop constraint if exists "paymentMethod_event_fkey";
