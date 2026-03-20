@@ -8,6 +8,7 @@ import { ButtonWrapper } from '@src/core/ui/Button';
 
 import { useRouter } from 'next/navigation';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
+import { isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { formattedPrice } from '@src/shared/lib/utils';
 
 interface CardEventItemProps {
@@ -23,8 +24,10 @@ type CardEventData = {
   locationText?: string;
   price?: number;
   placesLeft?: number;
+  approvedCount?: number;
   minUsers?: number;
   maxUsers?: number;
+  isSoldOut?: boolean;
   level?: {
     name?: string;
   };
@@ -52,11 +55,9 @@ function getDateLabel(event: CardEventData) {
   return event.formattedDateTime || event.dateLabel || 'Fecha por confirmar';
 }
 
-function getPlacesLeft(event: CardEventData) {
-  if (typeof event.placesLeft === 'number') return event.placesLeft;
-  const maxUsers = Number(event.maxUsers ?? 0);
-  const minUsers = Number(event.minUsers ?? 0);
-  return Math.max(maxUsers - minUsers, 0);
+function getIsSoldOut(event: CardEventData) {
+  if (typeof event.isSoldOut === 'boolean') return event.isSoldOut;
+  return isEventSoldOut(event.maxUsers, event.approvedCount);
 }
 
 function getBadges(event: CardEventData) {
@@ -78,6 +79,7 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
         const eventTypeName = getEventTypeName(event);
         const badges = getBadges(event);
         const isVersus = isVersusEventTypeName(eventTypeName);
+        const isSoldOut = getIsSoldOut(event);
 
         return (
           <div
@@ -87,7 +89,6 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
           >
             <CardEvent
               typeEvent={eventTypeName}
-              quantity={getPlacesLeft(event)}
               levelText={`NIVEL: ${getLevelName(event).toUpperCase()}`}
               matchText={event.title || 'Evento sin título'}
               dateText={getDateLabel(event)}
@@ -95,11 +96,13 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
               button={
                 <ButtonWrapper
                   icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
+                  disabled={isSoldOut}
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
+                    if (isSoldOut) return;
                     router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
                   }}
-                  children={isVersus ? 'Anotar a mi equipo' : 'Anotarme'}
+                  children={isSoldOut ? 'Cupos completos' : isVersus ? 'Anotar a mi equipo' : 'Anotarme'}
                 />
               }
               price={formattedPrice(Number(event.price ?? 0))}

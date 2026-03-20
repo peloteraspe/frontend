@@ -8,7 +8,6 @@ import Ubication from '@core/assets/images/ubication.png';
 
 interface CardEventProps {
   typeEvent: string;
-  quantity?: number;
   levelText: string;
   matchText: string;
   dateText: string;
@@ -21,7 +20,6 @@ interface CardEventProps {
 
 const CardEvent: React.FC<CardEventProps> = ({
   typeEvent,
-  quantity,
   levelText,
   matchText,
   dateText,
@@ -38,20 +36,6 @@ const CardEvent: React.FC<CardEventProps> = ({
         compact ? 'w-full min-h-[170px]' : 'w-full sm:min-w-[714px] sm:w-full sm:min-h-[160px]',
       ].join(' ')}
     >
-      {Number(quantity) < 4 && (
-        <div className="bg-white font-eastman-bold border-btnBg-light absolute top-[-20px] right-0 border-2 rounded-[14px] z-10 w-[80px] h-[40px]">
-          <div className="flex justify-center items-center w-full h-full gap-[1px]">
-            <TitleM fontWeight="bold" color="text-mulberry">
-              {quantity}
-            </TitleM>
-            <div className="flex flex-col items-center justify-center w-min">
-              <span className="text-[9px] leading-none font-eastman-bold text-mulberry uppercase">
-                cupos quedan
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
       <div
         className="card-info hover:bg-[#744D7C] hover:bg-opacity-20 sm:grid w-full shadow-md rounded-xl sm:absolute sm:left-0 sm:bottom-0 sm:h-full"
         style={{ gridTemplateColumns: '15% 68% 20%' }}

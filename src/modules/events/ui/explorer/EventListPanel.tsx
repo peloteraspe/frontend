@@ -31,6 +31,7 @@ function EventCardSameAsLanding({
 }) {
   const router = useRouter();
   const isVersus = isVersusEventTypeName(event.eventTypeName);
+  const isSoldOut = event.isSoldOut === true;
 
   return (
     <div
@@ -41,7 +42,6 @@ function EventCardSameAsLanding({
     >
       <CardEvent
         typeEvent={event.eventTypeName}
-        quantity={event.maxUsers - event.minUsers}
         levelText={`NIVEL: ${event.levelName.toUpperCase()}`}
         matchText={event.title}
         dateText={event.dateLabel}
@@ -50,12 +50,14 @@ function EventCardSameAsLanding({
         button={
           <ButtonWrapper
             icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
+            disabled={isSoldOut}
             onClick={(e: any) => {
               e.stopPropagation();
+              if (isSoldOut) return;
               router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
             }}
           >
-            {isVersus ? 'Anotar a mi equipo' : 'Anotarme'}
+            {isSoldOut ? 'Cupos completos' : isVersus ? 'Anotar a mi equipo' : 'Anotarme'}
           </ButtonWrapper>
         }
         price={formattedPrice(event.price)}

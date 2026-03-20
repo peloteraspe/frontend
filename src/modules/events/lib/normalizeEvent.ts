@@ -1,4 +1,5 @@
 import { EventEntity } from '@modules/events/model/types';
+import { getPlacesLeft, isEventSoldOut } from './eventCapacity';
 
 type Dictionary = Record<number, string>;
 const DEFAULT_TIMEZONE = 'America/Lima';
@@ -58,6 +59,8 @@ export function normalizeEvent(raw: any, eventTypeById: Dictionary, levelById: D
   const location = extractLatLng(raw?.location);
   const eventTypeId = raw?.EventType == null ? null : asNumber(raw.EventType, 0);
   const levelId = raw?.level == null ? null : asNumber(raw.level, 0);
+  const maxUsers = asNumber(raw?.max_users, 0);
+  const approvedCount = asNumber(raw?.approvedCount, 0);
 
   return {
     id: String(raw?.id ?? ''),
@@ -72,7 +75,7 @@ export function normalizeEvent(raw: any, eventTypeById: Dictionary, levelById: D
     location,
     price: asNumber(raw?.price, 0),
     minUsers: asNumber(raw?.min_users, 0),
-    maxUsers: asNumber(raw?.max_users, 0),
+    maxUsers,
     eventTypeId,
     eventTypeName: eventTypeId ? eventTypeById[eventTypeId] ?? 'Partido' : 'Partido',
     levelId,
@@ -81,5 +84,8 @@ export function normalizeEvent(raw: any, eventTypeById: Dictionary, levelById: D
     createdById: raw?.created_by_id ? String(raw.created_by_id) : null,
     isPublished: raw?.is_published !== false,
     isFeatured: raw?.is_featured === true,
+    approvedCount,
+    placesLeft: getPlacesLeft(maxUsers, approvedCount),
+    isSoldOut: isEventSoldOut(maxUsers, approvedCount),
   };
 }

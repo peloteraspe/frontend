@@ -1,4 +1,6 @@
 import { getServerSupabase } from '@core/api/supabase.server';
+import { getApprovedParticipantsCountByEventId } from '@modules/events/api/queries/getApprovedParticipantsCount';
+import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 
 export type PaymentPageData = {
   event: any;
@@ -77,5 +79,13 @@ export async function getPaymentPageData(id: string) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { event, paymentMethods: orderedPaymentMethods, user } satisfies PaymentPageData;
+  const approvedCount = await getApprovedParticipantsCountByEventId(event.id, supabase);
+  const enrichedEvent = {
+    ...event,
+    approvedCount,
+    placesLeft: getPlacesLeft(event.max_users, approvedCount),
+    isSoldOut: isEventSoldOut(event.max_users, approvedCount),
+  };
+
+  return { event: enrichedEvent, paymentMethods: orderedPaymentMethods, user } satisfies PaymentPageData;
 }

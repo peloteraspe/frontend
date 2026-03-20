@@ -107,6 +107,10 @@ export default async function PaymentPage({ id }: { id: string }) {
     );
   }
 
+  if (event?.isSoldOut === true) {
+    redirect(`/events/${id}`);
+  }
+
   if (isVersus) {
     redirect(`/versus/${id}`);
   }
