@@ -166,3 +166,15 @@ export async function getUserEmailsForBroadcastByIds(userIds: string[]): Promise
     )
   ).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 }
+
+export async function getAllUserEmailsForBroadcast(): Promise<string[]> {
+  const authUsers = await listAllAuthUsers();
+
+  return Array.from(
+    new Set(
+      authUsers
+        .map((user) => String(user?.email || '').trim().toLowerCase())
+        .filter((email) => isValidEmail(email))
+    )
+  ).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+}

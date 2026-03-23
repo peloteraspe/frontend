@@ -4,6 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
+import { getApprovedParticipantsCountByEventId } from '@modules/events/api/queries/getApprovedParticipantsCount';
+import {
+  EVENT_SOLD_OUT_MESSAGE,
+  isEventSoldOut,
+  isEventSoldOutError,
+} from '@modules/events/lib/eventCapacity';
 import { ensureTicketForAssistant } from '@modules/tickets/api/services/tickets.service';
 import { sendPaymentStatusEmail } from '@modules/payments/api/services/payment-status-email.service';
 import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
@@ -163,7 +169,7 @@ export async function approveAssistant(id: string) {
 
     const { data: assistantBefore, error: assistantBeforeError } = await supabase
       .from('assistants')
-      .select('state')
+      .select('state,event')
       .eq('id', assistantId)
       .maybeSingle();
 
@@ -172,12 +178,32 @@ export async function approveAssistant(id: string) {
     }
     const shouldNotify = assistantBefore.state !== 'approved';
 
+    if (shouldNotify) {
+      const { data: eventRow, error: eventError } = await supabase
+        .from('event')
+        .select('id,max_users')
+        .eq('id', assistantBefore.event)
+        .maybeSingle();
+
+      if (eventError || !eventRow) {
+        throw new Error('No se encontró el evento asociado al pago.');
+      }
+
+      const approvedCount = await getApprovedParticipantsCountByEventId(assistantBefore.event, supabase);
+      if (isEventSoldOut((eventRow as any)?.max_users, approvedCount)) {
+        throw new Error(EVENT_SOLD_OUT_MESSAGE);
+      }
+    }
+
     const { error } = await supabase
       .from('assistants')
       .update({ state: 'approved' })
       .eq('id', assistantId);
 
     if (error) {
+      if (isEventSoldOutError(error)) {
+        throw new Error(EVENT_SOLD_OUT_MESSAGE);
+      }
       log.database('UPDATE approve assistant', 'assistants', error, { id });
       throw new Error('Failed to approve assistant');
     }

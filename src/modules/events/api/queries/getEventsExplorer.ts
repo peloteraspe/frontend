@@ -1,6 +1,11 @@
 import { getServerSupabase } from '@core/api/supabase.server';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
+import {
+  getApprovedParticipantsCountByEventId,
+  getApprovedParticipantsCountByEventIds,
+} from '@modules/events/api/queries/getApprovedParticipantsCount';
 import { normalizeEvent } from '@modules/events/lib/normalizeEvent';
+import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { EventEntity } from '@modules/events/model/types';
 
 type IdNameRow = {
@@ -33,8 +38,21 @@ export async function getEventsExplorer(): Promise<EventEntity[]> {
 
   const eventTypeById = toDictionary(catalogs.eventTypes as IdNameRow[]);
   const levelById = toDictionary(catalogs.levels as IdNameRow[]);
+  const normalizedEvents = (eventsRes.data ?? []).map((event) => normalizeEvent(event, eventTypeById, levelById));
+  const approvedCountByEventId = await getApprovedParticipantsCountByEventIds(
+    normalizedEvents.map((event) => event.id),
+    supabase
+  );
 
-  return (eventsRes.data ?? []).map((event) => normalizeEvent(event, eventTypeById, levelById));
+  return normalizedEvents.map((event) => {
+    const approvedCount = approvedCountByEventId.get(event.id) ?? 0;
+    return {
+      ...event,
+      approvedCount,
+      placesLeft: getPlacesLeft(event.maxUsers, approvedCount),
+      isSoldOut: isEventSoldOut(event.maxUsers, approvedCount),
+    };
+  });
 }
 
 export async function getEventExplorerById(id: string): Promise<EventEntity | null> {
@@ -48,6 +66,13 @@ export async function getEventExplorerById(id: string): Promise<EventEntity | nu
 
   const eventTypeById = toDictionary(catalogs.eventTypes as IdNameRow[]);
   const levelById = toDictionary(catalogs.levels as IdNameRow[]);
+  const event = normalizeEvent(eventRes.data, eventTypeById, levelById);
+  const approvedCount = await getApprovedParticipantsCountByEventId(id, supabase);
 
-  return normalizeEvent(eventRes.data, eventTypeById, levelById);
+  return {
+    ...event,
+    approvedCount,
+    placesLeft: getPlacesLeft(event.maxUsers, approvedCount),
+    isSoldOut: isEventSoldOut(event.maxUsers, approvedCount),
+  };
 }

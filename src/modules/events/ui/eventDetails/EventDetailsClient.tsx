@@ -11,6 +11,7 @@ import Map from '@core/ui/Map';
 import Collapse from '@core/ui/Collapse';
 import { ButtonWrapper } from '@core/ui/Button';
 import { useAuth } from '@core/auth/AuthProvider';
+import { EVENT_SOLD_OUT_MESSAGE, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import EventShareModal from './EventShareModal';
 import { trackEvent } from '@shared/lib/analytics';
@@ -182,6 +183,8 @@ export default function EventDetailsClient({ data }: Props) {
         initials: getNameInitials(name),
       };
     });
+  const approvedCount = toNumber(event?.approvedCount, assistants.length);
+  const isSoldOut = event?.isSoldOut === true || isEventSoldOut(maxUsers, approvedCount);
 
   const teamRegistrationsSource = Array.isArray(post?.teamRegistrations)
     ? post.teamRegistrations
@@ -203,8 +206,8 @@ export default function EventDetailsClient({ data }: Props) {
   const occupancyText = isVersus
     ? `${teamRegistrations.length} equipos`
     : maxUsers > 0
-    ? `${assistants.length}/${maxUsers}`
-    : `${assistants.length}`;
+    ? `${approvedCount}/${maxUsers}`
+    : `${approvedCount}`;
 
   const shareText = useMemo(() => {
     const safeLocation = locationText || 'Ubicación por confirmar';
@@ -280,6 +283,11 @@ export default function EventDetailsClient({ data }: Props) {
   };
 
   const handleJoinClick = () => {
+    if (isSoldOut) {
+      toast.error(EVENT_SOLD_OUT_MESSAGE);
+      return;
+    }
+
     if (isRegistrationClosed) {
       toast.error('Este evento ya inició o finalizó. La inscripción está cerrada.');
       return;
@@ -514,14 +522,21 @@ export default function EventDetailsClient({ data }: Props) {
                     Inscripciones cerradas: este evento ya pasó.
                   </p>
                 )}
+                {!isRegistrationClosed && isSoldOut && (
+                  <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800">
+                    Cupos completos: este evento ya no acepta más inscripciones.
+                  </p>
+                )}
                 <ButtonWrapper
                   onClick={handleJoinClick}
                   icon={<Image src={arrowAnotarse} alt="arrow" width={24} height={24} />}
                   className="!my-0"
-                  disabled={isRegistrationClosed || !isPublished}
+                  disabled={isRegistrationClosed || !isPublished || isSoldOut}
                 >
                   {isRegistrationClosed
                     ? 'Evento finalizado'
+                    : isSoldOut
+                    ? 'Cupos completos'
                     : !isPublished
                     ? 'Próximamente'
                     : isVersus

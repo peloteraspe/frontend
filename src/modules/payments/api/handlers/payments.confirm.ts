@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
+import { getApprovedParticipantsCountByEventId } from '@modules/events/api/queries/getApprovedParticipantsCount';
+import {
+  EVENT_SOLD_OUT_MESSAGE,
+  isEventSoldOut,
+  isEventSoldOutError,
+} from '@modules/events/lib/eventCapacity';
 import {
   sendAdminPaymentPendingReviewEmail,
   sendPaymentStatusEmail,
@@ -185,7 +191,7 @@ export async function POST(request: Request) {
 
     const { data: eventRow, error: eventError } = await admin
       .from('event')
-      .select('id,start_time,title,location_text,is_published,created_by,created_by_id')
+      .select('id,start_time,title,location_text,is_published,created_by,created_by_id,max_users')
       .eq('id', eventId)
       .maybeSingle();
 
@@ -230,6 +236,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No se pudo validar la inscripción.' }, { status: 500 });
     }
 
+    if (String(existingAssistant?.state || '').trim().toLowerCase() === 'approved') {
+      return NextResponse.json({ ok: true, assistantId: existingAssistant.id }, { status: 200 });
+    }
+
+    const approvedCount = await getApprovedParticipantsCountByEventId(eventId, admin);
+    if (isEventSoldOut((eventRow as any)?.max_users, approvedCount)) {
+      return NextResponse.json({ error: EVENT_SOLD_OUT_MESSAGE }, { status: 409 });
+    }
+
     if (existingAssistant?.id) {
       const shouldNotifyPending =
         String(existingAssistant?.state || '') !== 'pending' ||
@@ -246,6 +261,9 @@ export async function POST(request: Request) {
         .single();
 
       if (updateError) {
+        if (isEventSoldOutError(updateError)) {
+          return NextResponse.json({ error: EVENT_SOLD_OUT_MESSAGE }, { status: 409 });
+        }
         log.database('UPDATE assistants for payment confirm', 'assistants', updateError, {
           assistantId: existingAssistant.id,
           eventId,
@@ -295,6 +313,9 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
+      if (isEventSoldOutError(insertError)) {
+        return NextResponse.json({ error: EVENT_SOLD_OUT_MESSAGE }, { status: 409 });
+      }
       log.database('INSERT assistants for payment confirm', 'assistants', insertError, {
         eventId,
         userId: user.id,

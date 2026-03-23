@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { setEventFeatured, setEventPublished } from '@modules/admin/api/events/_actions';
+import { getAllUserEmailsForBroadcast } from '@modules/admin/api/users/services/adminUsers.service';
+import EventPromotionQuickAction from '@modules/admin/ui/events/EventPromotionQuickAction';
 import EventShareActionButton from '@modules/admin/ui/events/EventShareActionButton';
 import { getApprovedParticipantsCountByEventIds } from '@modules/admin/api/events/services/eventParticipants.service';
 
@@ -102,9 +104,14 @@ export default async function AdminEventsPage({ searchParams }: Props) {
     await setEventPublished(id, isPublished);
   }
 
-  const events = (await getEvents({ dateOrder, createdById: isUserSuperAdmin ? '' : user?.id || '' })) ?? [];
+  const [events, promotionRecipientEmails] = await Promise.all([
+    getEvents({ dateOrder, createdById: isUserSuperAdmin ? '' : user?.id || '' }),
+    isUserSuperAdmin ? getAllUserEmailsForBroadcast() : Promise.resolve([]),
+  ]);
+  const normalizedEvents = events ?? [];
+  const promotionRecipientCount = promotionRecipientEmails.length;
   const approvedParticipantsByEventId = await getApprovedParticipantsCountByEventIds(
-    events.map((event: any) => event.id)
+    normalizedEvents.map((event: any) => event.id)
   );
 
   return (
@@ -142,7 +149,7 @@ export default async function AdminEventsPage({ searchParams }: Props) {
             </tr>
           </thead>
           <tbody>
-            {events.map((e: any) => {
+            {normalizedEvents.map((e: any) => {
               const approvedParticipants = approvedParticipantsByEventId.get(String(e.id)) ?? 0;
               return (
                 <tr key={e.id} className="border-t">
@@ -236,6 +243,13 @@ export default async function AdminEventsPage({ searchParams }: Props) {
                       </Link>
                       {e.is_published ? (
                         <EventShareActionButton eventId={String(e.id)} eventTitle={String(e.title || 'Evento')} />
+                      ) : null}
+                      {isUserSuperAdmin && e.is_published ? (
+                        <EventPromotionQuickAction
+                          eventId={String(e.id)}
+                          eventTitle={String(e.title || 'Evento')}
+                          recipientCount={promotionRecipientCount}
+                        />
                       ) : null}
                       <Link href={`/admin/events/${e.id}/edit`} className="text-mulberry hover:underline">
                         Editar

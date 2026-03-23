@@ -1,6 +1,7 @@
 import { getServerSupabase } from '@core/api/supabase.server';
 import { backendFetch, backendUrl } from '@core/api/backend';
 import { log } from '@core/lib/logger';
+import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
 
 type EventFeatureRow = {
@@ -167,10 +168,15 @@ export async function getEventDetails(id: string) {
       getEventFeaturesByEventId(supabase, eventId),
       getApprovedAssistantsByEventId(supabase, eventId),
     ]);
+    const approvedCount = assistants.length;
+    const maxUsers = Number((data as any)?.max_users ?? 0);
     return {
       ...data,
       featuresData,
       assistants,
+      approvedCount,
+      placesLeft: getPlacesLeft(maxUsers, approvedCount),
+      isSoldOut: isEventSoldOut(maxUsers, approvedCount),
     };
   }
 

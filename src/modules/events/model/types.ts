@@ -25,6 +25,9 @@ export type EventEntity = {
   createdById: string | null;
   isPublished: boolean;
   isFeatured: boolean;
+  approvedCount?: number;
+  placesLeft?: number;
+  isSoldOut?: boolean;
   distanceKm?: number;
 };
 
