@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
 
 type ValidationPayload = {
   ok?: boolean;
@@ -14,19 +15,6 @@ type ValidationPayload = {
     status?: string;
     usedAt?: string;
   };
-};
-
-type BarcodeDetectorResult = {
-  rawValue?: string;
-};
-
-type BarcodeDetectorInstance = {
-  detect: (source: ImageBitmapSource) => Promise<BarcodeDetectorResult[]>;
-};
-
-type BarcodeDetectorConstructor = {
-  new (options?: { formats?: string[] }): BarcodeDetectorInstance;
-  getSupportedFormats?: () => Promise<string[]>;
 };
 
 type CameraStatus = 'idle' | 'starting' | 'active' | 'error' | 'unsupported';
@@ -49,15 +37,13 @@ export default function TicketScanAdminPage() {
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
   const [cameraMessage, setCameraMessage] = useState<string | null>(null);
   const [hasCameraSupport, setHasCameraSupport] = useState(false);
-  const [hasNativeQrSupport, setHasNativeQrSupport] = useState(false);
-  const [isCapabilitiesReady, setIsCapabilitiesReady] = useState(false);
+  const [isSecureContextReady, setIsSecureContextReady] = useState(false);
+  const [imageDecoding, setImageDecoding] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const barcodeDetectorCtorRef = useRef<BarcodeDetectorConstructor | null>(null);
-  const detectorRef = useRef<BarcodeDetectorInstance | null>(null);
-  const scanTimeoutRef = useRef<number | null>(null);
-  const scanInFlightRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const scannerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
   const lastScannedTokenRef = useRef('');
 
   const normalizedToken = useMemo(() => normalizeToken(tokenInput), [tokenInput]);
@@ -69,27 +55,25 @@ export default function TicketScanAdminPage() {
     return 'border-red-300 bg-red-50 text-red-800';
   }, [responseCode]);
 
-  function clearScanLoop() {
-    if (scanTimeoutRef.current !== null) {
-      window.clearTimeout(scanTimeoutRef.current);
-      scanTimeoutRef.current = null;
-    }
-  }
-
-  function stopCamera(options?: { keepMessage?: boolean }) {
-    clearScanLoop();
-    scanInFlightRef.current = false;
-
-    const stream = streamRef.current;
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-
+  function clearVideoElement() {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+  }
 
+  function resetScannerReader() {
+    try {
+      scannerControlsRef.current?.stop();
+    } catch {
+      // no-op
+    }
+    scannerControlsRef.current = null;
+    scannerRef.current = null;
+  }
+
+  function stopCamera(options?: { keepMessage?: boolean }) {
+    resetScannerReader();
+    clearVideoElement();
     setCameraStatus('idle');
     if (!options?.keepMessage) {
       setCameraMessage(null);
@@ -128,45 +112,50 @@ export default function TicketScanAdminPage() {
     }
   }
 
-  async function scanLoop() {
-    if (scanInFlightRef.current || !detectorRef.current || !videoRef.current || !streamRef.current) {
-      return;
-    }
+  async function handleDetectedValue(rawValue: string) {
+    const token = normalizeToken(rawValue);
+    if (!token || token === lastScannedTokenRef.current) return;
 
-    const video = videoRef.current;
-    if (video.readyState < 2) {
-      scanTimeoutRef.current = window.setTimeout(scanLoop, 250);
-      return;
-    }
+    lastScannedTokenRef.current = token;
+    setTokenInput(rawValue);
+    setCameraMessage('QR detectado. Validando entrada...');
+    stopCamera({ keepMessage: true });
+    void validateTicket(rawValue);
+  }
 
-    scanInFlightRef.current = true;
+  async function loadZxingModule() {
+    return import('@zxing/browser');
+  }
+
+  async function startZxingScan() {
+    const { BrowserMultiFormatReader } = await loadZxingModule();
+    const reader = new BrowserMultiFormatReader();
+    scannerRef.current = reader;
+
+    const onDecode = (result?: { getText(): string }) => {
+      const text = result?.getText();
+      if (!text) return;
+      void handleDetectedValue(text);
+    };
 
     try {
-      const detections = await detectorRef.current.detect(video);
-      const rawValue = detections.find((item) => normalizeToken(item.rawValue || ''))?.rawValue;
-
-      if (rawValue) {
-        const token = normalizeToken(rawValue);
-        if (token && token !== lastScannedTokenRef.current) {
-          lastScannedTokenRef.current = token;
-          setTokenInput(rawValue);
-          setCameraMessage('QR detectado. Validando entrada...');
-          stopCamera({ keepMessage: true });
-          void validateTicket(rawValue);
-          return;
-        }
+      return await reader.decodeFromConstraints(
+        {
+          video: {
+            facingMode: { ideal: 'environment' },
+          },
+          audio: false,
+        },
+        videoRef.current,
+        (result) => onDecode(result)
+      );
+    } catch (firstError) {
+      try {
+        return await reader.decodeFromVideoDevice(undefined, videoRef.current, (result) => onDecode(result));
+      } catch {
+        throw firstError;
       }
-    } catch (error) {
-      console.error('QR scan failed', error);
-      stopCamera({ keepMessage: true });
-      setCameraStatus('error');
-      setCameraMessage('No se pudo leer la cámara. Puedes pegar el token manualmente.');
-      return;
-    } finally {
-      scanInFlightRef.current = false;
     }
-
-    scanTimeoutRef.current = window.setTimeout(scanLoop, 350);
   }
 
   async function openCamera() {
@@ -174,69 +163,77 @@ export default function TicketScanAdminPage() {
 
     if (!hasCameraSupport) {
       setCameraStatus('unsupported');
-      setCameraMessage('Este navegador no permite acceder a la cámara.');
+      setCameraMessage(
+        isSecureContextReady
+          ? 'Este navegador no permite acceder a la cámara. Usa una foto del QR o pega el token.'
+          : 'La cámara web requiere HTTPS o localhost. Usa una foto del QR o pega el token.'
+      );
       return;
     }
 
-    const barcodeDetector = barcodeDetectorCtorRef.current;
-
-    if (!barcodeDetector) {
-      setCameraStatus('unsupported');
-      setCameraMessage('Este navegador no soporta lectura QR nativa. Usa el pegado manual.');
+    if (!videoRef.current) {
+      setCameraStatus('error');
+      setCameraMessage('No se pudo inicializar la vista previa de la cámara.');
       return;
     }
 
+    stopCamera({ keepMessage: true });
+    lastScannedTokenRef.current = '';
     setCameraStatus('starting');
-    setCameraMessage('Solicitando acceso a la cámara...');
+    setCameraMessage('Abriendo cámara y preparando lector QR...');
 
     try {
-      if (typeof barcodeDetector.getSupportedFormats === 'function') {
-        const supportedFormats = await barcodeDetector.getSupportedFormats();
-        if (!supportedFormats.includes('qr_code')) {
-          setCameraStatus('unsupported');
-          setCameraMessage('La lectura QR no está disponible en este dispositivo.');
-          return;
-        }
-      }
-
-      detectorRef.current = new barcodeDetector({ formats: ['qr_code'] });
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-        },
-        audio: false,
-      });
-
-      streamRef.current = stream;
-      lastScannedTokenRef.current = '';
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
+      const controls = await startZxingScan();
+      scannerControlsRef.current = controls;
       setCameraStatus('active');
-      setCameraMessage('Apunta la cámara al QR de la entrada.');
-      void scanLoop();
+      setCameraMessage('Apunta la cámara al QR. Si no detecta, prueba con una foto del código.');
     } catch (error) {
       console.error('Could not start QR camera', error);
       stopCamera({ keepMessage: true });
       setCameraStatus('error');
-      setCameraMessage('No se pudo abrir la cámara. Revisa permisos o usa el pegado manual.');
+      setCameraMessage('No se pudo abrir o leer la cámara. Prueba con una foto del QR o pega el token.');
+    }
+  }
+
+  async function handleImageFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || imageDecoding) return;
+
+    setImageDecoding(true);
+    setCameraMessage('Leyendo foto del QR...');
+
+    try {
+      stopCamera({ keepMessage: true });
+      const { BrowserMultiFormatReader } = await loadZxingModule();
+      const reader = new BrowserMultiFormatReader();
+      const objectUrl = URL.createObjectURL(file);
+
+      try {
+        const result = await reader.decodeFromImageUrl(objectUrl);
+        const text = result.getText();
+        if (!text) {
+          throw new Error('No QR text found');
+        }
+
+        await handleDetectedValue(text);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    } catch (error) {
+      console.error('Could not decode QR image', error);
+      setCameraMessage('No pudimos leer el QR de la foto. Prueba otra imagen o pega el token.');
+    } finally {
+      setImageDecoding(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   }
 
   useEffect(() => {
-    barcodeDetectorCtorRef.current =
-      (
-        globalThis as typeof globalThis & {
-          BarcodeDetector?: BarcodeDetectorConstructor;
-        }
-      ).BarcodeDetector ?? null;
-
-    setHasCameraSupport(Boolean(navigator.mediaDevices?.getUserMedia));
-    setHasNativeQrSupport(Boolean(barcodeDetectorCtorRef.current));
-    setIsCapabilitiesReady(true);
+    const secure = typeof window !== 'undefined' ? window.isSecureContext : false;
+    setIsSecureContextReady(secure);
+    setHasCameraSupport(secure && Boolean(navigator.mediaDevices?.getUserMedia));
 
     return () => {
       stopCamera();
@@ -247,7 +244,8 @@ export default function TicketScanAdminPage() {
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-xl font-semibold text-mulberry">Validar entrada (QR)</h2>
       <p className="mt-1 text-sm text-slate-600">
-        Escanea el QR con cámara o pega el token manualmente. También acepta valores con prefijo
+        Escanea el QR con cámara, sube una foto del código o pega el token manualmente. También acepta
+        valores con prefijo
         <code className="ml-1">PELOTERAS:TICKET:</code>.
       </p>
 
@@ -267,6 +265,14 @@ export default function TicketScanAdminPage() {
           </button>
           <button
             type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={imageDecoding}
+            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+          >
+            {imageDecoding ? 'Leyendo foto...' : 'Subir foto del QR'}
+          </button>
+          <button
+            type="button"
             onClick={() => stopCamera()}
             disabled={cameraStatus !== 'active'}
             className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
@@ -275,17 +281,25 @@ export default function TicketScanAdminPage() {
           </button>
         </div>
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageFile}
+          className="hidden"
+        />
+
         <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-950">
           <video ref={videoRef} autoPlay muted playsInline className="aspect-[4/3] w-full object-cover" />
         </div>
 
         <p className="mt-3 text-sm text-slate-600">
           {cameraMessage ||
-            (!isCapabilitiesReady
-              ? 'Puedes escanear con cámara o pegar el token manualmente.'
-              : hasNativeQrSupport
-              ? 'La cámara usará el lector QR nativo del navegador.'
-              : 'Este navegador no soporta lector QR nativo. Usa el pegado manual.')}
+            (hasCameraSupport
+              ? 'Usaremos un lector QR compatible con más navegadores. Si falla la cámara, sube una foto del código.'
+              : isSecureContextReady
+              ? 'Este navegador no ofrece una cámara compatible. Prueba con una foto del QR o pega el token.'
+              : 'Abre esta página en HTTPS o localhost para usar la cámara. Mientras tanto puedes subir una foto del QR.')}
         </p>
       </div>
 
