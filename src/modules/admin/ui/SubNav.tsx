@@ -10,7 +10,7 @@ const links = [
   { href: '/admin/communications', label: 'Correos', superadminOnly: true },
   { href: '/admin/payments', label: 'Pagos' },
   { href: '/admin/payment-methods', label: 'Formas de pago' },
-  { href: '/admin/scan', label: 'Validar QR', disabled: true },
+  { href: '/admin/scan', label: 'Validar QR' },
   { href: '/admin/users', label: 'Usuarios', superadminOnly: true },
 ];
 
@@ -41,18 +41,6 @@ export default function SubNav() {
       <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible">
         {visibleLinks.map((l) => {
           const active = pathname === l.href;
-          if (l.disabled) {
-            return (
-              <span
-                key={l.href}
-                className="shrink-0 whitespace-nowrap rounded-full border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-medium text-slate-500 cursor-not-allowed"
-                aria-disabled="true"
-                title="Módulo deshabilitado temporalmente"
-              >
-                {l.label}
-              </span>
-            );
-          }
           return (
             <Link
               key={l.href}

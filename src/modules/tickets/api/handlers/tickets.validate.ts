@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
+import { getAdminSupabase } from '@core/api/supabase.admin';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
 import { log } from '@core/lib/logger';
 
-const QR_VALIDATION_MODULE_ENABLED = false;
+const QR_VALIDATION_MODULE_ENABLED = process.env.QR_VALIDATION_MODULE_ENABLED !== 'false';
 
 function isMissingTicketTableError(error: any) {
   const message = String(error?.message ?? '').toLowerCase();
@@ -32,6 +33,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Solo administradoras pueden validar entradas.' }, { status: 403 });
     }
 
+    let databaseClient: Awaited<ReturnType<typeof getServerSupabase>> | ReturnType<typeof getAdminSupabase> =
+      supabase;
+
+    try {
+      databaseClient = getAdminSupabase();
+    } catch (adminClientError) {
+      log.warn('Admin Supabase unavailable for QR validation, using session client fallback', 'TICKETS', {
+        error: adminClientError,
+      });
+    }
+
     const body = await request.json().catch(() => ({}));
     const rawToken = String(body?.token || '').trim();
     const token = rawToken.startsWith('PELOTERAS:TICKET:')
@@ -42,7 +54,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Token de QR inválido.' }, { status: 400 });
     }
 
-    const { data: ticket, error: ticketError } = await supabase
+    const { data: ticket, error: ticketError } = await databaseClient
       .from('ticket')
       .select('id, event_id, user_id, status, used_at, qr_token')
       .eq('qr_token', token)
@@ -94,7 +106,7 @@ export async function POST(request: Request) {
 
     const usedAt = new Date().toISOString();
 
-    const { data: updated, error: updateError } = await supabase
+    const { data: updated, error: updateError } = await databaseClient
       .from('ticket')
       .update({
         status: 'used',
