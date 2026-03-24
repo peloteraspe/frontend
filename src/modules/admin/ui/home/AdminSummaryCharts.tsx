@@ -260,9 +260,15 @@ export default function AdminSummaryCharts({ data }: { data: AdminSummaryChartsD
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-100 p-4 opacity-80">
-        <h3 className="text-lg font-semibold text-mulberry">Validar QR</h3>
-        <p className="text-sm text-gray-600">Módulo deshabilitado temporalmente.</p>
+      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-5">
+        <ModuleHeader
+          title="Validar QR"
+          href="/admin/scan"
+          subtitle="Escanea o pega el token de una entrada para marcar el ingreso."
+        />
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+          Valida tickets desde cámara o pegando el token del QR.
+        </div>
       </section>
     </div>
   );
