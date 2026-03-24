@@ -3,12 +3,14 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import MapboxMap, { Marker, NavigationControl, Popup } from 'react-map-gl/mapbox';
+import { hasEventStarted } from '@modules/events/lib/eventTiming';
 
 type EventLite = {
   id: string | number;
   title?: string;
   formattedDateTime?: string;
   dateLabel?: string;
+  startTime?: string | null;
   locationText?: string;
   price?: number;
   location?: {
@@ -49,6 +51,7 @@ export default function LandingEventsMap({ events }: Props) {
             id: String(event.id),
             title: event.title || 'Evento',
             date: event.formattedDateTime || event.dateLabel || 'Fecha por confirmar',
+            isPastEvent: hasEventStarted(event.startTime),
             locationText: event.locationText || 'Ubicación por confirmar',
             price: Number(event.price ?? 0),
             ...coords,
@@ -58,6 +61,7 @@ export default function LandingEventsMap({ events }: Props) {
           id: string;
           title: string;
           date: string;
+          isPastEvent: boolean;
           locationText: string;
           price: number;
           lat: number;
@@ -132,6 +136,11 @@ export default function LandingEventsMap({ events }: Props) {
                 </span>
               </div>
               <p className="mt-1 text-[11px] font-semibold text-[#54086F]">{activePoint.date}</p>
+              {activePoint.isPastEvent && (
+                <p className="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800">
+                  Finalizado
+                </p>
+              )}
               <p className="mt-1 text-[11px] leading-4 text-slate-600 line-clamp-2">{activePoint.locationText}</p>
               <div className="mt-3 flex">
                 <button

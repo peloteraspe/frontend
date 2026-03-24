@@ -3,8 +3,9 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
 import ArrowRight from '@core/assets/images/arrow-right.png';
-import Badge from '@core/ui/Badge';
+import Badge, { StatusBadge } from '@core/ui/Badge';
 import { ButtonWrapper } from '@core/ui/Button';
+import { hasEventStarted } from '@modules/events/lib/eventTiming';
 import CardEvent from '@modules/events/ui/CardEvent';
 import { EventEntity } from '@modules/events/model/types';
 import { formattedPrice } from '@shared/lib/utils';
@@ -16,6 +17,7 @@ type Props = {
   hoveredEventId: string | null;
   onHoverEvent: (id: string | null) => void;
   isLoading?: boolean;
+  emptyMessage?: string;
 };
 
 function EventCardSameAsLanding({
@@ -32,6 +34,7 @@ function EventCardSameAsLanding({
   const router = useRouter();
   const isVersus = isVersusEventTypeName(event.eventTypeName);
   const isSoldOut = event.isSoldOut === true;
+  const isPastEvent = hasEventStarted(event.startTime);
 
   return (
     <div
@@ -50,25 +53,46 @@ function EventCardSameAsLanding({
         button={
           <ButtonWrapper
             icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-            disabled={isSoldOut}
+            disabled={isSoldOut || isPastEvent}
             onClick={(e: any) => {
               e.stopPropagation();
-              if (isSoldOut) return;
+              if (isSoldOut || isPastEvent) return;
               router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
             }}
           >
-            {isSoldOut ? 'Cupos completos' : isVersus ? 'Anotar a mi equipo' : 'Anotarme'}
+            {isPastEvent
+              ? 'Evento finalizado'
+              : isSoldOut
+              ? 'Cupos completos'
+              : isVersus
+              ? 'Anotar a mi equipo'
+              : 'Anotarme'}
           </ButtonWrapper>
         }
         price={formattedPrice(event.price)}
-        badge={[
-          <Badge
-            key={`${event.id}-type`}
-            text={event.eventTypeName.toUpperCase()}
-            icon={true}
-            badgeType="Primary"
-          />,
-        ]}
+        badge={
+          [
+            <Badge
+              key={`${event.id}-type`}
+              text={event.eventTypeName.toUpperCase()}
+              icon={true}
+              badgeType="Primary"
+            />,
+          ].concat(
+            isPastEvent
+              ? [
+                  <StatusBadge
+                    key={`${event.id}-status`}
+                    variant="warning"
+                    size="sm"
+                    className="whitespace-nowrap"
+                  >
+                    Finalizado
+                  </StatusBadge>,
+                ]
+              : []
+          )
+        }
       />
     </div>
   );
@@ -80,11 +104,12 @@ export default function EventListPanel({
   hoveredEventId,
   onHoverEvent,
   isLoading = false,
+  emptyMessage = 'No hay eventos en esta zona todavía.',
 }: Props) {
   if (!events.length) {
     return (
       <div className="h-[60vh] md:h-[76vh] rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
-        No hay eventos en esta zona todavía.
+        {emptyMessage}
       </div>
     );
   }

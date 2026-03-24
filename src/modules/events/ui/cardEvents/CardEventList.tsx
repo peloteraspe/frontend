@@ -1,8 +1,7 @@
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
-import CardEventItem from './CardEventItem';
 import { log } from '@src/core/lib/logger';
 import Link from 'next/link';
-import LandingEventsMap from './LandingEventsMap';
+import FeaturedEventsClient from './FeaturedEventsClient';
 
 type CardEventListProps = {
   previewCount?: number;
@@ -39,13 +38,10 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
   }
 
   const featuredEvents = Array.isArray(events) ? events.filter((event) => event.isFeatured) : [];
-  const cardEvents = typeof previewCount === 'number'
-    ? featuredEvents.slice(0, previewCount)
-    : featuredEvents;
 
   log.debug('Retrieved events for card list', 'CARD_EVENT_LIST', {
     featuredCount: featuredEvents.length,
-    eventCount: cardEvents?.length,
+    eventCount: featuredEvents.length,
   });
 
   return (
@@ -65,20 +61,7 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
         )}
       </div>
 
-      {!cardEvents.length ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-          Aún no hay partidos destacados publicados.
-        </div>
-      ) : (
-        <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
-          <div className="order-2 xl:order-1 [&>div]:gap-5">
-            <CardEventItem cardEvents={cardEvents} variant="landing" />
-          </div>
-          <div className="order-1 xl:order-2">
-            <LandingEventsMap events={cardEvents} />
-          </div>
-        </div>
-      )}
+      <FeaturedEventsClient events={featuredEvents} previewCount={previewCount} />
     </div>
   );
 };

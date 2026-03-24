@@ -1,7 +1,7 @@
 'use client';
 
 import ArrowRight from '@core/assets/images/arrow-right.png';
-import Badge from '@src/core/ui/Badge';
+import Badge, { StatusBadge } from '@src/core/ui/Badge';
 import Image from 'next/image';
 import CardEvent from '../CardEvent';
 import { ButtonWrapper } from '@src/core/ui/Button';
@@ -9,6 +9,7 @@ import { ButtonWrapper } from '@src/core/ui/Button';
 import { useRouter } from 'next/navigation';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import { isEventSoldOut } from '@modules/events/lib/eventCapacity';
+import { hasEventStarted } from '@modules/events/lib/eventTiming';
 import { formattedPrice } from '@src/shared/lib/utils';
 
 interface CardEventItemProps {
@@ -21,6 +22,7 @@ type CardEventData = {
   title?: string;
   formattedDateTime?: string;
   dateLabel?: string;
+  startTime?: string | null;
   locationText?: string;
   price?: number;
   placesLeft?: number;
@@ -80,6 +82,7 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
         const badges = getBadges(event);
         const isVersus = isVersusEventTypeName(eventTypeName);
         const isSoldOut = getIsSoldOut(event);
+        const isPastEvent = hasEventStarted(event.startTime);
 
         return (
           <div
@@ -96,24 +99,47 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
               button={
                 <ButtonWrapper
                   icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-                  disabled={isSoldOut}
+                  disabled={isSoldOut || isPastEvent}
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
-                    if (isSoldOut) return;
+                    if (isSoldOut || isPastEvent) return;
                     router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
                   }}
-                  children={isSoldOut ? 'Cupos completos' : isVersus ? 'Anotar a mi equipo' : 'Anotarme'}
+                  children={
+                    isPastEvent
+                      ? 'Evento finalizado'
+                      : isSoldOut
+                      ? 'Cupos completos'
+                      : isVersus
+                      ? 'Anotar a mi equipo'
+                      : 'Anotarme'
+                  }
                 />
               }
               price={formattedPrice(Number(event.price ?? 0))}
-              badge={badges.map((badge, index) => (
-                <Badge
-                  key={index}
-                  text={badge.toUpperCase()}
-                  icon={true}
-                  badgeType="Primary"
-                />
-              ))}
+              badge={badges
+                .map((badge, index) => (
+                  <Badge
+                    key={index}
+                    text={badge.toUpperCase()}
+                    icon={true}
+                    badgeType="Primary"
+                  />
+                ))
+                .concat(
+                  isPastEvent
+                    ? [
+                        <StatusBadge
+                          key={`${event.id}-status`}
+                          variant="warning"
+                          size="sm"
+                          className="whitespace-nowrap"
+                        >
+                          Finalizado
+                        </StatusBadge>,
+                      ]
+                    : []
+                )}
             />
           </div>
         );

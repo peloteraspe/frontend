@@ -9,9 +9,11 @@ import toast from 'react-hot-toast';
 import SoccerField from '@core/ui/SoccerField';
 import Map from '@core/ui/Map';
 import Collapse from '@core/ui/Collapse';
+import { StatusBadge } from '@core/ui/Badge';
 import { ButtonWrapper } from '@core/ui/Button';
 import { useAuth } from '@core/auth/AuthProvider';
 import { EVENT_SOLD_OUT_MESSAGE, isEventSoldOut } from '@modules/events/lib/eventCapacity';
+import { hasEventStarted } from '@modules/events/lib/eventTiming';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import EventShareModal from './EventShareModal';
 import { trackEvent } from '@shared/lib/analytics';
@@ -151,9 +153,8 @@ export default function EventDetailsClient({ data }: Props) {
           timeZone: DEFAULT_TIMEZONE,
         })
       : 'Fecha por confirmar';
-  const eventStartTimestamp = startDate && !Number.isNaN(startDate.getTime()) ? startDate.getTime() : null;
-  const isRegistrationClosed =
-    typeof eventStartTimestamp === 'number' && eventStartTimestamp <= Date.now();
+  const isPastEvent = hasEventStarted(startTimeIso);
+  const isRegistrationClosed = isPastEvent;
 
   const price = toNumber(event?.price, 0);
   const minUsers = toNumber(event?.min_users ?? event?.minUsers, 0);
@@ -341,7 +342,14 @@ export default function EventDetailsClient({ data }: Props) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
         <main className="order-2 space-y-6 lg:order-1">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-            <h1 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">{eventTitle}</h1>
+            <div className="flex flex-wrap items-start gap-3">
+              <h1 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">{eventTitle}</h1>
+              {isPastEvent && (
+                <StatusBadge variant="warning" size="md">
+                  Finalizado
+                </StatusBadge>
+              )}
+            </div>
             <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-600">{eventDescription}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
@@ -519,7 +527,7 @@ export default function EventDetailsClient({ data }: Props) {
                 )}
                 {isRegistrationClosed && (
                   <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
-                    Inscripciones cerradas: este evento ya pasó.
+                    Finalizado: este evento ya pasó y la inscripción está cerrada.
                   </p>
                 )}
                 {!isRegistrationClosed && isSoldOut && (

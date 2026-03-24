@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import Input from '@core/ui/Input';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
+import { hasEventStarted } from '@modules/events/lib/eventTiming';
 import { CatalogOption, EventEntity } from '@modules/events/model/types';
 import MapboxEventsMap from './MapboxEventsMap';
 import EventListPanel from './EventListPanel';
@@ -28,6 +29,7 @@ type Filters = {
 };
 
 const LIMA_DEFAULT = { lat: -12.0464, lng: -77.0428 };
+type TimeFilter = 'upcoming' | 'past';
 
 export default function EventExplorerClient({ initialEvents, initialCatalogs }: Props) {
   const [events, setEvents] = useState<EventEntity[]>(initialEvents);
@@ -35,6 +37,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('upcoming');
   const [loading, setLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>({
@@ -75,6 +78,22 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
       })),
     [catalogs.levels]
   );
+
+  const upcomingEvents = useMemo(
+    () => events.filter((event) => !hasEventStarted(event.startTime)),
+    [events]
+  );
+
+  const pastEvents = useMemo(() => events.filter((event) => hasEventStarted(event.startTime)), [events]);
+
+  const visibleEvents = timeFilter === 'upcoming' ? upcomingEvents : pastEvents;
+
+  const visibleEventIds = useMemo(() => new Set(visibleEvents.map((event) => event.id)), [visibleEvents]);
+
+  useEffect(() => {
+    setSelectedEventId((current) => (current && visibleEventIds.has(current) ? current : null));
+    setHoveredEventId((current) => (current && visibleEventIds.has(current) ? current : null));
+  }, [visibleEventIds]);
 
   async function refreshEvents(preferredId?: string, currentFilters?: Filters) {
     const activeFilters = currentFilters ?? filters;
@@ -190,6 +209,59 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
         </Link>
       </div>
 
+      <div className="mb-4">
+        <div
+          className="inline-flex rounded-2xl bg-slate-100 p-1"
+          role="tablist"
+          aria-label="Filtrar eventos por estado"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={timeFilter === 'upcoming'}
+            onClick={() => setTimeFilter('upcoming')}
+            className={[
+              'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition',
+              timeFilter === 'upcoming'
+                ? 'bg-mulberry text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900',
+            ].join(' ')}
+          >
+            Próximos
+            <span
+              className={[
+                'rounded-full px-2 py-0.5 text-xs',
+                timeFilter === 'upcoming' ? 'bg-white/20 text-white' : 'bg-white text-slate-600',
+              ].join(' ')}
+            >
+              {upcomingEvents.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={timeFilter === 'past'}
+            onClick={() => setTimeFilter('past')}
+            className={[
+              'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition',
+              timeFilter === 'past'
+                ? 'bg-mulberry text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900',
+            ].join(' ')}
+          >
+            Pasados
+            <span
+              className={[
+                'rounded-full px-2 py-0.5 text-xs',
+                timeFilter === 'past' ? 'bg-white/20 text-white' : 'bg-white text-slate-600',
+              ].join(' ')}
+            >
+              {pastEvents.length}
+            </span>
+          </button>
+        </div>
+      </div>
+
       <div className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-6">
         <Input
           value={filters.q}
@@ -244,7 +316,9 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold text-slate-700">{events.length} partidos encontrados</p>
+        <p className="text-sm font-semibold text-slate-700">
+          {visibleEvents.length} {timeFilter === 'upcoming' ? 'próximos' : 'pasados'} encontrados
+        </p>
         <button
           type="button"
           onClick={useMyLocation}
@@ -323,11 +397,16 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className={['order-2 xl:order-1', mobileView === 'map' ? 'hidden xl:block' : 'block'].join(' ')}>
           <EventListPanel
-            events={events}
+            events={visibleEvents}
             selectedEventId={selectedEventId}
             hoveredEventId={hoveredEventId}
             onHoverEvent={setHoveredEventId}
             isLoading={loading}
+            emptyMessage={
+              timeFilter === 'upcoming'
+                ? 'No hay eventos próximos con estos filtros.'
+                : 'No hay eventos finalizados con estos filtros.'
+            }
           />
         </div>
 
@@ -338,7 +417,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           ].join(' ')}
         >
           <MapboxEventsMap
-            events={events}
+            events={visibleEvents}
             selectedEventId={selectedEventId}
             hoveredEventId={hoveredEventId}
             onSelectEvent={(id) => setSelectedEventId(id)}
