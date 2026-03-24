@@ -49,6 +49,27 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessa
   ]);
 }
 
+async function resolvePostLoginDestination(nextPath: string | null) {
+  if (!nextPath) return '/';
+
+  try {
+    const response = await fetch('/api/auth/post-login-destination', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nextPath }),
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as { destination?: string };
+    if (response.ok && typeof payload.destination === 'string' && payload.destination.trim()) {
+      return payload.destination;
+    }
+  } catch {
+    // Fallback to local redirect when the guard endpoint is unavailable.
+  }
+
+  return nextPath;
+}
+
 export default function LoginForm() {
   const LOGIN_ONBOARDING_KEY = 'login-onboarding-state';
   const router = useRouter();
@@ -118,10 +139,12 @@ export default function LoginForm() {
           'authenticated redirect timeout'
         );
         const finalDestination =
-          state.nextStep === null ? requestedNextPath || '/' : state.destination;
+          state.nextStep === null
+            ? await resolvePostLoginDestination(requestedNextPath)
+            : state.destination;
         window.location.replace(finalDestination);
       } catch {
-        window.location.replace(requestedNextPath || '/');
+        window.location.replace(await resolvePostLoginDestination(requestedNextPath));
       }
     };
 
@@ -264,7 +287,10 @@ export default function LoginForm() {
         }
       }
 
-      const finalDestination = nextStep === null ? requestedNextPath || '/' : destination;
+      const finalDestination =
+        nextStep === null
+          ? await resolvePostLoginDestination(requestedNextPath)
+          : destination;
 
       toast.success('Bienvenida de vuelta.');
       window.location.assign(finalDestination);

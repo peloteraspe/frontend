@@ -25,10 +25,22 @@ function normalizeOrigin(value: string | null | undefined): string | null {
   }
 }
 
+function normalizeHostOrigin(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const host = value.trim().replace(/^https?:\/\//i, '');
+  if (!host) return null;
+  const protocol =
+    host.startsWith('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https';
+  return normalizeOrigin(`${protocol}://${host}`);
+}
+
 export function resolveAppOrigin(fallbackOrigin?: string | null) {
   const configured =
     normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL) ||
-    normalizeOrigin(process.env.NEXT_PUBLIC_SITE_URL);
+    normalizeOrigin(process.env.NEXT_PUBLIC_SITE_URL) ||
+    normalizeHostOrigin(process.env.NEXT_PUBLIC_APP_URL) ||
+    normalizeHostOrigin(process.env.NEXT_PUBLIC_SITE_URL) ||
+    normalizeHostOrigin(process.env.VERCEL_URL);
 
   if (configured) return configured;
 

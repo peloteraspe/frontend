@@ -6,6 +6,7 @@ import {
   buildGoogleWalletSaveUrl,
   getGoogleWalletConfig,
 } from '../services/google-wallet.service';
+import { buildTicketQrImageUrl, buildVerifiedPlayerUrl } from '../../lib/verifiedPlayerQr';
 
 type AssistantRow = {
   id: number;
@@ -310,10 +311,15 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
 
       const ticket = ticketsByAssistantId.get(String(assistant.id));
       const qrToken = ticket?.qr_token ?? null;
-      const qrValue = qrToken ? `PELOTERAS:TICKET:${qrToken}` : null;
-      const qrImageUrl = qrValue
-        ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrValue)}`
+      const ticketStatus = ticket?.status ?? toTicketStatus(assistant.state);
+      const shouldShowQr = ticketStatus === 'active' || ticketStatus === 'used';
+      const qrValue = shouldShowQr
+        ? buildVerifiedPlayerUrl({
+            eventId,
+            userId,
+          })
         : null;
+      const qrImageUrl = qrValue ? buildTicketQrImageUrl(qrValue) : null;
       const googleWalletUrl = qrToken
         ? (await buildGoogleWalletSaveUrl(
             {
@@ -337,7 +343,7 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
         ticket: {
           id: ticket?.id ?? null,
           assistantId: assistant.id,
-          status: ticket?.status ?? toTicketStatus(assistant.state),
+          status: ticketStatus,
           qrToken,
           qrValue,
           qrImageUrl,
