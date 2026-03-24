@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 type ValidationPayload = {
   ok?: boolean;
@@ -15,21 +15,6 @@ type ValidationPayload = {
     usedAt?: string;
   };
 };
-
-type BarcodeDetectorResult = {
-  rawValue?: string;
-};
-
-type BarcodeDetectorInstance = {
-  detect: (source: ImageBitmapSource) => Promise<BarcodeDetectorResult[]>;
-};
-
-type BarcodeDetectorConstructor = {
-  new (options?: { formats?: string[] }): BarcodeDetectorInstance;
-  getSupportedFormats?: () => Promise<string[]>;
-};
-
-type CameraStatus = 'idle' | 'starting' | 'active' | 'error' | 'unsupported';
 
 const DEFAULT_TIMEZONE = 'America/Lima';
 
@@ -46,21 +31,9 @@ export default function TicketScanAdminPage() {
   const [submitting, setSubmitting] = useState(false);
   const [responseCode, setResponseCode] = useState<number | null>(null);
   const [payload, setPayload] = useState<ValidationPayload | null>(null);
-  const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
-  const [cameraMessage, setCameraMessage] = useState<string | null>(null);
-  const [hasCameraSupport, setHasCameraSupport] = useState(false);
-  const [hasNativeQrSupport, setHasNativeQrSupport] = useState(false);
-  const [isCapabilitiesReady, setIsCapabilitiesReady] = useState(false);
-
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const barcodeDetectorCtorRef = useRef<BarcodeDetectorConstructor | null>(null);
-  const detectorRef = useRef<BarcodeDetectorInstance | null>(null);
-  const scanTimeoutRef = useRef<number | null>(null);
-  const scanInFlightRef = useRef(false);
-  const lastScannedTokenRef = useRef('');
 
   const normalizedToken = useMemo(() => normalizeToken(tokenInput), [tokenInput]);
+
   const resultTone = useMemo(() => {
     if (!responseCode) return 'border-slate-200 bg-slate-50 text-slate-700';
     if (responseCode >= 200 && responseCode < 300)
@@ -68,33 +41,6 @@ export default function TicketScanAdminPage() {
     if (responseCode === 409) return 'border-amber-300 bg-amber-50 text-amber-800';
     return 'border-red-300 bg-red-50 text-red-800';
   }, [responseCode]);
-
-  function clearScanLoop() {
-    if (scanTimeoutRef.current !== null) {
-      window.clearTimeout(scanTimeoutRef.current);
-      scanTimeoutRef.current = null;
-    }
-  }
-
-  function stopCamera(options?: { keepMessage?: boolean }) {
-    clearScanLoop();
-    scanInFlightRef.current = false;
-
-    const stream = streamRef.current;
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
-    setCameraStatus('idle');
-    if (!options?.keepMessage) {
-      setCameraMessage(null);
-    }
-  }
 
   async function pasteFromClipboard() {
     try {
@@ -105,9 +51,8 @@ export default function TicketScanAdminPage() {
     }
   }
 
-  async function validateTicket(nextToken?: string) {
-    const token = normalizeToken(nextToken ?? tokenInput);
-    if (!token || submitting) return;
+  async function validateTicket() {
+    if (!normalizedToken || submitting) return;
 
     setSubmitting(true);
     setPayload(null);
@@ -117,7 +62,7 @@ export default function TicketScanAdminPage() {
       const res = await fetch('/api/tickets/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token: normalizedToken }),
       });
 
       const body = (await res.json().catch(() => ({}))) as ValidationPayload;
@@ -128,166 +73,13 @@ export default function TicketScanAdminPage() {
     }
   }
 
-  async function scanLoop() {
-    if (scanInFlightRef.current || !detectorRef.current || !videoRef.current || !streamRef.current) {
-      return;
-    }
-
-    const video = videoRef.current;
-    if (video.readyState < 2) {
-      scanTimeoutRef.current = window.setTimeout(scanLoop, 250);
-      return;
-    }
-
-    scanInFlightRef.current = true;
-
-    try {
-      const detections = await detectorRef.current.detect(video);
-      const rawValue = detections.find((item) => normalizeToken(item.rawValue || ''))?.rawValue;
-
-      if (rawValue) {
-        const token = normalizeToken(rawValue);
-        if (token && token !== lastScannedTokenRef.current) {
-          lastScannedTokenRef.current = token;
-          setTokenInput(rawValue);
-          setCameraMessage('QR detectado. Validando entrada...');
-          stopCamera({ keepMessage: true });
-          void validateTicket(rawValue);
-          return;
-        }
-      }
-    } catch (error) {
-      console.error('QR scan failed', error);
-      stopCamera({ keepMessage: true });
-      setCameraStatus('error');
-      setCameraMessage('No se pudo leer la cámara. Puedes pegar el token manualmente.');
-      return;
-    } finally {
-      scanInFlightRef.current = false;
-    }
-
-    scanTimeoutRef.current = window.setTimeout(scanLoop, 350);
-  }
-
-  async function openCamera() {
-    if (cameraStatus === 'starting' || cameraStatus === 'active') return;
-
-    if (!hasCameraSupport) {
-      setCameraStatus('unsupported');
-      setCameraMessage('Este navegador no permite acceder a la cámara.');
-      return;
-    }
-
-    const barcodeDetector = barcodeDetectorCtorRef.current;
-
-    if (!barcodeDetector) {
-      setCameraStatus('unsupported');
-      setCameraMessage('Este navegador no soporta lectura QR nativa. Usa el pegado manual.');
-      return;
-    }
-
-    setCameraStatus('starting');
-    setCameraMessage('Solicitando acceso a la cámara...');
-
-    try {
-      if (typeof barcodeDetector.getSupportedFormats === 'function') {
-        const supportedFormats = await barcodeDetector.getSupportedFormats();
-        if (!supportedFormats.includes('qr_code')) {
-          setCameraStatus('unsupported');
-          setCameraMessage('La lectura QR no está disponible en este dispositivo.');
-          return;
-        }
-      }
-
-      detectorRef.current = new barcodeDetector({ formats: ['qr_code'] });
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-        },
-        audio: false,
-      });
-
-      streamRef.current = stream;
-      lastScannedTokenRef.current = '';
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      setCameraStatus('active');
-      setCameraMessage('Apunta la cámara al QR de la entrada.');
-      void scanLoop();
-    } catch (error) {
-      console.error('Could not start QR camera', error);
-      stopCamera({ keepMessage: true });
-      setCameraStatus('error');
-      setCameraMessage('No se pudo abrir la cámara. Revisa permisos o usa el pegado manual.');
-    }
-  }
-
-  useEffect(() => {
-    barcodeDetectorCtorRef.current =
-      (
-        globalThis as typeof globalThis & {
-          BarcodeDetector?: BarcodeDetectorConstructor;
-        }
-      ).BarcodeDetector ?? null;
-
-    setHasCameraSupport(Boolean(navigator.mediaDevices?.getUserMedia));
-    setHasNativeQrSupport(Boolean(barcodeDetectorCtorRef.current));
-    setIsCapabilitiesReady(true);
-
-    return () => {
-      stopCamera();
-    };
-  }, []);
-
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-xl font-semibold text-mulberry">Validar entrada (QR)</h2>
       <p className="mt-1 text-sm text-slate-600">
-        Escanea el QR con cámara o pega el token manualmente. También acepta valores con prefijo
+        Pega el token del QR y valida ingreso. También acepta valores con prefijo
         <code className="ml-1">PELOTERAS:TICKET:</code>.
       </p>
-
-      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={openCamera}
-            disabled={cameraStatus === 'starting' || cameraStatus === 'active'}
-            className="rounded-md bg-mulberry px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {cameraStatus === 'starting'
-              ? 'Abriendo cámara...'
-              : cameraStatus === 'active'
-              ? 'Cámara activa'
-              : 'Escanear con cámara'}
-          </button>
-          <button
-            type="button"
-            onClick={() => stopCamera()}
-            disabled={cameraStatus !== 'active'}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
-          >
-            Detener cámara
-          </button>
-        </div>
-
-        <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-950">
-          <video ref={videoRef} autoPlay muted playsInline className="aspect-[4/3] w-full object-cover" />
-        </div>
-
-        <p className="mt-3 text-sm text-slate-600">
-          {cameraMessage ||
-            (!isCapabilitiesReady
-              ? 'Puedes escanear con cámara o pegar el token manualmente.'
-              : hasNativeQrSupport
-              ? 'La cámara usará el lector QR nativo del navegador.'
-              : 'Este navegador no soporta lector QR nativo. Usa el pegado manual.')}
-        </p>
-      </div>
 
       <div className="mt-4 flex flex-col gap-3">
         <label className="text-sm font-semibold text-slate-700" htmlFor="ticket-token">
@@ -312,7 +104,7 @@ export default function TicketScanAdminPage() {
           <button
             type="button"
             disabled={!normalizedToken || submitting}
-            onClick={() => void validateTicket()}
+            onClick={validateTicket}
             className="rounded-md bg-mulberry px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
             {submitting ? 'Validando...' : 'Validar entrada'}
