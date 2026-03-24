@@ -30,3 +30,8 @@ declare module '*.svg' {
   const content: string;
   export default content;
 }
+
+declare module 'next/dist/build/segment-config/app/app-segment-config.js' {
+  export type InstantConfigForTypeCheckInternal = any;
+  export type PrefetchForTypeCheckInternal = any;
+}

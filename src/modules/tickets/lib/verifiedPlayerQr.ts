@@ -1,5 +1,6 @@
 import { resolveAppOrigin } from '@modules/auth/lib/redirect';
 
+const LEGACY_TICKET_PREFIX = 'PELOTERAS:TICKET:';
 const VERIFIED_PLAYER_SEGMENT = 'verified-player';
 const VERIFIED_PLAYER_PATTERN = /^\/admin\/events\/(?<eventId>\d+)\/verified-player\/(?<userId>[^/?#]+)\/?$/i;
 
@@ -23,6 +24,20 @@ export function buildVerifiedPlayerUrl(input: BuildVerifiedPlayerUrlInput) {
 export function buildTicketQrImageUrl(value: string, size = 260) {
   const normalizedSize = Number.isFinite(size) && size > 0 ? Math.round(size) : 260;
   return `https://api.qrserver.com/v1/create-qr-code/?size=${normalizedSize}x${normalizedSize}&qzone=2&data=${encodeURIComponent(value)}`;
+}
+
+export function normalizeLegacyTicketQrToken(rawValue: string) {
+  const clean = String(rawValue || '').trim();
+  if (!clean) return null;
+  if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('/')) {
+    return null;
+  }
+
+  const normalized = clean.startsWith(LEGACY_TICKET_PREFIX)
+    ? clean.slice(LEGACY_TICKET_PREFIX.length).trim()
+    : clean;
+
+  return normalized || null;
 }
 
 function resolveCandidatePath(rawValue: string) {

@@ -1,7 +1,11 @@
-import { getAdminSupabase } from '@core/api/supabase.admin';
 import { ErrorAlert, SuccessAlert, WarningAlert } from '@core/ui/Alert';
 import { StatusBadge } from '@core/ui/Badge';
 import { assertCanManageEvent } from '@modules/admin/api/events/services/eventPermissions.service';
+import MarkAttendanceButton from '@modules/admin/ui/events/MarkAttendanceButton';
+import {
+  getVerifiedPlayerData,
+  type VerificationBadgeVariant,
+} from '@modules/tickets/api/services/qrAttendance.service';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -10,66 +14,10 @@ type Props = {
   userId: string;
 };
 
-type AssistantRow = {
-  id: number;
-  state: string | null;
-};
-
-type TicketRow = {
-  id: number;
-  status: string | null;
-  used_at: string | null;
-};
-
-type EventRow = {
-  id: number;
-  title: string | null;
-  start_time: string | null;
-  location_text: string | null;
-};
-
-type ProfileRow = {
-  id: number;
-  username: string | null;
-  level_id: number | null;
-};
-
-type AuthUserLite = {
-  email?: string | null;
-  user_metadata?: Record<string, any> | null;
-};
-
-type LevelRow = {
-  name: string | null;
-};
-
-type ProfilePositionRow = {
-  position_id: number | null;
-};
-
-type PlayerPositionRow = {
-  id: number;
-  name: string | null;
-};
-
-type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info';
-
-type VerificationState = {
-  title: string;
-  description: string;
-  variant: 'success' | 'warning' | 'error';
-  badgeLabel: string;
-  badgeVariant: BadgeVariant;
-};
-
 const DEFAULT_TIMEZONE = 'America/Lima';
 
 function normalizeText(value: unknown) {
   return String(value ?? '').trim();
-}
-
-function emailName(email: string) {
-  return normalizeText(email).split('@')[0] || '';
 }
 
 function formatDateTime(value: string | null | undefined) {
@@ -87,24 +35,6 @@ function formatDateTime(value: string | null | undefined) {
   }).format(date);
 }
 
-function buildPlayerUsername(params: {
-  userId: string;
-  profileName?: string | null;
-  metadataName?: string | null;
-  email?: string | null;
-}) {
-  const profileName = normalizeText(params.profileName);
-  if (profileName) return profileName;
-
-  const metadataName = normalizeText(params.metadataName);
-  if (metadataName) return metadataName;
-
-  const nameFromEmail = emailName(normalizeText(params.email));
-  if (nameFromEmail) return nameFromEmail;
-
-  return params.userId;
-}
-
 function mapStatusLabel(value: string | null | undefined) {
   const normalized = normalizeText(value).toLowerCase();
   if (normalized === 'approved') return 'Aprobada';
@@ -117,7 +47,7 @@ function mapStatusLabel(value: string | null | undefined) {
   return normalized || 'Sin registro';
 }
 
-function mapStatusVariant(value: string | null | undefined): BadgeVariant {
+function mapStatusVariant(value: string | null | undefined): VerificationBadgeVariant {
   const normalized = normalizeText(value).toLowerCase();
   if (normalized === 'approved' || normalized === 'issued' || normalized === 'active') {
     return 'success';
@@ -127,46 +57,11 @@ function mapStatusVariant(value: string | null | undefined): BadgeVariant {
   return 'default';
 }
 
-function getVerificationState(params: {
-  assistantState: string | null;
-  ticketStatus: string | null;
-}): VerificationState {
-  const assistantState = normalizeText(params.assistantState).toLowerCase();
-  const ticketStatus = normalizeText(params.ticketStatus).toLowerCase();
-
-  if (ticketStatus === 'used') {
-    return {
-      title: 'Ingreso ya registrado',
-      description:
-        'El enlace se abrió correctamente, pero esta entrada ya había sido validada anteriormente.',
-      variant: 'warning',
-      badgeLabel: 'Ya usada',
-      badgeVariant: 'warning',
-    };
-  }
-
-  if (assistantState === 'approved' && ticketStatus !== 'revoked' && ticketStatus !== 'pending') {
-    return {
-      title: 'Entrada verificada',
-      description:
-        'El enlace se abrió correctamente y la inscripción está lista para confirmar ingreso.',
-      variant: 'success',
-      badgeLabel: 'Verificada',
-      badgeVariant: 'success',
-    };
-  }
-
-  return {
-    title: 'No se pudo verificar la entrada',
-    description:
-      'No encontramos una inscripción aprobada activa para esta jugadora en el evento.',
-    variant: 'error',
-    badgeLabel: 'Sin validar',
-    badgeVariant: 'error',
-  };
-}
-
-function renderVerificationAlert(verification: VerificationState) {
+function renderVerificationAlert(verification: {
+  variant: 'success' | 'warning' | 'error';
+  title: string;
+  description: string;
+}) {
   if (verification.variant === 'success') {
     return (
       <SuccessAlert title={verification.title}>
@@ -187,6 +82,58 @@ function renderVerificationAlert(verification: VerificationState) {
     <ErrorAlert title={verification.title}>
       <p>{verification.description}</p>
     </ErrorAlert>
+  );
+}
+
+function getInitials(name: string) {
+  const clean = normalizeText(name).replace(/\s+/g, ' ');
+  if (!clean) return 'PL';
+
+  const parts = clean.split(' ').filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+  }
+
+  return clean.slice(0, 2).toUpperCase();
+}
+
+function renderAvatar(name: string, avatarUrl: string | null | undefined) {
+  const safeUrl = normalizeText(avatarUrl);
+
+  if (safeUrl) {
+    return (
+      <div className="relative h-20 w-20 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm sm:h-24 sm:w-24">
+        <img
+          src={safeUrl}
+          alt={`Avatar de ${name}`}
+          className="h-full w-full object-cover"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-xl font-black text-slate-700 shadow-sm sm:h-24 sm:w-24 sm:text-2xl">
+      {getInitials(name)}
+    </div>
+  );
+}
+
+function DetailCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string | null;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-2 text-base font-semibold text-slate-900">{value}</p>
+      {hint ? <p className="mt-1 text-sm text-slate-600">{hint}</p> : null}
+    </div>
   );
 }
 
@@ -226,239 +173,195 @@ export default async function VerifiedPlayerScreen({ id, userId }: Props) {
     redirect('/admin/events');
   }
 
-  const admin = getAdminSupabase();
-  const [{ data: assistant }, { data: ticket }, { data: event }, { data: profile }, authResult] =
-    await Promise.all([
-      admin
-        .from('assistants')
-        .select('id,state')
-        .eq('event', parsedEventId)
-        .eq('user', normalizedUserId)
-        .order('id', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      admin
-        .from('ticket')
-        .select('id,status,used_at')
-        .eq('event_id', parsedEventId)
-        .eq('user_id', normalizedUserId)
-        .order('id', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      admin
-        .from('event')
-        .select('id,title,start_time,location_text')
-        .eq('id', parsedEventId)
-        .maybeSingle(),
-      admin
-        .from('profile')
-        .select('id,username,level_id')
-        .eq('user', normalizedUserId)
-        .maybeSingle(),
-      admin.auth.admin.getUserById(normalizedUserId),
-    ]);
-
-  const assistantRow = (assistant as AssistantRow | null) ?? null;
-  const ticketRow = (ticket as TicketRow | null) ?? null;
-  const eventRow = (event as EventRow | null) ?? null;
-  const profileRow = (profile as ProfileRow | null) ?? null;
-  const authUser = (authResult.data?.user as AuthUserLite | null) ?? null;
-
-  const [{ data: levelData }, { data: profilePositions }] = await Promise.all([
-    typeof profileRow?.level_id === 'number'
-      ? admin.from('level').select('name').eq('id', profileRow.level_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    typeof profileRow?.id === 'number'
-      ? admin.from('profile_position').select('position_id').eq('profile_id', profileRow.id)
-      : Promise.resolve({ data: [] }),
-  ]);
-
-  const positionIds = Array.from(
-    new Set(
-      ((profilePositions ?? []) as ProfilePositionRow[])
-        .map((row) => Number(row.position_id))
-        .filter((value) => Number.isInteger(value) && value > 0)
-    )
-  );
-
-  const { data: playerPositionsData } = positionIds.length
-    ? await admin.from('player_position').select('id,name').in('id', positionIds)
-    : { data: [] as PlayerPositionRow[] };
-
-  const playerPositionNameById = new Map<number, string>();
-  ((playerPositionsData ?? []) as PlayerPositionRow[]).forEach((row) => {
-    const normalizedName = normalizeText(row.name);
-    if (Number.isInteger(row.id) && row.id > 0 && normalizedName) {
-      playerPositionNameById.set(row.id, normalizedName);
-    }
-  });
-
-  const playerEmail = normalizeText(authUser?.email) || 'Sin correo';
-  const playerUsername = buildPlayerUsername({
+  const data = await getVerifiedPlayerData({
+    eventId: parsedEventId,
     userId: normalizedUserId,
-    profileName: profileRow?.username,
-    metadataName:
-      normalizeText(authUser?.user_metadata?.username) ||
-      normalizeText(authUser?.user_metadata?.full_name),
-    email: playerEmail,
+    ensureTicket: true,
   });
-  const playerLevel = normalizeText((levelData as LevelRow | null)?.name) || 'Sin nivel';
-  const playerPositions = positionIds
-    .map((positionId) => playerPositionNameById.get(positionId) || '')
-    .filter(Boolean);
-  const playerPositionLabel = playerPositions.length ? playerPositions.join(', ') : 'Sin posición';
-  const verification = getVerificationState({
-    assistantState: assistantRow?.state ?? null,
-    ticketStatus: ticketRow?.status ?? null,
-  });
-  const eventTitle = normalizeText(eventRow?.title) || `Evento #${parsedEventId}`;
+  const playerPositionLabel = data.player.positions.length
+    ? data.player.positions.join(', ')
+    : 'Sin posición';
+  const attendanceTimeLabel = data.ticket.usedAt ? formatDateTime(data.ticket.usedAt) : 'Aún no registrada';
+  const eventDateLabel = formatDateTime(data.event.startTime);
+  const locationLabel = normalizeText(data.event.locationText) || 'Ubicación por confirmar';
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-md bg-white shadow">
-        <div className="flex flex-col gap-3 border-b p-4 md:flex-row md:items-center md:justify-between">
+    <section className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-8">
+      <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-mulberry">Verificación de ingreso</h2>
-            <p className="text-sm text-slate-700">{eventTitle}</p>
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Verificación de QR</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Revisa la inscripción, el ticket y marca la asistencia de la jugadora cuando
+              corresponda.
+            </p>
           </div>
-          <Link
-            href={`/admin/events/${parsedEventId}/participants`}
-            className="inline-flex h-9 items-center justify-center rounded-md border border-mulberry px-3 text-sm font-medium text-mulberry"
-          >
-            Volver a inscripciones
-          </Link>
+
+          <div className="flex flex-col items-start gap-3 sm:items-end">
+            <StatusBadge variant={data.verification.badgeVariant} size="md">
+              {data.verification.badgeLabel}
+            </StatusBadge>
+            <Link
+              href={`/admin/events/${parsedEventId}/participants`}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-mulberry px-4 text-sm font-semibold text-mulberry transition hover:bg-mulberry hover:text-white"
+            >
+              Volver a inscripciones
+            </Link>
+          </div>
         </div>
+      </header>
 
-        <div className="space-y-5 p-4">
-          {renderVerificationAlert(verification)}
+      <div className="mt-6 space-y-6">
+        {renderVerificationAlert(data.verification)}
 
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Estado de acceso
-              </p>
-              <div className="mt-2">
-                <StatusBadge variant={verification.badgeVariant} size="md">
-                  {verification.badgeLabel}
-                </StatusBadge>
-              </div>
-            </div>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="order-1 space-y-6">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-center gap-4">
+                  {renderAvatar(data.player.username, data.player.avatarUrl)}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-mulberry">
+                      Jugadora
+                    </p>
+                    <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+                      {data.player.username}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-600">{data.player.email}</p>
+                  </div>
+                </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ticket</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">
-                {ticketRow?.id ? `#${ticketRow.id}` : 'Sin ticket'}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Registro de ingreso
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">
-                {ticketRow?.used_at ? formatDateTime(ticketRow.used_at) : 'Aún no registrado'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <section className="overflow-hidden rounded-xl border border-slate-200">
-              <div className="border-b bg-slate-50 px-4 py-3">
-                <h3 className="text-sm font-semibold text-slate-900">Participante</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  Datos mínimos para confirmar que la jugadora es la correcta.
-                </p>
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge variant={mapStatusVariant(data.assistant.state)}>
+                    Inscripción: {mapStatusLabel(data.assistant.state)}
+                  </StatusBadge>
+                  <StatusBadge variant={mapStatusVariant(data.ticket.status)}>
+                    Ticket: {mapStatusLabel(data.ticket.status)}
+                  </StatusBadge>
+                </div>
               </div>
 
-              <div className="grid gap-4 p-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Username
-                  </p>
-                  <p className="mt-1 font-medium text-slate-900">{playerUsername}</p>
-                </div>
+              <div className="mt-5 rounded-2xl border border-mulberry/15 bg-mulberry/5 p-4">
+                <MarkAttendanceButton
+                  eventId={data.eventId}
+                  userId={data.userId}
+                  canMarkAttendance={data.verification.canMarkAttendance}
+                  actionLabel={data.verification.actionLabel}
+                  actionHint={data.verification.actionHint}
+                />
+              </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Correo
-                  </p>
-                  <p className="mt-1 break-all font-medium text-slate-900">{playerEmail}</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Posición
-                  </p>
-                  <p className="mt-1 font-medium text-slate-900">{playerPositionLabel}</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Nivel
-                  </p>
-                  <p className="mt-1 font-medium text-slate-900">{playerLevel}</p>
-                </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <DetailCard label="Nivel" value={data.player.level} />
+                <DetailCard label="Posición" value={playerPositionLabel} />
+                <DetailCard
+                  label="Ticket"
+                  value={data.ticket.id ? `#${data.ticket.id}` : 'Sin ticket'}
+                  hint={data.ticket.id ? 'Ticket emitido para el ingreso.' : 'Todavía no existe ticket válido.'}
+                />
+                <DetailCard label="Asistencia" value={attendanceTimeLabel} />
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-xl border border-slate-200">
-              <div className="border-b bg-slate-50 px-4 py-3">
-                <h3 className="text-sm font-semibold text-slate-900">Evento y estado</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  Resumen rápido para validar el ingreso desde admin.
-                </p>
-              </div>
-
-              <div className="grid gap-4 p-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-mulberry">
                     Evento
                   </p>
-                  <p className="mt-1 font-medium text-slate-900">{eventTitle}</p>
+                  <h3 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+                    {data.event.title}
+                  </h3>
                 </div>
+                <StatusBadge variant={data.verification.badgeVariant}>{data.verification.title}</StatusBadge>
+              </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Fecha
-                  </p>
-                  <p className="mt-1 text-slate-900">{formatDateTime(eventRow?.start_time)}</p>
-                </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <DetailCard label="Fecha" value={eventDateLabel} />
+                <DetailCard label="Ubicación" value={locationLabel} />
+                <DetailCard
+                  label="Estado de inscripción"
+                  value={mapStatusLabel(data.assistant.state)}
+                  hint="Este estado refleja cómo está la inscripción de la jugadora en el evento."
+                />
+                <DetailCard
+                  label="Estado del ticket"
+                  value={mapStatusLabel(data.ticket.status)}
+                  hint="El ticket cambia a usada cuando se marca la asistencia."
+                />
+              </div>
+            </section>
+          </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Ubicación
-                  </p>
-                  <p className="mt-1 text-slate-900">
-                    {normalizeText(eventRow?.location_text) || 'Ubicación por confirmar'}
-                  </p>
-                </div>
+          <aside className="order-2 space-y-6 xl:order-2">
+            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-6">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-mulberry">
+                  Control de asistencia
+                </p>
+                <h3 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+                  Check-in de jugadora
+                </h3>
+                <p className="mt-2 text-sm text-slate-600">{data.verification.description}</p>
+              </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Estado de inscripción
-                  </p>
-                  <div className="mt-2">
-                    <StatusBadge variant={mapStatusVariant(assistantRow?.state)}>
-                      {mapStatusLabel(assistantRow?.state)}
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <StatusBadge variant={data.verification.badgeVariant} size="md">
+                      {data.verification.badgeLabel}
                     </StatusBadge>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Acción principal
+                    </p>
                   </div>
-                </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Estado del ticket
-                  </p>
-                  <div className="mt-2">
-                    <StatusBadge variant={mapStatusVariant(ticketRow?.status)}>
-                      {mapStatusLabel(ticketRow?.status)}
-                    </StatusBadge>
+                  <MarkAttendanceButton
+                    eventId={data.eventId}
+                    userId={data.userId}
+                    canMarkAttendance={data.verification.canMarkAttendance}
+                    actionLabel={data.verification.actionLabel}
+                    actionHint={data.verification.actionHint}
+                  />
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Hora de asistencia
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-slate-900">{attendanceTimeLabel}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Estado actual
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-slate-900">
+                        {data.verification.title}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             </section>
-          </div>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-mulberry">
+                Resumen rápido
+              </p>
+              <div className="mt-4 space-y-3">
+                <DetailCard label="Jugadora" value={data.player.username} hint={data.player.email} />
+                <DetailCard label="Evento" value={data.event.title} hint={eventDateLabel} />
+                <DetailCard
+                  label="Ubicación"
+                  value={locationLabel}
+                  hint={data.ticket.id ? `Ticket #${data.ticket.id}` : 'Sin ticket emitido'}
+                />
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

@@ -24,6 +24,7 @@
     "mapbox-gl": "^3.19.0",
     "next": "latest",
     "postcss": "8.4.29",
+    "qr-scanner": "^1.4.2",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "react-hook-form": "^7.48.2",

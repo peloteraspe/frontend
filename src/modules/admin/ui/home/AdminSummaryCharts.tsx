@@ -260,9 +260,21 @@ export default function AdminSummaryCharts({ data }: { data: AdminSummaryChartsD
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-100 p-4 opacity-80">
-        <h3 className="text-lg font-semibold text-mulberry">Validar QR</h3>
-        <p className="text-sm text-gray-600">Módulo deshabilitado temporalmente.</p>
+      <section className="rounded-2xl border border-[#54086F]/15 bg-[linear-gradient(135deg,rgba(84,8,111,0.08),rgba(15,118,110,0.08))] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-mulberry">Validar QR</h3>
+            <p className="text-sm text-gray-600">
+              Escanea con cámara, revisa la ficha y marca asistencia desde el mismo flujo.
+            </p>
+          </div>
+          <a
+            href="/admin/scan"
+            className="inline-flex h-10 items-center justify-center rounded-full bg-mulberry px-4 text-sm font-semibold text-white transition hover:bg-[#6a1286]"
+          >
+            Abrir módulo QR
+          </a>
+        </div>
       </section>
     </div>
   );
