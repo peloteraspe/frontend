@@ -13,11 +13,21 @@ type ProfileRow = {
   username: string | null;
 };
 
+type TicketAttendanceRow = {
+  id: number;
+  user_id: string | null;
+  status: string | null;
+  used_at: string | null;
+};
+
 export type EventParticipant = {
   userId: string;
   name: string;
   email: string;
   state: string;
+  ticketStatus: string;
+  attendedAt: string | null;
+  hasAttended: boolean;
 };
 
 function normalizeId(value: unknown) {
@@ -30,6 +40,11 @@ function normalizeName(input: unknown) {
 
 function emailName(email: string) {
   return String(email || '').split('@')[0]?.trim() || '';
+}
+
+function isMissingTicketTableError(error: any) {
+  const message = String(error?.message ?? '').toLowerCase();
+  return message.includes('ticket') && message.includes('does not exist');
 }
 
 function buildParticipantName(params: {
@@ -157,9 +172,16 @@ export async function getParticipantContactsByEventId(
   const userIds = Array.from(assistantsByUserId.keys());
   if (!userIds.length) return [];
 
-  const [profilesRes, authUsersById] = await Promise.all([
+  const adminSupabase = getAdminSupabase();
+  const [profilesRes, authUsersById, ticketsRes] = await Promise.all([
     supabase.from('profile').select('user,username').in('user', userIds as any),
     getAuthUsersByIds(userIds),
+    adminSupabase
+      .from('ticket')
+      .select('id,user_id,status,used_at')
+      .eq('event_id', normalizedEventId as any)
+      .in('user_id', userIds as any)
+      .order('id', { ascending: false }),
   ]);
 
   const profileByUserId = new Map<string, string>();
@@ -175,6 +197,26 @@ export async function getParticipantContactsByEventId(
     });
   }
 
+  const ticketByUserId = new Map<string, TicketAttendanceRow>();
+  if (ticketsRes.error) {
+    if (isMissingTicketTableError(ticketsRes.error)) {
+      log.warn('Tickets table not found yet while loading event participants attendance.', 'ADMIN_EVENTS', {
+        eventId: normalizedEventId,
+      });
+    } else {
+      log.database('SELECT tickets for event participants attendance', 'ticket', ticketsRes.error, {
+        eventId: normalizedEventId,
+        userIds,
+      });
+    }
+  } else {
+    ((ticketsRes.data ?? []) as TicketAttendanceRow[]).forEach((ticket) => {
+      const userId = normalizeId(ticket.user_id);
+      if (!userId || ticketByUserId.has(userId)) return;
+      ticketByUserId.set(userId, ticket);
+    });
+  }
+
   return userIds
     .map((userId) => {
       const authUser = authUsersById.get(userId);
@@ -182,6 +224,9 @@ export async function getParticipantContactsByEventId(
       const metadataName = normalizeName(
         authUser?.user_metadata?.username || authUser?.user_metadata?.full_name
       );
+      const ticket = ticketByUserId.get(userId);
+      const ticketStatus = normalizeName(ticket?.status).toLowerCase();
+      const attendedAt = ticket?.used_at ?? null;
       return {
         userId,
         name: buildParticipantName({
@@ -192,6 +237,9 @@ export async function getParticipantContactsByEventId(
         }),
         email: email || 'Sin correo',
         state: assistantsByUserId.get(userId) || '',
+        ticketStatus,
+        attendedAt,
+        hasAttended: ticketStatus === 'used' || Boolean(attendedAt),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));

@@ -41,7 +41,9 @@ export default function TicketScanAdminPage() {
   const resolvingRef = useRef(false);
 
   const [manualValue, setManualValue] = useState('');
-  const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'ready' | 'resolving'>('idle');
+  const [cameraState, setCameraState] = useState<
+    'idle' | 'starting' | 'ready' | 'resolving' | 'blocked'
+  >('idle');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [hasCamera, setHasCamera] = useState<boolean | null>(null);
   const [cameraOptions, setCameraOptions] = useState<CameraOption[]>([]);
@@ -90,11 +92,17 @@ export default function TicketScanAdminPage() {
     return payload.path;
   }
 
-  async function handleResolvedValue(rawValue: string) {
+  async function handleResolvedValue(rawValue: string, source: 'scanner' | 'manual' | 'upload') {
     if (resolvingRef.current) return;
+
+    const fromLiveScanner = source === 'scanner';
     resolvingRef.current = true;
     setCameraState('resolving');
     setCameraError(null);
+
+    if (fromLiveScanner) {
+      teardownScanner();
+    }
 
     try {
       const path = await resolveScannedValue(rawValue);
@@ -103,8 +111,13 @@ export default function TicketScanAdminPage() {
     } catch (error: any) {
       const message = error?.message || 'No se pudo resolver el QR.';
       setCameraError(message);
-      toast.error(message);
       resolvingRef.current = false;
+      if (fromLiveScanner) {
+        setCameraState('blocked');
+        return;
+      }
+
+      toast.error(message);
       setCameraState(scannerRef.current ? 'ready' : 'idle');
     }
   }
@@ -124,6 +137,7 @@ export default function TicketScanAdminPage() {
 
     if (!videoRef.current) return;
 
+    resolvingRef.current = false;
     setCameraError(null);
     setCameraState('starting');
 
@@ -134,7 +148,7 @@ export default function TicketScanAdminPage() {
       const scanner = new module.default(
         videoRef.current,
         (result) => {
-          void handleResolvedValue(result.data);
+          void handleResolvedValue(result.data, 'scanner');
         },
         {
           preferredCamera: preferredCamera as any,
@@ -168,6 +182,7 @@ export default function TicketScanAdminPage() {
   function stopScanner() {
     resolvingRef.current = false;
     teardownScanner();
+    setCameraError(null);
     setCameraState('idle');
   }
 
@@ -185,7 +200,7 @@ export default function TicketScanAdminPage() {
         returnDetailedScanResult: true,
         alsoTryWithoutScanRegion: true,
       });
-      await handleResolvedValue(result.data);
+      await handleResolvedValue(result.data, 'upload');
     } catch (error: any) {
       const message = error?.message || 'No se pudo leer el QR desde la imagen.';
       setCameraError(message);
@@ -198,7 +213,7 @@ export default function TicketScanAdminPage() {
 
   async function handleManualSubmit() {
     if (!manualValue.trim()) return;
-    await handleResolvedValue(manualValue);
+    await handleResolvedValue(manualValue, 'manual');
   }
 
   async function pasteFromClipboard() {
@@ -254,17 +269,8 @@ export default function TicketScanAdminPage() {
           <div>
             <h1 className="text-2xl font-black tracking-tight text-mulberry">Verificar QR</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Abre la cámara del celular o de la laptop para escanear el QR. El módulo soporta los
-              QRs nuevos por link y también los QRs antiguos basados en token.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-[#54086F]/15 bg-[#54086F]/5 px-4 py-3 text-sm text-slate-700">
-            <p className="font-semibold text-mulberry">Compatibilidad</p>
-            <p className="mt-1">
-              {isMobileDevice
-                ? 'En móvil usamos la cámara del navegador para escanear el QR en vivo. Eso requiere HTTPS o localhost; la app nativa Cámara no puede activarse directamente desde la web.'
-                : 'En laptop se usa la webcam disponible para escanear el QR en tiempo real.'}
+              Escanea el QR o carga una imagen para verificar a la jugadora y confirmar su
+              asistencia.
             </p>
           </div>
         </div>
@@ -298,20 +304,24 @@ export default function TicketScanAdminPage() {
                     ? 'Resolviendo QR...'
                     : cameraState === 'starting'
                       ? 'Abriendo cámara...'
-                      : cameraState === 'ready'
-                        ? 'Reiniciar escáner'
-                        : 'Escanear QR'
+                      : cameraState === 'blocked'
+                        ? 'Reintentar escáner'
+                        : cameraState === 'ready'
+                          ? 'Reiniciar escáner'
+                          : 'Escanear QR'
                   : cameraState === 'starting'
                     ? 'Abriendo cámara...'
-                    : cameraState === 'ready'
-                      ? 'Reiniciar cámara'
-                      : 'Abrir cámara'}
+                    : cameraState === 'blocked'
+                      ? 'Reintentar cámara'
+                      : cameraState === 'ready'
+                        ? 'Reiniciar cámara'
+                        : 'Abrir cámara'}
               </button>
 
               <button
                 type="button"
                 onClick={stopScanner}
-                disabled={cameraState === 'idle'}
+                disabled={cameraState === 'idle' || cameraState === 'blocked'}
                 className="inline-flex h-11 w-full items-center justify-center rounded-full border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 Detener cámara
@@ -322,33 +332,32 @@ export default function TicketScanAdminPage() {
           <div className="mt-5 overflow-hidden rounded-[28px] border border-dashed border-slate-300 bg-slate-950">
             <div className="relative aspect-[4/3] min-h-[260px] w-full sm:min-h-[320px]">
               <>
-                <video
-                  ref={videoRef}
-                  className="h-full w-full object-cover"
-                  muted
-                  playsInline
-                />
+                <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
                 <div
                   ref={overlayRef}
                   className="pointer-events-none absolute inset-0 [&_*]:border-[#10b981] [&_*]:shadow-[0_0_0_1px_rgba(16,185,129,0.18)]"
                 />
               </>
 
-              {cameraState === 'idle' ? (
+              {cameraState === 'idle' || cameraState === 'blocked' ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(84,8,111,0.28),_transparent_45%),linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.84))] px-6 text-center">
                   <div className="max-w-md">
                     <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200/85">
                       Modo escaneo
                     </p>
                     <p className="mt-4 text-2xl font-black tracking-tight text-white">
-                      {isMobileDevice
-                        ? 'Escáner QR listo para móvil'
-                        : 'Cámara lista para escanear en laptop'}
+                      {cameraState === 'blocked'
+                        ? 'Escaneo pausado'
+                        : isMobileDevice
+                          ? 'Escáner QR listo para móvil'
+                          : 'Cámara lista para escanear en laptop'}
                     </p>
                     <p className="mt-3 text-sm text-slate-200">
-                      {isMobileDevice
-                        ? 'Usa el botón para abrir el escáner en vivo del navegador. Si prefieres, también puedes subir una imagen o pegar el valor del QR.'
-                        : 'Usa el botón para abrir la webcam. Si prefieres, también puedes subir una imagen del QR o pegar el valor manualmente.'}
+                      {cameraState === 'blocked'
+                        ? 'El último intento devolvió un error y el escáner quedó en pausa. Reintenta cuando quieras volver a leer un QR.'
+                        : isMobileDevice
+                          ? 'Usa el botón para abrir el escáner en vivo del navegador. Si prefieres, también puedes subir una imagen o pegar el valor del QR.'
+                          : 'Usa el botón para abrir la webcam. Si prefieres, también puedes subir una imagen del QR o pegar el valor manualmente.'}
                     </p>
                   </div>
                 </div>
@@ -367,14 +376,18 @@ export default function TicketScanAdminPage() {
                     ? 'Escaneando en vivo desde el celular. Cuando detectemos un QR válido, abriremos la ficha.'
                     : cameraState === 'resolving'
                       ? 'Resolviendo el QR detectado...'
-                      : 'Abre la cámara del celular para escanear el QR en vivo.'
-                : cameraState === 'ready'
-                  ? 'Escaneando en tiempo real. Cuando detectemos un QR válido, te llevaremos directo a la ficha.'
-                  : cameraState === 'resolving'
-                    ? 'Resolviendo el QR detectado...'
-                    : hasCamera === false
-                      ? 'No detectamos cámara disponible en esta laptop. Usa la carga de imagen o pega el valor del QR.'
-                      : 'La cámara todavía no está abierta.'}
+                      : cameraState === 'blocked'
+                        ? 'El escaneo quedó en pausa tras el último error. Reintenta cuando quieras volver a leer el QR.'
+                        : 'Abre la cámara del celular para escanear el QR en vivo.'
+                  : cameraState === 'ready'
+                    ? 'Escaneando en tiempo real. Cuando detectemos un QR válido, te llevaremos directo a la ficha.'
+                    : cameraState === 'resolving'
+                      ? 'Resolviendo el QR detectado...'
+                      : cameraState === 'blocked'
+                        ? 'La cámara quedó en pausa tras el último error. Pulsa Reintentar para volver a escanear.'
+                        : hasCamera === false
+                          ? 'No detectamos cámara disponible en esta laptop. Usa la carga de imagen o pega el valor del QR.'
+                          : 'La cámara todavía no está abierta.'}
             </div>
 
             {!isMobileDevice && cameraOptions.length > 1 ? (
@@ -404,8 +417,17 @@ export default function TicketScanAdminPage() {
           </div>
 
           {cameraError ? (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {cameraError}
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+              <span>{cameraError}</span>
+              {cameraState === 'blocked' ? (
+                <button
+                  type="button"
+                  onClick={() => void startScanner()}
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                >
+                  Reintentar
+                </button>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -415,11 +437,15 @@ export default function TicketScanAdminPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
-                  Fallback
+                  Si no puedes escanear
                 </p>
                 <h2 className="mt-2 text-xl font-black tracking-tight text-slate-900">
-                  Imagen o pegado manual
+                  Sube una imagen o pega el código del QR
                 </h2>
+                <p className="mt-2 max-w-md text-sm text-slate-600">
+                  Si la cámara no lee el QR, puedes validar a la jugadora desde una imagen o
+                  pegando el código.
+                </p>
               </div>
 
               <button
@@ -439,25 +465,32 @@ export default function TicketScanAdminPage() {
               onChange={handleUpload}
             />
 
-            <div className="mt-4 space-y-3">
-              <label className="block text-sm font-semibold text-slate-700" htmlFor="qr-manual-value">
-                Valor del QR
+            <div className="mt-4">
+              <label
+                className="mb-2 block text-sm font-semibold text-slate-800"
+                htmlFor="qr-manual-value"
+              >
+                Código o enlace del QR
               </label>
               <textarea
                 id="qr-manual-value"
                 value={manualValue}
                 onChange={(event) => setManualValue(event.target.value)}
-                placeholder="Pega aquí un link QR o un token legado..."
-                className="min-h-[130px] w-full rounded-[24px] border border-slate-300 p-4 text-sm text-slate-800 focus:border-mulberry focus:outline-none"
+                placeholder="Pega aquí el código o enlace del QR de la jugadora."
+                rows={5}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-mulberry focus:ring-2 focus:ring-mulberry/20"
               />
+              <p className="mt-2 text-xs text-slate-500">
+                Úsalo si tienes el QR en otra app, en un mensaje o en un archivo.
+              </p>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={pasteFromClipboard}
                   className="inline-flex h-11 w-full items-center justify-center rounded-full border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                 >
-                  Pegar desde portapapeles
+                  Pegar código
                 </button>
                 <button
                   type="button"
@@ -465,7 +498,7 @@ export default function TicketScanAdminPage() {
                   disabled={!manualValue.trim() || cameraState === 'resolving'}
                   className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[#0f766e] px-4 text-sm font-semibold text-white transition hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Abrir ficha
+                  Ver ficha
                 </button>
               </div>
             </div>
@@ -476,10 +509,10 @@ export default function TicketScanAdminPage() {
               Flujo
             </p>
             <ol className="mt-4 space-y-3 text-sm text-slate-700">
-              <li>1. Abres la cámara o cargas una imagen.</li>
-              <li>2. El sistema resuelve el QR nuevo o legado.</li>
-              <li>3. Llegas a la ficha tipo carné de la jugadora.</li>
-              <li>4. Ahí recién decides si marcas asistencia.</li>
+              <li>1. Escanea el QR o carga una imagen.</li>
+              <li>2. El sistema reconoce el código.</li>
+              <li>3. Revisa la información de la jugadora.</li>
+              <li>4. Confirma su asistencia.</li>
             </ol>
           </section>
         </aside>

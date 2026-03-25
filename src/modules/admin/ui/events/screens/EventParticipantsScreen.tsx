@@ -13,6 +13,8 @@ import { getEventById } from '@shared/lib/data/getEventById';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+const DEFAULT_TIMEZONE = 'America/Lima';
+
 function stateLabel(state: string) {
   const normalized = String(state || '').trim().toLowerCase();
   if (normalized === 'approved') return 'Aprobada';
@@ -27,6 +29,47 @@ function stateClasses(state: string) {
   if (normalized === 'pending') return 'bg-amber-100 text-amber-700';
   if (normalized === 'rejected') return 'bg-rose-100 text-rose-700';
   return 'bg-slate-100 text-slate-700';
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return 'Sin hora registrada';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sin hora registrada';
+
+  return new Intl.DateTimeFormat('es-PE', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: DEFAULT_TIMEZONE,
+  }).format(date);
+}
+
+function attendanceLabel(participant: EventParticipant) {
+  if (participant.hasAttended) return 'Asistió';
+  if (participant.ticketStatus === 'active' || participant.ticketStatus === 'pending') return 'Sin marcar';
+  if (participant.ticketStatus === 'revoked') return 'Revocada';
+  if (participant.state === 'approved') return 'Sin ticket';
+  return 'No registrada';
+}
+
+function attendanceClasses(participant: EventParticipant) {
+  if (participant.hasAttended) return 'bg-sky-100 text-sky-700';
+  if (participant.ticketStatus === 'active' || participant.ticketStatus === 'pending') {
+    return 'bg-amber-100 text-amber-700';
+  }
+  if (participant.ticketStatus === 'revoked') return 'bg-rose-100 text-rose-700';
+  return 'bg-slate-100 text-slate-700';
+}
+
+function attendanceHint(participant: EventParticipant) {
+  if (participant.attendedAt) return formatDateTime(participant.attendedAt);
+  if (participant.ticketStatus === 'active') return 'Entrada activa';
+  if (participant.ticketStatus === 'pending') return 'Pendiente de emisión';
+  if (participant.ticketStatus === 'revoked') return 'Entrada revocada';
+  if (participant.state === 'approved') return 'Aún sin entrada';
+  return 'Sin ingreso registrado';
 }
 
 export default async function EventParticipantsScreen({ id }: { id: string }) {
@@ -44,6 +87,7 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
   const eventTitle = String(event.title || '').trim() || `Evento #${id}`;
   const approvedCount = participants.filter((participant) => participant.state === 'approved').length;
   const pendingCount = participants.filter((participant) => participant.state === 'pending').length;
+  const attendedCount = participants.filter((participant) => participant.hasAttended).length;
   const recipients = participants.filter((participant) => participant.email && participant.email !== 'Sin correo');
   const defaults = getDefaultEventAnnouncementEmail();
 
@@ -63,7 +107,7 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
           </Link>
         </div>
 
-        <div className="grid gap-3 border-b p-4 md:grid-cols-3">
+        <div className="grid gap-3 border-b p-4 md:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Activas</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{participants.length}</p>
@@ -76,6 +120,10 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pendientes</p>
             <p className="mt-1 text-2xl font-bold text-amber-700">{pendingCount}</p>
           </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Asistieron</p>
+            <p className="mt-1 text-2xl font-bold text-sky-700">{attendedCount}</p>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -85,12 +133,13 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
                 <th className="px-4 py-2 text-left">Nombre</th>
                 <th className="px-4 py-2 text-left">Correo</th>
                 <th className="px-4 py-2 text-left">Estado</th>
+                <th className="px-4 py-2 text-left">Asistencia</th>
               </tr>
             </thead>
             <tbody>
               {participants.length === 0 ? (
                 <tr className="border-t">
-                  <td className="px-4 py-4 text-sm text-slate-500" colSpan={3}>
+                  <td className="px-4 py-4 text-sm text-slate-500" colSpan={4}>
                     Aún no hay inscripciones activas para este evento.
                   </td>
                 </tr>
@@ -108,6 +157,18 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
                     >
                       {stateLabel(participant.state)}
                     </span>
+                  </td>
+                  <td className="px-4 py-2">
+                    <div className="flex flex-col gap-1">
+                      <span
+                        className={`inline-flex w-fit rounded-full px-2 py-1 text-xs font-semibold ${attendanceClasses(
+                          participant
+                        )}`}
+                      >
+                        {attendanceLabel(participant)}
+                      </span>
+                      <span className="text-xs text-slate-500">{attendanceHint(participant)}</span>
+                    </div>
                   </td>
                 </tr>
               ))}
