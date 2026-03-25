@@ -9,6 +9,11 @@ import {
   isEventSoldOutError,
 } from '@modules/events/lib/eventCapacity';
 import {
+  EVENT_ALREADY_APPROVED_REGISTRATION_MESSAGE,
+  EVENT_PENDING_REGISTRATION_MESSAGE,
+} from '@modules/events/lib/eventJoinState';
+import { getViewerRegistrationState } from '@modules/events/api/queries/getViewerApprovedRegistrations';
+import {
   sendAdminPaymentPendingReviewEmail,
   sendPaymentStatusEmail,
 } from '../services/payment-status-email.service';
@@ -219,6 +224,28 @@ export async function POST(request: Request) {
       );
     }
 
+    const viewerRegistrationState = await getViewerRegistrationState(eventId, admin, user.id);
+
+    if (viewerRegistrationState === 'approved') {
+      return NextResponse.json(
+        {
+          error: EVENT_ALREADY_APPROVED_REGISTRATION_MESSAGE,
+          code: 'ALREADY_REGISTERED',
+        },
+        { status: 409 }
+      );
+    }
+
+    if (viewerRegistrationState === 'pending') {
+      return NextResponse.json(
+        {
+          error: EVENT_PENDING_REGISTRATION_MESSAGE,
+          code: 'PAYMENT_PENDING_REVIEW',
+        },
+        { status: 409 }
+      );
+    }
+
     const { data: existingAssistant, error: existingError } = await admin
       .from('assistants')
       .select('id,state,operationNumber')
@@ -234,10 +261,6 @@ export async function POST(request: Request) {
         userId: user.id,
       });
       return NextResponse.json({ error: 'No se pudo validar la inscripción.' }, { status: 500 });
-    }
-
-    if (String(existingAssistant?.state || '').trim().toLowerCase() === 'approved') {
-      return NextResponse.json({ ok: true, assistantId: existingAssistant.id }, { status: 200 });
     }
 
     const approvedCount = await getApprovedParticipantsCountByEventId(eventId, admin);

@@ -9,6 +9,7 @@ import { ButtonWrapper } from '@src/core/ui/Button';
 import { useRouter } from 'next/navigation';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import { isEventSoldOut } from '@modules/events/lib/eventCapacity';
+import { getEventJoinLabel, isEventJoinDisabled } from '@modules/events/lib/eventJoinState';
 import { hasEventStarted } from '@modules/events/lib/eventTiming';
 import { formattedPrice } from '@src/shared/lib/utils';
 
@@ -30,6 +31,9 @@ type CardEventData = {
   minUsers?: number;
   maxUsers?: number;
   isSoldOut?: boolean;
+  isPublished?: boolean;
+  viewerHasApprovedRegistration?: boolean;
+  viewerHasPendingRegistration?: boolean;
   level?: {
     name?: string;
   };
@@ -83,6 +87,22 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
         const isVersus = isVersusEventTypeName(eventTypeName);
         const isSoldOut = getIsSoldOut(event);
         const isPastEvent = hasEventStarted(event.startTime);
+        const isJoinDisabled = isEventJoinDisabled({
+          isPastEvent,
+          isPublished: event.isPublished,
+          isSoldOut,
+          isVersus,
+          viewerHasApprovedRegistration: event.viewerHasApprovedRegistration,
+          viewerHasPendingRegistration: event.viewerHasPendingRegistration,
+        });
+        const joinLabel = getEventJoinLabel({
+          isPastEvent,
+          isPublished: event.isPublished,
+          isSoldOut,
+          isVersus,
+          viewerHasApprovedRegistration: event.viewerHasApprovedRegistration,
+          viewerHasPendingRegistration: event.viewerHasPendingRegistration,
+        });
 
         return (
           <div
@@ -99,21 +119,13 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
               button={
                 <ButtonWrapper
                   icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-                  disabled={isSoldOut || isPastEvent}
+                  disabled={isJoinDisabled}
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
-                    if (isSoldOut || isPastEvent) return;
+                    if (isJoinDisabled) return;
                     router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
                   }}
-                  children={
-                    isPastEvent
-                      ? 'Evento finalizado'
-                      : isSoldOut
-                      ? 'Cupos completos'
-                      : isVersus
-                      ? 'Anotar a mi equipo'
-                      : 'Anotarme'
-                  }
+                  children={joinLabel}
                 />
               }
               price={formattedPrice(Number(event.price ?? 0))}

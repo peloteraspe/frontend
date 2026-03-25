@@ -28,6 +28,8 @@ export type EventEntity = {
   approvedCount?: number;
   placesLeft?: number;
   isSoldOut?: boolean;
+  viewerHasApprovedRegistration?: boolean;
+  viewerHasPendingRegistration?: boolean;
   distanceKm?: number;
 };
 

@@ -7,11 +7,18 @@ import EventShareModal from '@modules/admin/ui/events/EventShareModal';
 type Props = {
   eventId: string | number;
   eventTitle?: string;
+  buttonClassName?: string;
+  onOpen?: () => void;
 };
 
 const ADMIN_EVENTS_PATH = '/admin/events';
 
-export default function EventShareActionButton({ eventId, eventTitle }: Props) {
+export default function EventShareActionButton({
+  eventId,
+  eventTitle,
+  buttonClassName,
+  onOpen,
+}: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
@@ -22,6 +29,7 @@ export default function EventShareActionButton({ eventId, eventTitle }: Props) {
   }, [eventId, open]);
 
   function handleOpen() {
+    onOpen?.();
     setOpen(true);
   }
 
@@ -32,7 +40,11 @@ export default function EventShareActionButton({ eventId, eventTitle }: Props) {
 
   return (
     <>
-      <button type="button" className="text-mulberry hover:underline" onClick={handleOpen}>
+      <button
+        type="button"
+        className={buttonClassName || 'text-mulberry hover:underline'}
+        onClick={handleOpen}
+      >
         Compartir
       </button>
 

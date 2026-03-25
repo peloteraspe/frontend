@@ -4,8 +4,7 @@ import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { setEventFeatured, setEventPublished } from '@modules/admin/api/events/_actions';
 import { getAllUserEmailsForBroadcast } from '@modules/admin/api/users/services/adminUsers.service';
-import EventPromotionQuickAction from '@modules/admin/ui/events/EventPromotionQuickAction';
-import EventShareActionButton from '@modules/admin/ui/events/EventShareActionButton';
+import EventQuickActionsMenu from '@modules/admin/ui/events/EventQuickActionsMenu';
 import { getApprovedParticipantsCountByEventIds } from '@modules/admin/api/events/services/eventParticipants.service';
 
 type Props = {
@@ -234,26 +233,23 @@ export default async function AdminEventsPage({ searchParams }: Props) {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <div className="flex gap-3 justify-end">
+                    <div className="flex items-center justify-end gap-3">
                       <a href={`/events/${e.id}`} className="text-mulberry hover:underline">
                         Ver
                       </a>
                       <Link href={`/admin/events/${e.id}/participants`} className="text-mulberry hover:underline">
                         Inscripciones
                       </Link>
-                      {e.is_published ? (
-                        <EventShareActionButton eventId={String(e.id)} eventTitle={String(e.title || 'Evento')} />
-                      ) : null}
-                      {isUserSuperAdmin && e.is_published ? (
-                        <EventPromotionQuickAction
-                          eventId={String(e.id)}
-                          eventTitle={String(e.title || 'Evento')}
-                          recipientCount={promotionRecipientCount}
-                        />
-                      ) : null}
                       <Link href={`/admin/events/${e.id}/edit`} className="text-mulberry hover:underline">
                         Editar
                       </Link>
+                      <EventQuickActionsMenu
+                        eventId={String(e.id)}
+                        eventTitle={String(e.title || 'Evento')}
+                        isPublished={Boolean(e.is_published)}
+                        canPromote={Boolean(isUserSuperAdmin && e.is_published)}
+                        recipientCount={promotionRecipientCount}
+                      />
                     </div>
                   </td>
                 </tr>

@@ -1,10 +1,10 @@
 import { getAssistantsCounts, getAssistantsWithDetails } from '@shared/lib/data/getAssistants';
 import Badge from '@core/ui/Badge';
-import { approveAssistant, rejectAssistant } from '../../api/payments/_actions';
 import Link from 'next/link';
 import { getServerSupabase } from '@core/api/supabase.server';
 import PaymentsEventSelect from './PaymentsEventSelect';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import PaymentDecisionActions from './PaymentDecisionActions';
 
 export default async function PaymentsAdminPage({
   searchParams,
@@ -143,8 +143,6 @@ export default async function PaymentsAdminPage({
             ) : null}
             {items.map((a) => {
               const isPending = a.state === 'pending';
-              const approveAction = isPending ? approveAssistant.bind(null, a.id) : null;
-              const rejectAction = isPending ? rejectAssistant.bind(null, a.id) : null;
               const eventId = Number(a.event);
               const eventHref = Number.isInteger(eventId) && eventId > 0 ? `/events/${eventId}` : null;
               const eventLabel = String(a.eventTitle || '').trim() || `Evento #${a.event}`;
@@ -184,17 +182,8 @@ export default async function PaymentsAdminPage({
                   </td>
                   <td className="px-4 py-2">{a.userName || a.user}</td>
                   <td className="px-4 py-2 text-right">
-                    {isPending && approveAction && rejectAction ? (
-                      <>
-                        <form action={approveAction} className="inline">
-                          <button className="px-3 py-1 rounded bg-green-600 text-white mr-2">
-                            Aprobar
-                          </button>
-                        </form>
-                        <form action={rejectAction} className="inline">
-                          <button className="px-3 py-1 rounded bg-red-600 text-white">Rechazar</button>
-                        </form>
-                      </>
+                    {isPending ? (
+                      <PaymentDecisionActions assistantId={a.id} />
                     ) : (
                       <span className="text-xs font-medium text-slate-500">Sin acciones</span>
                     )}

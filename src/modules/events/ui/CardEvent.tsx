@@ -1,4 +1,4 @@
-import { ParagraphM, ParagraphS, SubtitleS, TitleM, TitleS } from '../../../core/ui/Typography';
+import { ParagraphM, ParagraphS, SubtitleS, TitleM } from '../../../core/ui/Typography';
 
 import Ball from '@core/assets/images/ball.png';
 import Calendar from '@core/assets/images/calendar.png';
@@ -29,70 +29,68 @@ const CardEvent: React.FC<CardEventProps> = ({
   button,
   compact = false,
 }) => {
+  const eventIcon = typeEvent.toLowerCase().includes('pichanga') ? Ball : DoubleBall;
+
   return (
-    <div
-      className={[
-        'relative group cursor-pointer',
-        compact ? 'w-full min-h-[170px]' : 'w-full sm:min-w-[714px] sm:w-full sm:min-h-[160px]',
-      ].join(' ')}
-    >
+    <div className="group w-full cursor-pointer">
       <div
-        className="card-info hover:bg-[#744D7C] hover:bg-opacity-20 sm:grid w-full shadow-md rounded-xl sm:absolute sm:left-0 sm:bottom-0 sm:h-full"
-        style={{ gridTemplateColumns: '15% 68% 20%' }}
+        className={[
+          'card-info w-full rounded-xl p-4 shadow-md transition-colors hover:bg-[#744D7C]/20 sm:grid sm:items-start sm:p-5',
+          compact ? 'sm:grid-cols-[72px_minmax(0,1fr)_130px] sm:gap-4' : 'sm:grid-cols-[84px_minmax(0,1fr)_160px] sm:gap-6',
+        ].join(' ')}
       >
-        <div className="flex sm:flex-row flex-col gap-4">
-          <div className="m-auto sm:block hidden">
-            {/* typeEvent */}
-            {typeEvent.toLowerCase().includes('pichanga') ? (
-              <Image src={Ball} alt="ball" width={56} height={56} />
-            ) : (
-              <Image src={DoubleBall} alt="ball" width={56} height={56} />
-            )}
-          </div>
+        <div className="hidden h-full items-center justify-center sm:flex">
+          <Image src={eventIcon} alt="ball" width={56} height={56} />
         </div>
-        <div className="py-2 w-full sm:w-fit justify-center uppercase h-full flex flex-col gap-2.5 px-4 sm:px-0">
+
+        <div className="min-w-0 py-2 uppercase">
           <ParagraphS fontWeight="bold" color="text-btnBg-light">
-            {/* levelText */}
             {levelText}
           </ParagraphS>
-          <div className="flex justify-start items-center uppercase">
+
+          <div className="mt-2 min-w-0">
             <ParagraphM fontWeight="bold" color="text-[#1F2937]">
-              {/* matchText */}
-              {matchText}
+              <span className="break-words">{matchText}</span>
             </ParagraphM>
           </div>
-          <SubtitleS fontWeight="semibold" color="text-btnBg-light">
-            <div className="flex flex-row gap-1 items-center !text-xs">
-              {/* dateText*/}
-              <Image src={Calendar} alt="calendar" width={15} />
-              {dateText}
-            </div>
-          </SubtitleS>
-          <SubtitleS fontWeight="semibold" color="text-btnBg-light">
-            <div className="flex items-center !text-xs gap-1">
-              {/* textLocation */}
-              <Image src={Ubication} alt="calendar" width={15} />
-              {textLocation}
-            </div>
-          </SubtitleS>
-          <div
-            className={[
-              'flex justify-start gap-1',
-              compact
-                ? 'max-w-full overflow-x-auto pr-1'
-                : 'max-w-[92vw] sm:max-w-none overflow-x-auto sm:overflow-hidden',
-            ].join(' ')}
-          >
-            {badge?.map((b) => b)}
+
+          <div className="mt-3">
+            <SubtitleS fontWeight="semibold" color="text-btnBg-light">
+              <span className="flex min-w-0 items-start gap-2 !text-xs">
+                <Image src={Calendar} alt="calendar" width={15} className="mt-0.5 shrink-0" />
+                <span className="min-w-0 break-words">{dateText}</span>
+              </span>
+            </SubtitleS>
+          </div>
+
+          <div className="mt-2">
+            <SubtitleS fontWeight="semibold" color="text-btnBg-light">
+              <span className="flex min-w-0 items-start gap-2 !text-xs">
+                <Image src={Ubication} alt="ubicacion" width={15} className="mt-0.5 shrink-0" />
+                <span className="min-w-0 break-words">{textLocation}</span>
+              </span>
+            </SubtitleS>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {badge?.map((badgeItem, index) => (
+              <div key={index} className="max-w-full">
+                {badgeItem}
+              </div>
+            ))}
           </div>
         </div>
-        <div className="hidden sm:block font-poppins font-semibold text-sm text-white min-w">
-          <div className="absolute right-4 top-9 hidden group-hover:block">{button}</div>
-        </div>
-        <div className="absolute bottom-5 right-4 uppercase hidden sm:block">
-          <TitleM fontWeight="bold" color="text-btnBg-light">
-            {price}
-          </TitleM>
+
+        <div className="hidden h-full flex-col items-end justify-between gap-4 sm:flex">
+          <div className="flex min-h-[52px] w-full justify-end opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto">
+            {button}
+          </div>
+
+          <div className="mt-auto whitespace-nowrap text-right uppercase">
+            <TitleM fontWeight="bold" color="text-btnBg-light">
+              {price}
+            </TitleM>
+          </div>
         </div>
       </div>
     </div>

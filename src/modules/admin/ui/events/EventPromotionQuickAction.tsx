@@ -12,6 +12,8 @@ type Props = {
   eventId: string;
   eventTitle: string;
   recipientCount: number;
+  buttonClassName?: string;
+  onOpen?: () => void;
 };
 
 const INITIAL_EVENT_PROMOTION_ACTION_STATE: EventAnnouncementActionState = {
@@ -44,7 +46,13 @@ function ConfirmButton({ disabled, recipientCount }: { disabled: boolean; recipi
   );
 }
 
-export default function EventPromotionQuickAction({ eventId, eventTitle, recipientCount }: Props) {
+export default function EventPromotionQuickAction({
+  eventId,
+  eventTitle,
+  recipientCount,
+  buttonClassName,
+  onOpen,
+}: Props) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const lastHandledSuccessRef = useRef('');
@@ -101,9 +109,15 @@ export default function EventPromotionQuickAction({ eventId, eventTitle, recipie
     <>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          onOpen?.();
+          setIsOpen(true);
+        }}
         disabled={!canSend}
-        className="text-mulberry hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
+        className={[
+          buttonClassName || 'text-mulberry hover:underline',
+          'disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline',
+        ].join(' ')}
       >
         Promocionar
       </button>

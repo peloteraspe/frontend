@@ -14,9 +14,32 @@ import { ensureTicketForAssistant } from '@modules/tickets/api/services/tickets.
 import { sendPaymentStatusEmail } from '@modules/payments/api/services/payment-status-email.service';
 import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
 
+export type PaymentReviewDecision = 'approve' | 'reject';
+
+export type PaymentReviewActionState = {
+  status: 'idle' | 'success' | 'error';
+  message: string;
+  decision: PaymentReviewDecision | null;
+};
+
 function normalizeAssistantId(value: string) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function formatPaymentReviewError(error: unknown, decision: PaymentReviewDecision) {
+  const fallback =
+    decision === 'approve' ? 'No se pudo aprobar el pago.' : 'No se pudo rechazar el pago.';
+
+  if (!(error instanceof Error)) return fallback;
+
+  const message = String(error.message || '').trim();
+  if (!message) return fallback;
+  if (message === 'Failed to approve assistant' || message === 'Failed to reject assistant') {
+    return fallback;
+  }
+
+  return message;
 }
 
 async function loadAssistantEmailContext(
@@ -289,5 +312,53 @@ export async function rejectAssistant(id: string) {
   } catch (error) {
     log.error('Error rejecting assistant', 'ADMIN_PAYMENTS', error, { id });
     throw error;
+  }
+}
+
+export async function submitPaymentReviewAction(
+  _previousState: PaymentReviewActionState,
+  formData: FormData
+): Promise<PaymentReviewActionState> {
+  const assistantId = String(formData.get('assistantId') || '').trim();
+  const decision = String(formData.get('decision') || '').trim();
+
+  if (!assistantId) {
+    return {
+      status: 'error',
+      message: 'No se encontró el pago que intentas gestionar.',
+      decision: null,
+    };
+  }
+
+  if (decision !== 'approve' && decision !== 'reject') {
+    return {
+      status: 'error',
+      message: 'La acción solicitada no es válida.',
+      decision: null,
+    };
+  }
+
+  try {
+    if (decision === 'approve') {
+      await approveAssistant(assistantId);
+      return {
+        status: 'success',
+        message: 'Pago aprobado correctamente.',
+        decision,
+      };
+    }
+
+    await rejectAssistant(assistantId);
+    return {
+      status: 'success',
+      message: 'Pago rechazado correctamente.',
+      decision,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message: formatPaymentReviewError(error, decision),
+      decision,
+    };
   }
 }

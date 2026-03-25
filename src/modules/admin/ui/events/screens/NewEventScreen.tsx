@@ -4,13 +4,20 @@ import EventFormComponent from '@modules/admin/ui/events/EventFormComponent';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
+import { getEventById } from '@shared/lib/data/getEventById';
+import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
 
-export default async function NewEventScreen() {
+type Props = {
+  templateId?: string;
+};
+
+export default async function NewEventScreen({ templateId }: Props) {
   const supabase = await getServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const canManageFeatured = isSuperAdmin(user as any);
+  const normalizedTemplateId = String(templateId || '').trim();
   const [catalogs, featuresRes, paymentMethodsRes] = await Promise.all([
     getEventCatalogs(),
     supabase.from('features').select('id,name').order('name', { ascending: true }),
@@ -57,6 +64,91 @@ export default async function NewEventScreen() {
   const selectableEventTypes =
     eventTypes.length > 0 ? eventTypes : catalogs.eventTypes.length > 0 ? [catalogs.eventTypes[0]] : [];
 
+  let templateInitial:
+    | {
+        title: string;
+        description: string;
+        startTime: string;
+        endTime: string;
+        price: number;
+        minUsers: number;
+        maxUsers: number;
+        district: string;
+        locationText: string;
+        lat: number | undefined;
+        lng: number | undefined;
+        eventTypeId: number;
+        levelId: number;
+        featureIds: number[];
+        paymentMethodIds: number[];
+        isPublished: boolean;
+        isFeatured: boolean;
+      }
+    | null = null;
+  let templateTitle = '';
+
+  if (normalizedTemplateId) {
+    const templateEvent = await getEventById(normalizedTemplateId);
+    const canUseTemplate =
+      templateEvent &&
+      (canManageFeatured || String(templateEvent.created_by_id || '') === String(user?.id || ''));
+
+    if (canUseTemplate) {
+      const [eventFeaturesRes, eventPaymentMethodsRes] = await Promise.all([
+        supabase.from('eventFeatures').select('feature').eq('event', normalizedTemplateId),
+        supabase.from('eventPaymentMethod').select('paymentMethod').eq('event', normalizedTemplateId),
+      ]);
+
+      if (eventFeaturesRes.error) {
+        throw new Error(eventFeaturesRes.error.message);
+      }
+
+      if (eventPaymentMethodsRes.error) {
+        throw new Error(eventPaymentMethodsRes.error.message);
+      }
+
+      const selectedFeatureIds = Array.from(
+        new Set(
+          (eventFeaturesRes.data ?? [])
+            .map((row) => Number(row.feature))
+            .filter((value) => Number.isInteger(value) && value > 0)
+        )
+      );
+      const availablePaymentMethodIds = new Set(paymentMethods.map((method) => method.id));
+      const selectedPaymentMethodIds = Array.from(
+        new Set(
+          (eventPaymentMethodsRes.data ?? [])
+            .map((row) => Number(row.paymentMethod))
+            .filter((value) => Number.isInteger(value) && value > 0 && availablePaymentMethodIds.has(value))
+        )
+      );
+
+      templateTitle = String(templateEvent.title || 'Evento').trim() || 'Evento';
+      templateInitial = {
+        title: String(templateEvent.title || ''),
+        description:
+          typeof templateEvent.description === 'object'
+            ? String(templateEvent.description?.description || '')
+            : String(templateEvent.description || ''),
+        startTime: toDateTimeLocalInTimeZone(templateEvent.start_time),
+        endTime: toDateTimeLocalInTimeZone(templateEvent.end_time),
+        price: Number(templateEvent.price || 0),
+        minUsers: Number(templateEvent.min_users || 0),
+        maxUsers: Number(templateEvent.max_users || 0),
+        district: String(templateEvent.district || ''),
+        locationText: String(templateEvent.location_text || ''),
+        lat: templateEvent.location?.lat,
+        lng: templateEvent.location?.lng ?? templateEvent.location?.long,
+        eventTypeId: Number(templateEvent.EventType || selectableEventTypes[0]?.id || 1),
+        levelId: Number(templateEvent.level || catalogs.levels[0]?.id || 1),
+        featureIds: selectedFeatureIds,
+        paymentMethodIds: selectedPaymentMethodIds,
+        isPublished: templateEvent.is_published !== false,
+        isFeatured: Boolean(templateEvent.is_featured),
+      };
+    }
+  }
+
   async function handleCreate(fd: FormData) {
     'use server';
     try {
@@ -71,7 +163,15 @@ export default async function NewEventScreen() {
 
   return (
     <div className="bg-white rounded-md shadow p-4">
-      <h2 className="text-lg font-semibold text-mulberry mb-4">Crear evento</h2>
+      <h2 className="text-lg font-semibold text-mulberry mb-4">
+        {templateInitial ? 'Crear evento desde plantilla' : 'Crear evento'}
+      </h2>
+      {templateInitial ? (
+        <div className="mb-4 rounded-xl border border-mulberry/20 bg-mulberry/5 px-4 py-3 text-sm text-slate-700">
+          Usando como plantilla: <strong>{templateTitle}</strong>. Ajusta lo necesario antes de crear el nuevo
+          evento.
+        </div>
+      ) : null}
       <EventFormComponent
         submitLabel="Crear"
         onSubmit={handleCreate}
@@ -80,11 +180,12 @@ export default async function NewEventScreen() {
         features={features}
         paymentMethods={paymentMethods}
         initial={{
-          eventTypeId: selectableEventTypes[0]?.id ?? 1,
-          levelId: catalogs.levels[0]?.id ?? 1,
           featureIds: [],
           paymentMethodIds: [],
+          eventTypeId: selectableEventTypes[0]?.id ?? 1,
+          levelId: catalogs.levels[0]?.id ?? 1,
           isPublished: true,
+          ...templateInitial,
         }}
         canManageFeatured={canManageFeatured}
         successRedirectTo="/admin/events"

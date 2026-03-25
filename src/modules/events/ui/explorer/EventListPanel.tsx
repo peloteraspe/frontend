@@ -6,6 +6,7 @@ import ArrowRight from '@core/assets/images/arrow-right.png';
 import Badge, { StatusBadge } from '@core/ui/Badge';
 import { ButtonWrapper } from '@core/ui/Button';
 import { hasEventStarted } from '@modules/events/lib/eventTiming';
+import { getEventJoinLabel, isEventJoinDisabled } from '@modules/events/lib/eventJoinState';
 import CardEvent from '@modules/events/ui/CardEvent';
 import { EventEntity } from '@modules/events/model/types';
 import { formattedPrice } from '@shared/lib/utils';
@@ -35,6 +36,22 @@ function EventCardSameAsLanding({
   const isVersus = isVersusEventTypeName(event.eventTypeName);
   const isSoldOut = event.isSoldOut === true;
   const isPastEvent = hasEventStarted(event.startTime);
+  const isJoinDisabled = isEventJoinDisabled({
+    isPastEvent,
+    isPublished: event.isPublished,
+    isSoldOut,
+    isVersus,
+    viewerHasApprovedRegistration: event.viewerHasApprovedRegistration,
+    viewerHasPendingRegistration: event.viewerHasPendingRegistration,
+  });
+  const joinLabel = getEventJoinLabel({
+    isPastEvent,
+    isPublished: event.isPublished,
+    isSoldOut,
+    isVersus,
+    viewerHasApprovedRegistration: event.viewerHasApprovedRegistration,
+    viewerHasPendingRegistration: event.viewerHasPendingRegistration,
+  });
 
   return (
     <div
@@ -53,20 +70,14 @@ function EventCardSameAsLanding({
         button={
           <ButtonWrapper
             icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-            disabled={isSoldOut || isPastEvent}
+            disabled={isJoinDisabled}
             onClick={(e: any) => {
               e.stopPropagation();
-              if (isSoldOut || isPastEvent) return;
+              if (isJoinDisabled) return;
               router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
             }}
           >
-            {isPastEvent
-              ? 'Evento finalizado'
-              : isSoldOut
-              ? 'Cupos completos'
-              : isVersus
-              ? 'Anotar a mi equipo'
-              : 'Anotarme'}
+            {joinLabel}
           </ButtonWrapper>
         }
         price={formattedPrice(event.price)}

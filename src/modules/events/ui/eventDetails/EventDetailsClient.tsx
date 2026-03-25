@@ -13,6 +13,13 @@ import { StatusBadge } from '@core/ui/Badge';
 import { ButtonWrapper } from '@core/ui/Button';
 import { useAuth } from '@core/auth/AuthProvider';
 import { EVENT_SOLD_OUT_MESSAGE, isEventSoldOut } from '@modules/events/lib/eventCapacity';
+import {
+  EVENT_ALREADY_APPROVED_REGISTRATION_MESSAGE,
+  EVENT_PENDING_REGISTRATION_MESSAGE,
+  getEventJoinLabel,
+  getEventJoinRestrictionMessage,
+  isEventJoinDisabled,
+} from '@modules/events/lib/eventJoinState';
 import { hasEventStarted } from '@modules/events/lib/eventTiming';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import EventShareModal from './EventShareModal';
@@ -130,6 +137,12 @@ export default function EventDetailsClient({ data }: Props) {
   );
   const isVersus = isVersusEventTypeName(eventTypeName);
   const isPublished = event?.is_published !== false;
+  const viewerHasApprovedRegistration = Boolean(
+    event?.viewerHasApprovedRegistration ?? post?.viewerHasApprovedRegistration
+  );
+  const viewerHasPendingRegistration = Boolean(
+    event?.viewerHasPendingRegistration ?? post?.viewerHasPendingRegistration
+  );
 
   const startTimeIso = event?.start_time ?? event?.startTime ?? null;
   const startDate = startTimeIso ? new Date(startTimeIso) : null;
@@ -186,6 +199,26 @@ export default function EventDetailsClient({ data }: Props) {
     });
   const approvedCount = toNumber(event?.approvedCount, assistants.length);
   const isSoldOut = event?.isSoldOut === true || isEventSoldOut(maxUsers, approvedCount);
+  const isJoinDisabled = isEventJoinDisabled({
+    isPastEvent: isRegistrationClosed,
+    isPublished,
+    isSoldOut,
+    isVersus,
+    viewerHasApprovedRegistration,
+    viewerHasPendingRegistration,
+  });
+  const joinLabel = getEventJoinLabel({
+    isPastEvent: isRegistrationClosed,
+    isPublished,
+    isSoldOut,
+    isVersus,
+    viewerHasApprovedRegistration,
+    viewerHasPendingRegistration,
+  });
+  const joinRestrictionMessage = getEventJoinRestrictionMessage({
+    viewerHasApprovedRegistration,
+    viewerHasPendingRegistration,
+  });
 
   const teamRegistrationsSource = Array.isArray(post?.teamRegistrations)
     ? post.teamRegistrations
@@ -284,6 +317,11 @@ export default function EventDetailsClient({ data }: Props) {
   };
 
   const handleJoinClick = () => {
+    if (joinRestrictionMessage) {
+      toast(joinRestrictionMessage);
+      return;
+    }
+
     if (isSoldOut) {
       toast.error(EVENT_SOLD_OUT_MESSAGE);
       return;
@@ -535,21 +573,23 @@ export default function EventDetailsClient({ data }: Props) {
                     Cupos completos: este evento ya no acepta más inscripciones.
                   </p>
                 )}
+                {!isRegistrationClosed && viewerHasApprovedRegistration && (
+                  <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+                    {EVENT_ALREADY_APPROVED_REGISTRATION_MESSAGE}
+                  </p>
+                )}
+                {!isRegistrationClosed && viewerHasPendingRegistration && (
+                  <p className="mb-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800">
+                    {EVENT_PENDING_REGISTRATION_MESSAGE}
+                  </p>
+                )}
                 <ButtonWrapper
                   onClick={handleJoinClick}
                   icon={<Image src={arrowAnotarse} alt="arrow" width={24} height={24} />}
                   className="!my-0"
-                  disabled={isRegistrationClosed || !isPublished || isSoldOut}
+                  disabled={isJoinDisabled}
                 >
-                  {isRegistrationClosed
-                    ? 'Evento finalizado'
-                    : isSoldOut
-                    ? 'Cupos completos'
-                    : !isPublished
-                    ? 'Próximamente'
-                    : isVersus
-                    ? 'Anotar a mi equipo'
-                    : 'Anotarme'}
+                  {joinLabel}
                 </ButtonWrapper>
                 <button
                   type="button"

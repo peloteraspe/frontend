@@ -209,6 +209,13 @@ const PaymentStepper = (props: any) => {
             type: 'manual',
             message,
           });
+          if (
+            String(body?.code || '').trim() === 'ALREADY_REGISTERED' ||
+            String(body?.code || '').trim() === 'PAYMENT_PENDING_REVIEW'
+          ) {
+            router.replace(`/events/${post.id}`);
+            return;
+          }
           setCurrentStep(2);
           return;
         }

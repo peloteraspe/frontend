@@ -2,6 +2,7 @@
 import PaymentStepper from '../PaymentStepper/PaymentStepperComponent';
 import {
   EVENT_NOT_AVAILABLE,
+  EVENT_REGISTRATION_LOCKED,
   getPaymentPageData,
   PAYMENT_METHOD_NOT_CONFIGURED,
 } from '@modules/payments/api/queries/getPaymentPageData';
@@ -20,6 +21,10 @@ export default async function PaymentPage({ id }: { id: string }) {
   }
 
   if (!data) {
+    if (loadError instanceof Error && loadError.message === EVENT_REGISTRATION_LOCKED) {
+      redirect(`/events/${id}`);
+    }
+
     if (loadError instanceof Error && loadError.message === EVENT_NOT_AVAILABLE) {
       return (
         <section className="mx-auto w-full max-w-2xl px-4 py-10">

@@ -1,5 +1,6 @@
 import { getServerSupabase } from '@core/api/supabase.server';
 import { getApprovedParticipantsCountByEventId } from '@modules/events/api/queries/getApprovedParticipantsCount';
+import { getViewerRegistrationState } from '@modules/events/api/queries/getViewerApprovedRegistrations';
 import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 
 export type PaymentPageData = {
@@ -10,6 +11,7 @@ export type PaymentPageData = {
 
 export const PAYMENT_METHOD_NOT_CONFIGURED = 'PAYMENT_METHOD_NOT_CONFIGURED';
 export const EVENT_NOT_AVAILABLE = 'EVENT_NOT_AVAILABLE';
+export const EVENT_REGISTRATION_LOCKED = 'EVENT_REGISTRATION_LOCKED';
 
 export async function getPaymentPageData(id: string) {
   const supabase = await getServerSupabase();
@@ -26,6 +28,18 @@ export async function getPaymentPageData(id: string) {
 
   if (event.is_published === false) {
     throw new Error(EVENT_NOT_AVAILABLE);
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const viewerRegistrationState = user?.id ? await getViewerRegistrationState(event.id, supabase, user.id) : null;
+  const viewerHasApprovedRegistration = viewerRegistrationState === 'approved';
+  const viewerHasPendingRegistration = viewerRegistrationState === 'pending';
+
+  if (viewerHasApprovedRegistration || viewerHasPendingRegistration) {
+    throw new Error(EVENT_REGISTRATION_LOCKED);
   }
 
   const { data: links, error: linksError } = await supabase
@@ -75,16 +89,14 @@ export async function getPaymentPageData(id: string) {
     throw new Error(PAYMENT_METHOD_NOT_CONFIGURED);
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const approvedCount = await getApprovedParticipantsCountByEventId(event.id, supabase);
   const enrichedEvent = {
     ...event,
     approvedCount,
     placesLeft: getPlacesLeft(event.max_users, approvedCount),
     isSoldOut: isEventSoldOut(event.max_users, approvedCount),
+    viewerHasApprovedRegistration,
+    viewerHasPendingRegistration,
   };
 
   return { event: enrichedEvent, paymentMethods: orderedPaymentMethods, user } satisfies PaymentPageData;

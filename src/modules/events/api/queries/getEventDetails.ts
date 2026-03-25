@@ -1,6 +1,7 @@
 import { getServerSupabase } from '@core/api/supabase.server';
 import { backendFetch, backendUrl } from '@core/api/backend';
 import { log } from '@core/lib/logger';
+import { getViewerRegistrationStatesByEventIds } from '@modules/events/api/queries/getViewerApprovedRegistrations';
 import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
 
@@ -164,12 +165,14 @@ export async function getEventDetails(id: string) {
     }
 
     const eventId = String(data.id ?? id);
-    const [featuresData, assistants] = await Promise.all([
+    const [featuresData, assistants, viewerRegistrationStatesByEventId] = await Promise.all([
       getEventFeaturesByEventId(supabase, eventId),
       getApprovedAssistantsByEventId(supabase, eventId),
+      getViewerRegistrationStatesByEventIds([eventId], supabase),
     ]);
     const approvedCount = assistants.length;
     const maxUsers = Number((data as any)?.max_users ?? 0);
+    const viewerRegistrationState = viewerRegistrationStatesByEventId.get(eventId) ?? null;
     return {
       ...data,
       featuresData,
@@ -177,6 +180,8 @@ export async function getEventDetails(id: string) {
       approvedCount,
       placesLeft: getPlacesLeft(maxUsers, approvedCount),
       isSoldOut: isEventSoldOut(maxUsers, approvedCount),
+      viewerHasApprovedRegistration: viewerRegistrationState === 'approved',
+      viewerHasPendingRegistration: viewerRegistrationState === 'pending',
     };
   }
 
