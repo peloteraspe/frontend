@@ -12,6 +12,17 @@ type SendEventAnnouncementEmailInput = {
   ctaLabel?: string | null;
   ctaUrl?: string | null;
   eventPromotionLayout?: EventPromotionLayout | null;
+  baseUrl?: string | null;
+};
+
+export type PersonalizedEventAnnouncementRecipientInput = {
+  trackingKey: string;
+  email: string;
+  subject: string;
+  body: string;
+  bodyHtml?: string | null;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
 };
 
 type EventPromotionDetail = {
@@ -44,6 +55,16 @@ export type SendEventAnnouncementEmailResult = {
   sentCount: number;
   failedCount: number;
   recipientResults: EventAnnouncementRecipientResult[];
+};
+
+export type PersonalizedEventAnnouncementRecipientResult = EventAnnouncementRecipientResult & {
+  trackingKey: string;
+};
+
+export type SendPersonalizedEventAnnouncementEmailResult = {
+  sentCount: number;
+  failedCount: number;
+  recipientResults: PersonalizedEventAnnouncementRecipientResult[];
 };
 
 const DEFAULT_SITE_URL = 'https://peloteras.com';
@@ -140,10 +161,18 @@ function resolveCtaUrl(value: string | undefined | null, homeUrl: string) {
   }
 }
 
-function resolveBaseUrl() {
+function resolveBaseUrl(preferred?: string | null) {
   const configured = String(
     process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || ''
   ).trim();
+  const candidate = String(preferred || '').trim();
+  if (candidate) {
+    return normalizeUrl(
+      candidate,
+      configured || (process.env.NODE_ENV === 'production' ? DEFAULT_SITE_URL : DEFAULT_LOCAL_SITE_URL)
+    );
+  }
+
   if (!configured) {
     return process.env.NODE_ENV === 'production' ? DEFAULT_SITE_URL : DEFAULT_LOCAL_SITE_URL;
   }
@@ -735,6 +764,7 @@ function buildEmailHtml(input: {
 }
 
 type ResendBatchEmail = {
+  trackingKey: string;
   from: string;
   to: string[];
   subject: string;
@@ -752,10 +782,12 @@ type ResendBatchResponse = {
 
 type SendBatchEmailRequestResult = {
   queuedResults: Array<{
+    trackingKey: string;
     email: string;
     providerMessageId: string | null;
   }>;
   failedResults: Array<{
+    trackingKey: string;
     email: string;
     errorMessage: string;
   }>;
@@ -819,6 +851,7 @@ async function sendBatchEmailRequest(input: {
   batchNumber: number;
 }): Promise<SendBatchEmailRequestResult> {
   const idempotencyKey = `event-announcement-${randomUUID()}`;
+  const requestEmails = input.emails.map(({ trackingKey: _trackingKey, ...email }) => email);
 
   for (let attempt = 1; attempt <= MAX_BATCH_ATTEMPTS; attempt += 1) {
     let response: Response;
@@ -831,7 +864,7 @@ async function sendBatchEmailRequest(input: {
           'Content-Type': 'application/json',
           'Idempotency-Key': idempotencyKey,
         },
-        body: JSON.stringify(input.emails),
+        body: JSON.stringify(requestEmails),
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error || 'Unknown error');
@@ -879,6 +912,7 @@ async function sendBatchEmailRequest(input: {
       const fallbackIndex = Number.isInteger(recipientIndex) ? recipientIndex : resultIndex;
       failedIndexes.add(fallbackIndex);
       return {
+        trackingKey: input.emails[fallbackIndex]?.trackingKey || '',
         email: input.emails[fallbackIndex]?.to[0] || '',
         errorMessage: String(error?.message || 'Unknown batch error'),
       };
@@ -887,6 +921,7 @@ async function sendBatchEmailRequest(input: {
     const queuedEmails = input.emails.filter((_, index) => !failedIndexes.has(index));
     const providerIds = Array.isArray(parsed.data) ? parsed.data : [];
     const queuedResults = queuedEmails.map((email, index) => ({
+      trackingKey: email.trackingKey,
       email: email.to[0] || '',
       providerMessageId: String(providerIds[index]?.id || '').trim() || null,
     }));
@@ -938,7 +973,7 @@ export async function sendEventAnnouncementEmail(
     return { sentCount: 0, failedCount: 0, recipientResults: [] };
   }
 
-  const homeUrl = resolveBaseUrl();
+  const homeUrl = resolveBaseUrl(input.baseUrl);
   const instagramUrl = normalizeUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, DEFAULT_INSTAGRAM_URL);
   const tiktokUrl = normalizeUrl(process.env.NEXT_PUBLIC_TIKTOK_URL, DEFAULT_TIKTOK_URL);
   const normalizedSubject = normalizeAnnouncementSubject(input.subject);
@@ -976,6 +1011,7 @@ export async function sendEventAnnouncementEmail(
         apiKey: resendApiKey,
         batchNumber,
         emails: chunk.map((email) => ({
+          trackingKey: email,
           from: DEFAULT_FROM_EMAIL,
           to: [email],
           subject: normalizedSubject,
@@ -1064,6 +1100,181 @@ export async function sendEventAnnouncementEmail(
 
   log.info('Event announcement email completed', 'EMAIL', {
     subject: normalizedSubject,
+    recipientCount: recipients.length,
+    sentCount,
+    failedCount,
+  });
+
+  return { sentCount, failedCount, recipientResults };
+}
+
+export async function sendPersonalizedEventAnnouncementEmails(
+  input: {
+    recipients: PersonalizedEventAnnouncementRecipientInput[];
+    baseUrl?: string | null;
+  }
+): Promise<SendPersonalizedEventAnnouncementEmailResult> {
+  const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
+
+  if (!resendApiKey) {
+    throw new Error('No se pudo enviar el correo en este momento. Inténtalo nuevamente.');
+  }
+
+  const homeUrl = resolveBaseUrl(input.baseUrl);
+  const instagramUrl = normalizeUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, DEFAULT_INSTAGRAM_URL);
+  const tiktokUrl = normalizeUrl(process.env.NEXT_PUBLIC_TIKTOK_URL, DEFAULT_TIKTOK_URL);
+
+  const recipients = input.recipients
+    .map((recipient) => {
+      const email = String(recipient.email || '')
+        .trim()
+        .toLowerCase();
+      const trackingKey = String(recipient.trackingKey || '').trim();
+      const normalizedBody = normalizeBodyText(recipient.body).trim();
+      const normalizedBodyHtml = String(recipient.bodyHtml || '').trim();
+      if (!trackingKey || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return null;
+      }
+
+      if (!normalizedBody && !normalizedBodyHtml) {
+        return null;
+      }
+
+      const subject = normalizeAnnouncementSubject(recipient.subject);
+      const html = buildEmailHtml({
+        subject,
+        body: normalizedBody,
+        bodyHtml: normalizedBodyHtml,
+        homeUrl,
+        instagramUrl,
+        tiktokUrl,
+        ctaLabel: recipient.ctaLabel,
+        ctaUrl: recipient.ctaUrl,
+      });
+
+      return {
+        trackingKey,
+        email,
+        subject,
+        html,
+      };
+    })
+    .filter(Boolean) as Array<{
+    trackingKey: string;
+    email: string;
+    subject: string;
+    html: string;
+  }>;
+
+  if (!recipients.length) {
+    return { sentCount: 0, failedCount: 0, recipientResults: [] };
+  }
+
+  let sentCount = 0;
+  let failedCount = 0;
+  const recipientResults: PersonalizedEventAnnouncementRecipientResult[] = [];
+
+  for (let index = 0; index < recipients.length; index += SEND_BATCH_SIZE) {
+    const chunk = recipients.slice(index, index + SEND_BATCH_SIZE);
+    const batchNumber = Math.floor(index / SEND_BATCH_SIZE) + 1;
+
+    try {
+      const result = await sendBatchEmailRequest({
+        apiKey: resendApiKey,
+        batchNumber,
+        emails: chunk.map((recipient) => ({
+          trackingKey: recipient.trackingKey,
+          from: DEFAULT_FROM_EMAIL,
+          to: [recipient.email],
+          subject: recipient.subject,
+          html: recipient.html,
+          reply_to: DEFAULT_SUPPORT_EMAIL,
+        })),
+      });
+
+      sentCount += result.queuedResults.length;
+      failedCount += result.failedResults.length;
+
+      result.queuedResults.forEach((queued) => {
+        recipientResults.push({
+          trackingKey: queued.trackingKey,
+          email: queued.email,
+          status: 'queued',
+          providerMessageId: queued.providerMessageId,
+          errorMessage: null,
+        });
+      });
+
+      result.failedResults.forEach((failed) => {
+        recipientResults.push({
+          trackingKey: failed.trackingKey,
+          email: failed.email,
+          status: 'failed',
+          providerMessageId: null,
+          errorMessage: failed.errorMessage,
+        });
+
+        log.warn('Personalized event announcement email failed for recipient in batch', 'EMAIL', {
+          batchNumber,
+          trackingKey: failed.trackingKey,
+          recipient: failed.email || 'Desconocido',
+          reason: failed.errorMessage,
+        });
+      });
+
+      const accountedKeys = new Set(
+        [
+          ...result.queuedResults.map((item) => item.trackingKey),
+          ...result.failedResults.map((item) => item.trackingKey),
+        ].filter(Boolean)
+      );
+
+      if (accountedKeys.size < chunk.length) {
+        chunk
+          .filter((recipient) => !accountedKeys.has(recipient.trackingKey))
+          .forEach((recipient) => {
+            failedCount += 1;
+            recipientResults.push({
+              trackingKey: recipient.trackingKey,
+              email: recipient.email,
+              status: 'failed',
+              providerMessageId: null,
+              errorMessage: 'Resend no devolvió resultado para esta destinataria.',
+            });
+          });
+
+        log.warn('Personalized event announcement batch completed with unaccounted recipients', 'EMAIL', {
+          batchNumber,
+          batchSize: chunk.length,
+          queuedCount: result.queuedResults.length,
+          errorCount: result.failedResults.length,
+          missingCount: chunk.length - accountedKeys.size,
+        });
+      }
+    } catch (error) {
+      failedCount += chunk.length;
+      chunk.forEach((recipient) => {
+        recipientResults.push({
+          trackingKey: recipient.trackingKey,
+          email: recipient.email,
+          status: 'failed',
+          providerMessageId: null,
+          errorMessage: error instanceof Error ? error.message : String(error || 'Unknown error'),
+        });
+      });
+      log.warn('Personalized event announcement batch failed', 'EMAIL', {
+        batchNumber,
+        batchSize: chunk.length,
+        reason: error instanceof Error ? error.message : String(error || ''),
+      });
+    }
+
+    if (index + SEND_BATCH_SIZE < recipients.length) {
+      await wait(INTER_BATCH_DELAY_MS);
+    }
+  }
+
+  log.info('Personalized event announcement email completed', 'EMAIL', {
     recipientCount: recipients.length,
     sentCount,
     failedCount,

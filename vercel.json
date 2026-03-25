@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/event-ticket-reminders",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
