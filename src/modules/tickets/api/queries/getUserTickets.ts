@@ -313,10 +313,11 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
       const qrToken = ticket?.qr_token ?? null;
       const ticketStatus = ticket?.status ?? toTicketStatus(assistant.state);
       const shouldShowQr = ticketStatus === 'active' || ticketStatus === 'used';
-      const qrValue = shouldShowQr
+      const qrValue = shouldShowQr && qrToken
         ? buildVerifiedPlayerUrl({
             eventId,
             userId,
+            qrToken,
           })
         : null;
       const qrImageUrl = qrValue ? buildTicketQrImageUrl(qrValue) : null;

@@ -30,25 +30,7 @@ export async function POST(request: Request) {
   }
 
   const direct = parseVerifiedPlayerQrValue(rawValue);
-  if (direct) {
-    try {
-      await assertCanManageEvent(String(direct.eventId));
-    } catch {
-      return NextResponse.json(
-        { error: 'No tienes permisos para revisar ese QR.' },
-        { status: 403 }
-      );
-    }
-
-    return NextResponse.json({
-      path: direct.path,
-      eventId: direct.eventId,
-      userId: direct.userId,
-      source: 'verified_player_path',
-    });
-  }
-
-  const qrToken = normalizeLegacyTicketQrToken(rawValue);
+  const qrToken = direct?.qrToken || normalizeLegacyTicketQrToken(rawValue);
   if (!qrToken) {
     return NextResponse.json({ error: 'No se pudo interpretar el QR.' }, { status: 400 });
   }
@@ -68,6 +50,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No encontramos una entrada asociada a ese QR.' }, { status: 404 });
   }
 
+  if (
+    direct &&
+    (Number(ticket.event_id) !== direct.eventId || String(ticket.user_id || '').trim() !== direct.userId)
+  ) {
+    return NextResponse.json({ error: 'El QR no coincide con la entrada emitida.' }, { status: 400 });
+  }
+
   try {
     await assertCanManageEvent(String(ticket.event_id));
   } catch {
@@ -81,6 +70,6 @@ export async function POST(request: Request) {
     path: buildVerifiedPlayerPath(ticket.event_id, ticket.user_id),
     eventId: ticket.event_id,
     userId: ticket.user_id,
-    source: 'legacy_ticket_token',
+    source: direct ? 'verified_player_tokenized_path' : 'legacy_ticket_token',
   });
 }

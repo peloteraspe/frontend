@@ -7,6 +7,7 @@ const VERIFIED_PLAYER_PATTERN = /^\/admin\/events\/(?<eventId>\d+)\/verified-pla
 type BuildVerifiedPlayerUrlInput = {
   eventId: string | number;
   userId: string;
+  qrToken?: string | null;
   fallbackOrigin?: string | null;
 };
 
@@ -16,9 +17,32 @@ export function buildVerifiedPlayerPath(eventId: string | number, userId: string
   return `/admin/events/${normalizedEventId}/${VERIFIED_PLAYER_SEGMENT}/${normalizedUserId}`;
 }
 
+function resolveCandidateUrl(rawValue: string) {
+  const clean = String(rawValue || '').trim();
+  if (!clean) return null;
+
+  try {
+    if (clean.startsWith('http://') || clean.startsWith('https://')) {
+      return new URL(clean);
+    }
+
+    const candidatePath = clean.startsWith('/') ? clean : `/${clean}`;
+    return new URL(candidatePath, 'https://peloteras.local');
+  } catch {
+    return null;
+  }
+}
+
 export function buildVerifiedPlayerUrl(input: BuildVerifiedPlayerUrlInput) {
   const origin = resolveAppOrigin(input.fallbackOrigin);
-  return new URL(buildVerifiedPlayerPath(input.eventId, input.userId), `${origin}/`).toString();
+  const url = new URL(buildVerifiedPlayerPath(input.eventId, input.userId), `${origin}/`);
+
+  const qrToken = normalizeLegacyTicketQrToken(input.qrToken || '');
+  if (qrToken) {
+    url.searchParams.set('ticket', qrToken);
+  }
+
+  return url.toString();
 }
 
 export function buildTicketQrImageUrl(value: string, size = 260) {
@@ -40,27 +64,9 @@ export function normalizeLegacyTicketQrToken(rawValue: string) {
   return normalized || null;
 }
 
-function resolveCandidatePath(rawValue: string) {
-  const clean = rawValue.trim();
-  if (!clean) return null;
-
-  if (clean.startsWith('http://') || clean.startsWith('https://')) {
-    try {
-      return new URL(clean).pathname;
-    } catch {
-      return null;
-    }
-  }
-
-  if (clean.startsWith('/')) return clean;
-  return `/${clean}`;
-}
-
-export function parseVerifiedPlayerQrValue(rawValue: string) {
-  const clean = String(rawValue || '').trim();
-  if (!clean) return null;
-
-  const candidatePath = resolveCandidatePath(clean);
+export function parseVerifiedPlayerPath(rawValue: string) {
+  const candidateUrl = resolveCandidateUrl(rawValue);
+  const candidatePath = candidateUrl?.pathname;
   if (!candidatePath) return null;
 
   const match = candidatePath.match(VERIFIED_PLAYER_PATTERN);
@@ -74,5 +80,19 @@ export function parseVerifiedPlayerQrValue(rawValue: string) {
     eventId,
     userId,
     path: buildVerifiedPlayerPath(eventId, userId),
+  };
+}
+
+export function parseVerifiedPlayerQrValue(rawValue: string) {
+  const parsedPath = parseVerifiedPlayerPath(rawValue);
+  if (!parsedPath) return null;
+
+  const candidateUrl = resolveCandidateUrl(rawValue);
+  const qrToken = normalizeLegacyTicketQrToken(candidateUrl?.searchParams.get('ticket') || '');
+  if (!qrToken) return null;
+
+  return {
+    ...parsedPath,
+    qrToken,
   };
 }

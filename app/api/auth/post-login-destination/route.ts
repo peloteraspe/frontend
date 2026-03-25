@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { sanitizeNextPath } from '@modules/auth/lib/redirect';
-import { parseVerifiedPlayerQrValue } from '@modules/tickets/lib/verifiedPlayerQr';
+import { parseVerifiedPlayerPath } from '@modules/tickets/lib/verifiedPlayerQr';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
 
 export async function POST(request: Request) {
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ destination: '/' });
   }
 
-  const isVerifiedPlayerPath = Boolean(parseVerifiedPlayerQrValue(nextPath));
+  const isVerifiedPlayerPath = Boolean(parseVerifiedPlayerPath(nextPath));
   if (isVerifiedPlayerPath && !isAdmin(user as any)) {
     return NextResponse.json({ destination: '/' });
   }
