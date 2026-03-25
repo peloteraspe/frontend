@@ -10,6 +10,7 @@ import { ensureTicketForAssistant } from '@modules/tickets/api/services/tickets.
 
 const DEFAULT_TZ = 'America/Lima';
 const REMINDER_TYPE = 'event_starts_in_1_hour';
+const CRON_INTERVAL_MINUTES = 5;
 const WINDOW_START_MINUTES = 55;
 const WINDOW_END_MINUTES = 60;
 const PROCESSING_STALE_MS = 15 * 60 * 1000;
@@ -77,6 +78,11 @@ function normalizeUserId(value: unknown) {
 
 function trimTrailingSlash(value: string) {
   return value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
+function floorDateToInterval(date: Date, intervalMinutes: number) {
+  const intervalMs = intervalMinutes * 60 * 1000;
+  return new Date(Math.floor(date.getTime() / intervalMs) * intervalMs);
 }
 
 function resolveBaseUrl(baseUrl: string) {
@@ -357,14 +363,19 @@ export async function sendEventTicketRemindersOneHourBefore(input: {
 }): Promise<SendEventTicketReminderResult> {
   const adminSupabase = getAdminSupabase();
   const now = new Date();
-  const windowStart = new Date(now.getTime() + WINDOW_START_MINUTES * 60 * 1000).toISOString();
-  const windowEnd = new Date(now.getTime() + WINDOW_END_MINUTES * 60 * 1000).toISOString();
+  const bucketStart = floorDateToInterval(now, CRON_INTERVAL_MINUTES);
+  const windowStart = new Date(
+    bucketStart.getTime() + WINDOW_START_MINUTES * 60 * 1000
+  ).toISOString();
+  const windowEnd = new Date(
+    bucketStart.getTime() + WINDOW_END_MINUTES * 60 * 1000
+  ).toISOString();
 
   const { data: rawEvents, error: eventsError } = await adminSupabase
     .from('event')
     .select('id,title,start_time,location_text')
     .gte('start_time', windowStart)
-    .lt('start_time', windowEnd)
+    .lte('start_time', windowEnd)
     .order('start_time', { ascending: true });
 
   if (eventsError) {
@@ -564,6 +575,7 @@ export async function sendEventTicketRemindersOneHourBefore(input: {
   }
 
   log.info('Event ticket reminder cron completed', 'EVENT_REMINDERS', {
+    bucketStart: bucketStart.toISOString(),
     windowStart,
     windowEnd,
     processedEventCount: events.length,
