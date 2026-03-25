@@ -482,8 +482,10 @@ export async function markAttendance(params: {
       updated_at: usedAt,
     })
     .eq('id', data.ticket.id)
+    .eq('status', 'active')
+    .is('used_at', null)
     .select('id,status,used_at')
-    .single();
+    .maybeSingle();
 
   if (updateError) {
     log.database('UPDATE ticket used from QR verification', 'ticket', updateError, {
@@ -492,6 +494,48 @@ export async function markAttendance(params: {
       ticketId: data.ticket.id,
     });
     throw new Error('No se pudo marcar la asistencia.');
+  }
+
+  if (!updated) {
+    const { data: latestTicket, error: latestTicketError } = await admin
+      .from('ticket')
+      .select('id,status,used_at')
+      .eq('id', data.ticket.id)
+      .maybeSingle();
+
+    if (latestTicketError) {
+      log.database('SELECT ticket after QR attendance conflict', 'ticket', latestTicketError, {
+        eventId: data.eventId,
+        userId: data.userId,
+        ticketId: data.ticket.id,
+      });
+      throw new Error('No se pudo confirmar el estado final de la asistencia.');
+    }
+
+    if (latestTicket && (
+      normalizeText(latestTicket.status).toLowerCase() === 'used' ||
+      Boolean(latestTicket.used_at)
+    )) {
+      return {
+        ok: false,
+        status: 'used',
+        message: 'La asistencia ya había sido marcada anteriormente.',
+        usedAt: latestTicket.used_at,
+        ticketId: latestTicket.id,
+        eventId: data.eventId,
+        userId: data.userId,
+      };
+    }
+
+    return {
+      ok: false,
+      status: 'ticket_not_active',
+      message: 'La entrada ya no está activa para registrar asistencia.',
+      usedAt: latestTicket?.used_at ?? null,
+      ticketId: latestTicket?.id ?? data.ticket.id,
+      eventId: data.eventId,
+      userId: data.userId,
+    };
   }
 
   return {
