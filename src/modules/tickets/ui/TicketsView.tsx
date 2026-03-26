@@ -205,10 +205,10 @@ function SectionTitle({ title, count }: { title: string; count: number }) {
 }
 
 export default function TicketsView({
-  upcoming,
+  active,
   past,
 }: {
-  upcoming: TicketEvent[];
+  active: TicketEvent[];
   past: TicketEvent[];
 }) {
   return (
@@ -221,9 +221,9 @@ export default function TicketsView({
       </section>
 
       <section className="mt-8">
-        <SectionTitle title="Próximas entradas" count={upcoming.length} />
-        {upcoming.length > 0 ? (
-          <TicketCardsList events={upcoming} />
+        <SectionTitle title="Entradas activas" count={active.length} />
+        {active.length > 0 ? (
+          <TicketCardsList events={active} />
         ) : (
           <EmptyState
             title="Aún no tienes entradas activas"
