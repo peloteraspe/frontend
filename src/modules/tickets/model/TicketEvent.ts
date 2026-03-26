@@ -15,6 +15,7 @@ export type TicketEvent = {
   id: string | number;
   formattedDateTime: string;
   startTime?: string | null;
+  endTime?: string | null;
   title?: string;
   locationText?: string;
   ticket?: TicketMeta;

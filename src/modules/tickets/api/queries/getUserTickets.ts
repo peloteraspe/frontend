@@ -143,6 +143,8 @@ function mapSupabaseEventToCardEvent(
     formattedDateTime: toFormattedDateTime({ start_time: event.start_time }),
     start_time: event.start_time,
     startTime: event.start_time,
+    end_time: event.end_time,
+    endTime: event.end_time,
     locationText: event.location_text ?? 'Ubicación por confirmar',
     price: asNumber(event.price, 0),
     placesLeft: placesLeft > 0 ? placesLeft : maxUsers,
@@ -341,6 +343,7 @@ export async function getUserTickets(userId: string): Promise<TicketEvent[]> {
         ...event,
         formattedDateTime: toFormattedDateTime(event),
         startTime: event?.start_time ?? event?.startTime ?? null,
+        endTime: event?.end_time ?? event?.endTime ?? null,
         ticket: {
           id: ticket?.id ?? null,
           assistantId: assistant.id,

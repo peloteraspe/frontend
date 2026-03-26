@@ -7,7 +7,7 @@ export default async function TicketsPage({ userId }: { userId: string }) {
   const events = await getUserTickets(userId).catch(() => null);
   if (!events) notFound();
 
-  const { upcoming, past } = splitTicketsByDate(events);
+  const { active, past } = splitTicketsByDate(events);
 
-  return <TicketsView upcoming={upcoming} past={past} />;
+  return <TicketsView active={active} past={past} />;
 }
