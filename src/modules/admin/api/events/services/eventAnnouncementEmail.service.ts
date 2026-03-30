@@ -684,11 +684,6 @@ function buildEmailHtml(input: {
             <td style="padding:30px 32px 10px;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
-                  <td valign="middle">
-                    <span style="display:inline-block;background-color:#ece5f0;color:#54086f;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:7px 12px;border-radius:999px;">
-                      Comunidad Peloteras
-                    </span>
-                  </td>
                   <td align="right" valign="middle">
                     <img
                       src="${escapeAttribute(logoUrl)}"
