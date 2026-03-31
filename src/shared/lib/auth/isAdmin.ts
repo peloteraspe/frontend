@@ -11,6 +11,10 @@ const SUPERADMIN_EMAILS = new Set([
   'andrealemonroy@gmail.com',
 ]);
 
+export function getSuperAdminEmails() {
+  return Array.from(SUPERADMIN_EMAILS).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+}
+
 function parseEmailList(value: string | undefined) {
   return (value || '')
     .split(',')
@@ -46,7 +50,6 @@ function hasExplicitAdminRevocation(user: SupabaseUserLite) {
   const hasFalseFlag = isExplicitFalse(appFlag) || isExplicitFalse(userFlag);
   if (!hasFalseFlag) return false;
 
-  // If role/flag says superadmin, revocation should not override.
   if (isRole(user, 'superadmin') || isFlagEnabled(user, 'is_superadmin')) return false;
   return true;
 }
@@ -54,12 +57,10 @@ function hasExplicitAdminRevocation(user: SupabaseUserLite) {
 export function isAdmin(user: SupabaseUserLite): boolean {
   if (!user) return false;
 
-  // Superadmin always keeps admin permissions.
   if (isSuperAdmin(user) || isRole(user, 'superadmin') || isFlagEnabled(user, 'is_superadmin')) {
     return true;
   }
 
-  // Explicit switch-off from superadmin must win over ADMIN_EMAILS fallback.
   if (hasExplicitAdminRevocation(user)) return false;
 
   const admins = parseEmailList(process.env.ADMIN_EMAILS);

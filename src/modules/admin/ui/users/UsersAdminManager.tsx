@@ -1,7 +1,16 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import UsersBroadcastPanel from '@modules/admin/ui/users/UsersBroadcastPanel';
+
+type AdminRequestStatus = 'new' | 'contacted' | 'qualified' | 'closed';
+
+type AdminRequestSummary = {
+  id: number;
+  status: AdminRequestStatus;
+  createdAt: string | null;
+};
 
 type AdminUserListItem = {
   id: string;
@@ -9,6 +18,7 @@ type AdminUserListItem = {
   email: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  latestAdminRequest: AdminRequestSummary | null;
 };
 
 type Props = {
@@ -21,6 +31,33 @@ type Props = {
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function formatDate(value: string | null) {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sin fecha';
+
+  return date.toLocaleDateString('es-PE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'America/Lima',
+  });
+}
+
+function getRequestStatusLabel(status: AdminRequestStatus) {
+  if (status === 'contacted') return 'Contactada';
+  if (status === 'qualified') return 'Aprobada';
+  if (status === 'closed') return 'Rechazada';
+  return 'Pendiente';
+}
+
+function getRequestStatusBadgeClass(status: AdminRequestStatus) {
+  if (status === 'contacted') return 'bg-sky-100 text-sky-800';
+  if (status === 'qualified') return 'bg-emerald-100 text-emerald-800';
+  if (status === 'closed') return 'bg-rose-100 text-rose-800';
+  return 'bg-amber-100 text-amber-900';
 }
 
 export default function UsersAdminManager({
@@ -115,13 +152,14 @@ export default function UsersAdminManager({
               </th>
               <th className="px-4 py-3 text-left font-semibold text-slate-700">Nombre</th>
               <th className="px-4 py-3 text-left font-semibold text-slate-700">Correo</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">Solicitud admin</th>
               <th className="px-4 py-3 text-left font-semibold text-slate-700">Admin</th>
             </tr>
           </thead>
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
                   No hay usuarias para mostrar.
                 </td>
               </tr>
@@ -167,6 +205,31 @@ export default function UsersAdminManager({
                       {!canReceiveEmail ? (
                         <p className="mt-1 text-xs text-amber-700">Correo inválido para envío.</p>
                       ) : null}
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      {row.latestAdminRequest ? (
+                        <div className="space-y-2">
+                          <span
+                            className={[
+                              'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
+                              getRequestStatusBadgeClass(row.latestAdminRequest.status),
+                            ].join(' ')}
+                          >
+                            {getRequestStatusLabel(row.latestAdminRequest.status)}
+                          </span>
+                          <p className="text-xs text-slate-500">
+                            {formatDate(row.latestAdminRequest.createdAt)}
+                          </p>
+                          <Link
+                            href={`/admin/requests/${row.latestAdminRequest.id}`}
+                            className="inline-flex text-xs font-semibold text-mulberry hover:underline"
+                          >
+                            Ver solicitud
+                          </Link>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">Sin solicitud</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <form action={onToggleAdmin}>

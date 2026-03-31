@@ -10,6 +10,13 @@ import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
 import { getDefaultEventAnnouncementEmail } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
 import { getParticipantContactsByEventId } from '@modules/admin/api/events/services/eventParticipants.service';
 
+function parseStoredBoolean(value: unknown) {
+  if (value === true) return true;
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
+}
+
 export default async function EditEventScreen({ id }: { id: string }) {
   const supabase = await getServerSupabase();
   const {
@@ -77,6 +84,10 @@ export default async function EditEventScreen({ id }: { id: string }) {
         .filter((value) => Number.isInteger(value) && value > 0 && availablePaymentMethodIds.has(value))
     )
   );
+  const descriptionObject =
+    event.description && typeof event.description === 'object'
+      ? (event.description as Record<string, unknown>)
+      : null;
   const announcementDefaults = getDefaultEventAnnouncementEmail();
   const recipientCount = participants.filter((participant) => participant.email && participant.email !== 'Sin correo')
     .length;
@@ -133,6 +144,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
           featureIds: selectedFeatureIds,
           paymentMethodIds: selectedPaymentMethodIds,
           isPublished: event.is_published !== false,
+          isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
           isFeatured: Boolean(event.is_featured),
         }}
         canManageFeatured={canManageFeatured}

@@ -16,7 +16,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
       {
@@ -32,7 +32,7 @@
     "paths": {
       "@app/*": [
         "./app/*"
-      ], // opcional si tu app sigue en root/app
+      ],
       "@src/*": [
         "./src/*"
       ],
@@ -47,7 +47,7 @@
       ],
       "@components/*": [
         "./components/*"
-      ] // temporal mientras migras components/
+      ]
     }
   },
   "include": [

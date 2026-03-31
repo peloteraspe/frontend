@@ -1,14 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@core/auth/AuthProvider';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import Input from '@core/ui/Input';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 import { hasEventStarted } from '@modules/events/lib/eventTiming';
 import { CatalogOption, EventEntity } from '@modules/events/model/types';
-import MapboxEventsMap from './MapboxEventsMap';
+import { trackEvent } from '@shared/lib/analytics';
+import { isAdmin as isAdminUser } from '@shared/lib/auth/isAdmin';
+import EventsMap from './EventsMap';
 import EventListPanel from './EventListPanel';
+import OrganizerActivationModal from './OrganizerActivationModal';
 
 type Props = {
   initialEvents: EventEntity[];
@@ -30,8 +34,12 @@ type Filters = {
 
 const LIMA_DEFAULT = { lat: -12.0464, lng: -77.0428 };
 type TimeFilter = 'upcoming' | 'past';
+const CREATE_EVENT_INTENT_PATH = '/events?create=1';
 
 export default function EventExplorerClient({ initialEvents, initialCatalogs }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
   const [events, setEvents] = useState<EventEntity[]>(initialEvents);
   const [catalogs, setCatalogs] = useState(initialCatalogs);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -40,6 +48,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('upcoming');
   const [loading, setLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [showOrganizerModal, setShowOrganizerModal] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     q: '',
     date: '',
@@ -89,11 +98,32 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const visibleEvents = timeFilter === 'upcoming' ? upcomingEvents : pastEvents;
 
   const visibleEventIds = useMemo(() => new Set(visibleEvents.map((event) => event.id)), [visibleEvents]);
+  const createIntentRequested = searchParams.get('create') === '1';
+  const userIsAdmin = Boolean(user && isAdminUser(user as any));
+  const organizerPhone = String(
+    user?.user_metadata?.organizer_phone || user?.app_metadata?.organizer_phone || ''
+  ).trim();
 
   useEffect(() => {
     setSelectedEventId((current) => (current && visibleEventIds.has(current) ? current : null));
     setHoveredEventId((current) => (current && visibleEventIds.has(current) ? current : null));
   }, [visibleEventIds]);
+
+  useEffect(() => {
+    if (!createIntentRequested || authLoading) return;
+
+    if (!user) {
+      router.replace(`/login?next=${encodeURIComponent(CREATE_EVENT_INTENT_PATH)}`);
+      return;
+    }
+
+    if (userIsAdmin) {
+      router.replace('/admin/events/new');
+      return;
+    }
+
+    setShowOrganizerModal(true);
+  }, [authLoading, createIntentRequested, router, user, userIsAdmin]);
 
   async function refreshEvents(preferredId?: string, currentFilters?: Filters) {
     const activeFilters = currentFilters ?? filters;
@@ -191,8 +221,44 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
     setGeoError(null);
   }
 
+  function openCreateEventFlow() {
+    trackEvent('create_event_clicked', {
+      source: 'events_explorer_header',
+      channel: 'web',
+      auth_state: user ? 'authenticated' : 'anonymous',
+      is_admin: userIsAdmin,
+    });
+
+    if (authLoading) return;
+
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(CREATE_EVENT_INTENT_PATH)}`);
+      return;
+    }
+
+    if (userIsAdmin) {
+      router.push('/admin/events/new');
+      return;
+    }
+
+    setShowOrganizerModal(true);
+  }
+
+  function handleCloseOrganizerModal() {
+    setShowOrganizerModal(false);
+    if (createIntentRequested) {
+      router.replace('/events');
+    }
+  }
+
+  async function handleOrganizerActivated() {
+    setShowOrganizerModal(false);
+    router.push('/admin/events/new');
+  }
+
   return (
-    <section className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 py-8 md:py-12">
+    <>
+      <section className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 py-8 md:py-12">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-eastman-extrabold text-slate-900">Eventos en mapa</h1>
@@ -201,12 +267,14 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           </p>
         </div>
 
-        <Link
-          href="/admin/events/new"
+        <button
+          type="button"
+          onClick={openCreateEventFlow}
+          disabled={authLoading}
           className="inline-flex h-11 items-center justify-center rounded-xl bg-[#54086F] px-4 text-sm font-semibold text-white"
         >
           Crear evento
-        </Link>
+        </button>
       </div>
 
       <div className="mb-4">
@@ -354,7 +422,6 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
         {geoError && <p className="text-sm text-red-600">{geoError}</p>}
       </div>
 
-      {/* Toggle Vista Lista/Mapa - Solo mobile/tablet */}
       <div className="mb-4 xl:hidden">
         <div className="inline-flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Cambiar vista">
           <button
@@ -416,7 +483,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
             mobileView === 'list' ? 'hidden xl:block' : 'block',
           ].join(' ')}
         >
-          <MapboxEventsMap
+          <EventsMap
             events={visibleEvents}
             selectedEventId={selectedEventId}
             hoveredEventId={hoveredEventId}
@@ -425,6 +492,15 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           />
         </div>
       </div>
-    </section>
+      </section>
+
+      <OrganizerActivationModal
+        isOpen={showOrganizerModal}
+        source={createIntentRequested ? 'events_create_intent' : 'events_explorer'}
+        initialPhone={organizerPhone}
+        onClose={handleCloseOrganizerModal}
+        onActivated={handleOrganizerActivated}
+      />
+    </>
   );
 }

@@ -11,6 +11,13 @@ type Props = {
   templateId?: string;
 };
 
+function parseStoredBoolean(value: unknown) {
+  if (value === true) return true;
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
+}
+
 export default async function NewEventScreen({ templateId }: Props) {
   const supabase = await getServerSupabase();
   const {
@@ -82,6 +89,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         featureIds: number[];
         paymentMethodIds: number[];
         isPublished: boolean;
+        isFieldReservedConfirmed: boolean;
         isFeatured: boolean;
       }
     | null = null;
@@ -124,6 +132,10 @@ export default async function NewEventScreen({ templateId }: Props) {
       );
 
       templateTitle = String(templateEvent.title || 'Evento').trim() || 'Evento';
+      const descriptionObject =
+        templateEvent.description && typeof templateEvent.description === 'object'
+          ? (templateEvent.description as Record<string, unknown>)
+          : null;
       templateInitial = {
         title: String(templateEvent.title || ''),
         description:
@@ -144,6 +156,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         featureIds: selectedFeatureIds,
         paymentMethodIds: selectedPaymentMethodIds,
         isPublished: templateEvent.is_published !== false,
+        isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
         isFeatured: Boolean(templateEvent.is_featured),
       };
     }
@@ -160,6 +173,16 @@ export default async function NewEventScreen({ templateId }: Props) {
       };
     }
   }
+
+  const initialValues = {
+    featureIds: [],
+    paymentMethodIds: [],
+    eventTypeId: selectableEventTypes[0]?.id ?? 1,
+    levelId: catalogs.levels[0]?.id ?? 1,
+    ...templateInitial,
+    isPublished: false,
+    isFieldReservedConfirmed: false,
+  };
 
   return (
     <div className="bg-white rounded-md shadow p-4">
@@ -179,14 +202,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         levels={catalogs.levels}
         features={features}
         paymentMethods={paymentMethods}
-        initial={{
-          featureIds: [],
-          paymentMethodIds: [],
-          eventTypeId: selectableEventTypes[0]?.id ?? 1,
-          levelId: catalogs.levels[0]?.id ?? 1,
-          isPublished: true,
-          ...templateInitial,
-        }}
+        initial={initialValues}
         canManageFeatured={canManageFeatured}
         successRedirectTo="/admin/events"
       />

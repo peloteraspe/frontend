@@ -17,6 +17,7 @@ export type EventUpsertInput = {
   featureIds: number[];
   paymentMethodIds: number[];
   isPublished: boolean;
+  isFieldReservedConfirmed: boolean;
   isFeatured: boolean;
 };
 
@@ -77,6 +78,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     featureIds: parseNumberList(fd.getAll('featureIds')),
     paymentMethodIds: parseNumberList(fd.getAll('paymentMethodIds')),
     isPublished: parseBoolean(fd.get('isPublished')),
+    isFieldReservedConfirmed: parseBoolean(fd.get('isFieldReservedConfirmed')),
     isFeatured: parseBoolean(fd.get('isFeatured')),
   };
 }
@@ -97,7 +99,13 @@ export function validateEventFormInput(input: EventUpsertInput) {
     throw new Error('Selecciona un distrito válido.');
   }
 
+  if (!input.isPublished) return;
+
+  if (!input.isFieldReservedConfirmed) {
+    throw new Error('Confirma que la cancha ya está reservada antes de publicar el evento.');
+  }
+
   if (!Array.isArray(input.paymentMethodIds) || input.paymentMethodIds.length === 0) {
-    throw new Error('Selecciona al menos un método de pago para el evento.');
+    throw new Error('Selecciona al menos un método de pago antes de publicar el evento.');
   }
 }

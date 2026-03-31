@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { rateLimitByRequest } from '@core/api/rateLimit';
+import { log } from '@core/lib/logger';
+import { sendEventAnnouncementEmail } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
+import { getSuperAdminEmails } from '@shared/lib/auth/isAdmin';
 
 type LeadType = 'admin' | 'sponsor';
 
@@ -12,6 +15,9 @@ type LeadPayload = {
   contactPhone?: string;
   organizationName?: string;
   district?: string;
+  commitmentReservedField?: string | boolean;
+  commitmentNoCancellation?: string | boolean;
+  commitmentReportIncidents?: string | boolean;
 };
 
 function isLeadType(value: string): value is LeadType {
@@ -43,6 +49,57 @@ function compactObject(input: Record<string, string | null | undefined>) {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => Boolean(value)));
 }
 
+function parseBoolean(value: unknown) {
+  if (value === true) return true;
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
+}
+
+function resolveBaseUrl() {
+  const candidate = String(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || '').trim();
+  if (!candidate) return 'https://peloteras.com';
+
+  try {
+    const parsed = new URL(candidate);
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return 'https://peloteras.com';
+  }
+}
+
+async function notifySuperAdmins(input: {
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  district: string;
+  source: string;
+}) {
+  const recipients = getSuperAdminEmails();
+  if (!recipients.length) return;
+
+  const body = [
+    'Llegó una nueva solicitud para ser admin en Peloteras.',
+    '',
+    `Nombre: ${input.contactName}`,
+    `Celular: ${input.contactPhone}`,
+    `Correo: ${input.contactEmail || 'Sin correo'}`,
+    `Distrito: ${input.district || 'Sin distrito'}`,
+    `Origen: ${input.source}`,
+    '',
+    'Revisa la solicitud en el módulo de Admin > Solicitudes.',
+  ].join('\n');
+
+  await sendEventAnnouncementEmail({
+    recipients,
+    subject: `[Peloteras] Nueva solicitud admin - ${input.contactName}`,
+    body,
+    ctaLabel: 'Ver solicitudes',
+    ctaUrl: `${resolveBaseUrl()}/admin/requests`,
+    baseUrl: resolveBaseUrl(),
+  });
+}
+
 export async function POST(request: Request) {
   const limited = await rateLimitByRequest(request, {
     keyPrefix: 'api_partner_leads_post',
@@ -66,6 +123,9 @@ export async function POST(request: Request) {
     const contactPhone = sanitizeText(body.contactPhone, 32);
     const district = sanitizeText(body.district, 100);
     const organizationName = sanitizeText(body.organizationName, 140);
+    const commitmentReservedField = parseBoolean(body.commitmentReservedField);
+    const commitmentNoCancellation = parseBoolean(body.commitmentNoCancellation);
+    const commitmentReportIncidents = parseBoolean(body.commitmentReportIncidents);
 
     if (contactName.length < 3) {
       return validationError('Ingresa tu nombre completo.');
@@ -80,6 +140,9 @@ export async function POST(request: Request) {
       }
       if (!district) {
         return validationError('Ingresa tu distrito base.');
+      }
+      if (!commitmentReservedField || !commitmentNoCancellation || !commitmentReportIncidents) {
+        return validationError('Debes aceptar todos los compromisos para enviar tu solicitud.');
       }
     }
 
@@ -116,6 +179,9 @@ export async function POST(request: Request) {
         leadTypeRaw === 'admin'
           ? {
               district,
+              commitment_reserved_field: commitmentReservedField ? 'true' : undefined,
+              commitment_no_cancellation: commitmentNoCancellation ? 'true' : undefined,
+              commitment_report_incidents: commitmentReportIncidents ? 'true' : undefined,
             }
           : {}
       ),
@@ -136,12 +202,30 @@ export async function POST(request: Request) {
       );
     }
 
+    if (leadTypeRaw === 'admin') {
+      try {
+        await notifySuperAdmins({
+          contactName,
+          contactPhone,
+          contactEmail,
+          district,
+          source,
+        });
+      } catch (error) {
+        log.warn('No se pudo notificar la nueva solicitud admin por correo', 'ADMIN_REQUESTS', {
+          contactName,
+          source,
+          error: error instanceof Error ? error.message : String(error || ''),
+        });
+      }
+    }
+
     return NextResponse.json(
       {
         ok: true,
         message:
           leadTypeRaw === 'admin'
-            ? 'Gracias. Te contactaremos para activar tu comunidad en Peloteras.'
+            ? 'Gracias. Recibimos tu solicitud y la revisaremos pronto.'
             : 'Gracias. Te contactaremos para diseñar una propuesta de patrocinio.',
       },
       { status: 200 }

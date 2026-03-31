@@ -1,14 +1,25 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Autocomplete, GoogleMap, MarkerF } from '@react-google-maps/api';
 import Input from '@src/core/ui/Input';
 import { ButtonWrapper } from '@src/core/ui/Button';
 import SelectComponent from '@core/ui/SelectComponent';
-import Map, { MapRef, Marker, NavigationControl } from 'react-map-gl/mapbox';
 import { CatalogOption } from '@modules/events/model/types';
 import { useRouter } from 'next/navigation';
 import EventShareModal, { EventShareModalStatus } from '@modules/admin/ui/events/EventShareModal';
 import EventAnnouncementForm from '@modules/admin/ui/events/EventAnnouncementForm';
+import { useGoogleMapsApi } from '@core/ui/Map/useGoogleMapsApi';
+import {
+  DistrictOption,
+  extractDistrictOptionsFromAddressComponents,
+  getPrimaryDistrictValue,
+  LIMA_DEFAULT_CENTER,
+  mergeDistrictOptions,
+  normalizeDistrictKey,
+  toFixedLatLng,
+  toLatLngLiteral,
+} from '@shared/lib/googleMaps';
 
 type SubmitResult = {
   eventId?: string | number;
@@ -33,6 +44,7 @@ type Props = {
     featureIds: number[];
     paymentMethodIds: number[];
     isPublished: boolean;
+    isFieldReservedConfirmed: boolean;
     isFeatured: boolean;
   }>;
   eventTypes: CatalogOption[];
@@ -51,29 +63,25 @@ type Props = {
   };
 };
 
-const DEFAULT_LAT = -12.0464;
-const DEFAULT_LNG = -77.0428;
+const DEFAULT_LAT = LIMA_DEFAULT_CENTER.lat;
+const DEFAULT_LNG = LIMA_DEFAULT_CENTER.lng;
 const MIN_PENDING_MS = 450;
+const MAP_CONTAINER_STYLE = {
+  width: '100%',
+  height: '100%',
+};
+const MAP_OPTIONS: google.maps.MapOptions = {
+  clickableIcons: false,
+  fullscreenControl: false,
+  mapTypeControl: false,
+  streetViewControl: false,
+  zoomControl: true,
+};
 
 function asFiniteNumber(value: unknown, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
-
-const DISTRICT_CONTEXT_TYPES = new Set(['district', 'locality', 'place', 'neighborhood']);
-const DISTRICT_TYPE_PRIORITY: Record<string, number> = {
-  district: 1,
-  locality: 2,
-  place: 3,
-  neighborhood: 4,
-};
-
-type DistrictOption = {
-  id: string;
-  type: string;
-  value: string;
-  label: string;
-};
 
 type PaymentMethodOption = {
   id: number;
@@ -82,100 +90,6 @@ type PaymentMethodOption = {
   number: number | null;
   isActive: boolean;
 };
-
-function normalizeKey(value: string) {
-  return String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-function districtOptionsFromFeature(feature: any): DistrictOption[] {
-  if (!feature) return [];
-
-  const context = Array.isArray(feature?.context) ? feature.context : [];
-  const region = String(
-    context.find((item) => String(item?.id || '').startsWith('region'))?.text || ''
-  ).trim();
-  const country = String(
-    context.find((item) => String(item?.id || '').startsWith('country'))?.text || ''
-  ).trim();
-
-  const rawItems = [feature, ...context];
-  const options: DistrictOption[] = [];
-  const seen = new Set<string>();
-
-  for (const item of rawItems) {
-    const rawId = String(item?.id || '').trim();
-    const type = rawId.split('.')[0] || '';
-    if (!DISTRICT_CONTEXT_TYPES.has(type)) continue;
-
-    const districtName = String(item?.text || item?.place_name || '').trim();
-    if (!districtName) continue;
-
-    const value = [districtName, region, country].filter(Boolean).join(', ') || districtName;
-    const key = normalizeKey(value);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-
-    options.push({
-      id: rawId || `${type}:${key}`,
-      type,
-      value,
-      label: value,
-    });
-  }
-
-  return options.sort(
-    (a, b) =>
-      (DISTRICT_TYPE_PRIORITY[a.type] ?? Number.MAX_SAFE_INTEGER) -
-      (DISTRICT_TYPE_PRIORITY[b.type] ?? Number.MAX_SAFE_INTEGER)
-  );
-}
-
-function mergeDistrictOptions(current: DistrictOption[], next: DistrictOption[]) {
-  const merged = [...current];
-  const seen = new Set(current.map((item) => normalizeKey(item.value)));
-
-  for (const option of next) {
-    const key = normalizeKey(option.value);
-    if (!key || seen.has(key)) continue;
-    merged.push(option);
-    seen.add(key);
-  }
-
-  return merged;
-}
-
-type LocationSuggestion = {
-  id: string;
-  label: string;
-  districtLabel: string;
-  districtOptions: DistrictOption[];
-  lat: number;
-  lng: number;
-};
-
-function normalizeSuggestion(feature: any): LocationSuggestion | null {
-  const center = Array.isArray(feature?.center) ? feature.center : [];
-  const lng = Number(center[0]);
-  const lat = Number(center[1]);
-  const label = String(feature?.place_name || '').trim();
-
-  if (!label || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  const districtOptions = districtOptionsFromFeature(feature);
-
-  return {
-    id: String(feature?.id || `${lat},${lng}`),
-    label,
-    districtLabel: districtOptions[0]?.label || '',
-    districtOptions,
-    lat: Number(lat.toFixed(6)),
-    lng: Number(lng.toFixed(6)),
-  };
-}
 
 const EventForm = ({
   initial,
@@ -190,7 +104,8 @@ const EventForm = ({
   postEditAnnouncement,
 }: Props) => {
   const router = useRouter();
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const googleMapsApiKeyConfigured = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY);
+  const { isLoaded: isGoogleMapsLoaded, loadError: googleMapsLoadError } = useGoogleMapsApi();
   const [pending, setPending] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -205,7 +120,7 @@ const EventForm = ({
   const [districtOptions, setDistrictOptions] = useState<DistrictOption[]>(() => {
     const base = String(initial?.district || '').trim();
     if (!base) return [];
-    return [{ id: `initial:${normalizeKey(base)}`, type: 'manual', value: base, label: base }];
+    return [{ id: `initial:${normalizeDistrictKey(base)}`, type: 'manual', value: base, label: base }];
   });
   const [lat, setLat] = useState(() => asFiniteNumber(initial?.lat, DEFAULT_LAT));
   const [lng, setLng] = useState(() => asFiniteNumber(initial?.lng, DEFAULT_LNG));
@@ -230,13 +145,17 @@ const EventForm = ({
     );
   });
   const [paymentMethodsError, setPaymentMethodsError] = useState('');
+  const [fieldReservedError, setFieldReservedError] = useState('');
+  const [isPublished, setIsPublished] = useState(Boolean(initial?.isPublished ?? true));
+  const [isFieldReservedConfirmed, setIsFieldReservedConfirmed] = useState(
+    Boolean(initial?.isFieldReservedConfirmed)
+  );
   const [pinSelected, setPinSelected] = useState(() =>
     Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
   );
   const [geoError, setGeoError] = useState('');
-  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
-  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
-  const mapRef = useRef<MapRef>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
 
   const timeError = useMemo(() => {
     if (!startTime || !endTime) return '';
@@ -282,111 +201,114 @@ const EventForm = ({
     [paymentMethods]
   );
   const isCreateMode = useMemo(() => submitLabel.trim().toLowerCase() === 'crear', [submitLabel]);
-  const pendingLabel = isCreateMode ? 'Creando evento...' : 'Guardando...';
+  const resolvedSubmitLabel = useMemo(() => {
+    if (isCreateMode) {
+      return isPublished ? 'Crear y publicar' : 'Guardar borrador';
+    }
+    return isPublished ? 'Guardar y publicar' : 'Guardar borrador';
+  }, [isCreateMode, isPublished]);
+  const pendingLabel = useMemo(() => {
+    if (isCreateMode) {
+      return isPublished ? 'Creando evento...' : 'Guardando borrador...';
+    }
+    return isPublished ? 'Guardando...' : 'Guardando borrador...';
+  }, [isCreateMode, isPublished]);
   const modalRedirectTo = successRedirectTo || '/admin/events';
 
   const locationError = useMemo(() => {
     if (!pinSelected) {
-      if (!mapboxToken) return 'Falta configurar NEXT_PUBLIC_MAPBOX_TOKEN para seleccionar ubicación.';
+      if (!googleMapsApiKeyConfigured) {
+        return 'Falta configurar NEXT_PUBLIC_GOOGLE_MAPS_KEY para seleccionar ubicacion.';
+      }
       return 'Selecciona un punto en el mapa para calcular latitud/longitud.';
     }
     return '';
-  }, [mapboxToken, pinSelected]);
+  }, [googleMapsApiKeyConfigured, pinSelected]);
 
-  async function fetchSuggestions(query: string, options: {
-    types: string;
-    proximity?: { lat: number; lng: number } | null;
-    limit?: number;
-  }) {
-    if (!mapboxToken) return [] as LocationSuggestion[];
-
-    const normalizedQuery = query.trim();
-    if (normalizedQuery.length < 2) return [] as LocationSuggestion[];
-
-    const params = new URLSearchParams({
-      access_token: mapboxToken,
-      language: 'es',
-      autocomplete: 'true',
-      limit: String(options.limit ?? 6),
-      types: options.types,
-    });
-
-    if (options.proximity) {
-      params.set('proximity', `${options.proximity.lng},${options.proximity.lat}`);
-    }
-
-    const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(normalizedQuery)}.json?${params.toString()}`;
-    const response = await fetch(endpoint, { cache: 'no-store' });
-    const body = await response.json();
-    if (!response.ok) return [] as LocationSuggestion[];
-
-    return (Array.isArray(body?.features) ? body.features : [])
-      .map(normalizeSuggestion)
-      .filter(Boolean) as LocationSuggestion[];
-  }
-
-  useEffect(() => {
-    const query = locationText.trim();
-    if (!mapboxToken || query.length < 3) {
-      setLocationSuggestions([]);
+  function syncDistrictSelection(nextDistrictOptions: DistrictOption[], fallbackValue = '') {
+    if (nextDistrictOptions.length > 0) {
+      setDistrictOptions((prev) => mergeDistrictOptions(prev, nextDistrictOptions));
+      setDistrictText((prev) =>
+        prev && nextDistrictOptions.some((option) => option.value === prev)
+          ? prev
+          : getPrimaryDistrictValue(nextDistrictOptions, fallbackValue)
+      );
       return;
     }
 
-    let cancelled = false;
-    const timeoutId = window.setTimeout(async () => {
-      try {
-        const nextSuggestions = await fetchSuggestions(query, {
-          types: 'address,district,place,locality,neighborhood',
-          proximity: { lat, lng },
-          limit: 5,
-        });
+    const fallback = String(fallbackValue || '').trim();
+    if (!fallback) return;
 
-        if (!cancelled) {
-          setLocationSuggestions(nextSuggestions);
-          const nextDistrictOptions = nextSuggestions.flatMap(
-            (suggestion) => suggestion.districtOptions
-          );
-          if (nextDistrictOptions.length > 0) {
-            setDistrictOptions((prev) => mergeDistrictOptions(prev, nextDistrictOptions));
-          }
-        }
-      } catch {
-        if (!cancelled) {
-          setLocationSuggestions([]);
-        }
-      }
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
+    const fallbackOption: DistrictOption = {
+      id: `manual:${normalizeDistrictKey(fallback)}`,
+      type: 'manual',
+      value: fallback,
+      label: fallback,
     };
-  }, [locationText, mapboxToken, lat, lng]);
+
+    setDistrictOptions((prev) => mergeDistrictOptions(prev, [fallbackOption]));
+    setDistrictText((prev) => prev || fallbackOption.value);
+  }
+
+  function panMapToLocation(nextLat: number, nextLng: number, zoom = 14) {
+    const map = mapRef.current;
+    if (!map) return;
+
+    map.panTo(toLatLngLiteral(nextLat, nextLng));
+    const currentZoom = map.getZoom() ?? 0;
+    if (currentZoom < zoom) {
+      map.setZoom(zoom);
+    }
+  }
+
+  function handleAutocompleteLoad(autocomplete: google.maps.places.Autocomplete) {
+    autocompleteRef.current = autocomplete;
+  }
+
+  function handlePlaceChanged() {
+    const place = autocompleteRef.current?.getPlace();
+    const placeLocation = place?.geometry?.location;
+
+    if (!place || !placeLocation) {
+      setGeoError('Selecciona una ubicacion valida de las sugerencias.');
+      return;
+    }
+
+    const nextCoords = toFixedLatLng(placeLocation.lat(), placeLocation.lng());
+    const formattedAddress = String(place.formatted_address || place.name || '').trim();
+    const nextDistrictOptions = extractDistrictOptionsFromAddressComponents(
+      place.address_components,
+      formattedAddress
+    );
+
+    setLocationText(formattedAddress || locationText);
+    syncDistrictSelection(nextDistrictOptions, districtText);
+    setLat(nextCoords.lat);
+    setLng(nextCoords.lng);
+    setPinSelected(true);
+    setGeoError('');
+    panMapToLocation(nextCoords.lat, nextCoords.lng);
+  }
 
   async function reverseGeocode(nextLat: number, nextLng: number) {
-    if (!mapboxToken) return;
-
-    const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${nextLng},${nextLat}.json?access_token=${mapboxToken}&language=es&limit=1`;
+    if (!googleMapsApiKeyConfigured || !isGoogleMapsLoaded || typeof google === 'undefined') return;
 
     try {
-      const response = await fetch(endpoint, { cache: 'no-store' });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body?.message || 'No se pudo obtener dirección.');
+      const geocoder = new google.maps.Geocoder();
+      const response = await geocoder.geocode({
+        location: toLatLngLiteral(nextLat, nextLng),
+        region: 'PE',
+      });
+      const result = response.results?.[0];
+      const nextDistrictOptions = extractDistrictOptionsFromAddressComponents(
+        result?.address_components,
+        result?.formatted_address
+      );
 
-      const feature = body?.features?.[0];
-      const nextDistrictOptions = districtOptionsFromFeature(feature);
-
-      if (feature?.place_name) {
-        setLocationText(feature.place_name);
+      if (result?.formatted_address) {
+        setLocationText(result.formatted_address);
       }
-      if (nextDistrictOptions.length > 0) {
-        setDistrictOptions((prev) => mergeDistrictOptions(prev, nextDistrictOptions));
-        setDistrictText((prev) =>
-          prev && nextDistrictOptions.some((option) => option.value === prev)
-            ? prev
-            : nextDistrictOptions[0].value
-        );
-      }
+      syncDistrictSelection(nextDistrictOptions, districtText);
       setGeoError('');
     } catch {
       setGeoError('No se pudo autocompletar la dirección. Puedes escribirla manualmente.');
@@ -394,34 +316,19 @@ const EventForm = ({
   }
 
   async function handleMapSelection(nextLat: number, nextLng: number) {
-    setLat(nextLat);
-    setLng(nextLng);
-    setPinSelected(true);
-    await reverseGeocode(nextLat, nextLng);
-  }
-
-  function handleLocationSuggestionSelect(suggestion: LocationSuggestion) {
-    setLocationText(suggestion.label);
-    if (suggestion.districtOptions.length > 0) {
-      setDistrictOptions((prev) => mergeDistrictOptions(prev, suggestion.districtOptions));
-      setDistrictText(suggestion.districtOptions[0].value);
-    }
-    setLat(suggestion.lat);
-    setLng(suggestion.lng);
+    const nextCoords = toFixedLatLng(nextLat, nextLng);
+    setLat(nextCoords.lat);
+    setLng(nextCoords.lng);
     setPinSelected(true);
     setGeoError('');
-    setShowLocationSuggestions(false);
-    setLocationSuggestions([]);
-    mapRef.current?.easeTo({
-      center: [suggestion.lng, suggestion.lat],
-      zoom: 14,
-      duration: 450,
-    });
+    panMapToLocation(nextCoords.lat, nextCoords.lng);
+    await reverseGeocode(nextCoords.lat, nextCoords.lng);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPaymentMethodsError('');
+    setFieldReservedError('');
 
     const fd = new FormData(event.currentTarget);
     const start = String(fd.get('startTime') || '');
@@ -442,8 +349,13 @@ const EventForm = ({
       return;
     }
 
-    if (selectedPaymentMethodIds.length === 0) {
-      setPaymentMethodsError('Selecciona al menos un método de pago.');
+    if (isPublished && selectedPaymentMethodIds.length === 0) {
+      setPaymentMethodsError('Selecciona al menos un método de pago antes de publicar.');
+      return;
+    }
+
+    if (isPublished && !isFieldReservedConfirmed) {
+      setFieldReservedError('Confirma que la cancha ya está reservada antes de publicar.');
       return;
     }
 
@@ -452,13 +364,12 @@ const EventForm = ({
     setShareUrl('');
     setShareTitle(String(fd.get('title') || 'Evento'));
     setShowPostEditAnnouncementModal(false);
-    if (isCreateMode) {
+    if (isCreateMode && isPublished) {
       setShowCreateModal(true);
     }
     setPending(true);
     const pendingStartedAt = Date.now();
 
-    // Let the spinner paint before calling server action.
     await new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => resolve());
     });
@@ -475,6 +386,16 @@ const EventForm = ({
       if (isCreateMode) {
         const createdEventId = String((result && 'eventId' in result ? result.eventId : '') || '').trim();
         setSubmitStatus('success');
+        if (!isPublished) {
+          setSubmitMessage('Borrador guardado con éxito.');
+          if (createdEventId) {
+            router.push(`/admin/events/${createdEventId}/edit`);
+            return;
+          }
+          router.push(modalRedirectTo);
+          return;
+        }
+
         if (createdEventId) {
           const origin = window.location.origin;
           setShareUrl(`${origin}/events/${createdEventId}`);
@@ -484,8 +405,8 @@ const EventForm = ({
         }
       } else {
         setSubmitStatus('success');
-        setSubmitMessage('Evento guardado con éxito.');
-        if (postEditAnnouncement) {
+        setSubmitMessage(isPublished ? 'Evento guardado con éxito.' : 'Borrador guardado con éxito.');
+        if (postEditAnnouncement && isPublished) {
           setShowPostEditAnnouncementModal(true);
         }
       }
@@ -591,77 +512,93 @@ const EventForm = ({
         />
       </div>
 
-      <Input
-        label="Dirección"
-        name="locationText"
-        type="text"
-        required
-        value={locationText}
-        onChange={(event) => {
-          setLocationText(event.currentTarget.value);
-          setShowLocationSuggestions(true);
-        }}
-        onFocus={() => setShowLocationSuggestions(true)}
-        onBlur={() => {
-          window.setTimeout(() => setShowLocationSuggestions(false), 150);
-        }}
-        autoComplete="off"
-        bgColor="bg-white"
-      />
-      {showLocationSuggestions && locationSuggestions.length > 0 ? (
-        <div className="-mt-3 rounded-lg border border-slate-200 bg-white shadow-sm">
-          {locationSuggestions.map((suggestion) => (
-            <button
-              key={suggestion.id}
-              type="button"
-              onClick={() => handleLocationSuggestionSelect(suggestion)}
-              className="w-full px-3 py-2 text-left hover:bg-slate-50 border-b border-slate-100 last:border-b-0"
-            >
-              <div className="text-sm text-slate-900">{suggestion.label}</div>
-              {suggestion.districtLabel ? (
-                <div className="text-xs text-slate-500">{suggestion.districtLabel}</div>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <label className="w-full">
+        <div className="mb-1 text-sm font-semibold text-slate-700">Direccion *</div>
+        {googleMapsApiKeyConfigured && isGoogleMapsLoaded ? (
+          <Autocomplete
+            onLoad={handleAutocompleteLoad}
+            onPlaceChanged={handlePlaceChanged}
+            options={{
+              componentRestrictions: { country: 'pe' },
+              fields: ['address_components', 'formatted_address', 'geometry', 'name'],
+            }}
+          >
+            <input
+              name="locationText"
+              type="text"
+              required
+              value={locationText}
+              onChange={(event) => setLocationText(event.currentTarget.value)}
+              autoComplete="off"
+              className="h-12 w-full rounded-lg border-2 border-mulberry bg-white px-4 text-slate-900 focus:border-mulberry focus:outline-none focus:ring-0"
+            />
+          </Autocomplete>
+        ) : (
+          <input
+            name="locationText"
+            type="text"
+            required
+            value={locationText}
+            onChange={(event) => setLocationText(event.currentTarget.value)}
+            autoComplete="off"
+            className="h-12 w-full rounded-lg border-2 border-mulberry bg-white px-4 text-slate-900 focus:border-mulberry focus:outline-none focus:ring-0"
+          />
+        )}
+        <p className="mt-1 text-xs text-slate-500">
+          Busca una direccion o cancha y selecciona una sugerencia para actualizar el pin.
+        </p>
+      </label>
 
       <div className="space-y-2">
-        <div className="text-sm font-semibold text-slate-700">Ubicación en mapa *</div>
-        {mapboxToken ? (
+        <div className="text-sm font-semibold text-slate-700">Ubicacion en mapa *</div>
+        {googleMapsApiKeyConfigured ? (
+          googleMapsLoadError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              No se pudo cargar Google Maps.
+            </div>
+          ) : !isGoogleMapsLoaded ? (
+            <div className="h-[300px] animate-pulse rounded-lg border border-mulberry/30 bg-slate-100" />
+          ) : (
           <div className="h-[300px] overflow-hidden rounded-lg border border-mulberry/30">
-            <Map
-              ref={mapRef}
-              mapStyle="mapbox://styles/mapbox/streets-v12"
-              mapboxAccessToken={mapboxToken}
-              initialViewState={{ latitude: lat, longitude: lng, zoom: 12 }}
-              style={{ width: '100%', height: '100%' }}
+            <GoogleMap
+              mapContainerStyle={MAP_CONTAINER_STYLE}
+              center={toLatLngLiteral(lat, lng)}
+              zoom={12}
+              options={MAP_OPTIONS}
+              onLoad={(map) => {
+                mapRef.current = map;
+              }}
               onClick={async (event) => {
-                const nextLat = Number(event.lngLat.lat.toFixed(6));
-                const nextLng = Number(event.lngLat.lng.toFixed(6));
+                const clickedLat = event.latLng?.lat();
+                const clickedLng = event.latLng?.lng();
+                if (clickedLat == null || clickedLng == null) return;
+                const nextLat = Number(clickedLat.toFixed(6));
+                const nextLng = Number(clickedLng.toFixed(6));
                 await handleMapSelection(nextLat, nextLng);
               }}
             >
-              <NavigationControl position="top-right" />
-              <Marker
-                latitude={lat}
-                longitude={lng}
+              <MarkerF
+                position={toLatLngLiteral(lat, lng)}
                 draggable
                 onDragEnd={async (eventInfo) => {
-                  const nextLat = Number(eventInfo.lngLat.lat.toFixed(6));
-                  const nextLng = Number(eventInfo.lngLat.lng.toFixed(6));
+                  const draggedLat = eventInfo.latLng?.lat();
+                  const draggedLng = eventInfo.latLng?.lng();
+                  if (draggedLat == null || draggedLng == null) return;
+                  const nextLat = Number(draggedLat.toFixed(6));
+                  const nextLng = Number(draggedLng.toFixed(6));
                   await handleMapSelection(nextLat, nextLng);
                 }}
               />
-            </Map>
+            </GoogleMap>
           </div>
+          )
         ) : (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            Falta configurar <code>NEXT_PUBLIC_MAPBOX_TOKEN</code>.
+            Falta configurar <code>NEXT_PUBLIC_GOOGLE_MAPS_KEY</code>.
           </div>
         )}
         <p className={`text-xs ${locationError ? 'text-red-600' : 'text-slate-500'}`}>
-          {locationError || 'Ubicación lista. Puedes hacer clic o mover el pin para ajustar.'}
+          {locationError || 'Ubicacion lista. Puedes hacer clic o mover el pin para ajustar.'}
         </p>
         {geoError ? <p className="text-xs text-amber-700">{geoError}</p> : null}
         <input type="hidden" name="lat" value={lat} readOnly />
@@ -737,7 +674,9 @@ const EventForm = ({
       </div>
 
       <label className="w-full">
-        <div className="mb-1 text-sm font-semibold text-slate-700">Métodos de pago permitidos *</div>
+        <div className="mb-1 text-sm font-semibold text-slate-700">
+          Métodos de pago permitidos {isPublished ? '*' : '(opcional por ahora)'}
+        </div>
         <SelectComponent
           options={paymentMethodOptions}
           value={selectedPaymentMethodIds}
@@ -764,7 +703,9 @@ const EventForm = ({
           <p className="mt-1 text-xs text-slate-500">
             {selectedPaymentMethodIds.length > 0
               ? `${selectedPaymentMethodIds.length} método(s) seleccionado(s).`
-              : 'Selecciona uno o más métodos para este evento.'}
+              : isPublished
+                ? 'Selecciona uno o más métodos para publicar este evento.'
+                : 'Puedes agregar métodos de pago después, antes de publicar.'}
           </p>
         )}
         {paymentMethodsError ? <p className="mt-1 text-xs text-red-600">{paymentMethodsError}</p> : null}
@@ -777,6 +718,29 @@ const EventForm = ({
             readOnly
           />
         ))}
+      </label>
+
+      <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+        <input
+          type="checkbox"
+          name="isFieldReservedConfirmed"
+          value="true"
+          checked={isFieldReservedConfirmed}
+          onChange={(event) => {
+            setIsFieldReservedConfirmed(event.currentTarget.checked);
+            if (event.currentTarget.checked) {
+              setFieldReservedError('');
+            }
+          }}
+          className="mt-1 h-4 w-4 rounded border-slate-300 text-mulberry focus:ring-mulberry/30"
+        />
+        <div>
+          <p className="text-sm font-semibold text-slate-800">Confirmo que el espacio de juego ya está reservado</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Solo es obligatorio al publicar. Para guardar borrador puedes dejarlo pendiente.
+          </p>
+          {fieldReservedError ? <p className="mt-2 text-xs text-red-600">{fieldReservedError}</p> : null}
+        </div>
       </label>
 
       <label className="w-full">
@@ -821,7 +785,15 @@ const EventForm = ({
               type="checkbox"
               name="isPublished"
               value="true"
-              defaultChecked={Boolean(initial?.isPublished ?? true)}
+              checked={isPublished}
+              onChange={(event) => {
+                const nextIsPublished = event.currentTarget.checked;
+                setIsPublished(nextIsPublished);
+                if (!nextIsPublished) {
+                  setPaymentMethodsError('');
+                  setFieldReservedError('');
+                }
+              }}
               className="peer sr-only"
             />
             <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-emerald-600" />
@@ -842,7 +814,15 @@ const EventForm = ({
               type="checkbox"
               name="isPublished"
               value="true"
-              defaultChecked={Boolean(initial?.isPublished ?? true)}
+              checked={isPublished}
+              onChange={(event) => {
+                const nextIsPublished = event.currentTarget.checked;
+                setIsPublished(nextIsPublished);
+                if (!nextIsPublished) {
+                  setPaymentMethodsError('');
+                  setFieldReservedError('');
+                }
+              }}
               className="peer sr-only"
             />
             <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-emerald-600" />
@@ -882,11 +862,10 @@ const EventForm = ({
               pending ||
               Boolean(timeError) ||
               Boolean(locationError) ||
-              !districtText ||
-              selectedPaymentMethodIds.length === 0
+              !districtText
             }
           >
-            {pending ? pendingLabel : submitLabel}
+            {pending ? pendingLabel : resolvedSubmitLabel}
           </ButtonWrapper>
           {!isCreateMode && !pending && submitStatus === 'success' && submitMessage ? (
             <p className="mt-3 text-sm text-emerald-700">{submitMessage}</p>

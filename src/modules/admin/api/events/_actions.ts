@@ -23,6 +23,7 @@ function toInsertPayload(
     description: {
       title: input.title,
       description: input.description,
+      field_reserved_confirmed: input.isFieldReservedConfirmed,
     },
     start_time: input.startTime,
     end_time: input.endTime,
@@ -50,6 +51,7 @@ function toUpdatePayload(input: EventUpsertInput, isFeatured: boolean) {
     description: {
       title: input.title,
       description: input.description,
+      field_reserved_confirmed: input.isFieldReservedConfirmed,
     },
     start_time: input.startTime,
     end_time: input.endTime,
@@ -81,6 +83,13 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function parseStoredBoolean(value: unknown) {
+  if (value === true) return true;
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
 }
 
 async function getAuthenticatedAdminContext(action: string) {
@@ -122,6 +131,60 @@ async function assertCanManageEvent(
   if (!event) throw new Error('Evento no encontrado.');
   if (String(event.created_by_id || '') !== String(user.id || '')) {
     throw new Error('No tienes permisos para gestionar este evento.');
+  }
+}
+
+async function assertEventCanBePublished(
+  supabase: SupabaseClientLike,
+  eventId: string,
+  user: { id?: string | null; email?: string | null } | null
+) {
+  await assertCanManageEvent(supabase, eventId, user);
+
+  const { data: event, error: eventError } = await supabase
+    .from('event')
+    .select('title,start_time,end_time,district,location_text,location,description')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (eventError) throw new Error(eventError.message);
+  if (!event) throw new Error('Evento no encontrado.');
+
+  const description =
+    event.description && typeof event.description === 'object'
+      ? (event.description as Record<string, unknown>)
+      : {};
+  const hasReservedFieldConfirmation = parseStoredBoolean(description.field_reserved_confirmed);
+  const location = event.location && typeof event.location === 'object'
+    ? (event.location as Record<string, unknown>)
+    : {};
+  const hasLocationCoordinates =
+    Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng ?? location.long));
+
+  if (
+    !String(event.title || '').trim() ||
+    !event.start_time ||
+    !event.end_time ||
+    !String(event.district || '').trim() ||
+    !String(event.location_text || '').trim() ||
+    !hasLocationCoordinates
+  ) {
+    throw new Error('Completa los datos principales del evento antes de publicarlo.');
+  }
+
+  if (!hasReservedFieldConfirmation) {
+    throw new Error('Confirma que la cancha ya está reservada antes de publicar el evento.');
+  }
+
+  const { data: paymentMethods, error: paymentMethodsError } = await supabase
+    .from('eventPaymentMethod')
+    .select('id')
+    .eq('event', eventId)
+    .limit(1);
+
+  if (paymentMethodsError) throw new Error(paymentMethodsError.message);
+  if ((paymentMethods ?? []).length === 0) {
+    throw new Error('Agrega al menos un método de pago antes de publicar el evento.');
   }
 }
 
@@ -388,7 +451,11 @@ export async function setEventPublished(id: string, isPublished: boolean) {
   const { adminSupabase, user } = await getAuthenticatedAdminContext('gestionar');
   if (!id) throw new Error('Id de evento inválido.');
 
-  await assertCanManageEvent(adminSupabase, id, user);
+  if (isPublished) {
+    await assertEventCanBePublished(adminSupabase, id, user);
+  } else {
+    await assertCanManageEvent(adminSupabase, id, user);
+  }
 
   const { error } = await adminSupabase.from('event').update({ is_published: isPublished }).eq('id', id);
   if (error) throw new Error(error.message);

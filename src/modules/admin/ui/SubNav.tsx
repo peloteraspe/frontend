@@ -7,6 +7,7 @@ import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 const links = [
   { href: '/admin', label: 'Resumen' },
   { href: '/admin/events', label: 'Eventos' },
+  { href: '/admin/requests', label: 'Solicitudes', superadminOnly: true },
   { href: '/admin/communications', label: 'Correos', superadminOnly: true },
   { href: '/admin/payments', label: 'Pagos' },
   { href: '/admin/payment-methods', label: 'Formas de pago' },
@@ -40,7 +41,8 @@ export default function SubNav() {
     <nav className="mb-4">
       <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible">
         {visibleLinks.map((l) => {
-          const active = pathname === l.href;
+          const active =
+            l.href === '/admin' ? pathname === l.href : pathname === l.href || pathname.startsWith(`${l.href}/`);
           return (
             <Link
               key={l.href}
