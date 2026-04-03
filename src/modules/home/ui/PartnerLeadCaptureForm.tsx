@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { trackEvent } from '@shared/lib/analytics';
 
 type LeadKind = 'admin' | 'sponsor';
 
@@ -58,8 +59,21 @@ export default function PartnerLeadCaptureForm({ kind }: Props) {
     try {
       const message = await submitLead(kind, form);
       setStatus({ pending: false, error: '', success: message });
+      if (kind === 'admin') {
+        trackEvent('admin_request_submitted', {
+          source: 'admin_capture_page',
+          channel: 'web',
+        });
+      }
       form.reset();
     } catch (error: any) {
+      if (kind === 'admin') {
+        trackEvent('admin_request_failed', {
+          source: 'admin_capture_page',
+          channel: 'web',
+          reason: error?.message || 'submit_failed',
+        });
+      }
       setStatus({
         pending: false,
         error: error?.message || 'No se pudo enviar tu información.',
@@ -92,6 +106,39 @@ export default function PartnerLeadCaptureForm({ kind }: Props) {
         <p className="text-xs text-slate-500 md:col-span-2">
           Solo te pedimos 3 datos para contactarte rápido.
         </p>
+        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 md:col-span-2">
+          <input
+            type="checkbox"
+            name="commitmentReservedField"
+            value="true"
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-mulberry focus:ring-mulberry/30"
+            required
+          />
+          <span>Confirmo que solo crearé eventos cuando el espacio de juego ya esté reservado.</span>
+        </label>
+        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 md:col-span-2">
+          <input
+            type="checkbox"
+            name="commitmentNoCancellation"
+            value="true"
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-mulberry focus:ring-mulberry/30"
+            required
+          />
+          <span>
+            Entiendo que no debo cancelar el evento salvo fuerza mayor y que debo avisar siempre a todas las
+            inscritas.
+          </span>
+        </label>
+        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 md:col-span-2">
+          <input
+            type="checkbox"
+            name="commitmentReportIncidents"
+            value="true"
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-mulberry focus:ring-mulberry/30"
+            required
+          />
+          <span>Me comprometo a reportar incumplimientos a contacto@peloteras.com.</span>
+        </label>
         <div className="md:col-span-2">
           <button
             type="submit"
