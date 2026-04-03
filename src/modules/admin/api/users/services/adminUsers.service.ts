@@ -2,7 +2,6 @@
 
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
-import { type AdminRequestStatus } from '@modules/admin/api/requests/services/adminRequests.service';
 
 type AuthUserLite = {
   id: string;
@@ -24,27 +23,12 @@ export type OrganizerActivationInput = {
   commitmentReportIncidents: boolean;
 };
 
-type PartnerLeadRow = {
-  id: number;
-  user_id: string | null;
-  contact_email: string | null;
-  status: string | null;
-  created_at: string | null;
-};
-
-export type AdminRequestSummary = {
-  id: number;
-  status: AdminRequestStatus;
-  createdAt: string | null;
-};
-
 export type AdminUserListItem = {
   id: string;
   name: string;
   email: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-  latestAdminRequest: AdminRequestSummary | null;
 };
 
 function isValidEmail(email: string) {
@@ -76,14 +60,6 @@ function normalizeContactName(user: AuthUserLite, profileName?: string | null) {
   if (emailName) return emailName;
 
   return 'Pelotera';
-}
-
-function normalizeStatus(value: unknown): AdminRequestStatus {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'contacted') return 'contacted';
-  if (normalized === 'qualified') return 'qualified';
-  if (normalized === 'closed') return 'closed';
-  return 'new';
 }
 
 function normalizeEmail(value: unknown) {
@@ -145,56 +121,16 @@ async function getProfileNameByUserId(userId: string) {
   return String(data?.username || '').trim() || null;
 }
 
-async function getLatestAdminRequestLookup() {
-  const adminSupabase = getAdminSupabase();
-  const { data, error } = await adminSupabase
-    .from('partner_leads')
-    .select('id,user_id,contact_email,status,created_at')
-    .eq('lead_type', 'admin')
-    .order('created_at', { ascending: false });
-
-  if (error) throw new Error(error.message);
-
-  const byUserId = new Map<string, AdminRequestSummary>();
-  const byEmail = new Map<string, AdminRequestSummary>();
-
-  ((data ?? []) as PartnerLeadRow[]).forEach((row) => {
-    const summary = {
-      id: Number(row.id),
-      status: normalizeStatus(row.status),
-      createdAt: row.created_at || null,
-    };
-
-    const userId = String(row.user_id || '').trim();
-    const email = normalizeEmail(row.contact_email);
-
-    if (userId && !byUserId.has(userId)) {
-      byUserId.set(userId, summary);
-    }
-
-    if (email && !byEmail.has(email)) {
-      byEmail.set(email, summary);
-    }
-  });
-
-  return { byUserId, byEmail };
-}
-
 export async function getAdminUsersList(): Promise<AdminUserListItem[]> {
-  const [authUsers, profileNameMap, latestAdminRequestLookup] = await Promise.all([
+  const [authUsers, profileNameMap] = await Promise.all([
     listAllAuthUsers(),
     getProfileNameMap(),
-    getLatestAdminRequestLookup(),
   ]);
 
   return authUsers
     .filter((user) => Boolean(user?.id) && Boolean(String(user?.email || '').trim()))
     .map((user) => {
       const email = String(user.email || '').trim();
-      const latestAdminRequest =
-        latestAdminRequestLookup.byUserId.get(user.id) ||
-        latestAdminRequestLookup.byEmail.get(normalizeEmail(email)) ||
-        null;
 
       return {
         id: user.id,
@@ -202,7 +138,6 @@ export async function getAdminUsersList(): Promise<AdminUserListItem[]> {
         email,
         isAdmin: isAdmin(user as any),
         isSuperAdmin: isSuperAdmin(user as any),
-        latestAdminRequest,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));

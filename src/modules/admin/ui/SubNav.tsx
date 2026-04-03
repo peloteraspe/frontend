@@ -7,7 +7,6 @@ import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 const links = [
   { href: '/admin', label: 'Resumen' },
   { href: '/admin/events', label: 'Eventos' },
-  { href: '/admin/requests', label: 'Solicitudes', superadminOnly: true },
   { href: '/admin/communications', label: 'Correos', superadminOnly: true },
   { href: '/admin/payments', label: 'Pagos' },
   { href: '/admin/payment-methods', label: 'Formas de pago' },
