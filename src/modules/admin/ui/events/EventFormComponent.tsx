@@ -130,8 +130,8 @@ const DEFAULT_EVENT_DURATION_MINUTES = 90;
 const QUICK_DURATION_OPTIONS = [60, 90, 120, 150] as const;
 const DEFAULT_EVENT_START_TIME = '19:00';
 const FLOW_SURFACE_CLASS =
-  'rounded-[22px] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-5 ring-1 ring-slate-200/70 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.32)] sm:p-6';
-const FLOW_PANEL_CLASS = 'rounded-[18px] bg-slate-50/80 ring-1 ring-slate-200/70';
+  'rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6';
+const FLOW_PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-slate-50/85';
 const FLOW_FIELD_CLASS =
   'h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-slate-900 transition placeholder:text-slate-400 focus:border-mulberry focus:outline-none focus:ring-4 focus:ring-mulberry/10';
 const FLOW_TEXTAREA_CLASS =
@@ -544,6 +544,7 @@ const EventForm = ({
     () => publishReadiness.items.filter((item) => !item.done),
     [publishReadiness]
   );
+  const createProgressPercent = Math.round((createStep / CREATE_EVENT_STEPS.length) * 100);
 
   useEffect(() => {
     setPaymentMethodCatalog(normalizePaymentMethodCatalog(paymentMethods));
@@ -1223,25 +1224,69 @@ const EventForm = ({
           if (wizardError) setWizardError('');
           scheduleAutosave();
         }}
-        className={isCreateMode ? 'grid gap-5 lg:grid-cols-3' : 'max-w-4xl space-y-5'}
+        className={isCreateMode ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]' : 'max-w-4xl space-y-5'}
         noValidate
       >
         {isCreateMode ? (
-          <div className={FLOW_SURFACE_CLASS}>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-mulberry/80">
-                  {activeCreateStep.label}
+          <div className="xl:col-span-2 rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6">
+            <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-mulberry/75">
+                  Crear evento
                 </p>
-                <h3 className="mt-2 text-2xl font-eastman-extrabold text-slate-900">
-                  {activeCreateStep.title}
-                </h3>
-                <p className="mt-1 text-sm text-slate-600">{activeCreateStep.description}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <h3 className="text-2xl font-eastman-extrabold text-slate-900">
+                    {activeCreateStep.title}
+                  </h3>
+                  <span className="inline-flex items-center rounded-full bg-mulberry/10 px-3 py-1 text-xs font-semibold text-mulberry">
+                    Paso {createStep} de {CREATE_EVENT_STEPS.length}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-slate-600">{activeCreateStep.description}</p>
               </div>
-              <p className="text-sm font-medium text-slate-500">Paso {createStep} de 4</p>
+
+              {createStep < 4 ? (
+                <button
+                  type="button"
+                  onClick={handleNextCreateStep}
+                  className="hidden h-11 items-center justify-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760] lg:inline-flex"
+                >
+                  Continuar
+                </button>
+              ) : null}
             </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/85 px-4 py-3 lg:min-w-[260px]">
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  <span>Progreso</span>
+                  <span>{createProgressPercent}%</span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-mulberry transition-all duration-300"
+                    style={{ width: `${createProgressPercent}%` }}
+                  />
+                </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  {createStep < 4
+                    ? 'Primero define lo esencial. La publicación queda para el final.'
+                    : isPublished
+                      ? 'Solo publicaremos cuando cobro y reserva estén listos.'
+                      : 'Puedes guardarlo como borrador y volver luego.'}
+                </p>
+              </div>
+
+              {autosaveMessage ? (
+                <div className="flex items-center justify-end">
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                    {autosaveMessage}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-5 grid gap-2 md:grid-cols-4">
               {CREATE_EVENT_STEPS.map((step) => {
                 const isActive = step.id === createStep;
                 const isCompleted = step.id < createStep;
@@ -1253,63 +1298,66 @@ const EventForm = ({
                       if (isCompleted) moveToCreateStep(step.id);
                     }}
                     className={[
-                      'rounded-[18px] px-4 py-3 text-left ring-1 transition',
+                      'flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition',
                       isActive
-                        ? 'bg-white shadow-[0_12px_30px_-22px_rgba(84,8,111,0.45)] ring-mulberry/15'
+                        ? 'border-mulberry/20 bg-mulberry/[0.05]'
                         : isCompleted
-                          ? 'bg-emerald-50/70 ring-emerald-200/80 hover:ring-emerald-300'
-                          : 'bg-white/72 ring-slate-200/70',
-                      isCompleted ? 'cursor-pointer' : 'cursor-default',
+                          ? 'border-emerald-200 bg-emerald-50/80 hover:border-emerald-300'
+                          : 'border-slate-200 bg-slate-50/85',
+                      isCompleted ? 'cursor-pointer' : isActive ? 'cursor-default' : 'cursor-default opacity-80',
                     ].join(' ')}
                   >
-                    <p
+                    <span
                       className={[
-                        'text-xs font-semibold uppercase tracking-[0.16em]',
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
                         isActive
-                          ? 'text-mulberry'
+                          ? 'bg-mulberry text-white'
                           : isCompleted
-                            ? 'text-emerald-700'
-                            : 'text-slate-500',
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-white text-slate-500 ring-1 ring-slate-200',
                       ].join(' ')}
                     >
-                      {step.label}
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{step.title}</p>
-                    <p className="mt-1 text-xs text-slate-600">{step.description}</p>
+                      {isCompleted ? '✓' : step.id}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">{step.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {isCompleted ? 'Listo' : isActive ? 'Ahora' : 'Luego'}
+                      </p>
+                    </div>
                   </button>
                 );
               })}
             </div>
 
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+              <p className="text-sm text-slate-600">
+                {createStep < 4
+                  ? 'Puedes avanzar con calma. El progreso queda guardado mientras completas el flujo.'
+                  : isPublished
+                    ? 'Revisaremos lo que falte antes de dejarlo visible en el explorer.'
+                    : 'Al guardar como borrador, podrás volver exactamente donde te quedaste.'}
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleResetCreateDraft}
+                  className="text-xs font-semibold text-mulberry transition hover:underline"
+                >
+                  Empezar de nuevo
+                </button>
+              </div>
+            </div>
+
             {wizardError ? (
-              <div className="mt-4 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 {wizardError}
               </div>
-            ) : (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[22px] bg-white/72 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200/70">
-                <span>
-                  {createStep < 4
-                    ? 'Avanza por pasos. No perderás lo que ya escribiste al pasar al siguiente.'
-                    : isPublished
-                      ? 'Publicar exige método de pago y confirmar la reserva de cancha.'
-                      : 'Si dejas “Visible al público” desactivado, guardarás un borrador para completar después.'}
-                </span>
-                <div className="flex items-center gap-3">
-                  {autosaveMessage ? <span className="text-xs font-medium text-slate-500">{autosaveMessage}</span> : null}
-                  <button
-                    type="button"
-                    onClick={handleResetCreateDraft}
-                    className="text-xs font-semibold text-mulberry transition hover:underline"
-                  >
-                    Empezar de nuevo
-                  </button>
-                </div>
-              </div>
-            )}
+            ) : null}
           </div>
         ) : null}
 
-        <div className={isCreateMode ? 'lg:col-span-2 space-y-5' : ''}>
+        <div className={isCreateMode ? 'space-y-5' : ''}>
         <section
           className={[
             FLOW_SURFACE_CLASS,
@@ -1673,7 +1721,7 @@ const EventForm = ({
               </label>
             </div>
 
-            <label className="w-full">
+            <div className="w-full">
               <div className="mb-1 text-sm font-semibold text-slate-700">
                 Métodos de pago permitidos {isPublished ? '*' : '(opcional por ahora)'}
               </div>
@@ -1734,7 +1782,7 @@ const EventForm = ({
                   readOnly
                 />
               ))}
-            </label>
+            </div>
 
             <InlinePaymentMethodSetup
               initialMethods={paymentMethodCatalog}
@@ -1742,7 +1790,7 @@ const EventForm = ({
               onMethodSaved={handleInlinePaymentMethodSaved}
             />
 
-            <label className="w-full">
+            <div className="w-full">
               <div className="mb-1 text-sm font-semibold text-slate-700">Features</div>
               <SelectComponent
                 options={featureOptions}
@@ -1769,7 +1817,7 @@ const EventForm = ({
               {selectedFeatureIds.map((featureId) => (
                 <input key={featureId} type="hidden" name="featureIds" value={featureId} readOnly />
               ))}
-            </label>
+            </div>
           </div>
         </section>
 
@@ -1948,7 +1996,7 @@ const EventForm = ({
         </div>
 
         {isCreateMode ? (
-          <div className="lg:col-span-1 space-y-5">
+          <div className="space-y-5 xl:sticky xl:top-6 xl:self-start">
             <EventPreview
               title={eventTitle}
               description={eventDescription}
@@ -1966,7 +2014,12 @@ const EventForm = ({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-3 rounded-[16px] bg-white/72 px-4 py-3 ring-1 ring-slate-200/70">
+        <div
+          className={[
+            'flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)]',
+            isCreateMode ? 'xl:col-span-2' : '',
+          ].join(' ')}
+        >
           {isCreateMode && createStep > 1 ? (
             <button
               type="button"
@@ -1981,7 +2034,7 @@ const EventForm = ({
             <button
               type="button"
               onClick={handleNextCreateStep}
-              className="inline-flex h-11 items-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760]"
+              className="inline-flex h-11 items-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760] lg:hidden"
             >
               Continuar
             </button>
