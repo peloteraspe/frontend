@@ -9,13 +9,7 @@ import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
 import { getDefaultEventAnnouncementEmail } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
 import { getParticipantContactsByEventId } from '@modules/admin/api/events/services/eventParticipants.service';
-
-function parseStoredBoolean(value: unknown) {
-  if (value === true) return true;
-  if (typeof value !== 'string') return false;
-  const normalized = value.trim().toLowerCase();
-  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
-}
+import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
 
 export default async function EditEventScreen({ id }: { id: string }) {
   const supabase = await getServerSupabase();

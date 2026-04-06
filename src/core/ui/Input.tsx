@@ -9,16 +9,23 @@ type InputProps = {
   errorText?: string;
   icon?: React.ReactNode;
   bgColor?: string;
+  tone?: 'default' | 'soft';
 } & InputHTMLAttributes<HTMLInputElement>;
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, required, errorText, icon, bgColor = 'bg-transparent', className, ...rest },
+  { label, required, errorText, icon, bgColor = 'bg-transparent', tone = 'default', className, ...rest },
   ref
 ) {
   const hasError = Boolean(errorText);
   const isPasswordField = rest.type === 'password';
   const [showPassword, setShowPassword] = useState(false);
   const inputType = isPasswordField ? (showPassword ? 'text' : 'password') : rest.type;
+  const baseInputClass =
+    tone === 'soft'
+      ? 'w-full h-12 rounded-xl border px-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-mulberry focus:ring-4 focus:ring-mulberry/10'
+      : 'w-full h-12 rounded-lg border-2 px-4 focus:outline-none focus:border-mulberry focus:ring-0';
+  const toneBorderClass =
+    tone === 'soft' ? (hasError ? 'border-error' : 'border-slate-300') : hasError ? 'border-error' : 'border-mulberry';
 
   return (
     <label className="w-full">
@@ -35,10 +42,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         <input
           ref={ref}
           className={[
-            'w-full h-12 rounded-lg border-2 px-4 focus:outline-none focus:border-mulberry focus:ring-0',
+            baseInputClass,
             isPasswordField || icon ? 'pr-12' : '',
             bgColor,
-            hasError ? 'border-error' : 'border-mulberry',
+            toneBorderClass,
             className || '',
           ].join(' ')}
           {...rest}

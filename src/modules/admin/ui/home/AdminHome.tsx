@@ -29,6 +29,13 @@ type ProfileRow = {
   onboarding_step?: number | null;
 };
 
+type AnalyticsRow = {
+  created_at?: string | null;
+  event_name?: string | null;
+  source?: string | null;
+  payload?: Record<string, unknown> | null;
+};
+
 type LevelRow = {
   id: number;
   name: string;
@@ -37,6 +44,20 @@ type LevelRow = {
 const DEFAULT_TIMEZONE = 'America/Lima';
 const WEEKS_WINDOW = 8;
 const MONTHS_WINDOW = 6;
+const ANALYTICS_WINDOW_DAYS = 30;
+const CREATE_EVENT_ANALYTICS_NAMES = [
+  'create_event_entry_viewed',
+  'create_event_draft_started',
+  'create_event_wizard_viewed',
+  'create_event_step_viewed',
+  'create_event_draft_created',
+  'create_event_publish_attempted',
+  'create_event_publish_blocked',
+  'create_event_publish_succeeded',
+  'create_event_payment_setup_viewed',
+  'create_event_payment_method_saved',
+  'organizer_activation_completed',
+] as const;
 
 function pad2(value: number) {
   return String(value).padStart(2, '0');
@@ -124,6 +145,20 @@ function normalizeAssistantState(value: string | null | undefined) {
   return 'Pendientes';
 }
 
+function getPayloadArray(payload: Record<string, unknown> | null | undefined, key: string) {
+  const candidate = payload?.[key];
+  return Array.isArray(candidate) ? candidate : [];
+}
+
+function getPayloadNumber(payload: Record<string, unknown> | null | undefined, key: string) {
+  const parsed = Number(payload?.[key]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function createEmptyAnalyticsBreakdown(name: string) {
+  return [{ name, value: 0 }];
+}
+
 function buildWeeklyTrend(
   rows: Array<{ created_at?: string | null }>,
   count = WEEKS_WINDOW
@@ -175,8 +210,12 @@ export default async function AdminHome() {
 
   const canViewUsersModule = isSuperAdmin(user as any);
   const userId = String(user?.id || '');
+  const analyticsSince = subtractDays(
+    getIsoDateInTimeZone(new Date(), DEFAULT_TIMEZONE) || new Date().toISOString().slice(0, 10),
+    ANALYTICS_WINDOW_DAYS
+  );
 
-  const [eventsResult, levelsResult, paymentMethodsResult, profilesResult] = await Promise.all([
+  const [eventsResult, levelsResult, paymentMethodsResult, profilesResult, analyticsResult] = await Promise.all([
     (async () => {
       let query = supabase.from('event').select('id,created_at,start_time,level,created_by_id');
       if (!canViewUsersModule && userId) {
@@ -203,6 +242,24 @@ export default async function AdminHome() {
         .from('profile')
         .select('created_at,is_profile_complete,onboarding_step');
       return (data ?? []) as ProfileRow[];
+    })(),
+    (async () => {
+      let query = supabase
+        .from('product_analytics_events')
+        .select('created_at,event_name,source,payload')
+        .in('event_name', [...CREATE_EVENT_ANALYTICS_NAMES])
+        .gte('created_at', `${analyticsSince}T00:00:00`);
+
+      if (!canViewUsersModule && userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        return [] as AnalyticsRow[];
+      }
+
+      return (data ?? []) as AnalyticsRow[];
     })(),
   ]);
 
@@ -269,6 +326,66 @@ export default async function AdminHome() {
   }).length;
   const incompleteProfiles = Math.max(0, profilesResult.length - completeProfiles);
 
+  const createEventAnalyticsRows = analyticsResult.filter((row) => {
+    const eventName = String(row.event_name || '').trim().toLowerCase();
+    if (eventName !== 'organizer_activation_completed') return true;
+    return String(row.source || '').trim() === 'create_event_entry';
+  });
+
+  const analyticsEventCounts = new Map<string, number>();
+  createEventAnalyticsRows.forEach((row) => {
+    const eventName = String(row.event_name || '').trim().toLowerCase();
+    if (!eventName) return;
+    analyticsEventCounts.set(eventName, (analyticsEventCounts.get(eventName) || 0) + 1);
+  });
+
+  const createEventBlockerCounts = new Map<string, number>();
+  const createEventStepViewCounts = new Map<string, number>();
+  createEventAnalyticsRows.forEach((row) => {
+    const eventName = String(row.event_name || '').trim().toLowerCase();
+    const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+
+    if (eventName === 'create_event_publish_blocked') {
+      const missingIds = getPayloadArray(payload, 'missing_ids')
+        .map((item) => String(item || '').trim())
+        .filter(Boolean);
+
+      if (missingIds.length === 0) {
+        createEventBlockerCounts.set('Sin detalle', (createEventBlockerCounts.get('Sin detalle') || 0) + 1);
+      } else {
+        missingIds.forEach((missingId) => {
+          const label =
+            missingId === 'payment_methods'
+              ? 'Método de pago'
+              : missingId === 'field_reservation'
+              ? 'Cancha reservada'
+              : missingId === 'location'
+              ? 'Ubicación'
+              : missingId === 'details'
+              ? 'Datos principales'
+              : missingId;
+          createEventBlockerCounts.set(label, (createEventBlockerCounts.get(label) || 0) + 1);
+        });
+      }
+    }
+
+    if (eventName === 'create_event_step_viewed') {
+      const step = getPayloadNumber(payload, 'step');
+      const stepTitle = String(payload?.step_title || '').trim();
+      const label = stepTitle || (step ? `Paso ${step}` : 'Paso');
+      createEventStepViewCounts.set(label, (createEventStepViewCounts.get(label) || 0) + 1);
+    }
+  });
+
+  const createEventFunnelStages = [
+    { name: 'Entrada', value: analyticsEventCounts.get('create_event_entry_viewed') || 0 },
+    { name: 'Activación', value: analyticsEventCounts.get('organizer_activation_completed') || 0 },
+    { name: 'Pagos', value: analyticsEventCounts.get('create_event_payment_setup_viewed') || 0 },
+    { name: 'Wizard', value: analyticsEventCounts.get('create_event_wizard_viewed') || 0 },
+    { name: 'Borrador', value: analyticsEventCounts.get('create_event_draft_created') || 0 },
+    { name: 'Publicado', value: analyticsEventCounts.get('create_event_publish_succeeded') || 0 },
+  ];
+
   const summaryData: AdminSummaryChartsData = {
     events: {
       total: eventsResult.length,
@@ -294,6 +411,26 @@ export default async function AdminHome() {
         { name: 'Activos', value: activeMethods },
         { name: 'Inactivos', value: inactiveMethods },
       ],
+    },
+    createEventFunnel: {
+      entryViews: analyticsEventCounts.get('create_event_entry_viewed') || 0,
+      activationCompleted: analyticsEventCounts.get('organizer_activation_completed') || 0,
+      paymentSetupViews: analyticsEventCounts.get('create_event_payment_setup_viewed') || 0,
+      paymentMethodSaved: analyticsEventCounts.get('create_event_payment_method_saved') || 0,
+      draftStarts: analyticsEventCounts.get('create_event_draft_started') || 0,
+      draftCreated: analyticsEventCounts.get('create_event_draft_created') || 0,
+      publishAttempts: analyticsEventCounts.get('create_event_publish_attempted') || 0,
+      publishBlocked: analyticsEventCounts.get('create_event_publish_blocked') || 0,
+      publishSucceeded: analyticsEventCounts.get('create_event_publish_succeeded') || 0,
+      funnelStages: createEventFunnelStages,
+      blockerDistribution:
+        createEventBlockerCounts.size > 0
+          ? toBreakdownEntries(createEventBlockerCounts)
+          : createEmptyAnalyticsBreakdown('Sin bloqueos'),
+      stepViewDistribution:
+        createEventStepViewCounts.size > 0
+          ? toBreakdownEntries(createEventStepViewCounts)
+          : createEmptyAnalyticsBreakdown('Sin vistas'),
     },
     ...(canViewUsersModule
       ? {

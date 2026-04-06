@@ -6,17 +6,11 @@ import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventById } from '@shared/lib/data/getEventById';
 import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
+import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
 
 type Props = {
   templateId?: string;
 };
-
-function parseStoredBoolean(value: unknown) {
-  if (value === true) return true;
-  if (typeof value !== 'string') return false;
-  const normalized = value.trim().toLowerCase();
-  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
-}
 
 export default async function NewEventScreen({ templateId }: Props) {
   const supabase = await getServerSupabase();
@@ -185,12 +179,9 @@ export default async function NewEventScreen({ templateId }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-md shadow p-4">
-      <h2 className="text-lg font-semibold text-mulberry mb-4">
-        {templateInitial ? 'Crear evento desde plantilla' : 'Crear evento'}
-      </h2>
+    <div className="space-y-4">
       {templateInitial ? (
-        <div className="mb-4 rounded-xl border border-mulberry/20 bg-mulberry/5 px-4 py-3 text-sm text-slate-700">
+        <div className="rounded-2xl border border-mulberry/20 bg-mulberry/5 px-4 py-3 text-sm text-slate-700 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)]">
           Usando como plantilla: <strong>{templateTitle}</strong>. Ajusta lo necesario antes de crear el nuevo
           evento.
         </div>

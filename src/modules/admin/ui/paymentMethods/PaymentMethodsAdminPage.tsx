@@ -1,7 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
 import Input from '@core/ui/Input';
+import { trackEvent } from '@shared/lib/analytics';
 
 type PaymentMethodSummary = {
   id: number;
@@ -113,7 +115,17 @@ function SwitchControl({
   );
 }
 
-export default function PaymentMethodsAdminPage() {
+type Props = {
+  returnTo?: string;
+};
+
+function resolveReturnLabel(returnTo: string) {
+  if (returnTo.startsWith('/create-event')) return 'Volver al flujo de creación';
+  if (returnTo.startsWith('/admin/events/new')) return 'Volver a tu borrador';
+  return 'Volver';
+}
+
+export default function PaymentMethodsAdminPage({ returnTo = '' }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -132,6 +144,9 @@ export default function PaymentMethodsAdminPage() {
 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const activePaymentMethodsCount = paymentMethods.filter((method) => method.is_active !== false).length;
+  const hasActivePaymentMethods = activePaymentMethodsCount > 0;
+  const returnLabel = resolveReturnLabel(returnTo);
 
   function setQrPreviewValue(nextPreview: string) {
     setQrPreview((current) => {
@@ -287,6 +302,14 @@ export default function PaymentMethodsAdminPage() {
       const nextMethods = body.paymentMethods || [];
       setPaymentMethods(nextMethods);
       setMessage(body.mode === 'updated' ? 'Método actualizado.' : 'Método creado.');
+      if (returnTo) {
+        trackEvent('create_event_payment_method_saved', {
+          channel: 'web',
+          source: 'payment_methods_admin',
+          mode: body.mode || (editingId ? 'updated' : 'created'),
+          return_to: returnTo,
+        });
+      }
 
       if (editingId) {
         const edited = nextMethods.find((method) => method.id === editingId);
@@ -309,6 +332,15 @@ export default function PaymentMethodsAdminPage() {
   }, []);
 
   useEffect(() => {
+    if (!returnTo) return;
+    trackEvent('create_event_payment_setup_viewed', {
+      channel: 'web',
+      source: 'payment_methods_admin',
+      return_to: returnTo,
+    });
+  }, [returnTo]);
+
+  useEffect(() => {
     return () => {
       if (qrPreview.startsWith('blob:')) {
         URL.revokeObjectURL(qrPreview);
@@ -324,6 +356,57 @@ export default function PaymentMethodsAdminPage() {
           Crea y administra tus métodos de pago. Luego podrás asignarlos al crear/editar cada evento.
         </p>
       </div>
+
+      {returnTo ? (
+        <div
+          className={[
+            'mt-4 rounded-2xl border px-4 py-4',
+            hasActivePaymentMethods
+              ? 'border-emerald-200 bg-emerald-50'
+              : 'border-amber-200 bg-amber-50',
+          ].join(' ')}
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p
+                className={[
+                  'text-sm font-semibold',
+                  hasActivePaymentMethods ? 'text-emerald-800' : 'text-amber-800',
+                ].join(' ')}
+              >
+                {hasActivePaymentMethods
+                  ? 'Tu publicación ya tiene cómo cobrar.'
+                  : 'Estás preparando un evento.'}
+              </p>
+              <p className="mt-1 text-sm text-slate-700">
+                {hasActivePaymentMethods
+                  ? 'Ya tienes al menos un método activo. Puedes volver y seguir con tu borrador o publicación.'
+                  : 'Crea o activa al menos un método de pago para que publicar no se bloquee al final.'}
+              </p>
+            </div>
+
+            <Link
+              href={returnTo}
+              onClick={() => {
+                trackEvent('create_event_payment_setup_return_clicked', {
+                  channel: 'web',
+                  source: 'payment_methods_admin',
+                  return_to: returnTo,
+                  has_active_payment_methods: hasActivePaymentMethods,
+                });
+              }}
+              className={[
+                'inline-flex h-11 items-center rounded-full px-5 text-sm font-semibold transition',
+                hasActivePaymentMethods
+                  ? 'bg-mulberry text-white hover:bg-[#470760]'
+                  : 'border border-slate-300 text-slate-700 hover:bg-white',
+              ].join(' ')}
+            >
+              {returnLabel}
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <form onSubmit={handleSubmit} className="mt-4 grid gap-4">
         <div className="grid gap-4 md:grid-cols-2">
@@ -451,6 +534,27 @@ export default function PaymentMethodsAdminPage() {
         <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
           {message}
         </p>
+      ) : null}
+      {returnTo && hasActivePaymentMethods ? (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+          <span>
+            Tienes {activePaymentMethodsCount} método(s) activo(s). Ya puedes volver y continuar con tu evento.
+          </span>
+          <Link
+            href={returnTo}
+            onClick={() => {
+              trackEvent('create_event_payment_setup_return_clicked', {
+                channel: 'web',
+                source: 'payment_methods_admin_banner',
+                return_to: returnTo,
+                has_active_payment_methods: hasActivePaymentMethods,
+              });
+            }}
+            className="font-semibold text-mulberry hover:underline"
+          >
+            {returnLabel}
+          </Link>
+        </div>
       ) : null}
 
       <div className="mt-5 rounded-md border border-slate-200">

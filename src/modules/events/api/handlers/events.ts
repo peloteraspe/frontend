@@ -146,9 +146,6 @@ function validatePayload(body: any): CreateEventPayload {
   }
 
   if (!payload.locationText) throw new Error('La dirección es obligatoria.');
-  if (!payload.district) {
-    throw new Error('Selecciona un distrito válido.');
-  }
   if (!Number.isFinite(payload.lat) || !Number.isFinite(payload.lng)) {
     throw new Error('Debes seleccionar un punto válido en el mapa.');
   }

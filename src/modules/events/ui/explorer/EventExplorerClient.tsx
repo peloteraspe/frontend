@@ -12,7 +12,6 @@ import { trackEvent } from '@shared/lib/analytics';
 import { isAdmin as isAdminUser } from '@shared/lib/auth/isAdmin';
 import EventsMap from './EventsMap';
 import EventListPanel from './EventListPanel';
-import OrganizerActivationModal from './OrganizerActivationModal';
 
 type Props = {
   initialEvents: EventEntity[];
@@ -34,7 +33,6 @@ type Filters = {
 
 const LIMA_DEFAULT = { lat: -12.0464, lng: -77.0428 };
 type TimeFilter = 'upcoming' | 'past';
-const CREATE_EVENT_INTENT_PATH = '/events?create=1';
 
 export default function EventExplorerClient({ initialEvents, initialCatalogs }: Props) {
   const router = useRouter();
@@ -48,7 +46,6 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('upcoming');
   const [loading, setLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
-  const [showOrganizerModal, setShowOrganizerModal] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     q: '',
     date: '',
@@ -100,9 +97,6 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const visibleEventIds = useMemo(() => new Set(visibleEvents.map((event) => event.id)), [visibleEvents]);
   const createIntentRequested = searchParams.get('create') === '1';
   const userIsAdmin = Boolean(user && isAdminUser(user as any));
-  const organizerPhone = String(
-    user?.user_metadata?.organizer_phone || user?.app_metadata?.organizer_phone || ''
-  ).trim();
 
   useEffect(() => {
     setSelectedEventId((current) => (current && visibleEventIds.has(current) ? current : null));
@@ -110,20 +104,9 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   }, [visibleEventIds]);
 
   useEffect(() => {
-    if (!createIntentRequested || authLoading) return;
-
-    if (!user) {
-      router.replace(`/login?next=${encodeURIComponent(CREATE_EVENT_INTENT_PATH)}`);
-      return;
-    }
-
-    if (userIsAdmin) {
-      router.replace('/admin/events/new');
-      return;
-    }
-
-    setShowOrganizerModal(true);
-  }, [authLoading, createIntentRequested, router, user, userIsAdmin]);
+    if (!createIntentRequested) return;
+    router.replace('/create-event');
+  }, [createIntentRequested, router]);
 
   async function refreshEvents(preferredId?: string, currentFilters?: Filters) {
     const activeFilters = currentFilters ?? filters;
@@ -230,35 +213,11 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
     });
 
     if (authLoading) return;
-
-    if (!user) {
-      router.push(`/login?next=${encodeURIComponent(CREATE_EVENT_INTENT_PATH)}`);
-      return;
-    }
-
-    if (userIsAdmin) {
-      router.push('/admin/events/new');
-      return;
-    }
-
-    setShowOrganizerModal(true);
-  }
-
-  function handleCloseOrganizerModal() {
-    setShowOrganizerModal(false);
-    if (createIntentRequested) {
-      router.replace('/events');
-    }
-  }
-
-  async function handleOrganizerActivated() {
-    setShowOrganizerModal(false);
-    router.push('/admin/events/new');
+    router.push('/create-event');
   }
 
   return (
-    <>
-      <section className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 py-8 md:py-12">
+    <section className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 py-8 md:py-12">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-eastman-extrabold text-slate-900">Eventos en mapa</h1>
@@ -493,14 +452,5 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
         </div>
       </div>
       </section>
-
-      <OrganizerActivationModal
-        isOpen={showOrganizerModal}
-        source={createIntentRequested ? 'events_create_intent' : 'events_explorer'}
-        initialPhone={organizerPhone}
-        onClose={handleCloseOrganizerModal}
-        onActivated={handleOrganizerActivated}
-      />
-    </>
   );
 }

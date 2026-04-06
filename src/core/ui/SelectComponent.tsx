@@ -20,6 +20,7 @@ type CommonProps = {
   isSearchable?: boolean;
   bgColor?: string; // para igualar con Input (por si lo usas)
   className?: string;
+  tone?: 'default' | 'soft';
 };
 
 type ControlledProps = {
@@ -62,7 +63,8 @@ const buildStyles = (
   hasError?: boolean,
   isDisabled?: boolean,
   bg?: string,
-  isMulti?: boolean
+  isMulti?: boolean,
+  tone: 'default' | 'soft' = 'default'
 ): StylesConfig =>
   ({
     control: (base, state) => ({
@@ -73,11 +75,18 @@ const buildStyles = (
       flexWrap: isMulti ? 'wrap' : 'nowrap',
       // paddingBottom: isMulti ? 6 : 0,
       // height: isMulti ? 'auto' : 48,
-      borderWidth: BORDER_WIDTH,
-      borderRadius: RADIUS,
+      borderWidth: tone === 'soft' ? 1 : BORDER_WIDTH,
+      borderRadius: tone === 'soft' ? 12 : RADIUS,
       backgroundColor: bg ?? BG_WHITE,
-      borderColor: hasError ? BORDER_ERROR : state.isFocused ? MULBERRY : BORDER_DEFAULT,
-      boxShadow: 'none',
+      borderColor:
+        hasError
+          ? BORDER_ERROR
+          : state.isFocused
+            ? MULBERRY
+            : tone === 'soft'
+              ? '#cbd5e1'
+              : BORDER_DEFAULT,
+      boxShadow: state.isFocused && tone === 'soft' ? '0 0 0 4px rgba(91, 28, 112, 0.1)' : 'none',
       '&:hover': {
         borderColor: hasError ? BORDER_ERROR : MULBERRY_DARK,
       },
@@ -150,7 +159,7 @@ const buildStyles = (
     }),
     menu: (base) => ({
       ...base,
-      borderRadius: RADIUS,
+      borderRadius: tone === 'soft' ? 12 : RADIUS,
       overflow: 'hidden',
       boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
       marginTop: 6,
@@ -210,6 +219,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
   errorText,
   bgColor,
   className,
+  tone = 'default',
   selectProps,
 }) => {
   const hasError = Boolean(errorText);
@@ -249,7 +259,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
       placeholder="Selecciona una opción"
       noOptionsMessage={() => 'Sin opciones'}
       isDisabled={isDisabled}
-      styles={buildStyles(hasError, isDisabled, bgColor, isMulti)}
+      styles={buildStyles(hasError, isDisabled, bgColor, isMulti, tone)}
       theme={buildTheme}
       className={className}
       classNamePrefix="rs" // por si quieres añadir CSS escoped adicional
