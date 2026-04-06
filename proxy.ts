@@ -96,6 +96,10 @@ export async function proxy(request: NextRequest) {
 
     if (!isProfileComplete(profile ?? null)) {
       const url = new URL('/signUp?step=2', request.url);
+      const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search || ''}`;
+      if (nextPath && nextPath !== '/signUp') {
+        url.searchParams.set('next', nextPath);
+      }
       return NextResponse.redirect(url);
     }
 

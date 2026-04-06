@@ -43,6 +43,20 @@ export type AdminSummaryChartsData = {
     typeDistribution: BreakdownPoint[];
     statusDistribution: BreakdownPoint[];
   };
+  createEventFunnel: {
+    entryViews: number;
+    activationCompleted: number;
+    paymentSetupViews: number;
+    paymentMethodSaved: number;
+    draftStarts: number;
+    draftCreated: number;
+    publishAttempts: number;
+    publishBlocked: number;
+    publishSucceeded: number;
+    funnelStages: BreakdownPoint[];
+    blockerDistribution: BreakdownPoint[];
+    stepViewDistribution: BreakdownPoint[];
+  };
   users?: {
     total: number;
     complete: number;
@@ -233,6 +247,38 @@ export default function AdminSummaryCharts({ data }: { data: AdminSummaryChartsD
           </ChartCard>
           <ChartCard title="Estado activo/inactivo">
             <BarChartBlock data={data.paymentMethods.statusDistribution} />
+          </ChartCard>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-5">
+        <ModuleHeader
+          title="Funnel creación"
+          href="/create-event"
+          subtitle="Seguimiento del journey desde activación hasta borrador y publicación."
+        />
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <Kpi label="Entradas al flujo" value={data.createEventFunnel.entryViews} />
+          <Kpi label="Borradores iniciados" value={data.createEventFunnel.draftStarts} />
+          <Kpi label="Borradores creados" value={data.createEventFunnel.draftCreated} tone="positive" />
+          <Kpi label="Intentos de publicar" value={data.createEventFunnel.publishAttempts} />
+          <Kpi label="Publicaciones listas" value={data.createEventFunnel.publishSucceeded} tone="positive" />
+        </div>
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <Kpi label="Activaciones" value={data.createEventFunnel.activationCompleted} />
+          <Kpi label="Vistas de pagos" value={data.createEventFunnel.paymentSetupViews} />
+          <Kpi label="Métodos guardados" value={data.createEventFunnel.paymentMethodSaved} tone="positive" />
+          <Kpi label="Bloqueos al publicar" value={data.createEventFunnel.publishBlocked} tone="warning" />
+        </div>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3 xl:gap-4">
+          <ChartCard title="Etapas del funnel">
+            <BarChartBlock data={data.createEventFunnel.funnelStages} />
+          </ChartCard>
+          <ChartCard title="Bloqueos más frecuentes">
+            <PieChartBlock data={data.createEventFunnel.blockerDistribution} />
+          </ChartCard>
+          <ChartCard title="Pasos más visitados del wizard">
+            <BarChartBlock data={data.createEventFunnel.stepViewDistribution} />
           </ChartCard>
         </div>
       </section>

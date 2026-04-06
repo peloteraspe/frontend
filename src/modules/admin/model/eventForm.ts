@@ -1,4 +1,5 @@
 import { normalizeDateTimeLocalToLima } from '@shared/lib/dateTime';
+import { getEventPublishReadiness } from '@modules/admin/model/eventPublishReadiness';
 
 export type EventUpsertInput = {
   title: string;
@@ -95,17 +96,21 @@ export function validateEventFormInput(input: EventUpsertInput) {
     throw new Error('La fecha y hora de fin debe ser posterior al inicio.');
   }
 
-  if (!input.district.trim()) {
-    throw new Error('Selecciona un distrito válido.');
-  }
-
   if (!input.isPublished) return;
 
-  if (!input.isFieldReservedConfirmed) {
-    throw new Error('Confirma que la cancha ya está reservada antes de publicar el evento.');
-  }
+  const publishReadiness = getEventPublishReadiness({
+    title: input.title,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    district: input.district,
+    locationText: input.locationText,
+    lat: input.lat,
+    lng: input.lng,
+    paymentMethodIds: input.paymentMethodIds,
+    isFieldReservedConfirmed: input.isFieldReservedConfirmed,
+  });
 
-  if (!Array.isArray(input.paymentMethodIds) || input.paymentMethodIds.length === 0) {
-    throw new Error('Selecciona al menos un método de pago antes de publicar el evento.');
+  if (!publishReadiness.isReady && publishReadiness.primaryMessage) {
+    throw new Error(publishReadiness.primaryMessage);
   }
 }

@@ -19,9 +19,10 @@ const initialStatus: FormStatus = {
 
 type Props = {
   kind: LeadKind;
+  source?: string;
 };
 
-async function submitLead(kind: LeadKind, form: HTMLFormElement) {
+async function submitLead(kind: LeadKind, source: string, form: HTMLFormElement) {
   const payload = Object.fromEntries(new FormData(form).entries());
   const response = await fetch('/api/leads/partners', {
     method: 'POST',
@@ -30,7 +31,7 @@ async function submitLead(kind: LeadKind, form: HTMLFormElement) {
     },
     body: JSON.stringify({
       leadType: kind,
-      source: kind === 'admin' ? 'admin_capture_page' : 'sponsor_capture_page',
+      source,
       ...payload,
     }),
   });
@@ -44,10 +45,15 @@ async function submitLead(kind: LeadKind, form: HTMLFormElement) {
     throw new Error(body?.error || body?.message || 'No se pudo enviar tu información.');
   }
 
-  return body?.message || 'Gracias. Te contactaremos pronto.';
+  return body?.message || (kind === 'admin'
+    ? 'Gracias. Nuestro equipo te contactará para ayudarte a activar tu perfil.'
+    : 'Gracias. Te contactaremos pronto.');
 }
 
-export default function PartnerLeadCaptureForm({ kind }: Props) {
+export default function PartnerLeadCaptureForm({
+  kind,
+  source = kind === 'admin' ? 'admin_capture_page' : 'sponsor_capture_page',
+}: Props) {
   const [status, setStatus] = useState<FormStatus>(initialStatus);
   const isAdmin = kind === 'admin';
 
@@ -57,11 +63,15 @@ export default function PartnerLeadCaptureForm({ kind }: Props) {
     setStatus({ pending: true, error: '', success: '' });
 
     try {
-      const message = await submitLead(kind, form);
+      const message = await submitLead(kind, source, form);
       setStatus({ pending: false, error: '', success: message });
       if (kind === 'admin') {
         trackEvent('admin_request_submitted', {
-          source: 'admin_capture_page',
+          source,
+          channel: 'web',
+        });
+        trackEvent('create_event_support_requested', {
+          source,
           channel: 'web',
         });
       }
@@ -69,7 +79,12 @@ export default function PartnerLeadCaptureForm({ kind }: Props) {
     } catch (error: any) {
       if (kind === 'admin') {
         trackEvent('admin_request_failed', {
-          source: 'admin_capture_page',
+          source,
+          channel: 'web',
+          reason: error?.message || 'submit_failed',
+        });
+        trackEvent('create_event_support_request_failed', {
+          source,
           channel: 'web',
           reason: error?.message || 'submit_failed',
         });
@@ -145,7 +160,7 @@ export default function PartnerLeadCaptureForm({ kind }: Props) {
             disabled={status.pending}
             className="inline-flex h-11 items-center rounded-full bg-mulberry px-6 text-sm font-semibold text-white transition hover:bg-[#470760] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {status.pending ? 'Enviando...' : 'Enviar postulación'}
+            {status.pending ? 'Enviando...' : 'Pedir ayuda para activar mi perfil'}
           </button>
         </div>
         {status.error ? <p className="text-sm text-red-600 md:col-span-2">{status.error}</p> : null}

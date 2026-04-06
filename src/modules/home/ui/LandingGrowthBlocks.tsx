@@ -41,10 +41,10 @@ export default function LandingGrowthBlocks() {
 
         <div className="mt-6">
           <Link
-            href="/events?create=1"
+            href="/create-event"
             className="inline-flex h-11 items-center rounded-full bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760]"
           >
-            Postular como admin
+            Crear mi primer evento
           </Link>
         </div>
       </article>

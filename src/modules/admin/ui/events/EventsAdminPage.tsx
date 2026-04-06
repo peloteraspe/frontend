@@ -6,6 +6,7 @@ import { setEventFeatured, setEventPublished } from '@modules/admin/api/events/_
 import { getAllUserEmailsForBroadcast } from '@modules/admin/api/users/services/adminUsers.service';
 import EventQuickActionsMenu from '@modules/admin/ui/events/EventQuickActionsMenu';
 import { getApprovedParticipantsCountByEventIds } from '@modules/admin/api/events/services/eventParticipants.service';
+import { getEventPublishReadiness, parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
 
 type Props = {
   searchParams?: {
@@ -14,13 +15,6 @@ type Props = {
 };
 
 const DEFAULT_TIMEZONE = 'America/Lima';
-
-function parseStoredBoolean(value: unknown) {
-  if (value === true) return true;
-  if (typeof value !== 'string') return false;
-  const normalized = value.trim().toLowerCase();
-  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
-}
 
 function parseDate(value: unknown) {
   if (!value) return null;
@@ -122,15 +116,42 @@ export default async function AdminEventsPage({ searchParams }: Props) {
   );
   const paymentMethodRows =
     eventIds.length > 0
-      ? await supabase.from('eventPaymentMethod').select('event').in('event', eventIds)
+      ? await supabase.from('eventPaymentMethod').select('event,paymentMethod').in('event', eventIds)
       : { data: [], error: null };
 
   if (paymentMethodRows.error) {
     throw new Error(paymentMethodRows.error.message);
   }
 
+  const linkedPaymentMethodIds = Array.from(
+    new Set(
+      (paymentMethodRows.data ?? [])
+        .map((row) => Number((row as { paymentMethod: number | string | null }).paymentMethod))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )
+  );
+  const activePaymentMethods =
+    linkedPaymentMethodIds.length > 0
+      ? await supabase
+          .from('paymentMethod')
+          .select('id')
+          .in('id', linkedPaymentMethodIds)
+          .eq('is_active', true)
+      : { data: [], error: null };
+
+  if (activePaymentMethods.error) {
+    throw new Error(activePaymentMethods.error.message);
+  }
+
+  const activePaymentMethodIds = new Set(
+    (activePaymentMethods.data ?? []).map((row) => Number((row as { id: number | string }).id))
+  );
   const eventIdsWithPaymentMethods = new Set(
-    (paymentMethodRows.data ?? []).map((row) => String((row as { event: string | number }).event))
+    (paymentMethodRows.data ?? [])
+      .filter((row) =>
+        activePaymentMethodIds.has(Number((row as { paymentMethod: number | string | null }).paymentMethod))
+      )
+      .map((row) => String((row as { event: string | number }).event))
   );
 
   function canPublishEvent(event: any) {
@@ -143,17 +164,17 @@ export default async function AdminEventsPage({ searchParams }: Props) {
         ? (event.location as Record<string, unknown>)
         : {};
 
-    return Boolean(
-      String(event?.title || '').trim() &&
-        event?.start_time &&
-        event?.end_time &&
-        String(event?.district || '').trim() &&
-        String(event?.location_text || '').trim() &&
-        Number.isFinite(Number(location.lat)) &&
-        Number.isFinite(Number(location.lng ?? location.long)) &&
-        parseStoredBoolean(description.field_reserved_confirmed) &&
-        eventIdsWithPaymentMethods.has(String(event?.id || ''))
-    );
+    return getEventPublishReadiness({
+      title: event?.title,
+      startTime: event?.start_time,
+      endTime: event?.end_time,
+      district: event?.district,
+      locationText: event?.location_text,
+      lat: location.lat,
+      lng: location.lng ?? location.long,
+      paymentMethodCount: eventIdsWithPaymentMethods.has(String(event?.id || '')) ? 1 : 0,
+      isFieldReservedConfirmed: parseStoredBoolean(description.field_reserved_confirmed),
+    }).isReady;
   }
 
   return (

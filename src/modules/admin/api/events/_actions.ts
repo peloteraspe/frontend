@@ -5,6 +5,10 @@ import { getServerSupabase } from '@src/core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
 import { EventUpsertInput, validateEventFormInput } from '@modules/admin/model/eventForm';
+import {
+  getEventPublishReadiness,
+  parseStoredBoolean,
+} from '@modules/admin/model/eventPublishReadiness';
 import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { ensureGoogleWalletEventClass } from '@modules/tickets/api/services/google-wallet.service';
 
@@ -85,13 +89,6 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function parseStoredBoolean(value: unknown) {
-  if (value === true) return true;
-  if (typeof value !== 'string') return false;
-  const normalized = value.trim().toLowerCase();
-  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
-}
-
 async function getAuthenticatedAdminContext(action: string) {
   const supabase = await getServerSupabase();
   const {
@@ -154,37 +151,51 @@ async function assertEventCanBePublished(
     event.description && typeof event.description === 'object'
       ? (event.description as Record<string, unknown>)
       : {};
-  const hasReservedFieldConfirmation = parseStoredBoolean(description.field_reserved_confirmed);
   const location = event.location && typeof event.location === 'object'
     ? (event.location as Record<string, unknown>)
     : {};
-  const hasLocationCoordinates =
-    Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng ?? location.long));
 
-  if (
-    !String(event.title || '').trim() ||
-    !event.start_time ||
-    !event.end_time ||
-    !String(event.district || '').trim() ||
-    !String(event.location_text || '').trim() ||
-    !hasLocationCoordinates
-  ) {
-    throw new Error('Completa los datos principales del evento antes de publicarlo.');
-  }
-
-  if (!hasReservedFieldConfirmation) {
-    throw new Error('Confirma que la cancha ya está reservada antes de publicar el evento.');
-  }
-
-  const { data: paymentMethods, error: paymentMethodsError } = await supabase
+  const { data: paymentMethodLinks, error: paymentMethodsError } = await supabase
     .from('eventPaymentMethod')
-    .select('id')
-    .eq('event', eventId)
-    .limit(1);
+    .select('paymentMethod')
+    .eq('event', eventId);
 
   if (paymentMethodsError) throw new Error(paymentMethodsError.message);
-  if ((paymentMethods ?? []).length === 0) {
-    throw new Error('Agrega al menos un método de pago antes de publicar el evento.');
+
+  const paymentMethodIds = Array.from(
+    new Set(
+      (paymentMethodLinks ?? [])
+        .map((row) => Number((row as { paymentMethod: number | string | null }).paymentMethod))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+
+  const { data: activePaymentMethods, error: activePaymentMethodsError } =
+    paymentMethodIds.length > 0
+      ? await supabase
+          .from('paymentMethod')
+          .select('id')
+          .in('id', paymentMethodIds)
+          .eq('is_active', true)
+          .limit(1)
+      : { data: [], error: null };
+
+  if (activePaymentMethodsError) throw new Error(activePaymentMethodsError.message);
+
+  const publishReadiness = getEventPublishReadiness({
+    title: event.title,
+    startTime: event.start_time,
+    endTime: event.end_time,
+    district: event.district,
+    locationText: event.location_text,
+    lat: location.lat,
+    lng: location.lng ?? location.long,
+    paymentMethodCount: (activePaymentMethods ?? []).length,
+    isFieldReservedConfirmed: parseStoredBoolean(description.field_reserved_confirmed),
+  });
+
+  if (!publishReadiness.isReady && publishReadiness.primaryMessage) {
+    throw new Error(publishReadiness.primaryMessage);
   }
 }
 
@@ -243,6 +254,7 @@ async function syncEventPaymentMethods(
     .from('paymentMethod')
     .select('id')
     .eq('created_by', ownerUserId)
+    .eq('is_active', true)
     .in('id', normalizedPaymentMethodIds);
 
   if (ownedMethodsError) throw new Error(ownedMethodsError.message);
@@ -256,7 +268,7 @@ async function syncEventPaymentMethods(
   );
 
   if (ownedMethodIds.length !== normalizedPaymentMethodIds.length) {
-    throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
+    throw new Error('Solo puedes usar formas de pago activas creadas por tu cuenta.');
   }
 
   const { error: insertError } = await supabase.from('eventPaymentMethod').insert(

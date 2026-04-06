@@ -25,7 +25,7 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
   const [isSigningOut, setIsSigningOut] = React.useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const userIsAdmin = Boolean(user && isAdminUser(user as any));
-  const createEventHref = userIsAdmin ? '/admin/events/new' : '/events?create=1';
+  const createEventHref = '/create-event';
 
   const toggleOpen = useCallback(() => {
     setIsOpen((prev) => !prev);

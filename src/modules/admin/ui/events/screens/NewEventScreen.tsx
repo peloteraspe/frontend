@@ -6,17 +6,11 @@ import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventById } from '@shared/lib/data/getEventById';
 import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
+import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
 
 type Props = {
   templateId?: string;
 };
-
-function parseStoredBoolean(value: unknown) {
-  if (value === true) return true;
-  if (typeof value !== 'string') return false;
-  const normalized = value.trim().toLowerCase();
-  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
-}
 
 export default async function NewEventScreen({ templateId }: Props) {
   const supabase = await getServerSupabase();

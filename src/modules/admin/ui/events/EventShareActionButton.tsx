@@ -54,6 +54,8 @@ export default function EventShareActionButton({
         message="Comparte este evento para que nuevas jugadoras se inscriban."
         eventTitle={eventTitle || 'Evento'}
         shareUrl={shareUrl}
+        managementHref={`/admin/events/${eventId}/edit`}
+        managementLabel="Abrir gestión del evento"
         onClose={handleClose}
       />
     </>

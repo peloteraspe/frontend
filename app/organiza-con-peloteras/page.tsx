@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import PartnerLeadCaptureForm from '@modules/home/ui/PartnerLeadCaptureForm';
+import Link from 'next/link';
+import OrganizerSupportFallback from '@modules/home/ui/OrganizerSupportFallback';
 
 export const metadata: Metadata = {
-  title: 'Postula como Admin | Peloteras',
-  description: 'Envía tu solicitud para organizar eventos con Peloteras.',
+  title: 'Activa tu perfil organizadora | Peloteras',
+  description: 'Activa tu perfil, crea tu primer borrador y publica con Peloteras.',
 };
 
 const bullets = [
@@ -21,9 +22,24 @@ export default function OrganizaConPeloterasPage() {
           Postula para organizar con Peloteras
         </h1>
         <p className="mt-3 max-w-3xl text-sm text-slate-600 sm:text-base">
-          Queremos ayudarte a escalar tus pichangas con una operación más profesional, más confiable y
-          centrada en comunidad.
+          Activa tu perfil, crea tu primer borrador y publica cuando tengas cancha y cobro listos. Si
+          prefieres acompañamiento humano, también podemos ayudarte.
         </p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link
+            href="/create-event"
+            className="inline-flex h-11 items-center rounded-full bg-mulberry px-6 text-sm font-semibold text-white transition hover:bg-[#470760]"
+          >
+            Activar perfil y crear evento
+          </Link>
+          <Link
+            href="/events"
+            className="inline-flex h-11 items-center rounded-full border border-slate-300 px-6 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Ver eventos
+          </Link>
+        </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           {bullets.map((item) => (
@@ -33,12 +49,7 @@ export default function OrganizaConPeloterasPage() {
           ))}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-          <p className="text-sm text-slate-700 sm:text-base">
-            Déjanos tus datos y revisaremos tu solicitud para activar tu comunidad en Peloteras.
-          </p>
-          <PartnerLeadCaptureForm kind="admin" />
-        </div>
+        <OrganizerSupportFallback />
       </section>
     </main>
   );
