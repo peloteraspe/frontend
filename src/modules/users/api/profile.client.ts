@@ -1,4 +1,5 @@
 // Client-side data fetching functions using fetch API
+import type { UserProfileData, UserProfileUpdate } from '@modules/users/model/types';
 
 const PROFILE_FETCH_TIMEOUT_MS = 12000;
 
@@ -35,7 +36,7 @@ async function withTimeout<T>(
   }
 }
 
-async function fetchProfileFromSupabase(userId: string) {
+async function fetchProfileFromSupabase(userId: string): Promise<UserProfileData | null> {
   const { getBrowserSupabase } = await import('@src/core/api/supabase.browser');
   const supabase = getBrowserSupabase();
 
@@ -110,7 +111,7 @@ async function fetchProfileFromSupabase(userId: string) {
   };
 }
 
-export async function fetchProfile(userId: string) {
+export async function fetchProfile(userId: string): Promise<UserProfileData | null> {
   try {
     // Get the session token from Supabase client
     const { getBrowserSupabase } = await import('@src/core/api/supabase.browser');
@@ -189,7 +190,10 @@ export async function fetchLevels() {
 }
 
 // Update profile function
-export async function updateProfile(userId: string, updates: any) {
+export async function updateProfile(
+  userId: string,
+  updates: UserProfileUpdate
+): Promise<UserProfileData | null> {
   try {
     // Get the session token from Supabase client
     const { getBrowserSupabase } = await import('@src/core/api/supabase.browser');

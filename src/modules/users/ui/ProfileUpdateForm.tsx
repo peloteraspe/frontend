@@ -5,7 +5,7 @@ import { useAuth } from '@core/auth/AuthProvider';
 import InternationalPhoneField from '@core/ui/InternationalPhoneField';
 import { ButtonM } from '@src/core/ui/Typography';
 import SelectComponent from '@core/ui/SelectComponent';
-import { UserProfileUpdate } from '@modules/users/model/types';
+import { UserProfileData, UserProfileUpdate } from '@modules/users/model/types';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import Input from '@core/ui/Input';
@@ -21,7 +21,8 @@ export type OptionSelectNumber = { value: number; label: string };
 interface ProfileUpdateFormProps {
   userProfile: string;
 
-  updateProfile(userId: string, updates: UserProfileUpdate): Promise<void>;
+  updateProfile(userId: string, updates: UserProfileUpdate): Promise<UserProfileData | null>;
+  onProfileUpdated?(profile: UserProfileData): void;
   userId: string;
 
   levelsData: OptionSelectNumber | null;
@@ -43,6 +44,7 @@ export default function ProfileUpdateForm({
   levelsOptions,
   playerPositionOptions,
   updateProfile,
+  onProfileUpdated,
   userId,
 }: ProfileUpdateFormProps) {
   const supabase = getBrowserSupabase();
@@ -69,14 +71,19 @@ export default function ProfileUpdateForm({
     },
   });
 
+  const levelIdFromProps = levelsData?.value ?? null;
+  const positionIdsFromProps = positionsData.map((position) => position.value).join(',');
+
   // Si los props iniciales cambian (p.ej. al refetchear), reseteamos el form
   useEffect(() => {
     reset({
       username: userProfile ?? '',
-      level_id: levelsData?.value ?? null,
-      positions: positionsData.map((position) => position.value) ?? [],
+      level_id: levelIdFromProps,
+      positions: positionIdsFromProps
+        ? positionIdsFromProps.split(',').map((positionId) => Number(positionId))
+        : [],
     });
-  }, [userProfile, positionsData, levelsData, reset]);
+  }, [userProfile, levelIdFromProps, positionIdsFromProps, reset]);
 
   useEffect(() => {
     setPhone(initialPhone);
@@ -121,7 +128,7 @@ export default function ProfileUpdateForm({
         phone: normalizedPhone || null,
       };
 
-      await updateProfile(userId, updateData);
+      const updatedProfile = await updateProfile(userId, updateData);
       const currentMetadata = normalizePhoneMetadata(user?.user_metadata);
       const nextMetadata: Record<string, unknown> = {
         ...currentMetadata,
@@ -137,6 +144,28 @@ export default function ProfileUpdateForm({
         throw new Error(metadataError.message);
       }
 
+      const nextProfileData: UserProfileData = {
+        ...(updatedProfile ?? {}),
+        username: data.username.trim(),
+        level_id: data.level_id as number,
+        level:
+          levelsOptions.find((option) => option.value === data.level_id)?.label ??
+          updatedProfile?.level ??
+          null,
+        player_position: (playerPositionOptions ?? [])
+          .filter((option) => data.positions.includes(option.value))
+          .map((option) => ({
+            id: option.value,
+            name: option.label,
+          })),
+      };
+
+      onProfileUpdated?.(nextProfileData);
+      reset({
+        username: nextProfileData.username ?? '',
+        level_id: nextProfileData.level_id ?? null,
+        positions: [...data.positions],
+      });
       setPhone(normalizedPhone || '');
       await refreshProfile().catch(() => undefined);
       toast.success('¡Se actualizó tu perfil con éxito!');
