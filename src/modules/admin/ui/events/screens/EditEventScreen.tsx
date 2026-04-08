@@ -8,7 +8,7 @@ import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
 import { getDefaultEventAnnouncementEmail } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
-import { getParticipantContactsByEventId } from '@modules/admin/api/events/services/eventParticipants.service';
+import { getApprovedParticipantsByEventId } from '@modules/admin/api/events/services/eventParticipants.service';
 import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
 import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
 
@@ -33,7 +33,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
         .order('is_active', { ascending: false })
         .order('created_at', { ascending: false }),
       supabase.from('eventPaymentMethod').select('paymentMethod').eq('event', id),
-      getParticipantContactsByEventId(id, ['pending', 'approved']),
+      getApprovedParticipantsByEventId(id),
     ]);
 
   if (featuresRes.error) throw new Error(featuresRes.error.message);

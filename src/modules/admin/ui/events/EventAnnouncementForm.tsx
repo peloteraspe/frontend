@@ -69,7 +69,7 @@ export default function EventAnnouncementForm({
       <div className="mb-4 flex flex-col gap-2">
         <h3 className="text-lg font-semibold text-mulberry">Enviar correo a inscritas</h3>
         <p className="text-sm text-slate-600">
-          Tu mensaje se enviará con el template oficial a las inscritas con pago pendiente o aprobado.
+          Tu mensaje se enviará con el template oficial solo a las inscritas con pago aprobado.
         </p>
       </div>
 
@@ -82,7 +82,7 @@ export default function EventAnnouncementForm({
 
       {recipientCount === 0 ? (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          No hay inscritas activas con correo para este evento.
+          No hay inscritas con pago aprobado y correo para este evento.
         </div>
       ) : null}
 
