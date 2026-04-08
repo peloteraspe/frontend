@@ -141,7 +141,7 @@ export default function LoginForm() {
         const finalDestination =
           state.nextStep === null
             ? await resolvePostLoginDestination(requestedNextPath)
-            : state.destination;
+            : appendNextPath(state.destination, requestedNextPath);
         window.location.replace(finalDestination);
       } catch {
         window.location.replace(await resolvePostLoginDestination(requestedNextPath));
@@ -290,7 +290,7 @@ export default function LoginForm() {
       const finalDestination =
         nextStep === null
           ? await resolvePostLoginDestination(requestedNextPath)
-          : destination;
+          : appendNextPath(destination, requestedNextPath);
 
       toast.success('Bienvenida de vuelta.');
       window.location.assign(finalDestination);

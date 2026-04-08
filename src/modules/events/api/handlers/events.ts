@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
+import { log } from '@core/lib/logger';
 import {
   clientIdentifierFromRequest,
   rateLimitByIdentifier,
@@ -11,6 +12,16 @@ import { CreateEventPayload, EventEntity } from '@modules/events/model/types';
 import { getIsoDateInTimeZone, normalizeDateTimeLocalToLima } from '@shared/lib/dateTime';
 
 const EVENTS_TIMEOUT_MS = 4500;
+
+function isMissingPlaceTextColumnError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : error && typeof error === 'object' && 'message' in error
+        ? String((error as { message?: unknown }).message || '')
+        : String(error || '');
+  return /place_text/i.test(message) && /(schema cache|column|could not find|does not exist)/i.test(message);
+}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error) {
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -79,6 +90,7 @@ function applyFilters(events: EventEntity[], requestUrl: string) {
     filtered = filtered.filter(
       (event) =>
         event.title.toLowerCase().includes(q) ||
+        event.placeText.toLowerCase().includes(q) ||
         event.locationText.toLowerCase().includes(q) ||
         event.district.toLowerCase().includes(q)
     );
@@ -125,6 +137,7 @@ function validatePayload(body: any): CreateEventPayload {
     minUsers: parseNumber(body?.minUsers),
     maxUsers: parseNumber(body?.maxUsers),
     district: normalizeDistrict(body?.district),
+    placeText: String(body?.placeText ?? '').trim(),
     locationText: String(body?.locationText ?? '').trim(),
     locationReference: String(body?.locationReference ?? '').trim(),
     lat: parseNumber(body?.lat),
@@ -146,9 +159,6 @@ function validatePayload(body: any): CreateEventPayload {
   }
 
   if (!payload.locationText) throw new Error('La dirección es obligatoria.');
-  if (!payload.district) {
-    throw new Error('Selecciona un distrito válido.');
-  }
   if (!Number.isFinite(payload.lat) || !Number.isFinite(payload.lng)) {
     throw new Error('Debes seleccionar un punto válido en el mapa.');
   }
@@ -254,33 +264,57 @@ export async function POST(request: Request) {
 
     const createdBy = profile?.username || user.email?.split('@')[0] || 'Peloteras';
 
-    const { data, error } = await supabase
+    const baseInsertPayload = {
+      title: payload.title,
+      description: {
+        title: payload.title,
+        description: payload.description,
+        location_reference: payload.locationReference || null,
+      },
+      start_time: payload.startTime,
+      end_time: payload.endTime,
+      location: {
+        lat: payload.lat,
+        long: payload.lng,
+      },
+      location_text: payload.locationText,
+      district: payload.district,
+      min_users: payload.minUsers,
+      max_users: payload.maxUsers,
+      price: payload.price,
+      EventType: payload.eventTypeId,
+      level: payload.levelId,
+      created_by: createdBy,
+      created_by_id: user.id,
+    };
+
+    let { data, error } = await supabase
       .from('event')
       .insert({
-        title: payload.title,
-        description: {
-          title: payload.title,
-          description: payload.description,
-          location_reference: payload.locationReference || null,
-        },
-        start_time: payload.startTime,
-        end_time: payload.endTime,
-        location: {
-          lat: payload.lat,
-          long: payload.lng,
-        },
-        location_text: payload.locationText,
-        district: payload.district,
-        min_users: payload.minUsers,
-        max_users: payload.maxUsers,
-        price: payload.price,
-        EventType: payload.eventTypeId,
-        level: payload.levelId,
-        created_by: createdBy,
-        created_by_id: user.id,
+        ...baseInsertPayload,
+        place_text: payload.placeText,
       })
       .select('id')
       .single();
+
+    if (error && isMissingPlaceTextColumnError(error)) {
+      log.warn('Event place_text column missing; retrying public create without it', 'EVENT_API', {
+        userId: user.id,
+      });
+      const retried = await supabase
+        .from('event')
+        .insert({
+          ...baseInsertPayload,
+          description: {
+            ...baseInsertPayload.description,
+            place_text: payload.placeText || null,
+          },
+        })
+        .select('id')
+        .single();
+      data = retried.data;
+      error = retried.error;
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

@@ -5,6 +5,10 @@ import { getServerSupabase } from '@src/core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
 import { EventUpsertInput, validateEventFormInput } from '@modules/admin/model/eventForm';
+import {
+  getEventPublishReadiness,
+  parseStoredBoolean,
+} from '@modules/admin/model/eventPublishReadiness';
 import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { ensureGoogleWalletEventClass } from '@modules/tickets/api/services/google-wallet.service';
 
@@ -12,24 +16,43 @@ type SupabaseClientLike =
   | Awaited<ReturnType<typeof getServerSupabase>>
   | ReturnType<typeof getAdminSupabase>;
 
+type EventPayloadOptions = {
+  includePlaceTextColumn?: boolean;
+};
+
+function buildEventDescription(input: EventUpsertInput, options: EventPayloadOptions = {}) {
+  const includePlaceTextColumn = options.includePlaceTextColumn !== false;
+  const description: Record<string, unknown> = {
+    title: input.title,
+    description: input.description,
+    field_reserved_confirmed: input.isFieldReservedConfirmed,
+  };
+
+  if (!includePlaceTextColumn && String(input.placeText || '').trim()) {
+    description.place_text = String(input.placeText || '').trim();
+  }
+
+  return description;
+}
+
 function toInsertPayload(
   input: EventUpsertInput,
   userId: string,
   createdBy: string,
-  isFeatured: boolean
+  isFeatured: boolean,
+  options: EventPayloadOptions = {}
 ) {
+  const includePlaceTextColumn = options.includePlaceTextColumn !== false;
   return {
     title: input.title,
-    description: {
-      title: input.title,
-      description: input.description,
-    },
+    description: buildEventDescription(input, options),
     start_time: input.startTime,
     end_time: input.endTime,
     location: {
       lat: input.lat,
       long: input.lng,
     },
+    ...(includePlaceTextColumn ? { place_text: input.placeText } : {}),
     location_text: input.locationText,
     district: input.district,
     min_users: input.minUsers,
@@ -44,19 +67,22 @@ function toInsertPayload(
   };
 }
 
-function toUpdatePayload(input: EventUpsertInput, isFeatured: boolean) {
+function toUpdatePayload(
+  input: EventUpsertInput,
+  isFeatured: boolean,
+  options: EventPayloadOptions = {}
+) {
+  const includePlaceTextColumn = options.includePlaceTextColumn !== false;
   return {
     title: input.title,
-    description: {
-      title: input.title,
-      description: input.description,
-    },
+    description: buildEventDescription(input, options),
     start_time: input.startTime,
     end_time: input.endTime,
     location: {
       lat: input.lat,
       long: input.lng,
     },
+    ...(includePlaceTextColumn ? { place_text: input.placeText } : {}),
     location_text: input.locationText,
     district: input.district,
     min_users: input.minUsers,
@@ -75,12 +101,22 @@ function getErrorMessage(error: unknown, fallback: string) {
     return message || fallback;
   }
 
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = String((error as { message?: unknown }).message || '').trim();
+    return message || fallback;
+  }
+
   if (typeof error === 'string') {
     const message = error.trim();
     return message || fallback;
   }
 
   return fallback;
+}
+
+function isMissingPlaceTextColumnError(error: unknown) {
+  const message = getErrorMessage(error, '');
+  return /place_text/i.test(message) && /(schema cache|column|could not find|does not exist)/i.test(message);
 }
 
 async function getAuthenticatedAdminContext(action: string) {
@@ -125,6 +161,74 @@ async function assertCanManageEvent(
   }
 }
 
+async function assertEventCanBePublished(
+  supabase: SupabaseClientLike,
+  eventId: string,
+  user: { id?: string | null; email?: string | null } | null
+) {
+  await assertCanManageEvent(supabase, eventId, user);
+
+  const { data: event, error: eventError } = await supabase
+    .from('event')
+    .select('title,start_time,end_time,district,location_text,location,description')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (eventError) throw new Error(eventError.message);
+  if (!event) throw new Error('Evento no encontrado.');
+
+  const description =
+    event.description && typeof event.description === 'object'
+      ? (event.description as Record<string, unknown>)
+      : {};
+  const location = event.location && typeof event.location === 'object'
+    ? (event.location as Record<string, unknown>)
+    : {};
+
+  const { data: paymentMethodLinks, error: paymentMethodsError } = await supabase
+    .from('eventPaymentMethod')
+    .select('paymentMethod')
+    .eq('event', eventId);
+
+  if (paymentMethodsError) throw new Error(paymentMethodsError.message);
+
+  const paymentMethodIds = Array.from(
+    new Set(
+      (paymentMethodLinks ?? [])
+        .map((row) => Number((row as { paymentMethod: number | string | null }).paymentMethod))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+
+  const { data: activePaymentMethods, error: activePaymentMethodsError } =
+    paymentMethodIds.length > 0
+      ? await supabase
+          .from('paymentMethod')
+          .select('id')
+          .in('id', paymentMethodIds)
+          .eq('is_active', true)
+          .limit(1)
+      : { data: [], error: null };
+
+  if (activePaymentMethodsError) throw new Error(activePaymentMethodsError.message);
+
+  const publishReadiness = getEventPublishReadiness({
+    title: event.title,
+    startTime: event.start_time,
+    endTime: event.end_time,
+    district: event.district,
+    locationText: event.location_text,
+    lat: location.lat,
+    lng: location.lng ?? location.long,
+    paymentMethodCount: (activePaymentMethods ?? []).length,
+    isFieldReservedConfirmed: parseStoredBoolean(description.field_reserved_confirmed),
+  });
+
+  if (!publishReadiness.isReady && publishReadiness.primaryMessage) {
+    throw new Error(publishReadiness.primaryMessage);
+  }
+}
+
 function normalizeFeatureIds(ids: number[]) {
   return Array.from(
     new Set(ids.filter((id) => Number.isInteger(id) && id > 0))
@@ -135,6 +239,30 @@ function normalizePaymentMethodIds(ids: number[]) {
   return Array.from(
     new Set(ids.filter((id) => Number.isInteger(id) && id > 0))
   );
+}
+
+async function loadOwnedPaymentMethods(
+  supabase: SupabaseClientLike,
+  ownerUserId: string,
+  paymentMethodIds: number[]
+) {
+  const normalizedPaymentMethodIds = normalizePaymentMethodIds(paymentMethodIds);
+  if (normalizedPaymentMethodIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('paymentMethod')
+    .select('id,is_active')
+    .eq('created_by', ownerUserId)
+    .in('id', normalizedPaymentMethodIds);
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .map((row) => ({
+      id: Number((row as { id: number | string | null }).id),
+      isActive: (row as { is_active?: boolean | null }).is_active !== false,
+    }))
+    .filter((method) => Number.isInteger(method.id) && method.id > 0);
 }
 
 async function syncEventFeatures(
@@ -176,20 +304,8 @@ async function syncEventPaymentMethods(
 
   if (normalizedPaymentMethodIds.length === 0) return;
 
-  const { data: ownedMethods, error: ownedMethodsError } = await supabase
-    .from('paymentMethod')
-    .select('id')
-    .eq('created_by', ownerUserId)
-    .in('id', normalizedPaymentMethodIds);
-
-  if (ownedMethodsError) throw new Error(ownedMethodsError.message);
-
   const ownedMethodIds = Array.from(
-    new Set(
-      (ownedMethods ?? [])
-        .map((row) => Number((row as { id: number }).id))
-        .filter((id) => Number.isInteger(id) && id > 0)
-    )
+    new Set((await loadOwnedPaymentMethods(supabase, ownerUserId, normalizedPaymentMethodIds)).map((method) => method.id))
   );
 
   if (ownedMethodIds.length !== normalizedPaymentMethodIds.length) {
@@ -224,9 +340,20 @@ async function clearEventRelations(supabase: SupabaseClientLike, eventId: string
 }
 
 export async function createEvent(input: EventUpsertInput) {
-  validateEventFormInput(input);
-
   const { adminSupabase, user } = await getAuthenticatedAdminContext('crear');
+  const ownedPaymentMethods = await loadOwnedPaymentMethods(adminSupabase, user.id, input.paymentMethodIds);
+  const normalizedPaymentMethodIds = normalizePaymentMethodIds(input.paymentMethodIds);
+
+  if (ownedPaymentMethods.length !== normalizedPaymentMethodIds.length) {
+    throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
+  }
+
+  validateEventFormInput({
+    ...input,
+    paymentMethodIds: ownedPaymentMethods
+      .filter((method) => method.isActive)
+      .map((method) => method.id),
+  });
 
   const { data: profile, error: profileError } = await adminSupabase
     .from('profile')
@@ -241,11 +368,24 @@ export async function createEvent(input: EventUpsertInput) {
   let createdEventId: string | number | null = null;
 
   try {
-    const { data: createdEvent, error } = await adminSupabase
+    let { data: createdEvent, error } = await adminSupabase
       .from('event')
       .insert(toInsertPayload(input, user.id, createdBy, isFeatured))
       .select('id')
       .single();
+
+    if (error && isMissingPlaceTextColumnError(error)) {
+      log.warn('Event place_text column missing; retrying create without it', 'ADMIN_EVENTS', {
+        userId: user.id,
+      });
+      const retried = await adminSupabase
+        .from('event')
+        .insert(toInsertPayload(input, user.id, createdBy, isFeatured, { includePlaceTextColumn: false }))
+        .select('id')
+        .single();
+      createdEvent = retried.data;
+      error = retried.error;
+    }
 
     if (error) throw new Error(error.message);
     if (!createdEvent?.id) throw new Error('No se pudo obtener el id del evento creado.');
@@ -303,9 +443,21 @@ export async function createEvent(input: EventUpsertInput) {
 }
 
 export async function updateEvent(id: string, input: EventUpsertInput) {
-  validateEventFormInput(input);
-
   const { adminSupabase, user } = await getAuthenticatedAdminContext('editar');
+  const ownedPaymentMethods = await loadOwnedPaymentMethods(adminSupabase, user.id, input.paymentMethodIds);
+  const normalizedPaymentMethodIds = normalizePaymentMethodIds(input.paymentMethodIds);
+
+  if (ownedPaymentMethods.length !== normalizedPaymentMethodIds.length) {
+    throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
+  }
+
+  validateEventFormInput({
+    ...input,
+    paymentMethodIds: ownedPaymentMethods
+      .filter((method) => method.isActive)
+      .map((method) => method.id),
+  });
+
   await assertCanManageEvent(adminSupabase, id, user);
   const canManageFeatured = isSuperAdmin(user as any);
   let isFeatured = false;
@@ -323,10 +475,22 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
     isFeatured = Boolean(existingEvent?.is_featured);
   }
 
-  const { error } = await adminSupabase
+  let { error } = await adminSupabase
     .from('event')
     .update(toUpdatePayload(input, isFeatured))
     .eq('id', id);
+
+  if (error && isMissingPlaceTextColumnError(error)) {
+    log.warn('Event place_text column missing; retrying update without it', 'ADMIN_EVENTS', {
+      eventId: id,
+      userId: user.id,
+    });
+    const retried = await adminSupabase
+      .from('event')
+      .update(toUpdatePayload(input, isFeatured, { includePlaceTextColumn: false }))
+      .eq('id', id);
+    error = retried.error;
+  }
 
   if (error) throw new Error(error.message);
 
@@ -388,7 +552,11 @@ export async function setEventPublished(id: string, isPublished: boolean) {
   const { adminSupabase, user } = await getAuthenticatedAdminContext('gestionar');
   if (!id) throw new Error('Id de evento inválido.');
 
-  await assertCanManageEvent(adminSupabase, id, user);
+  if (isPublished) {
+    await assertEventCanBePublished(adminSupabase, id, user);
+  } else {
+    await assertCanManageEvent(adminSupabase, id, user);
+  }
 
   const { error } = await adminSupabase.from('event').update({ is_published: isPublished }).eq('id', id);
   if (error) throw new Error(error.message);

@@ -6,6 +6,8 @@ import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventById } from '@shared/lib/data/getEventById';
 import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
+import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
+import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
 
 type Props = {
   templateId?: string;
@@ -24,8 +26,8 @@ export default async function NewEventScreen({ templateId }: Props) {
     supabase
       .from('paymentMethod')
       .select('id,name,type,number,is_active')
-      .eq('is_active', true)
       .eq('created_by', user?.id || '')
+      .order('is_active', { ascending: false })
       .order('created_at', { ascending: false }),
   ]);
 
@@ -74,6 +76,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         minUsers: number;
         maxUsers: number;
         district: string;
+        placeText: string;
         locationText: string;
         lat: number | undefined;
         lng: number | undefined;
@@ -82,6 +85,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         featureIds: number[];
         paymentMethodIds: number[];
         isPublished: boolean;
+        isFieldReservedConfirmed: boolean;
         isFeatured: boolean;
       }
     | null = null;
@@ -124,6 +128,10 @@ export default async function NewEventScreen({ templateId }: Props) {
       );
 
       templateTitle = String(templateEvent.title || 'Evento').trim() || 'Evento';
+      const descriptionObject =
+        templateEvent.description && typeof templateEvent.description === 'object'
+          ? (templateEvent.description as Record<string, unknown>)
+          : null;
       templateInitial = {
         title: String(templateEvent.title || ''),
         description:
@@ -136,6 +144,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         minUsers: Number(templateEvent.min_users || 0),
         maxUsers: Number(templateEvent.max_users || 0),
         district: String(templateEvent.district || ''),
+        placeText: extractEventPlaceText(templateEvent),
         locationText: String(templateEvent.location_text || ''),
         lat: templateEvent.location?.lat,
         lng: templateEvent.location?.lng ?? templateEvent.location?.long,
@@ -144,6 +153,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         featureIds: selectedFeatureIds,
         paymentMethodIds: selectedPaymentMethodIds,
         isPublished: templateEvent.is_published !== false,
+        isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
         isFeatured: Boolean(templateEvent.is_featured),
       };
     }
@@ -161,13 +171,20 @@ export default async function NewEventScreen({ templateId }: Props) {
     }
   }
 
+  const initialValues = {
+    featureIds: [],
+    paymentMethodIds: [],
+    eventTypeId: selectableEventTypes[0]?.id ?? 1,
+    levelId: catalogs.levels[0]?.id ?? 1,
+    ...templateInitial,
+    isPublished: false,
+    isFieldReservedConfirmed: false,
+  };
+
   return (
-    <div className="bg-white rounded-md shadow p-4">
-      <h2 className="text-lg font-semibold text-mulberry mb-4">
-        {templateInitial ? 'Crear evento desde plantilla' : 'Crear evento'}
-      </h2>
+    <div className="space-y-4">
       {templateInitial ? (
-        <div className="mb-4 rounded-xl border border-mulberry/20 bg-mulberry/5 px-4 py-3 text-sm text-slate-700">
+        <div className="rounded-2xl border border-mulberry/20 bg-mulberry/5 px-4 py-3 text-sm text-slate-700 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)]">
           Usando como plantilla: <strong>{templateTitle}</strong>. Ajusta lo necesario antes de crear el nuevo
           evento.
         </div>
@@ -179,14 +196,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         levels={catalogs.levels}
         features={features}
         paymentMethods={paymentMethods}
-        initial={{
-          featureIds: [],
-          paymentMethodIds: [],
-          eventTypeId: selectableEventTypes[0]?.id ?? 1,
-          levelId: catalogs.levels[0]?.id ?? 1,
-          isPublished: true,
-          ...templateInitial,
-        }}
+        initial={initialValues}
         canManageFeatured={canManageFeatured}
         successRedirectTo="/admin/events"
       />

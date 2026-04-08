@@ -49,7 +49,7 @@ export default async function UsersAdminScreen() {
       <div className="mb-4 flex flex-col gap-1">
         <h2 className="text-xl font-semibold text-mulberry">Usuarios</h2>
         <p className="text-sm text-slate-600">
-          Lista de jugadoras con correo y estado admin.
+          Lista de jugadoras con correo, estado admin y última solicitud admin vinculada.
         </p>
       </div>
 

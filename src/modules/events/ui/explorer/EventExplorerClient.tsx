@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@core/auth/AuthProvider';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import Input from '@core/ui/Input';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 import { hasEventStarted } from '@modules/events/lib/eventTiming';
 import { CatalogOption, EventEntity } from '@modules/events/model/types';
-import MapboxEventsMap from './MapboxEventsMap';
+import { trackEvent } from '@shared/lib/analytics';
+import { isAdmin as isAdminUser } from '@shared/lib/auth/isAdmin';
+import EventsMap from './EventsMap';
 import EventListPanel from './EventListPanel';
 
 type Props = {
@@ -32,6 +35,9 @@ const LIMA_DEFAULT = { lat: -12.0464, lng: -77.0428 };
 type TimeFilter = 'upcoming' | 'past';
 
 export default function EventExplorerClient({ initialEvents, initialCatalogs }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
   const [events, setEvents] = useState<EventEntity[]>(initialEvents);
   const [catalogs, setCatalogs] = useState(initialCatalogs);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -89,11 +95,19 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const visibleEvents = timeFilter === 'upcoming' ? upcomingEvents : pastEvents;
 
   const visibleEventIds = useMemo(() => new Set(visibleEvents.map((event) => event.id)), [visibleEvents]);
+  const createIntentRequested = searchParams.get('create') === '1';
+  const userIsAdmin = Boolean(user && isAdminUser(user as any));
+  const createEventHref = userIsAdmin ? '/admin/events/new' : '/create-event';
 
   useEffect(() => {
     setSelectedEventId((current) => (current && visibleEventIds.has(current) ? current : null));
     setHoveredEventId((current) => (current && visibleEventIds.has(current) ? current : null));
   }, [visibleEventIds]);
+
+  useEffect(() => {
+    if (!createIntentRequested) return;
+    router.replace(createEventHref);
+  }, [createEventHref, createIntentRequested, router]);
 
   async function refreshEvents(preferredId?: string, currentFilters?: Filters) {
     const activeFilters = currentFilters ?? filters;
@@ -191,6 +205,18 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
     setGeoError(null);
   }
 
+  function openCreateEventFlow() {
+    trackEvent('create_event_clicked', {
+      source: 'events_explorer_header',
+      channel: 'web',
+      auth_state: user ? 'authenticated' : 'anonymous',
+      is_admin: userIsAdmin,
+    });
+
+    if (authLoading) return;
+    router.push(createEventHref);
+  }
+
   return (
     <section className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 py-8 md:py-12">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -201,12 +227,14 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           </p>
         </div>
 
-        <Link
-          href="/admin/events/new"
+        <button
+          type="button"
+          onClick={openCreateEventFlow}
+          disabled={authLoading}
           className="inline-flex h-11 items-center justify-center rounded-xl bg-[#54086F] px-4 text-sm font-semibold text-white"
         >
           Crear evento
-        </Link>
+        </button>
       </div>
 
       <div className="mb-4">
@@ -354,7 +382,6 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
         {geoError && <p className="text-sm text-red-600">{geoError}</p>}
       </div>
 
-      {/* Toggle Vista Lista/Mapa - Solo mobile/tablet */}
       <div className="mb-4 xl:hidden">
         <div className="inline-flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Cambiar vista">
           <button
@@ -416,7 +443,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
             mobileView === 'list' ? 'hidden xl:block' : 'block',
           ].join(' ')}
         >
-          <MapboxEventsMap
+          <EventsMap
             events={visibleEvents}
             selectedEventId={selectedEventId}
             hoveredEventId={hoveredEventId}
@@ -425,6 +452,6 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           />
         </div>
       </div>
-    </section>
+      </section>
   );
 }

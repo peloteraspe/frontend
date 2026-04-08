@@ -113,7 +113,7 @@ export default function TeamCreateModal({ open, onClose, currentUserId }: Props)
           <input
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
-            className="w-full rounded-xl border border-stone-300 px-3 py-2 outline-none focus:ring-2 focus:ring-stone-400"
+            className="peloteras-form-control h-11 px-3"
             placeholder="Ej. Las Panteras"
           />
         </div>
@@ -125,7 +125,7 @@ export default function TeamCreateModal({ open, onClose, currentUserId }: Props)
             type="file"
             accept="image/*"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="w-full text-sm"
+            className="peloteras-form-control peloteras-form-control--file h-11"
           />
         </div>
 
@@ -161,7 +161,7 @@ export default function TeamCreateModal({ open, onClose, currentUserId }: Props)
             <input
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              className="flex-1 rounded-xl border border-stone-300 px-3 py-2 outline-none focus:ring-2 focus:ring-stone-400"
+              className="peloteras-form-control h-11 flex-1 px-3"
               placeholder="correo@ejemplo.com"
             />
             <button

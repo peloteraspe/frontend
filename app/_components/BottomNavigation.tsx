@@ -133,6 +133,7 @@ export default function BottomNavigation() {
 
     if (userIsAdmin) {
       return [
+        { label: 'Crear evento', href: '/admin/events/new' },
         { label: 'Mis entradas', href: `/tickets/${user.id}` },
         { label: 'Mi perfil', href: '/profile' },
         { label: 'Eventos', href: '/events' },
@@ -145,6 +146,7 @@ export default function BottomNavigation() {
     }
 
     return [
+      { label: 'Crear evento', href: '/create-event' },
       {
         label: isSigningOut ? 'Cerrando sesion...' : 'Cerrar sesión',
         action: handleSignOut,

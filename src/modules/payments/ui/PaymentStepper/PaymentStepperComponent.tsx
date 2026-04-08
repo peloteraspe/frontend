@@ -382,7 +382,7 @@ const PaymentStepper = (props: any) => {
                     type="text"
                     readOnly
                     value={paymentNumberText || 'No disponible'}
-                    className="h-11 w-full rounded-xl border-2 border-mulberry bg-white px-3 pr-12 text-sm text-slate-700 focus:outline-none"
+                    className="peloteras-form-control h-11 px-3 pr-12 text-slate-700"
                   />
                   <button
                     type="button"

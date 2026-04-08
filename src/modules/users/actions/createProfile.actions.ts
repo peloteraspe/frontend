@@ -4,6 +4,7 @@ import { createProfile, updateProfileByUserId } from '@modules/users/api/profile
 import { getServerSupabase } from '@core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
+import { normalizePhoneMetadata } from '@shared/lib/phone';
 
 export type CreateProfilePayload = {
   user: string;
@@ -346,7 +347,7 @@ async function syncAuthUserMetadata(userId: string, username: string) {
     return;
   }
 
-  const currentMetadata = (authUserData?.user?.user_metadata ?? {}) as Record<string, unknown>;
+  const currentMetadata = normalizePhoneMetadata(authUserData?.user?.user_metadata);
   const avatarUrl = resolveAvatarFromMetadata(currentMetadata);
   const nextMetadata: Record<string, unknown> = {
     ...currentMetadata,

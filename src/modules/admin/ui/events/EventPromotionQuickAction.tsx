@@ -13,7 +13,7 @@ type Props = {
   eventTitle: string;
   recipientCount: number;
   buttonClassName?: string;
-  onOpen?: () => void;
+  onModalClose?: () => void;
 };
 
 const INITIAL_EVENT_PROMOTION_ACTION_STATE: EventAnnouncementActionState = {
@@ -51,7 +51,7 @@ export default function EventPromotionQuickAction({
   eventTitle,
   recipientCount,
   buttonClassName,
-  onOpen,
+  onModalClose,
 }: Props) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -64,6 +64,7 @@ export default function EventPromotionQuickAction({
 
   function handleClose() {
     setIsOpen(false);
+    onModalClose?.();
 
     if (state.status !== 'idle') {
       startTransition(() => {
@@ -95,6 +96,7 @@ export default function EventPromotionQuickAction({
     lastHandledSuccessRef.current = state.message;
     const timer = window.setTimeout(() => {
       setIsOpen(false);
+      onModalClose?.();
       startTransition(() => {
         router.refresh();
       });
@@ -103,14 +105,13 @@ export default function EventPromotionQuickAction({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [router, state.message, state.status]);
+  }, [onModalClose, router, state.message, state.status]);
 
   return (
     <>
       <button
         type="button"
         onClick={() => {
-          onOpen?.();
           setIsOpen(true);
         }}
         disabled={!canSend}

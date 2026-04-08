@@ -58,7 +58,7 @@ export default function PlayerSearchInput({
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-stone-300 px-3 py-2 outline-none focus:ring-2 focus:ring-stone-400"
+        className="peloteras-form-control h-11 px-3"
         aria-label="Buscar jugadoras por nombre o email"
       />
 

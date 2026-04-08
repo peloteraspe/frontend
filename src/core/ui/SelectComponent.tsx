@@ -20,6 +20,7 @@ type CommonProps = {
   isSearchable?: boolean;
   bgColor?: string; // para igualar con Input (por si lo usas)
   className?: string;
+  tone?: 'default' | 'soft';
 };
 
 type ControlledProps = {
@@ -41,55 +42,57 @@ type SelectComponentProps = CommonProps &
 const animatedComponents = makeAnimated();
 
 /**
- * Paleta / constantes visuales para mantener consistencia con Input
+ * Paleta / constantes visuales para mantener consistencia con InternationalPhoneField
  */
 const MULBERRY = '#5b1c70';
 const MULBERRY_DARK = '#4a175f';
-const BORDER_DEFAULT = MULBERRY;
+const BORDER_DEFAULT = '#cbd5e1';
+const BORDER_HOVER = '#94a3b8';
 const BORDER_ERROR = '#EF4444'; // --color-error
-const TEXT_DEFAULT = '#111827';
-const TEXT_MUTED = '#6b7280';
+const TEXT_DEFAULT = '#0f172a';
+const TEXT_MUTED = '#94a3b8';
 const BG_WHITE = '#ffffff';
-const BG_FOCUS = 'transparent'; // mantenemos blanco; sin sombras
 const HOVER_BG = 'rgba(91, 28, 112, 0.08)'; // morado 8%
 const SELECTED_BG = MULBERRY;
 const SELECTED_TEXT = '#ffffff';
-const RADIUS = 8; // ~ rounded-lg
-const HEIGHT = 48; // 12 * 4
-const BORDER_WIDTH = 2;
+const RADIUS = 16;
+const HEIGHT = 44;
+const BORDER_WIDTH = 1;
+const FOCUS_RING = '0 0 0 4px rgba(91, 28, 112, 0.1)';
 
 const buildStyles = (
   hasError?: boolean,
   isDisabled?: boolean,
   bg?: string,
-  isMulti?: boolean
+  isMulti?: boolean,
+  _tone: 'default' | 'soft' = 'default'
 ): StylesConfig =>
   ({
     control: (base, state) => ({
       ...base,
       minHeight: HEIGHT,
       alignItems: 'center',
-      // paddingTop: isMulti ? 6 : 0,
       flexWrap: isMulti ? 'wrap' : 'nowrap',
-      // paddingBottom: isMulti ? 6 : 0,
-      // height: isMulti ? 'auto' : 48,
       borderWidth: BORDER_WIDTH,
       borderRadius: RADIUS,
       backgroundColor: bg ?? BG_WHITE,
-      borderColor: hasError ? BORDER_ERROR : state.isFocused ? MULBERRY : BORDER_DEFAULT,
-      boxShadow: 'none',
+      borderColor:
+        hasError
+          ? BORDER_ERROR
+          : state.isFocused
+            ? MULBERRY
+            : BORDER_DEFAULT,
+      boxShadow: state.isFocused ? FOCUS_RING : 'none',
       '&:hover': {
-        borderColor: hasError ? BORDER_ERROR : MULBERRY_DARK,
+        borderColor: hasError ? BORDER_ERROR : state.isFocused ? MULBERRY : BORDER_HOVER,
       },
-      // Para alinear contenido con tu Input
-      paddingLeft: 8,
-      paddingRight: 8,
+      transition: 'border-color 150ms ease, box-shadow 150ms ease',
       opacity: isDisabled ? 0.6 : 1,
       cursor: isDisabled ? 'not-allowed' : 'default',
     }),
     valueContainer: (base) => ({
       ...base,
-      padding: 0,
+      padding: '0 16px',
       gap: 4,
       flexWrap: isMulti ? 'wrap' : 'nowrap',
     }),
@@ -133,6 +136,7 @@ const buildStyles = (
       ...base,
       color: MULBERRY,
       alignSelf: 'center',
+      paddingRight: 12,
     }),
 
     dropdownIndicator: (base, state) => ({
@@ -150,6 +154,7 @@ const buildStyles = (
     }),
     menu: (base) => ({
       ...base,
+      border: `1px solid ${BORDER_DEFAULT}`,
       borderRadius: RADIUS,
       overflow: 'hidden',
       boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
@@ -210,6 +215,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
   errorText,
   bgColor,
   className,
+  tone = 'soft',
   selectProps,
 }) => {
   const hasError = Boolean(errorText);
@@ -249,7 +255,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
       placeholder="Selecciona una opción"
       noOptionsMessage={() => 'Sin opciones'}
       isDisabled={isDisabled}
-      styles={buildStyles(hasError, isDisabled, bgColor, isMulti)}
+      styles={buildStyles(hasError, isDisabled, bgColor, isMulti, tone)}
       theme={buildTheme}
       className={className}
       classNamePrefix="rs" // por si quieres añadir CSS escoped adicional

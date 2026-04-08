@@ -16,6 +16,7 @@ import {
   fetchPlayersPosition,
   updateProfile,
 } from '@modules/users/api/profile.client';
+import type { UserProfileData } from '@modules/users/model/types';
 
 import type { OptionSelectNumber } from './types';
 import {
@@ -29,7 +30,7 @@ export default function ProfilePage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const [profileData, setProfileData] = useState<any>(null);
+  const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [positions, setPositions] = useState<OptionSelectNumber[]>([]);
   const [levels, setLevels] = useState<OptionSelectNumber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -96,6 +97,15 @@ export default function ProfilePage() {
       setIsLoadingData(false);
     }
   }, [user, isLoadingData, withFallbackTimeout]);
+
+  const handleProfileUpdated = useCallback((nextProfileData: UserProfileData | null) => {
+    if (!nextProfileData) return;
+
+    setProfileData((currentProfileData) => ({
+      ...(currentProfileData ?? {}),
+      ...nextProfileData,
+    }));
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -219,6 +229,7 @@ export default function ProfilePage() {
           <ProfileUpdateForm
             userProfile={profileData?.username || ''}
             updateProfile={updateProfile}
+            onProfileUpdated={handleProfileUpdated}
             userId={user.id}
             levelsData={currentLevelOption}
             levelsOptions={levelOptions}

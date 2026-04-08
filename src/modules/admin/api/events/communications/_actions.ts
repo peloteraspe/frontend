@@ -12,7 +12,7 @@ import {
   getFailedRecipientsForAnnouncement,
   recordEventAnnouncement,
 } from '../services/eventAnnouncementHistory.service';
-import { getParticipantContactsByEventId } from '../services/eventParticipants.service';
+import { getApprovedParticipantsByEventId } from '../services/eventParticipants.service';
 import { sendEventAnnouncementEmail } from '../services/eventAnnouncementEmail.service';
 import { retryResendHistoricalEmail } from '../services/resendSentEmailHistory.service';
 
@@ -296,7 +296,7 @@ export async function sendEventAnnouncement(
       throw new Error(eventError.message);
     }
 
-    const contacts = await getParticipantContactsByEventId(eventId, ['pending', 'approved']);
+    const contacts = await getApprovedParticipantsByEventId(eventId);
     const recipientContacts = contacts.filter(
       (contact) => contact.email && contact.email !== 'Sin correo'
     );
@@ -305,7 +305,7 @@ export async function sendEventAnnouncement(
     if (!recipients.length) {
       return {
         status: 'error',
-        message: 'No hay inscritas con correo para este evento.',
+        message: 'No hay inscritas con pago aprobado y correo para este evento.',
         sentCount: 0,
         failedCount: 0,
       };

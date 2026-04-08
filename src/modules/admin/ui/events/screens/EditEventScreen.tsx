@@ -8,7 +8,9 @@ import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
 import { getDefaultEventAnnouncementEmail } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
-import { getParticipantContactsByEventId } from '@modules/admin/api/events/services/eventParticipants.service';
+import { getApprovedParticipantsByEventId } from '@modules/admin/api/events/services/eventParticipants.service';
+import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
+import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
 
 export default async function EditEventScreen({ id }: { id: string }) {
   const supabase = await getServerSupabase();
@@ -31,7 +33,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
         .order('is_active', { ascending: false })
         .order('created_at', { ascending: false }),
       supabase.from('eventPaymentMethod').select('paymentMethod').eq('event', id),
-      getParticipantContactsByEventId(id, ['pending', 'approved']),
+      getApprovedParticipantsByEventId(id),
     ]);
 
   if (featuresRes.error) throw new Error(featuresRes.error.message);
@@ -77,6 +79,10 @@ export default async function EditEventScreen({ id }: { id: string }) {
         .filter((value) => Number.isInteger(value) && value > 0 && availablePaymentMethodIds.has(value))
     )
   );
+  const descriptionObject =
+    event.description && typeof event.description === 'object'
+      ? (event.description as Record<string, unknown>)
+      : null;
   const announcementDefaults = getDefaultEventAnnouncementEmail();
   const recipientCount = participants.filter((participant) => participant.email && participant.email !== 'Sin correo')
     .length;
@@ -125,6 +131,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
           minUsers: event.min_users,
           maxUsers: event.max_users,
           district: event.district,
+          placeText: extractEventPlaceText(event),
           locationText: event.location_text,
           lat: event.location?.lat,
           lng: event.location?.lng ?? event.location?.long,
@@ -133,6 +140,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
           featureIds: selectedFeatureIds,
           paymentMethodIds: selectedPaymentMethodIds,
           isPublished: event.is_published !== false,
+          isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
           isFeatured: Boolean(event.is_featured),
         }}
         canManageFeatured={canManageFeatured}

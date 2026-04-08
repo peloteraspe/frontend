@@ -3,6 +3,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { getBrowserSupabase } from '@core/api/supabase.browser';
+import { normalizePhoneMetadata } from '@shared/lib/phone';
 
 type UserLite = {
   id: string;
@@ -89,17 +90,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     email_confirmed_at?: string | null;
     app_metadata?: Record<string, any>;
     user_metadata?: Record<string, any>;
-  }) => ({
-    id: authUser.id,
-    email: authUser.email,
-    username: authUser.user_metadata?.username ?? null,
-    avatar_url: resolveAvatarUrl(authUser.user_metadata),
-    email_confirmed_at: authUser.email_confirmed_at ?? null,
-    emailConfirmed: Boolean(authUser.email_confirmed_at),
-    eventsVerified: isEventsVerified(authUser.user_metadata?.events_verified),
-    app_metadata: authUser.app_metadata ?? null,
-    user_metadata: authUser.user_metadata ?? null,
-  });
+  }) => {
+    const userMetadata = normalizePhoneMetadata(authUser.user_metadata) as Record<string, any>;
+    const appMetadata = normalizePhoneMetadata(authUser.app_metadata) as Record<string, any>;
+
+    return {
+      id: authUser.id,
+      email: authUser.email,
+      username: userMetadata.username ?? null,
+      avatar_url: resolveAvatarUrl(userMetadata),
+      email_confirmed_at: authUser.email_confirmed_at ?? null,
+      emailConfirmed: Boolean(authUser.email_confirmed_at),
+      eventsVerified: isEventsVerified(userMetadata.events_verified),
+      app_metadata: Object.keys(appMetadata).length ? appMetadata : null,
+      user_metadata: Object.keys(userMetadata).length ? userMetadata : null,
+    };
+  };
 
   const clearInvalidLocalSession = async (reason: string) => {
     console.warn('⚠️ Clearing invalid local session:', reason);

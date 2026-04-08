@@ -1,4 +1,5 @@
 import { EventEntity } from '@modules/events/model/types';
+import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
 import { getPlacesLeft, isEventSoldOut } from './eventCapacity';
 
 type Dictionary = Record<number, string>;
@@ -69,6 +70,7 @@ export function normalizeEvent(raw: any, eventTypeById: Dictionary, levelById: D
     dateLabel: formatDateLabel(raw?.start_time ?? null),
     startTime: raw?.start_time ?? null,
     endTime: raw?.end_time ?? null,
+    placeText: extractEventPlaceText(raw),
     locationText: asString(raw?.location_text ?? raw?.locationText, 'Ubicación por confirmar'),
     locationReference: extractLocationReference(raw?.description),
     district: asString(raw?.district, ''),

@@ -117,3 +117,32 @@ export function getIsoDateInTimeZone(
   if (!year || !month || !day) return null;
   return `${year}-${month}-${day}`;
 }
+
+export function formatTimeInTimeZoneWithMeridiem(
+  value: string | Date | null | undefined,
+  timeZone = DEFAULT_EVENT_TIMEZONE
+) {
+  if (!value) return '';
+
+  const parsed = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const parts = formatter.formatToParts(parsed);
+  const hour = readPart(parts, 'hour');
+  const minute = readPart(parts, 'minute');
+  const dayPeriod = readPart(parts, 'dayPeriod').toLowerCase();
+
+  if (!hour || !minute || !dayPeriod) return '';
+
+  const suffix =
+    dayPeriod === 'am' ? 'a.m.' : dayPeriod === 'pm' ? 'p.m.' : dayPeriod.toLowerCase();
+
+  return `${hour}:${minute} ${suffix}`;
+}

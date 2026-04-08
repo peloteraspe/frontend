@@ -40,7 +40,8 @@ export default function SubNav() {
     <nav className="mb-4">
       <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible">
         {visibleLinks.map((l) => {
-          const active = pathname === l.href;
+          const active =
+            l.href === '/admin' ? pathname === l.href : pathname === l.href || pathname.startsWith(`${l.href}/`);
           return (
             <Link
               key={l.href}

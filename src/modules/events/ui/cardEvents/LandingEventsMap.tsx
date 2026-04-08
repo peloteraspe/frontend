@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import MapboxMap, { Marker, NavigationControl, Popup } from 'react-map-gl/mapbox';
+import { GoogleMap, InfoWindowF, MarkerF } from '@react-google-maps/api';
 import { hasEventStarted } from '@modules/events/lib/eventTiming';
+import { buildCircleMarkerIcon, LIMA_DEFAULT_CENTER, toLatLngLiteral } from '@shared/lib/googleMaps';
+import { useGoogleMapsApi } from '@core/ui/Map/useGoogleMapsApi';
 
 type EventLite = {
   id: string | number;
@@ -27,6 +29,19 @@ type Props = {
   events: EventLite[];
 };
 
+const MAP_CONTAINER_STYLE = {
+  width: '100%',
+  height: '100%',
+};
+
+const MAP_OPTIONS: google.maps.MapOptions = {
+  clickableIcons: false,
+  fullscreenControl: false,
+  mapTypeControl: false,
+  streetViewControl: false,
+  zoomControl: true,
+};
+
 function extractCoords(event: EventLite) {
   const lat = Number(event.location?.lat ?? event.lat ?? 0);
   const lng = Number(event.location?.lng ?? event.location?.long ?? event.lng ?? event.long ?? 0);
@@ -36,7 +51,8 @@ function extractCoords(event: EventLite) {
 }
 
 export default function LandingEventsMap({ events }: Props) {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const apiKeyConfigured = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY);
+  const { isLoaded, loadError } = useGoogleMapsApi();
   const router = useRouter();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
@@ -52,7 +68,7 @@ export default function LandingEventsMap({ events }: Props) {
             title: event.title || 'Evento',
             date: event.formattedDateTime || event.dateLabel || 'Fecha por confirmar',
             isPastEvent: hasEventStarted(event.startTime),
-            locationText: event.locationText || 'Ubicación por confirmar',
+            locationText: event.locationText || 'Ubicacion por confirmar',
             price: Number(event.price ?? 0),
             ...coords,
           };
@@ -70,63 +86,68 @@ export default function LandingEventsMap({ events }: Props) {
     [events]
   );
 
-  const center = points[0] ?? { lat: -12.0464, lng: -77.0428 };
+  const center = points[0] ?? LIMA_DEFAULT_CENTER;
   const activeId = pinnedId ?? hoveredId;
   const activePoint = points.find((point) => point.id === activeId) ?? null;
 
-  if (!token) {
+  if (!apiKeyConfigured) {
     return (
-      <div className="h-[360px] rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        Configura <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> para mostrar el mapa en landing.
+      <div className="flex h-[360px] items-center justify-center rounded-2xl border border-red-200 bg-red-50 px-4 text-sm text-red-700">
+        Configura <code>NEXT_PUBLIC_GOOGLE_MAPS_KEY</code> para mostrar el mapa en landing.
       </div>
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="flex h-[360px] items-center justify-center rounded-2xl border border-red-200 bg-red-50 px-4 text-sm text-red-700">
+        No se pudo cargar Google Maps.
+      </div>
+    );
+  }
+
+  if (!isLoaded) {
+    return <div className="h-[360px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100 md:h-[520px]" />;
+  }
+
   return (
-    <div className="h-[360px] md:h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <MapboxMap
-        mapStyle="mapbox://styles/mapbox/streets-v12"
-        mapboxAccessToken={token}
-        initialViewState={{ latitude: center.lat, longitude: center.lng, zoom: 11.5 }}
-        style={{ width: '100%', height: '100%' }}
+    <div className="h-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:h-[520px]">
+      <GoogleMap
+        mapContainerStyle={MAP_CONTAINER_STYLE}
+        center={toLatLngLiteral(center.lat, center.lng)}
+        zoom={11.5}
+        options={MAP_OPTIONS}
         onClick={() => {
           setPinnedId(null);
           setHoveredId(null);
         }}
       >
-        <NavigationControl position="top-right" />
-        {points.map((point) => (
-          <Marker key={point.id} latitude={point.lat} longitude={point.lng} anchor="bottom">
-            <button
-              type="button"
+        {points.map((point) => {
+          const isActive = activeId === point.id;
+
+          return (
+            <MarkerF
+              key={point.id}
+              position={toLatLngLiteral(point.lat, point.lng)}
               title={point.title}
-              onClick={(event) => {
-                event.stopPropagation();
+              icon={buildCircleMarkerIcon(isActive ? '#F0815B' : '#54086F', isActive ? 8 : 6)}
+              onClick={() => {
                 setPinnedId((current) => (current === point.id ? null : point.id));
               }}
-              onMouseEnter={() => setHoveredId(point.id)}
-              onMouseLeave={() => setHoveredId((current) => (current === point.id ? null : current))}
-              className={[
-                'h-4 w-4 rounded-full border-2 border-white shadow transition',
-                activeId === point.id ? 'bg-[#F0815B] scale-125' : 'bg-[#54086F]',
-              ].join(' ')}
-              aria-label={`Ver evento ${point.title}`}
+              onMouseOver={() => setHoveredId(point.id)}
+              onMouseOut={() => setHoveredId((current) => (current === point.id ? null : current))}
             />
-          </Marker>
-        ))}
-        {activePoint && (
-          <Popup
-            latitude={activePoint.lat}
-            longitude={activePoint.lng}
-            anchor="top"
-            offset={16}
-            onClose={() => {
+          );
+        })}
+
+        {activePoint ? (
+          <InfoWindowF
+            position={toLatLngLiteral(activePoint.lat, activePoint.lng)}
+            options={{ pixelOffset: new google.maps.Size(0, -20) }}
+            onCloseClick={() => {
               setPinnedId(null);
               setHoveredId(null);
             }}
-            closeOnClick={false}
-            closeButton={false}
-            className="landing-map-popup"
           >
             <div className="w-[min(80vw,210px)]">
               <div className="flex items-start justify-between gap-2">
@@ -136,12 +157,12 @@ export default function LandingEventsMap({ events }: Props) {
                 </span>
               </div>
               <p className="mt-1 text-[11px] font-semibold text-[#54086F]">{activePoint.date}</p>
-              {activePoint.isPastEvent && (
+              {activePoint.isPastEvent ? (
                 <p className="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800">
                   Finalizado
                 </p>
-              )}
-              <p className="mt-1 text-[11px] leading-4 text-slate-600 line-clamp-2">{activePoint.locationText}</p>
+              ) : null}
+              <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-600">{activePoint.locationText}</p>
               <div className="mt-3 flex">
                 <button
                   type="button"
@@ -152,9 +173,9 @@ export default function LandingEventsMap({ events }: Props) {
                 </button>
               </div>
             </div>
-          </Popup>
-        )}
-      </MapboxMap>
+          </InfoWindowF>
+        ) : null}
+      </GoogleMap>
     </div>
   );
 }

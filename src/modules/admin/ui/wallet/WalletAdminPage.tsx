@@ -212,7 +212,7 @@ export default function WalletAdminPage() {
             value={issuerId}
             onChange={(event) => setIssuerId(event.target.value)}
             placeholder="3388000000023091895"
-            className="h-10 rounded-md border border-slate-300 px-3 focus:border-mulberry focus:outline-none"
+            className="peloteras-form-control h-10 px-3"
           />
         </label>
 
@@ -222,7 +222,7 @@ export default function WalletAdminPage() {
             value={activeClassId}
             onChange={(event) => setActiveClassId(event.target.value)}
             placeholder="3388....peloteras_event_123"
-            className="h-10 rounded-md border border-slate-300 px-3 focus:border-mulberry focus:outline-none"
+            className="peloteras-form-control h-10 px-3"
           />
         </label>
 
@@ -232,7 +232,7 @@ export default function WalletAdminPage() {
             value={originsText}
             onChange={(event) => setOriginsText(event.target.value)}
             placeholder="http://localhost:3000,https://peloteras.com"
-            className="h-10 rounded-md border border-slate-300 px-3 focus:border-mulberry focus:outline-none"
+            className="peloteras-form-control h-10 px-3"
           />
         </label>
 
@@ -242,7 +242,7 @@ export default function WalletAdminPage() {
             value={serviceAccountJson}
             onChange={(event) => setServiceAccountJson(event.target.value)}
             placeholder='{"type":"service_account", ... }'
-            className="min-h-[150px] rounded-md border border-slate-300 p-3 font-mono text-xs focus:border-mulberry focus:outline-none"
+            className="peloteras-form-control peloteras-form-control--textarea min-h-[150px] p-3 font-mono text-xs"
           />
           <span className="text-xs text-slate-500">
             Pégalo solo cuando quieras actualizar credenciales. Si no, se conserva lo guardado.

@@ -10,6 +10,7 @@ export type EventEntity = {
   dateLabel: string;
   startTime: string | null;
   endTime: string | null;
+  placeText: string;
   locationText: string;
   district: string;
   locationReference?: string;
@@ -47,6 +48,7 @@ export type CreateEventPayload = {
   minUsers: number;
   maxUsers: number;
   district: string;
+  placeText: string;
   locationText: string;
   locationReference?: string;
   lat: number;

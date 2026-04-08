@@ -207,7 +207,10 @@ export default function ComingSoonLanding() {
                   inputMode="email"
                   aria-describedby={`${hintId}${error ? ` ${errorId}` : ''}${success ? ` ${successId}` : ''}`}
                   aria-invalid={Boolean(error)}
-                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-slate-900 placeholder:text-slate-400 focus:border-[#54086F] focus:outline-none focus:ring-2 focus:ring-[#54086F]/20"
+                  className={[
+                    'peloteras-form-control h-12',
+                    error ? 'peloteras-form-control--error' : '',
+                  ].join(' ')}
                   required
                 />
 

@@ -2,6 +2,7 @@
 
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import { normalizePhoneMetadata, validateInternationalPhone } from '@shared/lib/phone';
 
 type AuthUserLite = {
   id: string;
@@ -13,6 +14,14 @@ type AuthUserLite = {
 type ProfileRow = {
   user: string;
   username: string | null;
+};
+
+export type OrganizerActivationInput = {
+  phone: string;
+  source?: string;
+  commitmentReservedField: boolean;
+  commitmentNoCancellation: boolean;
+  commitmentReportIncidents: boolean;
 };
 
 export type AdminUserListItem = {
@@ -39,6 +48,23 @@ function normalizeName(user: AuthUserLite, profileByUserId: Map<string, string>)
   if (emailName) return emailName;
 
   return 'Sin nombre';
+}
+
+function normalizeContactName(user: AuthUserLite, profileName?: string | null) {
+  const nextProfileName = String(profileName || '').trim();
+  if (nextProfileName) return nextProfileName;
+
+  const metadataName = String(user.user_metadata?.username || user.user_metadata?.full_name || '').trim();
+  if (metadataName) return metadataName;
+
+  const emailName = String(user.email || '').split('@')[0]?.trim();
+  if (emailName) return emailName;
+
+  return 'Pelotera';
+}
+
+function normalizeEmail(value: unknown) {
+  return String(value || '').trim().toLowerCase();
 }
 
 async function listAllAuthUsers() {
@@ -81,13 +107,32 @@ async function getProfileNameMap() {
   return map;
 }
 
+async function getProfileNameByUserId(userId: string) {
+  const adminSupabase = getAdminSupabase();
+  const { data, error } = await adminSupabase
+    .from('profile')
+    .select('username')
+    .eq('user', userId)
+    .order('id', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  return String(data?.username || '').trim() || null;
+}
+
 export async function getAdminUsersList(): Promise<AdminUserListItem[]> {
-  const [authUsers, profileNameMap] = await Promise.all([listAllAuthUsers(), getProfileNameMap()]);
+  const [authUsers, profileNameMap] = await Promise.all([
+    listAllAuthUsers(),
+    getProfileNameMap(),
+  ]);
 
   return authUsers
     .filter((user) => Boolean(user?.id) && Boolean(String(user?.email || '').trim()))
     .map((user) => {
       const email = String(user.email || '').trim();
+
       return {
         id: user.id,
         name: normalizeName(user, profileNameMap),
@@ -116,8 +161,8 @@ export async function setAdminRoleByUserId(userId: string, enableAdmin: boolean)
     throw new Error('No puedes retirar permisos admin a una superadmin.');
   }
 
-  const currentAppMetadata = (targetUser.app_metadata ?? {}) as Record<string, any>;
-  const currentUserMetadata = (targetUser.user_metadata ?? {}) as Record<string, any>;
+  const currentAppMetadata = normalizePhoneMetadata(targetUser.app_metadata) as Record<string, any>;
+  const currentUserMetadata = normalizePhoneMetadata(targetUser.user_metadata) as Record<string, any>;
 
   const nextAppMetadata: Record<string, any> = {
     ...currentAppMetadata,
@@ -141,6 +186,72 @@ export async function setAdminRoleByUserId(userId: string, enableAdmin: boolean)
     user_metadata: nextUserMetadata,
   });
   if (updateError) throw new Error(updateError.message);
+}
+
+export async function activateOrganizerByUserId(userId: string, input: OrganizerActivationInput) {
+  const normalizedId = String(userId || '').trim();
+  if (!normalizedId) throw new Error('Id de usuario inválido.');
+
+  const rawPhone = String(input.phone || '').trim();
+  const phoneValidation = validateInternationalPhone(rawPhone);
+  const normalizedPhone = phoneValidation.e164;
+  if (!rawPhone || !phoneValidation.isValid || !normalizedPhone) {
+    throw new Error('Ingresa un celular válido.');
+  }
+  if (!input.commitmentReservedField || !input.commitmentNoCancellation || !input.commitmentReportIncidents) {
+    throw new Error('Debes aceptar todos los compromisos para activar tu perfil organizadora.');
+  }
+
+  const adminSupabase = getAdminSupabase();
+  const { data: target, error: targetError } = await adminSupabase.auth.admin.getUserById(normalizedId);
+  if (targetError) throw new Error(targetError.message);
+  if (!target?.user) throw new Error('Usuario no encontrado.');
+
+  const targetUser = target.user as AuthUserLite;
+  const currentAppMetadata = normalizePhoneMetadata(targetUser.app_metadata) as Record<string, any>;
+  const currentUserMetadata = normalizePhoneMetadata(targetUser.user_metadata) as Record<string, any>;
+  const activatedAt = new Date().toISOString();
+  const source = String(input.source || 'self_serve_events').trim() || 'self_serve_events';
+
+  const nextAppMetadata: Record<string, any> = {
+    ...currentAppMetadata,
+    is_admin: true,
+    phone: normalizedPhone,
+    organizer_activated_at: activatedAt,
+    organizer_activation_source: source,
+    organizer_commitment_reserved_field: true,
+    organizer_commitment_no_cancellation: true,
+    organizer_commitment_report_incidents: true,
+  };
+  const nextUserMetadata: Record<string, any> = {
+    ...currentUserMetadata,
+    is_admin: true,
+    phone: normalizedPhone,
+    organizer_activated_at: activatedAt,
+    organizer_activation_source: source,
+    organizer_commitment_reserved_field: true,
+    organizer_commitment_no_cancellation: true,
+    organizer_commitment_report_incidents: true,
+  };
+
+  if (nextAppMetadata.role !== 'superadmin') nextAppMetadata.role = 'admin';
+  if (nextUserMetadata.role !== 'superadmin') nextUserMetadata.role = 'admin';
+
+  const { error: updateError } = await adminSupabase.auth.admin.updateUserById(normalizedId, {
+    app_metadata: nextAppMetadata,
+    user_metadata: nextUserMetadata,
+  });
+  if (updateError) throw new Error(updateError.message);
+
+  const profileName = await getProfileNameByUserId(normalizedId);
+
+  return {
+    activatedAt,
+    contactEmail: String(targetUser.email || '').trim().toLowerCase() || null,
+    contactName: normalizeContactName(targetUser, profileName),
+    phone: normalizedPhone,
+    source,
+  };
 }
 
 export async function getUserEmailsForBroadcastByIds(userIds: string[]): Promise<string[]> {

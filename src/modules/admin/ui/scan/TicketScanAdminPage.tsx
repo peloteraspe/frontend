@@ -404,7 +404,7 @@ export default function TicketScanAdminPage() {
                         .catch(() => startScanner(nextCamera));
                     }
                   }}
-                  className="rounded-full border border-slate-300 bg-white px-3 py-2"
+                  className="peloteras-form-control peloteras-form-control--select h-10 px-3"
                 >
                   {cameraOptions.map((camera) => (
                     <option key={camera.id} value={camera.id}>
@@ -478,7 +478,7 @@ export default function TicketScanAdminPage() {
                 onChange={(event) => setManualValue(event.target.value)}
                 placeholder="Pega aquí el código o enlace del QR de la jugadora."
                 rows={5}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-mulberry focus:ring-2 focus:ring-mulberry/20"
+                className="peloteras-form-control peloteras-form-control--textarea"
               />
               <p className="mt-2 text-xs text-slate-500">
                 Úsalo si tienes el QR en otra app, en un mensaje o en un archivo.

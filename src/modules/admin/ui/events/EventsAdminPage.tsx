@@ -6,6 +6,7 @@ import { setEventFeatured, setEventPublished } from '@modules/admin/api/events/_
 import { getAllUserEmailsForBroadcast } from '@modules/admin/api/users/services/adminUsers.service';
 import EventQuickActionsMenu from '@modules/admin/ui/events/EventQuickActionsMenu';
 import { getApprovedParticipantsCountByEventIds } from '@modules/admin/api/events/services/eventParticipants.service';
+import { getEventPublishReadiness, parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
 
 type Props = {
   searchParams?: {
@@ -109,17 +110,75 @@ export default async function AdminEventsPage({ searchParams }: Props) {
   ]);
   const normalizedEvents = events ?? [];
   const promotionRecipientCount = promotionRecipientEmails.length;
+  const eventIds = normalizedEvents.map((event: any) => event.id);
   const approvedParticipantsByEventId = await getApprovedParticipantsCountByEventIds(
-    normalizedEvents.map((event: any) => event.id)
+    eventIds
   );
+  const paymentMethodRows =
+    eventIds.length > 0
+      ? await supabase.from('eventPaymentMethod').select('event,paymentMethod').in('event', eventIds)
+      : { data: [], error: null };
+
+  if (paymentMethodRows.error) {
+    throw new Error(paymentMethodRows.error.message);
+  }
+
+  const linkedPaymentMethodIds = Array.from(
+    new Set(
+      (paymentMethodRows.data ?? [])
+        .map((row) => Number((row as { paymentMethod: number | string | null }).paymentMethod))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )
+  );
+  const activePaymentMethods =
+    linkedPaymentMethodIds.length > 0
+      ? await supabase
+          .from('paymentMethod')
+          .select('id')
+          .in('id', linkedPaymentMethodIds)
+          .eq('is_active', true)
+      : { data: [], error: null };
+
+  if (activePaymentMethods.error) {
+    throw new Error(activePaymentMethods.error.message);
+  }
+
+  const activePaymentMethodIds = new Set(
+    (activePaymentMethods.data ?? []).map((row) => Number((row as { id: number | string }).id))
+  );
+  const eventIdsWithPaymentMethods = new Set(
+    (paymentMethodRows.data ?? [])
+      .filter((row) =>
+        activePaymentMethodIds.has(Number((row as { paymentMethod: number | string | null }).paymentMethod))
+      )
+      .map((row) => String((row as { event: string | number }).event))
+  );
+
+  function canPublishEvent(event: any) {
+    const description =
+      event?.description && typeof event.description === 'object'
+        ? (event.description as Record<string, unknown>)
+        : {};
+    const location =
+      event?.location && typeof event.location === 'object'
+        ? (event.location as Record<string, unknown>)
+        : {};
+
+    return getEventPublishReadiness({
+      title: event?.title,
+      startTime: event?.start_time,
+      endTime: event?.end_time,
+      district: event?.district,
+      locationText: event?.location_text,
+      lat: location.lat,
+      lng: location.lng ?? location.long,
+      paymentMethodCount: eventIdsWithPaymentMethods.has(String(event?.id || '')) ? 1 : 0,
+      isFieldReservedConfirmed: parseStoredBoolean(description.field_reserved_confirmed),
+    }).isReady;
+  }
 
   return (
     <div className="rounded-md bg-white shadow">
-      <div className="sticky top-0 z-20 flex justify-end border-b border-slate-200 bg-white/95 p-4 backdrop-blur">
-        <Link href="/admin/events/new" className="px-3 py-2 rounded-md bg-mulberry text-white">
-          Crear evento
-        </Link>
-      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
@@ -150,38 +209,53 @@ export default async function AdminEventsPage({ searchParams }: Props) {
           <tbody>
             {normalizedEvents.map((e: any) => {
               const approvedParticipants = approvedParticipantsByEventId.get(String(e.id)) ?? 0;
+              const publishReady = canPublishEvent(e);
               return (
                 <tr key={e.id} className="border-t">
                   <td className="px-4 py-2">{e.title}</td>
                   <td className="px-4 py-2">{formatDateRange(e.start_time, e.end_time)}</td>
                   <td className="px-4 py-2 whitespace-nowrap">{formatTimeRange(e.start_time, e.end_time)}</td>
                   <td className="px-4 py-2">
-                    <form action={handleTogglePublished} className="inline-flex items-center gap-2">
-                      <input type="hidden" name="id" value={e.id} />
-                      <input type="hidden" name="isPublished" value={e.is_published ? 'false' : 'true'} />
-                      <button
-                        type="submit"
-                        role="switch"
-                        aria-checked={Boolean(e.is_published)}
-                        aria-label={`${e.is_published ? 'Ocultar' : 'Publicar'} ${e.title || 'evento'}`}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                          e.is_published ? 'bg-emerald-600' : 'bg-slate-300'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
-                            e.is_published ? 'translate-x-5' : 'translate-x-1'
+                    {e.is_published || publishReady ? (
+                      <form action={handleTogglePublished} className="inline-flex items-center gap-2">
+                        <input type="hidden" name="id" value={e.id} />
+                        <input type="hidden" name="isPublished" value={e.is_published ? 'false' : 'true'} />
+                        <button
+                          type="submit"
+                          role="switch"
+                          aria-checked={Boolean(e.is_published)}
+                          aria-label={`${e.is_published ? 'Ocultar' : 'Publicar'} ${e.title || 'evento'}`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                            e.is_published ? 'bg-emerald-600' : 'bg-slate-300'
                           }`}
-                        />
-                      </button>
-                      <span
-                        className={`text-xs font-semibold ${
-                          e.is_published ? 'text-emerald-700' : 'text-slate-600'
-                        }`}
-                      >
-                        {e.is_published ? 'Publicado' : 'Borrador'}
-                      </span>
-                    </form>
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                              e.is_published ? 'translate-x-5' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                        <span
+                          className={`text-xs font-semibold ${
+                            e.is_published ? 'text-emerald-700' : 'text-slate-600'
+                          }`}
+                        >
+                          {e.is_published ? 'Publicado' : 'Borrador'}
+                        </span>
+                      </form>
+                    ) : (
+                      <div className="inline-flex items-center gap-2">
+                        <span className="relative inline-flex h-6 w-11 items-center rounded-full bg-slate-200">
+                          <span className="inline-block h-5 w-5 translate-x-1 transform rounded-full bg-white shadow" />
+                        </span>
+                        <Link
+                          href={`/admin/events/${e.id}/edit`}
+                          className="text-xs font-semibold text-amber-700 transition hover:text-mulberry"
+                        >
+                          Completar datos
+                        </Link>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2">
                     {canManageFeatured ? (

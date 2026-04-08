@@ -25,6 +25,7 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
   const [isSigningOut, setIsSigningOut] = React.useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const userIsAdmin = Boolean(user && isAdminUser(user as any));
+  const createEventHref = userIsAdmin ? '/admin/events/new' : '/create-event';
 
   const toggleOpen = useCallback(() => {
     setIsOpen((prev) => !prev);
@@ -52,6 +53,10 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
           <div className="flex items-center space-x-8">
             {user ? (
               <>
+                <Link href={createEventHref} className="font-poppins font-semibold text-sm text-mulberry">
+                  Crear evento
+                </Link>
+
                 {userIsAdmin ? (
                   <Link href="/admin" className="font-poppins font-semibold text-sm text-mulberry">
                     Dashboard

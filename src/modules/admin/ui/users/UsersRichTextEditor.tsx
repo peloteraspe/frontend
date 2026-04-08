@@ -497,7 +497,7 @@ export default function UsersRichTextEditor({ id, textName, htmlName, defaultVal
             runCommand(event.shiftKey ? 'outdent' : 'indent');
           }
         }}
-        className="min-h-[360px] w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-mulberry focus:ring-2 focus:ring-mulberry/20"
+        className="peloteras-form-control peloteras-form-control--textarea min-h-[360px]"
       />
 
       <input ref={plainInputRef} type="hidden" name={textName} />

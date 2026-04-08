@@ -1,0 +1,129 @@
+.peloteras-phone-input {
+  @apply relative flex w-full overflow-visible rounded-xl border bg-white transition;
+}
+
+.peloteras-phone-input:focus-within {
+  z-index: 30;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector {
+  @apply relative shrink-0 border-r border-slate-300;
+}
+
+.peloteras-phone-input .react-international-phone-input-container {
+  @apply flex w-full;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button,
+.peloteras-phone-input .react-international-phone-input {
+  height: var(--peloteras-phone-height, 2.75rem);
+  @apply border-0 bg-white;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button {
+  @apply m-0 flex items-center justify-center rounded-l-xl px-3 text-slate-900 transition;
+  -webkit-appearance: button;
+  appearance: button;
+  user-select: none;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button:hover {
+  background-color: rgba(91, 28, 112, 0.04);
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button:focus-visible {
+  @apply outline-none;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button__button-content {
+  @apply flex items-center justify-center;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button__flag-emoji {
+  @apply mx-0;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button__dropdown-arrow {
+  border-top: 4px solid rgb(91 28 112);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  transition: transform 0.1s ease-out;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button__dropdown-arrow {
+  @apply ml-2 mr-0;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button__dropdown-arrow--active {
+  transform: rotateX(180deg);
+}
+
+.peloteras-phone-input .react-international-phone-flag-emoji,
+.peloteras-phone-input .react-international-phone-country-selector-dropdown__list-item-flag-emoji {
+  width: 24px;
+  height: 24px;
+}
+
+.peloteras-phone-input .react-international-phone-input {
+  @apply w-full rounded-r-xl px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-dropdown {
+  position: absolute;
+  top: calc(var(--peloteras-phone-height, 2.75rem) + 0.5rem);
+  left: 0;
+  width: min(320px, calc(100vw - 2rem));
+  @apply z-50 flex max-h-72 flex-col overflow-auto rounded-xl border border-slate-300 bg-white py-1 shadow-lg;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-dropdown__list-item {
+  @apply px-3 text-sm text-slate-700 transition;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-dropdown__list-item:hover,
+.peloteras-phone-input .react-international-phone-country-selector-dropdown__list-item--focused {
+  background-color: rgba(91, 28, 112, 0.08);
+  @apply text-slate-900;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-dropdown__list-item--selected {
+  @apply bg-mulberry text-white;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-dropdown__list-item-flag-emoji {
+  @apply mr-2;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-dropdown__list-item-country-name {
+  @apply mr-2 overflow-hidden text-sm text-slate-700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-dropdown__list-item-dial-code {
+  @apply ml-auto text-sm text-slate-500;
+}
+
+.peloteras-phone-input
+  .react-international-phone-country-selector-dropdown__list-item--focused
+  .react-international-phone-country-selector-dropdown__list-item-dial-code {
+  @apply text-mulberry;
+}
+
+.peloteras-phone-input
+  .react-international-phone-country-selector-dropdown__list-item--selected
+  .react-international-phone-country-selector-dropdown__list-item-country-name,
+.peloteras-phone-input
+  .react-international-phone-country-selector-dropdown__list-item--selected
+  .react-international-phone-country-selector-dropdown__list-item-dial-code {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-dropdown__preferred-list-divider {
+  @apply my-1 bg-slate-300;
+}

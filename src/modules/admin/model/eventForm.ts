@@ -1,4 +1,5 @@
 import { normalizeDateTimeLocalToLima } from '@shared/lib/dateTime';
+import { getEventPublishReadiness } from '@modules/admin/model/eventPublishReadiness';
 
 export type EventUpsertInput = {
   title: string;
@@ -9,6 +10,7 @@ export type EventUpsertInput = {
   minUsers: number;
   maxUsers: number;
   district: string;
+  placeText: string;
   locationText: string;
   lat: number;
   lng: number;
@@ -17,6 +19,7 @@ export type EventUpsertInput = {
   featureIds: number[];
   paymentMethodIds: number[];
   isPublished: boolean;
+  isFieldReservedConfirmed: boolean;
   isFeatured: boolean;
 };
 
@@ -69,6 +72,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     minUsers: parseNumber(fd.get('minUsers'), 0),
     maxUsers: parseNumber(fd.get('maxUsers'), 0),
     district: normalizeDistrict(fd.get('district')),
+    placeText: String(fd.get('placeText') || ''),
     locationText: String(fd.get('locationText') || ''),
     lat: parseNumber(fd.get('lat'), 0),
     lng: parseNumber(fd.get('lng'), 0),
@@ -77,6 +81,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     featureIds: parseNumberList(fd.getAll('featureIds')),
     paymentMethodIds: parseNumberList(fd.getAll('paymentMethodIds')),
     isPublished: parseBoolean(fd.get('isPublished')),
+    isFieldReservedConfirmed: parseBoolean(fd.get('isFieldReservedConfirmed')),
     isFeatured: parseBoolean(fd.get('isFeatured')),
   };
 }
@@ -93,11 +98,21 @@ export function validateEventFormInput(input: EventUpsertInput) {
     throw new Error('La fecha y hora de fin debe ser posterior al inicio.');
   }
 
-  if (!input.district.trim()) {
-    throw new Error('Selecciona un distrito válido.');
-  }
+  if (!input.isPublished) return;
 
-  if (!Array.isArray(input.paymentMethodIds) || input.paymentMethodIds.length === 0) {
-    throw new Error('Selecciona al menos un método de pago para el evento.');
+  const publishReadiness = getEventPublishReadiness({
+    title: input.title,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    district: input.district,
+    locationText: input.locationText,
+    lat: input.lat,
+    lng: input.lng,
+    paymentMethodIds: input.paymentMethodIds,
+    isFieldReservedConfirmed: input.isFieldReservedConfirmed,
+  });
+
+  if (!publishReadiness.isReady && publishReadiness.primaryMessage) {
+    throw new Error(publishReadiness.primaryMessage);
   }
 }
