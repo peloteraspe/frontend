@@ -26,8 +26,8 @@ export default async function NewEventScreen({ templateId }: Props) {
     supabase
       .from('paymentMethod')
       .select('id,name,type,number,is_active')
-      .eq('is_active', true)
       .eq('created_by', user?.id || '')
+      .order('is_active', { ascending: false })
       .order('created_at', { ascending: false }),
   ]);
 

@@ -129,18 +129,16 @@ const MAP_OPTIONS: google.maps.MapOptions = {
   streetViewControl: false,
   zoomControl: true,
 };
+const ADDRESS_BLUR_RESOLVE_DELAY_MS = 150;
 const DEFAULT_EVENT_DURATION_MINUTES = 90;
 const QUICK_DURATION_OPTIONS = [60, 90, 120, 150] as const;
 const DEFAULT_EVENT_START_TIME = '19:00';
 const FLOW_SURFACE_CLASS =
   'rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6';
 const FLOW_PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-slate-50/85';
-const FLOW_FIELD_CLASS =
-  'peloteras-form-control h-12';
-const FLOW_TEXTAREA_CLASS =
-  'peloteras-form-control peloteras-form-control--textarea';
-const FLOW_NATIVE_SELECT_CLASS =
-  'peloteras-form-control peloteras-form-control--select h-12';
+const FLOW_FIELD_CLASS = 'peloteras-form-control h-12';
+const FLOW_TEXTAREA_CLASS = 'peloteras-form-control peloteras-form-control--textarea';
+const FLOW_NATIVE_SELECT_CLASS = 'peloteras-form-control peloteras-form-control--select h-12';
 
 function asFiniteNumber(value: unknown, fallback: number) {
   const parsed = Number(value);
@@ -224,7 +222,9 @@ function resolveFriendlyCreateErrorMessage(message: string) {
 }
 
 function normalizeLocationLookupValue(value: string | null | undefined) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 function readLocalDatePart(value: string | null | undefined) {
@@ -422,13 +422,16 @@ const EventForm = ({
   const pinSelectedRef = useRef(
     Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
   );
+  const addressInputRef = useRef<HTMLInputElement | null>(null);
   const addressAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const resolvedAddressTextRef = useRef(
     Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
       ? normalizeLocationLookupValue(initial?.locationText)
       : ''
   );
+  const pendingAutocompleteAddressRef = useRef('');
   const skipNextAddressBlurResolveRef = useRef(false);
+  const addressBlurResolveTimerRef = useRef<number | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   const startDateValue = useMemo(() => readLocalDatePart(startTime), [startTime]);
@@ -471,7 +474,7 @@ const EventForm = ({
       if (!googleMapsApiKeyConfigured) {
         return 'Falta configurar NEXT_PUBLIC_GOOGLE_MAPS_KEY para seleccionar ubicacion.';
       }
-      return 'Selecciona un punto en el mapa para calcular latitud/longitud.';
+      return 'Selecciona un punto en el mapa.';
     }
 
     return '';
@@ -529,17 +532,32 @@ const EventForm = ({
     () => features.map((option) => ({ value: option.id, label: option.name })),
     [features]
   );
+  const paymentMethodIdSet = useMemo(
+    () => new Set(paymentMethodCatalog.map((method) => method.id)),
+    [paymentMethodCatalog]
+  );
   const activePaymentMethodCatalog = useMemo(
     () => paymentMethodCatalog.filter((method) => method.isActive),
     [paymentMethodCatalog]
   );
+  const activePaymentMethodIdSet = useMemo(
+    () => new Set(activePaymentMethodCatalog.map((method) => method.id)),
+    [activePaymentMethodCatalog]
+  );
+  const selectedVisiblePaymentMethodIds = useMemo(
+    () => selectedPaymentMethodIds.filter((id) => paymentMethodIdSet.has(id)),
+    [paymentMethodIdSet, selectedPaymentMethodIds]
+  );
   const selectedActivePaymentMethodIds = useMemo(() => {
-    const activeIds = new Set(activePaymentMethodCatalog.map((method) => method.id));
-    return selectedPaymentMethodIds.filter((id) => activeIds.has(id));
-  }, [activePaymentMethodCatalog, selectedPaymentMethodIds]);
+    return selectedVisiblePaymentMethodIds.filter((id) => activePaymentMethodIdSet.has(id));
+  }, [activePaymentMethodIdSet, selectedVisiblePaymentMethodIds]);
+  const selectedInactivePaymentMethodIds = useMemo(
+    () => selectedVisiblePaymentMethodIds.filter((id) => !activePaymentMethodIdSet.has(id)),
+    [activePaymentMethodIdSet, selectedVisiblePaymentMethodIds]
+  );
   const paymentMethodOptions = useMemo(
     () =>
-      activePaymentMethodCatalog.map((option) => {
+      paymentMethodCatalog.map((option) => {
         const methodType =
           option.type === 'yape_plin' ? 'Yape/Plin' : option.type === 'plin' ? 'Plin' : 'Yape';
         const numberText = option.number ? ` · ${option.number}` : '';
@@ -549,10 +567,13 @@ const EventForm = ({
           label: `${option.name} · ${methodType}${numberText}${stateText}`,
         };
       }),
-    [activePaymentMethodCatalog]
+    [paymentMethodCatalog]
   );
   const isCreateMode = useMemo(() => submitLabel.trim().toLowerCase() === 'crear', [submitLabel]);
   const activeCreateStep = CREATE_EVENT_STEPS[createStep - 1];
+  const detailsStepVisibilityKey = isCreateMode
+    ? `details-step-${createStep === 3 ? 'visible' : 'hidden'}`
+    : 'details-step-edit';
   const resolvedSubmitLabel = useMemo(() => {
     if (isCreateMode) {
       return isPublished ? 'Crear y publicar' : 'Guardar borrador';
@@ -614,9 +635,8 @@ const EventForm = ({
   }, [paymentMethods]);
 
   useEffect(() => {
-    const availableIds = new Set(activePaymentMethodCatalog.map((method) => method.id));
-    setSelectedPaymentMethodIds((current) => current.filter((id) => availableIds.has(id)));
-  }, [activePaymentMethodCatalog]);
+    setSelectedPaymentMethodIds((current) => current.filter((id) => paymentMethodIdSet.has(id)));
+  }, [paymentMethodIdSet]);
 
   useEffect(() => {
     if (eventTypes.some((option) => String(option.id) === selectedEventTypeId)) return;
@@ -647,6 +667,14 @@ const EventForm = ({
     if (!isCreateMode) return;
     setWizardError('');
   }, [createStep, isCreateMode]);
+
+  useEffect(() => {
+    return () => {
+      if (addressBlurResolveTimerRef.current !== null && typeof window !== 'undefined') {
+        window.clearTimeout(addressBlurResolveTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isCreateMode || previousTrackedStepRef.current === createStep) return;
@@ -885,6 +913,31 @@ const EventForm = ({
     return normalizedValue !== resolvedAddressTextRef.current;
   }
 
+  function clearPendingAddressBlurResolve() {
+    if (addressBlurResolveTimerRef.current === null || typeof window === 'undefined') return;
+    window.clearTimeout(addressBlurResolveTimerRef.current);
+    addressBlurResolveTimerRef.current = null;
+  }
+
+  function syncAddressInputValue(nextValue: string) {
+    const input = addressInputRef.current;
+    if (!input || input.value === nextValue) return;
+    input.value = nextValue;
+  }
+
+  function markPendingAutocompleteAddress(nextValue: string) {
+    const normalizedValue = normalizeLocationLookupValue(nextValue);
+    pendingAutocompleteAddressRef.current = normalizedValue;
+
+    if (!normalizedValue || typeof window === 'undefined') return;
+
+    window.setTimeout(() => {
+      if (pendingAutocompleteAddressRef.current === normalizedValue) {
+        pendingAutocompleteAddressRef.current = '';
+      }
+    }, ADDRESS_BLUR_RESOLVE_DELAY_MS);
+  }
+
   function setResolvedAddressValue(displayValue: string, comparisonValue?: string) {
     const nextDisplayValue = String(displayValue || '').trim();
     const nextComparisonValue =
@@ -899,6 +952,8 @@ const EventForm = ({
   }
 
   async function handleAddressPlaceChanged() {
+    clearPendingAddressBlurResolve();
+
     const place = addressAutocompleteRef.current?.getPlace();
     const placeLocation = place?.geometry?.location;
 
@@ -908,7 +963,9 @@ const EventForm = ({
     }
 
     const nextCoords = toFixedLatLng(placeLocation.lat(), placeLocation.lng());
-    const formattedAddress = String(place.formatted_address || place.name || '').trim();
+    const formattedAddress = String(
+      place.formatted_address || addressInputRef.current?.value || place.name || ''
+    ).trim();
     const nextDistrictOptions = extractDistrictOptionsFromAddressComponents(
       place.address_components,
       formattedAddress
@@ -916,6 +973,8 @@ const EventForm = ({
 
     skipNextAddressBlurResolveRef.current = true;
     if (formattedAddress) {
+      markPendingAutocompleteAddress(formattedAddress);
+      syncAddressInputValue(formattedAddress);
       setResolvedAddressValue(formattedAddress);
       syncDistrictSelection(nextDistrictOptions, districtText);
     }
@@ -923,10 +982,11 @@ const EventForm = ({
     syncPinSelected(true);
     setGeoError('');
     panMapToLocation(nextCoords.lat, nextCoords.lng);
-
   }
 
   async function geocodeAddressText(rawAddress: string, options?: { preserveInput?: boolean }) {
+    clearPendingAddressBlurResolve();
+
     if (!googleMapsApiKeyConfigured || !isGoogleMapsLoaded || typeof google === 'undefined') {
       return false;
     }
@@ -961,8 +1021,15 @@ const EventForm = ({
       );
 
       setResolvedAddressValue(
-        options?.preserveInput ? nextAddress : String(result.formatted_address || nextAddress).trim(),
+        options?.preserveInput
+          ? nextAddress
+          : String(result.formatted_address || nextAddress).trim(),
         nextAddress
+      );
+      syncAddressInputValue(
+        options?.preserveInput
+          ? nextAddress
+          : String(result.formatted_address || nextAddress).trim()
       );
       syncDistrictSelection(nextDistrictOptions, districtText);
       syncLocationCoordinates(nextCoords.lat, nextCoords.lng);
@@ -997,7 +1064,9 @@ const EventForm = ({
       syncDistrictSelection(nextDistrictOptions, districtText);
       setGeoError('');
     } catch {
-      setGeoError('No se pudo ajustar el distrito desde el mapa. La dirección escrita se mantiene.');
+      setGeoError(
+        'No se pudo ajustar el distrito desde el mapa. La dirección escrita se mantiene.'
+      );
     }
   }
 
@@ -1011,11 +1080,19 @@ const EventForm = ({
   }
 
   function handleAddressInputChange(nextValue: string) {
+    clearPendingAddressBlurResolve();
+
+    const normalizedValue = normalizeLocationLookupValue(nextValue);
+    if (pendingAutocompleteAddressRef.current) {
+      if (normalizedValue !== pendingAutocompleteAddressRef.current) return;
+      pendingAutocompleteAddressRef.current = '';
+      return;
+    }
+
     skipNextAddressBlurResolveRef.current = false;
     setLocationText(nextValue);
     setGeoError('');
 
-    const normalizedValue = normalizeLocationLookupValue(nextValue);
     if (!normalizedValue) {
       resolvedAddressTextRef.current = '';
       syncPinSelected(false);
@@ -1028,20 +1105,30 @@ const EventForm = ({
   }
 
   async function ensureAddressResolvedIfNeeded() {
-    const nextAddress = String(locationText || '').trim();
+    const nextAddress = String(addressInputRef.current?.value || locationText || '').trim();
     if (!nextAddress) return false;
     if (!hasPendingAddressResolution(nextAddress)) return true;
     return geocodeAddressText(nextAddress, { preserveInput: true });
   }
 
-  async function handleAddressBlur() {
-    if (skipNextAddressBlurResolveRef.current) {
-      skipNextAddressBlurResolveRef.current = false;
-      return;
-    }
+  function handleAddressBlur() {
+    clearPendingAddressBlurResolve();
 
-    if (!hasPendingAddressResolution()) return;
-    await geocodeAddressText(locationText, { preserveInput: true });
+    if (typeof window === 'undefined') return;
+
+    addressBlurResolveTimerRef.current = window.setTimeout(() => {
+      addressBlurResolveTimerRef.current = null;
+
+      if (skipNextAddressBlurResolveRef.current) {
+        skipNextAddressBlurResolveRef.current = false;
+        return;
+      }
+
+      const currentValue = String(addressInputRef.current?.value || locationText || '').trim();
+      if (!hasPendingAddressResolution(currentValue)) return;
+
+      void geocodeAddressText(currentValue, { preserveInput: true });
+    }, ADDRESS_BLUR_RESOLVE_DELAY_MS);
   }
 
   function handleInlinePaymentMethodsChange(methods: InlinePaymentMethodSummary[]) {
@@ -1058,10 +1145,8 @@ const EventForm = ({
     if (!savedMethod) return;
 
     setSelectedPaymentMethodIds((current) => {
-      const activeIds = new Set(
-        nextCatalog.filter((method) => method.isActive).map((method) => method.id)
-      );
-      const nextSelection = current.filter((id) => activeIds.has(id));
+      const availableIds = new Set(nextCatalog.map((method) => method.id));
+      const nextSelection = current.filter((id) => availableIds.has(id));
 
       if (savedMethod.is_active !== false) {
         nextSelection.push(savedMethod.id);
@@ -1112,10 +1197,7 @@ const EventForm = ({
     return readiness.primaryMessage || '';
   }
 
-  function trackPublishBlocked(
-    source: 'step_validation' | 'submit',
-    readiness = publishReadiness
-  ) {
+  function trackPublishBlocked(source: 'step_validation' | 'submit', readiness = publishReadiness) {
     trackEvent('create_event_publish_blocked', {
       channel: 'web',
       source,
@@ -1373,9 +1455,7 @@ const EventForm = ({
     } catch (error: any) {
       setSubmitStatus('error');
       const nextMessage = error?.message || 'No se pudo completar la operación.';
-      setSubmitMessage(
-        isCreateMode ? resolveFriendlyCreateErrorMessage(nextMessage) : nextMessage
-      );
+      setSubmitMessage(isCreateMode ? resolveFriendlyCreateErrorMessage(nextMessage) : nextMessage);
     } finally {
       const elapsed = Date.now() - pendingStartedAt;
       if (elapsed < MIN_PENDING_MS) {
@@ -1862,23 +1942,6 @@ const EventForm = ({
 
             <div className="grid gap-4">
               <label className="w-full">
-                <div className="mb-1 text-sm font-semibold text-slate-700">
-                  Nombre del local (opcional)
-                </div>
-                <input
-                  name="placeText"
-                  type="text"
-                  value={placeText}
-                  onChange={(event) => setPlaceText(event.currentTarget.value)}
-                  autoComplete="off"
-                  className={FLOW_FIELD_CLASS}
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  Se guarda tal como lo escribas. No cambia la dirección ni el mapa.
-                </p>
-              </label>
-
-              <label className="w-full">
                 <div className="mb-1 text-sm font-semibold text-slate-700">Dirección *</div>
                 {googleMapsApiKeyConfigured && isGoogleMapsLoaded ? (
                   <Autocomplete
@@ -1890,6 +1953,7 @@ const EventForm = ({
                     }}
                   >
                     <input
+                      ref={addressInputRef}
                       name="locationText"
                       type="text"
                       required
@@ -1902,6 +1966,7 @@ const EventForm = ({
                   </Autocomplete>
                 ) : (
                   <input
+                    ref={addressInputRef}
                     name="locationText"
                     type="text"
                     required
@@ -1913,8 +1978,7 @@ const EventForm = ({
                   />
                 )}
                 <p className="mt-1 text-xs text-slate-500">
-                  Puedes escribir una dirección o el nombre de un lugar. Si Google lo encuentra,
-                  ubicaremos el punto en el mapa.
+                  Puedes escribir una dirección o el nombre de un lugar.
                 </p>
               </label>
 
@@ -1975,6 +2039,20 @@ const EventForm = ({
                 <input type="hidden" name="lng" value={lng} readOnly />
                 <input type="hidden" name="district" value={districtText} readOnly />
               </div>
+
+              <label className="w-full">
+                <div className="mb-1 text-sm font-semibold text-slate-700">
+                  Nombre del local (opcional)
+                </div>
+                <input
+                  name="placeText"
+                  type="text"
+                  value={placeText}
+                  onChange={(event) => setPlaceText(event.currentTarget.value)}
+                  autoComplete="off"
+                  className={FLOW_FIELD_CLASS}
+                />
+              </label>
 
               <div className="max-w-sm">
                 <Input
@@ -2047,8 +2125,9 @@ const EventForm = ({
                   Métodos de pago permitidos {isPublished ? '*' : '(opcional por ahora)'}
                 </div>
                 <SelectComponent
+                  key={`${detailsStepVisibilityKey}-payment-methods`}
                   options={paymentMethodOptions}
-                  value={selectedActivePaymentMethodIds}
+                  value={selectedVisiblePaymentMethodIds}
                   onChange={(value) => {
                     const nextIds = Array.isArray(value)
                       ? value
@@ -2068,7 +2147,7 @@ const EventForm = ({
                 {activePaymentMethodCatalog.length === 0 ? (
                   <div className="mt-2 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3">
                     <p className="text-xs font-medium text-amber-800">
-                      No hay métodos disponibles todavía.
+                      No hay métodos activos disponibles todavía.
                     </p>
                     <Link
                       href={paymentMethodsHref}
@@ -2086,17 +2165,23 @@ const EventForm = ({
                   </div>
                 ) : (
                   <p className="mt-1 text-xs text-slate-500">
-                    {selectedActivePaymentMethodIds.length > 0
-                      ? `${selectedActivePaymentMethodIds.length} método(s) seleccionado(s).`
+                    {selectedVisiblePaymentMethodIds.length > 0
+                      ? `${selectedVisiblePaymentMethodIds.length} método(s) seleccionado(s).`
                       : isPublished
                         ? 'Selecciona uno o más métodos para publicar este evento.'
                         : 'Puedes agregar métodos de pago después, antes de publicar.'}
                   </p>
                 )}
+                {selectedInactivePaymentMethodIds.length > 0 ? (
+                  <p className="mt-1 text-xs text-amber-700">
+                    {selectedInactivePaymentMethodIds.length} método(s) seleccionado(s) están
+                    inactivos. Actívalos o elige otros antes de publicar.
+                  </p>
+                ) : null}
                 {paymentMethodsError ? (
                   <p className="mt-1 text-xs text-red-600">{paymentMethodsError}</p>
                 ) : null}
-                {selectedActivePaymentMethodIds.map((paymentMethodId) => (
+                {selectedVisiblePaymentMethodIds.map((paymentMethodId) => (
                   <input
                     key={`payment-method-${paymentMethodId}`}
                     type="hidden"
@@ -2116,6 +2201,7 @@ const EventForm = ({
               <div className="w-full">
                 <div className="mb-1 text-sm font-semibold text-slate-700">Features</div>
                 <SelectComponent
+                  key={`${detailsStepVisibilityKey}-features`}
                   options={featureOptions}
                   value={selectedFeatureIds}
                   onChange={(value) =>
@@ -2365,33 +2451,35 @@ const EventForm = ({
             isCreateMode ? 'xl:col-span-2' : '',
           ].join(' ')}
         >
-          {isCreateMode && createStep > 1 ? (
-            <button
-              type="button"
-              onClick={handlePreviousCreateStep}
-              className="inline-flex h-11 items-center rounded-xl border border-slate-300/90 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Anterior
-            </button>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            {isCreateMode && createStep > 1 ? (
+              <button
+                type="button"
+                onClick={handlePreviousCreateStep}
+                className="inline-flex h-11 items-center rounded-xl border border-slate-300/90 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Anterior
+              </button>
+            ) : null}
 
-          {isCreateMode && createStep < 4 ? (
-            <button
-              type="button"
-              onClick={handleNextCreateStep}
-              className="inline-flex h-11 items-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760] lg:hidden"
-            >
-              Continuar
-            </button>
-          ) : (
-            <ButtonWrapper
-              width="fit-content"
-              htmlType="submit"
-              disabled={pending || Boolean(timeError) || Boolean(locationError)}
-            >
-              {pending ? pendingLabel : resolvedSubmitLabel}
-            </ButtonWrapper>
-          )}
+            {isCreateMode && createStep < 4 ? (
+              <button
+                type="button"
+                onClick={handleNextCreateStep}
+                className="inline-flex h-11 items-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760]"
+              >
+                Continuar
+              </button>
+            ) : (
+              <ButtonWrapper
+                width="fit-content"
+                htmlType="submit"
+                disabled={pending || Boolean(timeError) || Boolean(locationError)}
+              >
+                {pending ? pendingLabel : resolvedSubmitLabel}
+              </ButtonWrapper>
+            )}
+          </div>
 
           {isCreateMode ? (
             <p className="text-sm text-slate-500">

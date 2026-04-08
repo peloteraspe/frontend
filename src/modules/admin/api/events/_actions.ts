@@ -241,6 +241,30 @@ function normalizePaymentMethodIds(ids: number[]) {
   );
 }
 
+async function loadOwnedPaymentMethods(
+  supabase: SupabaseClientLike,
+  ownerUserId: string,
+  paymentMethodIds: number[]
+) {
+  const normalizedPaymentMethodIds = normalizePaymentMethodIds(paymentMethodIds);
+  if (normalizedPaymentMethodIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('paymentMethod')
+    .select('id,is_active')
+    .eq('created_by', ownerUserId)
+    .in('id', normalizedPaymentMethodIds);
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .map((row) => ({
+      id: Number((row as { id: number | string | null }).id),
+      isActive: (row as { is_active?: boolean | null }).is_active !== false,
+    }))
+    .filter((method) => Number.isInteger(method.id) && method.id > 0);
+}
+
 async function syncEventFeatures(
   supabase: SupabaseClientLike,
   eventId: string | number,
@@ -280,25 +304,12 @@ async function syncEventPaymentMethods(
 
   if (normalizedPaymentMethodIds.length === 0) return;
 
-  const { data: ownedMethods, error: ownedMethodsError } = await supabase
-    .from('paymentMethod')
-    .select('id')
-    .eq('created_by', ownerUserId)
-    .eq('is_active', true)
-    .in('id', normalizedPaymentMethodIds);
-
-  if (ownedMethodsError) throw new Error(ownedMethodsError.message);
-
   const ownedMethodIds = Array.from(
-    new Set(
-      (ownedMethods ?? [])
-        .map((row) => Number((row as { id: number }).id))
-        .filter((id) => Number.isInteger(id) && id > 0)
-    )
+    new Set((await loadOwnedPaymentMethods(supabase, ownerUserId, normalizedPaymentMethodIds)).map((method) => method.id))
   );
 
   if (ownedMethodIds.length !== normalizedPaymentMethodIds.length) {
-    throw new Error('Solo puedes usar formas de pago activas creadas por tu cuenta.');
+    throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
   }
 
   const { error: insertError } = await supabase.from('eventPaymentMethod').insert(
@@ -329,9 +340,20 @@ async function clearEventRelations(supabase: SupabaseClientLike, eventId: string
 }
 
 export async function createEvent(input: EventUpsertInput) {
-  validateEventFormInput(input);
-
   const { adminSupabase, user } = await getAuthenticatedAdminContext('crear');
+  const ownedPaymentMethods = await loadOwnedPaymentMethods(adminSupabase, user.id, input.paymentMethodIds);
+  const normalizedPaymentMethodIds = normalizePaymentMethodIds(input.paymentMethodIds);
+
+  if (ownedPaymentMethods.length !== normalizedPaymentMethodIds.length) {
+    throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
+  }
+
+  validateEventFormInput({
+    ...input,
+    paymentMethodIds: ownedPaymentMethods
+      .filter((method) => method.isActive)
+      .map((method) => method.id),
+  });
 
   const { data: profile, error: profileError } = await adminSupabase
     .from('profile')
@@ -421,9 +443,21 @@ export async function createEvent(input: EventUpsertInput) {
 }
 
 export async function updateEvent(id: string, input: EventUpsertInput) {
-  validateEventFormInput(input);
-
   const { adminSupabase, user } = await getAuthenticatedAdminContext('editar');
+  const ownedPaymentMethods = await loadOwnedPaymentMethods(adminSupabase, user.id, input.paymentMethodIds);
+  const normalizedPaymentMethodIds = normalizePaymentMethodIds(input.paymentMethodIds);
+
+  if (ownedPaymentMethods.length !== normalizedPaymentMethodIds.length) {
+    throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
+  }
+
+  validateEventFormInput({
+    ...input,
+    paymentMethodIds: ownedPaymentMethods
+      .filter((method) => method.isActive)
+      .map((method) => method.id),
+  });
+
   await assertCanManageEvent(adminSupabase, id, user);
   const canManageFeatured = isSuperAdmin(user as any);
   let isFeatured = false;
