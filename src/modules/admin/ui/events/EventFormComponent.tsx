@@ -202,6 +202,12 @@ function capitalizeFirst(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function parseBooleanFormValue(value: FormDataEntryValue | null) {
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
+}
+
 function normalizeLocationLookupValue(value: string | null | undefined) {
   return String(value || '').trim().toLowerCase();
 }
@@ -1028,26 +1034,52 @@ const EventForm = ({
     }
   }
 
-  function syncPublishReadinessErrors() {
+  function resolveCurrentPublishReadiness(fd?: FormData) {
+    const paymentMethodIds = fd
+      ? fd
+          .getAll('paymentMethodIds')
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0)
+      : selectedActivePaymentMethodIds;
+
+    return getEventPublishReadiness({
+      title: fd ? String(fd.get('title') || '') : eventTitle,
+      startTime: fd ? String(fd.get('startTime') || '') : startTime,
+      endTime: fd ? String(fd.get('endTime') || '') : endTime,
+      district: fd ? String(fd.get('district') || '') : districtText,
+      locationText: fd ? String(fd.get('locationText') || '') : locationText,
+      lat: pinSelectedRef.current ? latRef.current : null,
+      lng: pinSelectedRef.current ? lngRef.current : null,
+      paymentMethodIds,
+      isFieldReservedConfirmed: fd
+        ? parseBooleanFormValue(fd.get('isFieldReservedConfirmed'))
+        : isFieldReservedConfirmed,
+    });
+  }
+
+  function syncPublishReadinessErrors(readiness = publishReadiness) {
     if (!isPublished) return '';
 
-    if (publishReadiness.missingIds.includes('payment_methods')) {
+    if (readiness.missingIds.includes('payment_methods')) {
       setPaymentMethodsError('Selecciona al menos un método de pago antes de publicar.');
     }
 
-    if (publishReadiness.missingIds.includes('field_reservation')) {
+    if (readiness.missingIds.includes('field_reservation')) {
       setFieldReservedError('Confirma que la cancha ya está reservada antes de publicar.');
     }
 
-    return publishReadiness.primaryMessage || '';
+    return readiness.primaryMessage || '';
   }
 
-  function trackPublishBlocked(source: 'step_validation' | 'submit') {
+  function trackPublishBlocked(
+    source: 'step_validation' | 'submit',
+    readiness = publishReadiness
+  ) {
     trackEvent('create_event_publish_blocked', {
       channel: 'web',
       source,
       step: createStep,
-      missing_ids: publishReadiness.missingIds,
+      missing_ids: readiness.missingIds,
     });
   }
 
@@ -1056,6 +1088,7 @@ const EventForm = ({
     if (!form) return '';
 
     const fd = new FormData(form);
+    const currentPublishReadiness = resolveCurrentPublishReadiness(fd);
 
     if (step === 1) {
       const title = String(fd.get('title') || '').trim();
@@ -1088,14 +1121,14 @@ const EventForm = ({
     }
 
     if (step === 3) {
-      if (isPublished && publishReadiness.missingIds.includes('payment_methods')) {
+      if (isPublished && currentPublishReadiness.missingIds.includes('payment_methods')) {
         setPaymentMethodsError('Selecciona al menos un método de pago antes de publicar.');
         return 'Agrega un método de pago o deja el evento como borrador por ahora.';
       }
       return '';
     }
 
-    if (isPublished && publishReadiness.missingIds.includes('field_reservation')) {
+    if (isPublished && currentPublishReadiness.missingIds.includes('field_reservation')) {
       setFieldReservedError('Confirma que la cancha ya está reservada antes de publicar.');
       return 'Antes de publicar debes confirmar que la cancha ya está reservada.';
     }
@@ -1115,12 +1148,15 @@ const EventForm = ({
 
     const nextError = validateCreateStep(createStep);
     if (nextError) {
+      const currentPublishReadiness = formRef.current
+        ? resolveCurrentPublishReadiness(new FormData(formRef.current))
+        : resolveCurrentPublishReadiness();
       if (
         isPublished &&
-        (publishReadiness.missingIds.includes('payment_methods') ||
-          publishReadiness.missingIds.includes('field_reservation'))
+        (currentPublishReadiness.missingIds.includes('payment_methods') ||
+          currentPublishReadiness.missingIds.includes('field_reservation'))
       ) {
-        trackPublishBlocked('step_validation');
+        trackPublishBlocked('step_validation', currentPublishReadiness);
       }
       setWizardError(nextError);
       return;
@@ -1164,12 +1200,15 @@ const EventForm = ({
     if (isCreateMode) {
       const stepError = validateCreateStep(createStep);
       if (stepError) {
+        const currentPublishReadiness = formRef.current
+          ? resolveCurrentPublishReadiness(new FormData(formRef.current))
+          : resolveCurrentPublishReadiness();
         if (
           isPublished &&
-          (publishReadiness.missingIds.includes('payment_methods') ||
-            publishReadiness.missingIds.includes('field_reservation'))
+          (currentPublishReadiness.missingIds.includes('payment_methods') ||
+            currentPublishReadiness.missingIds.includes('field_reservation'))
         ) {
-          trackPublishBlocked('step_validation');
+          trackPublishBlocked('step_validation', currentPublishReadiness);
         }
         setWizardError(stepError);
         return;
@@ -1203,13 +1242,15 @@ const EventForm = ({
     }
     fd.set('lat', String(latRef.current));
     fd.set('lng', String(lngRef.current));
+    const submitPublishReadiness = resolveCurrentPublishReadiness(fd);
 
-    if (isPublished && !publishReadiness.isReady) {
-      trackPublishBlocked('submit');
-      const readinessError = syncPublishReadinessErrors();
+    if (isPublished && !submitPublishReadiness.isReady) {
+      trackPublishBlocked('submit', submitPublishReadiness);
+      const readinessError = syncPublishReadinessErrors(submitPublishReadiness);
       if (readinessError) {
         setSubmitStatus('error');
         setSubmitMessage(readinessError);
+        setWizardError(readinessError);
       }
       return;
     }
