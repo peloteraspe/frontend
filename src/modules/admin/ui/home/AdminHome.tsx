@@ -208,7 +208,9 @@ export default async function AdminHome() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const canViewUsersModule = isSuperAdmin(user as any);
+  const isUserSuperAdmin = isSuperAdmin(user as any);
+  const canViewUsersModule = isUserSuperAdmin;
+  const canViewCreateEventFunnel = isUserSuperAdmin;
   const userId = String(user?.id || '');
   const analyticsSince = subtractDays(
     getIsoDateInTimeZone(new Date(), DEFAULT_TIMEZONE) || new Date().toISOString().slice(0, 10),
@@ -244,15 +246,13 @@ export default async function AdminHome() {
       return (data ?? []) as ProfileRow[];
     })(),
     (async () => {
+      if (!canViewCreateEventFunnel) return [] as AnalyticsRow[];
+
       let query = supabase
         .from('product_analytics_events')
         .select('created_at,event_name,source,payload')
         .in('event_name', [...CREATE_EVENT_ANALYTICS_NAMES])
         .gte('created_at', `${analyticsSince}T00:00:00`);
-
-      if (!canViewUsersModule && userId) {
-        query = query.eq('user_id', userId);
-      }
 
       const { data, error } = await query;
       if (error) {
@@ -412,26 +412,30 @@ export default async function AdminHome() {
         { name: 'Inactivos', value: inactiveMethods },
       ],
     },
-    createEventFunnel: {
-      entryViews: analyticsEventCounts.get('create_event_entry_viewed') || 0,
-      activationCompleted: analyticsEventCounts.get('organizer_activation_completed') || 0,
-      paymentSetupViews: analyticsEventCounts.get('create_event_payment_setup_viewed') || 0,
-      paymentMethodSaved: analyticsEventCounts.get('create_event_payment_method_saved') || 0,
-      draftStarts: analyticsEventCounts.get('create_event_draft_started') || 0,
-      draftCreated: analyticsEventCounts.get('create_event_draft_created') || 0,
-      publishAttempts: analyticsEventCounts.get('create_event_publish_attempted') || 0,
-      publishBlocked: analyticsEventCounts.get('create_event_publish_blocked') || 0,
-      publishSucceeded: analyticsEventCounts.get('create_event_publish_succeeded') || 0,
-      funnelStages: createEventFunnelStages,
-      blockerDistribution:
-        createEventBlockerCounts.size > 0
-          ? toBreakdownEntries(createEventBlockerCounts)
-          : createEmptyAnalyticsBreakdown('Sin bloqueos'),
-      stepViewDistribution:
-        createEventStepViewCounts.size > 0
-          ? toBreakdownEntries(createEventStepViewCounts)
-          : createEmptyAnalyticsBreakdown('Sin vistas'),
-    },
+    ...(canViewCreateEventFunnel
+      ? {
+          createEventFunnel: {
+            entryViews: analyticsEventCounts.get('create_event_entry_viewed') || 0,
+            activationCompleted: analyticsEventCounts.get('organizer_activation_completed') || 0,
+            paymentSetupViews: analyticsEventCounts.get('create_event_payment_setup_viewed') || 0,
+            paymentMethodSaved: analyticsEventCounts.get('create_event_payment_method_saved') || 0,
+            draftStarts: analyticsEventCounts.get('create_event_draft_started') || 0,
+            draftCreated: analyticsEventCounts.get('create_event_draft_created') || 0,
+            publishAttempts: analyticsEventCounts.get('create_event_publish_attempted') || 0,
+            publishBlocked: analyticsEventCounts.get('create_event_publish_blocked') || 0,
+            publishSucceeded: analyticsEventCounts.get('create_event_publish_succeeded') || 0,
+            funnelStages: createEventFunnelStages,
+            blockerDistribution:
+              createEventBlockerCounts.size > 0
+                ? toBreakdownEntries(createEventBlockerCounts)
+                : createEmptyAnalyticsBreakdown('Sin bloqueos'),
+            stepViewDistribution:
+              createEventStepViewCounts.size > 0
+                ? toBreakdownEntries(createEventStepViewCounts)
+                : createEmptyAnalyticsBreakdown('Sin vistas'),
+          },
+        }
+      : {}),
     ...(canViewUsersModule
       ? {
           users: {
