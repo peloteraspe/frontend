@@ -396,6 +396,11 @@ const EventForm = ({
   const [createStep, setCreateStep] = useState<CreateStepId>(1);
   const [wizardError, setWizardError] = useState('');
   const [autosaveMessage, setAutosaveMessage] = useState('');
+  const latRef = useRef(asFiniteNumber(initial?.lat, DEFAULT_LAT));
+  const lngRef = useRef(asFiniteNumber(initial?.lng, DEFAULT_LNG));
+  const pinSelectedRef = useRef(
+    Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
+  );
   const addressAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const resolvedAddressTextRef = useRef(
     Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
@@ -420,6 +425,37 @@ const EventForm = ({
       return 'La fecha y hora de fin debe ser posterior al inicio.';
     return '';
   }, [startTime, endTime]);
+  function syncLocationCoordinates(nextLat: number, nextLng: number) {
+    latRef.current = nextLat;
+    lngRef.current = nextLng;
+    setLat(nextLat);
+    setLng(nextLng);
+  }
+
+  function syncPinSelected(nextValue: boolean) {
+    pinSelectedRef.current = nextValue;
+    setPinSelected(nextValue);
+  }
+
+  function resolveLocationSelectionError(next?: {
+    pinSelected?: boolean;
+    lat?: number;
+    lng?: number;
+  }) {
+    const nextPinSelected = next?.pinSelected ?? pinSelectedRef.current;
+    const nextLat = next?.lat ?? latRef.current;
+    const nextLng = next?.lng ?? lngRef.current;
+
+    if (!nextPinSelected || !Number.isFinite(nextLat) || !Number.isFinite(nextLng)) {
+      if (!googleMapsApiKeyConfigured) {
+        return 'Falta configurar NEXT_PUBLIC_GOOGLE_MAPS_KEY para seleccionar ubicacion.';
+      }
+      return 'Selecciona un punto en el mapa para calcular latitud/longitud.';
+    }
+
+    return '';
+  }
+
   const schedulePreview = useMemo(() => {
     const start = parseDateTimeInLima(startTime);
     const end = parseDateTimeInLima(endTime);
@@ -581,15 +617,10 @@ const EventForm = ({
     }
   }, [schedulePreview.end, schedulePreview.hasValidRange, schedulePreview.start]);
 
-  const locationError = useMemo(() => {
-    if (!pinSelected) {
-      if (!googleMapsApiKeyConfigured) {
-        return 'Falta configurar NEXT_PUBLIC_GOOGLE_MAPS_KEY para seleccionar ubicacion.';
-      }
-      return 'Selecciona un punto en el mapa para calcular latitud/longitud.';
-    }
-    return '';
-  }, [googleMapsApiKeyConfigured, pinSelected]);
+  const locationError = useMemo(
+    () => resolveLocationSelectionError({ pinSelected, lat, lng }),
+    [googleMapsApiKeyConfigured, lat, lng, pinSelected]
+  );
 
   useEffect(() => {
     if (!isCreateMode) return;
@@ -740,9 +771,11 @@ const EventForm = ({
     if (snapshot.state.districtText) {
       syncDistrictSelection([], snapshot.state.districtText);
     }
-    setLat(asFiniteNumber(snapshot.state.lat, DEFAULT_LAT));
-    setLng(asFiniteNumber(snapshot.state.lng, DEFAULT_LNG));
-    setPinSelected(Boolean(snapshot.state.pinSelected));
+    syncLocationCoordinates(
+      asFiniteNumber(snapshot.state.lat, DEFAULT_LAT),
+      asFiniteNumber(snapshot.state.lng, DEFAULT_LNG)
+    );
+    syncPinSelected(Boolean(snapshot.state.pinSelected));
     resolvedAddressTextRef.current = snapshot.state.pinSelected
       ? normalizeLocationLookupValue(snapshot.state.locationText)
       : '';
@@ -839,9 +872,8 @@ const EventForm = ({
       setResolvedAddressValue(formattedAddress);
       syncDistrictSelection(nextDistrictOptions, districtText);
     }
-    setLat(nextCoords.lat);
-    setLng(nextCoords.lng);
-    setPinSelected(true);
+    syncLocationCoordinates(nextCoords.lat, nextCoords.lng);
+    syncPinSelected(true);
     setGeoError('');
     panMapToLocation(nextCoords.lat, nextCoords.lng);
 
@@ -855,7 +887,7 @@ const EventForm = ({
     const nextAddress = String(rawAddress || '').trim();
     if (!nextAddress) {
       resolvedAddressTextRef.current = '';
-      setPinSelected(false);
+      syncPinSelected(false);
       return false;
     }
 
@@ -871,7 +903,7 @@ const EventForm = ({
 
       if (!result || !resultLocation) {
         setGeoError('No encontramos esa dirección. Ajusta el texto o selecciona una sugerencia.');
-        setPinSelected(false);
+        syncPinSelected(false);
         return false;
       }
 
@@ -886,9 +918,8 @@ const EventForm = ({
         nextAddress
       );
       syncDistrictSelection(nextDistrictOptions, districtText);
-      setLat(nextCoords.lat);
-      setLng(nextCoords.lng);
-      setPinSelected(true);
+      syncLocationCoordinates(nextCoords.lat, nextCoords.lng);
+      syncPinSelected(true);
       setGeoError('');
       panMapToLocation(nextCoords.lat, nextCoords.lng);
       return true;
@@ -896,7 +927,7 @@ const EventForm = ({
       setGeoError(
         'No se pudo ubicar esa dirección. Selecciona una sugerencia o ajusta el pin manualmente.'
       );
-      setPinSelected(false);
+      syncPinSelected(false);
       return false;
     }
   }
@@ -925,9 +956,8 @@ const EventForm = ({
 
   async function handleMapSelection(nextLat: number, nextLng: number) {
     const nextCoords = toFixedLatLng(nextLat, nextLng);
-    setLat(nextCoords.lat);
-    setLng(nextCoords.lng);
-    setPinSelected(true);
+    syncLocationCoordinates(nextCoords.lat, nextCoords.lng);
+    syncPinSelected(true);
     setGeoError('');
     panMapToLocation(nextCoords.lat, nextCoords.lng);
     await reverseGeocodeDistrict(nextCoords.lat, nextCoords.lng);
@@ -941,12 +971,12 @@ const EventForm = ({
     const normalizedValue = normalizeLocationLookupValue(nextValue);
     if (!normalizedValue) {
       resolvedAddressTextRef.current = '';
-      setPinSelected(false);
+      syncPinSelected(false);
       return;
     }
 
     if (normalizedValue !== resolvedAddressTextRef.current) {
-      setPinSelected(false);
+      syncPinSelected(false);
     }
   }
 
@@ -1048,10 +1078,11 @@ const EventForm = ({
     if (step === 2) {
       const nextLocationText = String(fd.get('locationText') || '').trim();
       const price = Number(fd.get('price'));
+      const nextLocationError = resolveLocationSelectionError();
 
       if (!nextLocationText) return 'Escribe la cancha o dirección donde jugarán.';
       if (geoError) return geoError;
-      if (locationError) return locationError;
+      if (nextLocationError) return nextLocationError;
       if (!Number.isFinite(price) || price < 0) return 'Define un precio válido para el evento.';
       return '';
     }
@@ -1157,11 +1188,21 @@ const EventForm = ({
       !Number.isFinite(endMs) ||
       endMs <= startMs
     ) {
+      const nextTimeError = timeError || 'Define una fecha y hora válidas antes de continuar.';
+      setSubmitStatus('error');
+      setSubmitMessage(nextTimeError);
+      setWizardError(nextTimeError);
       return;
     }
-    if (!pinSelected || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+    const nextLocationError = geoError || resolveLocationSelectionError();
+    if (nextLocationError) {
+      setSubmitStatus('error');
+      setSubmitMessage(nextLocationError);
+      setWizardError(nextLocationError);
       return;
     }
+    fd.set('lat', String(latRef.current));
+    fd.set('lng', String(lngRef.current));
 
     if (isPublished && !publishReadiness.isReady) {
       trackPublishBlocked('submit');
