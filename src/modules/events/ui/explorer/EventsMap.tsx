@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GoogleMap, InfoWindowF, MarkerClustererF, MarkerF } from '@react-google-maps/api';
-import type { ClusterIconStyle } from '@react-google-maps/marker-clusterer';
 import { EventEntity } from '@modules/events/model/types';
 import { useGoogleMapsApi } from '@core/ui/Map/useGoogleMapsApi';
 import {
@@ -46,7 +45,7 @@ const CLUSTER_ICON_SVG = `
   </svg>
 `.trim();
 
-const CLUSTER_STYLES: ClusterIconStyle[] = [
+const CLUSTER_STYLES = [
   {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(CLUSTER_ICON_SVG)}`,
     height: 54,
