@@ -10,6 +10,7 @@ import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
 import { getDefaultEventAnnouncementEmail } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
 import { getParticipantContactsByEventId } from '@modules/admin/api/events/services/eventParticipants.service';
 import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
+import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
 
 export default async function EditEventScreen({ id }: { id: string }) {
   const supabase = await getServerSupabase();
@@ -130,7 +131,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
           minUsers: event.min_users,
           maxUsers: event.max_users,
           district: event.district,
-          placeText: event.place_text,
+          placeText: extractEventPlaceText(event),
           locationText: event.location_text,
           lat: event.location?.lat,
           lng: event.location?.lng ?? event.location?.long,

@@ -16,26 +16,43 @@ type SupabaseClientLike =
   | Awaited<ReturnType<typeof getServerSupabase>>
   | ReturnType<typeof getAdminSupabase>;
 
+type EventPayloadOptions = {
+  includePlaceTextColumn?: boolean;
+};
+
+function buildEventDescription(input: EventUpsertInput, options: EventPayloadOptions = {}) {
+  const includePlaceTextColumn = options.includePlaceTextColumn !== false;
+  const description: Record<string, unknown> = {
+    title: input.title,
+    description: input.description,
+    field_reserved_confirmed: input.isFieldReservedConfirmed,
+  };
+
+  if (!includePlaceTextColumn && String(input.placeText || '').trim()) {
+    description.place_text = String(input.placeText || '').trim();
+  }
+
+  return description;
+}
+
 function toInsertPayload(
   input: EventUpsertInput,
   userId: string,
   createdBy: string,
-  isFeatured: boolean
+  isFeatured: boolean,
+  options: EventPayloadOptions = {}
 ) {
+  const includePlaceTextColumn = options.includePlaceTextColumn !== false;
   return {
     title: input.title,
-    description: {
-      title: input.title,
-      description: input.description,
-      field_reserved_confirmed: input.isFieldReservedConfirmed,
-    },
+    description: buildEventDescription(input, options),
     start_time: input.startTime,
     end_time: input.endTime,
     location: {
       lat: input.lat,
       long: input.lng,
     },
-    place_text: input.placeText,
+    ...(includePlaceTextColumn ? { place_text: input.placeText } : {}),
     location_text: input.locationText,
     district: input.district,
     min_users: input.minUsers,
@@ -50,21 +67,22 @@ function toInsertPayload(
   };
 }
 
-function toUpdatePayload(input: EventUpsertInput, isFeatured: boolean) {
+function toUpdatePayload(
+  input: EventUpsertInput,
+  isFeatured: boolean,
+  options: EventPayloadOptions = {}
+) {
+  const includePlaceTextColumn = options.includePlaceTextColumn !== false;
   return {
     title: input.title,
-    description: {
-      title: input.title,
-      description: input.description,
-      field_reserved_confirmed: input.isFieldReservedConfirmed,
-    },
+    description: buildEventDescription(input, options),
     start_time: input.startTime,
     end_time: input.endTime,
     location: {
       lat: input.lat,
       long: input.lng,
     },
-    place_text: input.placeText,
+    ...(includePlaceTextColumn ? { place_text: input.placeText } : {}),
     location_text: input.locationText,
     district: input.district,
     min_users: input.minUsers,
@@ -83,12 +101,22 @@ function getErrorMessage(error: unknown, fallback: string) {
     return message || fallback;
   }
 
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = String((error as { message?: unknown }).message || '').trim();
+    return message || fallback;
+  }
+
   if (typeof error === 'string') {
     const message = error.trim();
     return message || fallback;
   }
 
   return fallback;
+}
+
+function isMissingPlaceTextColumnError(error: unknown) {
+  const message = getErrorMessage(error, '');
+  return /place_text/i.test(message) && /(schema cache|column|could not find|does not exist)/i.test(message);
 }
 
 async function getAuthenticatedAdminContext(action: string) {
@@ -318,11 +346,24 @@ export async function createEvent(input: EventUpsertInput) {
   let createdEventId: string | number | null = null;
 
   try {
-    const { data: createdEvent, error } = await adminSupabase
+    let { data: createdEvent, error } = await adminSupabase
       .from('event')
       .insert(toInsertPayload(input, user.id, createdBy, isFeatured))
       .select('id')
       .single();
+
+    if (error && isMissingPlaceTextColumnError(error)) {
+      log.warn('Event place_text column missing; retrying create without it', 'ADMIN_EVENTS', {
+        userId: user.id,
+      });
+      const retried = await adminSupabase
+        .from('event')
+        .insert(toInsertPayload(input, user.id, createdBy, isFeatured, { includePlaceTextColumn: false }))
+        .select('id')
+        .single();
+      createdEvent = retried.data;
+      error = retried.error;
+    }
 
     if (error) throw new Error(error.message);
     if (!createdEvent?.id) throw new Error('No se pudo obtener el id del evento creado.');
@@ -400,10 +441,22 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
     isFeatured = Boolean(existingEvent?.is_featured);
   }
 
-  const { error } = await adminSupabase
+  let { error } = await adminSupabase
     .from('event')
     .update(toUpdatePayload(input, isFeatured))
     .eq('id', id);
+
+  if (error && isMissingPlaceTextColumnError(error)) {
+    log.warn('Event place_text column missing; retrying update without it', 'ADMIN_EVENTS', {
+      eventId: id,
+      userId: user.id,
+    });
+    const retried = await adminSupabase
+      .from('event')
+      .update(toUpdatePayload(input, isFeatured, { includePlaceTextColumn: false }))
+      .eq('id', id);
+    error = retried.error;
+  }
 
   if (error) throw new Error(error.message);
 

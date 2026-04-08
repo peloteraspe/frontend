@@ -24,6 +24,7 @@ import { hasEventStarted } from '@modules/events/lib/eventTiming';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import EventShareModal from './EventShareModal';
 import { trackEvent } from '@shared/lib/analytics';
+import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
 
 import arrowAnotarse from '@core/assets/images/arrow-anotarse.svg';
 import Calendar from '@core/assets/images/calendar.png';
@@ -130,7 +131,7 @@ export default function EventDetailsClient({ data }: Props) {
       : toText(event?.description?.description, 'Sin descripción registrada.');
 
   const organizer = toText(event?.created_by ?? event?.createdBy, 'Peloteras');
-  const placeText = toText(event?.place_text ?? event?.placeText);
+  const placeText = toText(extractEventPlaceText(event));
   const locationText = toText(event?.location_text ?? event?.locationText, 'Ubicación por confirmar');
   const eventTypeName = toText(
     event?.eventTypeName ?? event?.eventType?.name ?? post?.eventTypeName ?? post?.eventType?.name,

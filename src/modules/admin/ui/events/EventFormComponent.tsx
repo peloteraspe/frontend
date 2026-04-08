@@ -208,6 +208,21 @@ function parseBooleanFormValue(value: FormDataEntryValue | null) {
   return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
 }
 
+function resolveFriendlyCreateErrorMessage(message: string) {
+  const cleaned = String(message || '').trim();
+  if (!cleaned) return 'Hubo un problema al crear el evento. Inténtalo otra vez.';
+
+  if (
+    /(place_text|schema cache|could not find|column of|does not exist|violates|duplicate key|network|fetch|timeout|failed to)/i.test(
+      cleaned
+    )
+  ) {
+    return 'Hubo un problema al crear el evento. Inténtalo otra vez.';
+  }
+
+  return cleaned;
+}
+
 function normalizeLocationLookupValue(value: string | null | undefined) {
   return String(value || '').trim().toLowerCase();
 }
@@ -729,9 +744,35 @@ const EventForm = ({
   }
 
   function clearAutosave() {
+    if (typeof window === 'undefined') return;
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+
     const storageKey = getDraftStorageKey();
-    if (!storageKey || typeof window === 'undefined') return;
+    if (!storageKey) return;
     window.localStorage.removeItem(storageKey);
+    setAutosaveMessage('');
+  }
+
+  function clearAllCreateDraftAutosaves() {
+    if (typeof window === 'undefined') return;
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+
+    const storageKeys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key?.startsWith(CREATE_EVENT_DRAFT_STORAGE_PREFIX)) {
+        storageKeys.push(key);
+      }
+    }
+
+    storageKeys.forEach((key) => window.localStorage.removeItem(key));
+    autosaveStorageKeyRef.current = '';
     setAutosaveMessage('');
   }
 
@@ -1182,6 +1223,7 @@ const EventForm = ({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setPaymentMethodsError('');
     setFieldReservedError('');
     if (String(locationText || '').trim()) {
@@ -1215,7 +1257,7 @@ const EventForm = ({
       }
     }
 
-    const fd = new FormData(event.currentTarget);
+    const fd = new FormData(form);
     const start = String(fd.get('startTime') || '');
     const end = String(fd.get('endTime') || '');
     const startMs = new Date(start).getTime();
@@ -1276,7 +1318,9 @@ const EventForm = ({
       const serverError = String((result && 'error' in result ? result.error : '') || '').trim();
       if (serverError) {
         setSubmitStatus('error');
-        setSubmitMessage(serverError);
+        setSubmitMessage(
+          isCreateMode ? resolveFriendlyCreateErrorMessage(serverError) : serverError
+        );
         return;
       }
 
@@ -1285,9 +1329,9 @@ const EventForm = ({
           (result && 'eventId' in result ? result.eventId : '') || ''
         ).trim();
         setSubmitStatus('success');
-        clearAutosave();
         setCreatedEventId(createdEventId);
         if (!isPublished) {
+          clearAutosave();
           trackEvent('create_event_draft_created', {
             channel: 'web',
             event_id: createdEventId || null,
@@ -1301,6 +1345,7 @@ const EventForm = ({
           return;
         }
 
+        clearAllCreateDraftAutosaves();
         if (createdEventId) {
           trackEvent('create_event_publish_succeeded', {
             channel: 'web',
@@ -1327,7 +1372,10 @@ const EventForm = ({
       }
     } catch (error: any) {
       setSubmitStatus('error');
-      setSubmitMessage(error?.message || 'No se pudo completar la operación.');
+      const nextMessage = error?.message || 'No se pudo completar la operación.';
+      setSubmitMessage(
+        isCreateMode ? resolveFriendlyCreateErrorMessage(nextMessage) : nextMessage
+      );
     } finally {
       const elapsed = Date.now() - pendingStartedAt;
       if (elapsed < MIN_PENDING_MS) {
@@ -1338,8 +1386,11 @@ const EventForm = ({
   }
 
   function handleCloseCreateModal() {
+    if (pending) return;
     setShowCreateModal(false);
-    router.push(modalRedirectTo);
+    if (submitStatus === 'error') return;
+    clearAllCreateDraftAutosaves();
+    router.replace(modalRedirectTo);
   }
 
   const createModalStatus = useMemo<EventShareModalStatus>(() => {
@@ -2370,8 +2421,6 @@ const EventForm = ({
           eventTitle={shareTitle || String(initial?.title || 'Evento')}
           message={submitMessage}
           shareUrl={shareUrl}
-          managementHref={createdEventId ? `/admin/events/${createdEventId}/edit` : modalRedirectTo}
-          managementLabel={createdEventId ? 'Abrir gestión del evento' : 'Ir a mis eventos'}
           onClose={handleCloseCreateModal}
         />
       ) : null}

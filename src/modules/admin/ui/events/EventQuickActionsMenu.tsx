@@ -89,8 +89,10 @@ export default function EventQuickActionsMenu({
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
         className={[
-          'inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition',
-          isOpen ? 'border-slate-300 bg-slate-50 text-slate-900' : 'hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900',
+          'inline-flex h-9 w-9 appearance-none items-center justify-center rounded-full border border-slate-200 text-slate-600 outline-none transition [-webkit-tap-highlight-color:transparent] focus:outline-none focus:ring-0 focus:shadow-none focus-visible:border-mulberry/40 focus-visible:outline-none focus-visible:ring-0 focus-visible:text-mulberry focus-visible:shadow-[0_0_0_4px_rgba(84,8,111,0.14)]',
+          isOpen
+            ? 'border-mulberry/35 bg-mulberry/5 text-mulberry'
+            : 'hover:border-mulberry/25 hover:bg-mulberry/5 hover:text-mulberry',
         ].join(' ')}
       >
         <EllipsisHorizontalIcon className="h-5 w-5" aria-hidden="true" />
@@ -123,7 +125,7 @@ export default function EventQuickActionsMenu({
                   eventId={eventId}
                   eventTitle={eventTitle}
                   buttonClassName={MENU_ITEM_CLASS_NAME}
-                  onOpen={() => setIsOpen(false)}
+                  onModalClose={() => setIsOpen(false)}
                 />
               ) : null}
 
@@ -133,7 +135,7 @@ export default function EventQuickActionsMenu({
                   eventTitle={eventTitle}
                   recipientCount={recipientCount}
                   buttonClassName={MENU_ITEM_CLASS_NAME}
-                  onOpen={() => setIsOpen(false)}
+                  onModalClose={() => setIsOpen(false)}
                 />
               ) : null}
             </div>,

@@ -7,6 +7,7 @@ import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventById } from '@shared/lib/data/getEventById';
 import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
 import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
+import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
 
 type Props = {
   templateId?: string;
@@ -143,7 +144,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         minUsers: Number(templateEvent.min_users || 0),
         maxUsers: Number(templateEvent.max_users || 0),
         district: String(templateEvent.district || ''),
-        placeText: String(templateEvent.place_text || ''),
+        placeText: extractEventPlaceText(templateEvent),
         locationText: String(templateEvent.location_text || ''),
         lat: templateEvent.location?.lat,
         lng: templateEvent.location?.lng ?? templateEvent.location?.long,
