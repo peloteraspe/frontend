@@ -1,11 +1,20 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ButtonM, ParagraphM } from '@src/core/ui/Typography';
+import { getBrowserSupabase } from '@core/api/supabase.browser';
+import { useAuth } from '@core/auth/AuthProvider';
+import InternationalPhoneField from '@core/ui/InternationalPhoneField';
+import { ButtonM } from '@src/core/ui/Typography';
 import SelectComponent from '@core/ui/SelectComponent';
 import { UserProfileUpdate } from '@modules/users/model/types';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import Input from '@core/ui/Input';
+import {
+  normalizeInternationalPhone,
+  normalizePhoneMetadata,
+  resolveStoredPhone,
+  validateInternationalPhone,
+} from '@shared/lib/phone';
 
 export type OptionSelectNumber = { value: number; label: string };
 
@@ -36,7 +45,12 @@ export default function ProfileUpdateForm({
   updateProfile,
   userId,
 }: ProfileUpdateFormProps) {
+  const supabase = getBrowserSupabase();
+  const { user, refreshProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const initialPhone = resolveStoredPhone(user);
 
   const {
     register,
@@ -64,8 +78,14 @@ export default function ProfileUpdateForm({
     });
   }, [userProfile, positionsData, levelsData, reset]);
 
+  useEffect(() => {
+    setPhone(initialPhone);
+    setPhoneError('');
+  }, [initialPhone]);
+
   const levelValue = watch('level_id');
   const positionsValue = watch('positions');
+  const helperTextClassName = 'mt-2 min-h-[2.5rem] text-xs leading-5 text-slate-500';
 
   const submit = async (data: FormValues) => {
     if (!data.level_id) {
@@ -84,16 +104,41 @@ export default function ProfileUpdateForm({
       return;
     }
 
+    const normalizedPhone = phone.trim() ? normalizeInternationalPhone(phone) : '';
+    if (phone.trim() && !normalizedPhone) {
+      setPhoneError('Ingresa un celular válido.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       clearErrors();
+      setPhoneError('');
       const updateData: UserProfileUpdate = {
         username: data.username,
         level_id: data.level_id as number,
         player_position: data.positions,
+        phone: normalizedPhone || null,
       };
 
       await updateProfile(userId, updateData);
+      const currentMetadata = normalizePhoneMetadata(user?.user_metadata);
+      const nextMetadata: Record<string, unknown> = {
+        ...currentMetadata,
+        username: data.username.trim(),
+        phone: normalizedPhone || null,
+      };
+
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: nextMetadata,
+      });
+
+      if (metadataError) {
+        throw new Error(metadataError.message);
+      }
+
+      setPhone(normalizedPhone || '');
+      await refreshProfile().catch(() => undefined);
       toast.success('¡Se actualizó tu perfil con éxito!');
     } catch (error: any) {
       toast.error('Hubo un error al actualizar tu perfil: ' + (error?.message ?? String(error)));
@@ -108,7 +153,7 @@ export default function ProfileUpdateForm({
       onSubmit={handleSubmit(submit)}
       noValidate
     >
-      <div className="mb-6 flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Datos personales</h2>
           <p className="mt-1 text-sm text-slate-600">
@@ -117,8 +162,7 @@ export default function ProfileUpdateForm({
         </div>
         <button
           type="submit"
-          className="px-4 py-2.5 bg-btnBg-light hover:bg-btnBg-dark hover:shadow text-white rounded-xl my-0 mx-2 flex justify-center items-center relative box-border transition-colors"
-          style={{ minWidth: '160px' }}
+          className="inline-flex h-11 w-full min-w-[180px] items-center justify-center rounded-xl bg-btnBg-light px-5 text-white transition-colors hover:bg-btnBg-dark hover:shadow sm:w-auto"
           disabled={isLoading}
         >
           {isLoading ? (
@@ -129,8 +173,8 @@ export default function ProfileUpdateForm({
         </button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-1">
+      <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
+        <div className="flex h-full flex-col">
           <Input
             label="Nombre de usuario"
             type="text"
@@ -144,44 +188,61 @@ export default function ProfileUpdateForm({
               },
             })}
             errorText={errors.username?.message as string | undefined}
-            bgColor="bg-white ring-secondary focus:ring-secondary-dark border-mulberry"
+            bgColor="bg-white"
           />
-          <p className="text-xs text-slate-500">Se mostrará en eventos, equipos y entradas.</p>
+          <p className={helperTextClassName}>Se mostrará en eventos, equipos y entradas.</p>
         </div>
 
-        <div className="space-y-1">
-          <label htmlFor="level_id">
-            <ParagraphM fontWeight="semibold">¿Cuál es tu nivel?</ParagraphM>
-          </label>
-          <div className="relative mt-2">
-            <SelectComponent
-              options={levelsOptions ?? []}
-              control={control}
-              name="level_id"
-              isSearchable={false}
-              errorText={errors.level_id?.message as string | undefined}
-            />
-          </div>
-          <p className="text-xs text-slate-500">
+        <div className="flex h-full flex-col">
+          <InternationalPhoneField
+            label="Celular"
+            value={phone}
+            onChange={(nextPhone) => {
+              setPhone(nextPhone);
+              if (phoneError) setPhoneError('');
+            }}
+            onBlur={() => {
+              if (!phone.trim()) {
+                setPhoneError('');
+                return;
+              }
+
+              const validation = validateInternationalPhone(phone);
+              setPhoneError(validation.isValid ? '' : 'Ingresa un celular válido.');
+            }}
+            placeholder="999 999 999"
+            errorText={phoneError}
+          />
+          <p className={helperTextClassName}>
+            Lo usaremos para prellenar tus flujos y mantener tu contacto actualizado.
+          </p>
+        </div>
+
+        <div className="flex h-full flex-col">
+          <SelectComponent
+            labelText="¿Cuál es tu nivel?"
+            options={levelsOptions ?? []}
+            control={control}
+            name="level_id"
+            isSearchable={false}
+            errorText={errors.level_id?.message as string | undefined}
+          />
+          <p className={helperTextClassName}>
             {levelValue ? 'Puedes cambiarlo cuando quieras.' : 'Selecciona tu nivel actual.'}
           </p>
         </div>
 
-        <div className="space-y-1 lg:col-span-2">
-          <label htmlFor="positions">
-            <ParagraphM fontWeight="semibold">¿En qué posición prefieres jugar?</ParagraphM>
-          </label>
-          <div className="relative mt-2">
-            <SelectComponent
-              options={playerPositionOptions ?? []}
-              control={control}
-              isSearchable={false}
-              name="positions"
-              isMulti
-              errorText={errors.positions?.message as string | undefined}
-            />
-          </div>
-          <p className="text-xs text-slate-500">
+        <div className="flex h-full flex-col">
+          <SelectComponent
+            labelText="¿En qué posición prefieres jugar?"
+            options={playerPositionOptions ?? []}
+            control={control}
+            isSearchable={false}
+            name="positions"
+            isMulti
+            errorText={errors.positions?.message as string | undefined}
+          />
+          <p className={helperTextClassName}>
             {Array.isArray(positionsValue) && positionsValue.length > 0
               ? `${positionsValue.length} posición(es) seleccionada(s).`
               : 'Selecciona una o más posiciones para que te encuentren más rápido.'}

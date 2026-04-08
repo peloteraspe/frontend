@@ -35,7 +35,7 @@ export default function CreateEventActivationGateway({
   function handleActivated() {
     setIsOpen(false);
     startTransition(() => {
-      router.replace('/create-event?activated=1');
+      router.replace('/admin/events/new');
     });
   }
 

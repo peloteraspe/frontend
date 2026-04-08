@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBrowserSupabase } from '@core/api/supabase.browser';
+import { normalizePhoneMetadata } from '@shared/lib/phone';
 
 export default function VerifyEventsPage() {
   const router = useRouter();
@@ -33,7 +34,7 @@ export default function VerifyEventsPage() {
 
       const { error } = await supabase.auth.updateUser({
         data: {
-          ...user.user_metadata,
+          ...normalizePhoneMetadata(user.user_metadata),
           events_verified: true,
         },
       });

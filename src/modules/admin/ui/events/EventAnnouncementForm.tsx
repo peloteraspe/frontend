@@ -95,7 +95,7 @@ export default function EventAnnouncementForm({
           name="subject"
           type="text"
           defaultValue={defaultSubject}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-mulberry focus:ring-2 focus:ring-mulberry/20"
+          className="peloteras-form-control h-11"
         />
       </div>
 
@@ -108,7 +108,7 @@ export default function EventAnnouncementForm({
           name="body"
           defaultValue={defaultBody}
           rows={16}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-mulberry focus:ring-2 focus:ring-mulberry/20"
+          className="peloteras-form-control peloteras-form-control--textarea"
         />
         <p className="mt-2 text-xs text-slate-500">
           Las líneas que empiecen con <code>⚽</code>, <code>•</code> o <code>-</code> se enviarán como lista.

@@ -235,6 +235,13 @@ async function patchProfileFallbackInSupabase(userId: string, rawBody: unknown) 
   return getProfileFallbackFromSupabase(userId);
 }
 
+function stripPhoneFromProfilePayload(rawBody: unknown) {
+  if (!rawBody || typeof rawBody !== 'object') return {};
+
+  const { phone: _phone, ...rest } = rawBody as Record<string, unknown>;
+  return rest;
+}
+
 export async function GET(request: Request, { params }: { params: Promise<RouteParams> }) {
   try {
     const { userId: routeUserId } = await params;
@@ -283,11 +290,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<Rout
     if (authUserId !== routeUserId) return HTTP_403;
 
     const body = await request.json();
+    const backendBody = stripPhoneFromProfilePayload(body);
 
     try {
       const res = await backendFetch(backendUrl(`/profile/${routeUserId}`), {
         method: 'PATCH',
-        body: JSON.stringify(body),
+        body: JSON.stringify(backendBody),
       });
 
       if (res.ok) {

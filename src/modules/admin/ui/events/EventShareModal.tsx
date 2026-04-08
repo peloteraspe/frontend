@@ -176,7 +176,7 @@ export default function EventShareModal({
                     type="text"
                     readOnly
                     value={shareUrl || 'Enlace no disponible'}
-                    className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 pr-12 text-sm text-slate-700 focus:border-mulberry focus:outline-none focus:ring-4 focus:ring-mulberry/10"
+                    className="peloteras-form-control h-11 px-3 pr-12 text-slate-700"
                   />
                   <button
                     type="button"

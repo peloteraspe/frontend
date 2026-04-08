@@ -130,6 +130,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
           minUsers: event.min_users,
           maxUsers: event.max_users,
           district: event.district,
+          placeText: event.place_text,
           locationText: event.location_text,
           lat: event.location?.lat,
           lng: event.location?.lng ?? event.location?.long,

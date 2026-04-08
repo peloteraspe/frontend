@@ -69,6 +69,7 @@ export function normalizeEvent(raw: any, eventTypeById: Dictionary, levelById: D
     dateLabel: formatDateLabel(raw?.start_time ?? null),
     startTime: raw?.start_time ?? null,
     endTime: raw?.end_time ?? null,
+    placeText: asString(raw?.place_text ?? raw?.placeText, ''),
     locationText: asString(raw?.location_text ?? raw?.locationText, 'Ubicación por confirmar'),
     locationReference: extractLocationReference(raw?.description),
     district: asString(raw?.district, ''),

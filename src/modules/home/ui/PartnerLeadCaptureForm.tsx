@@ -1,7 +1,9 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import InternationalPhoneField from '@core/ui/InternationalPhoneField';
 import { trackEvent } from '@shared/lib/analytics';
+import { validateInternationalPhone } from '@shared/lib/phone';
 
 type LeadKind = 'admin' | 'sponsor';
 
@@ -22,8 +24,16 @@ type Props = {
   source?: string;
 };
 
-async function submitLead(kind: LeadKind, source: string, form: HTMLFormElement) {
-  const payload = Object.fromEntries(new FormData(form).entries());
+async function submitLead(
+  kind: LeadKind,
+  source: string,
+  form: HTMLFormElement,
+  overrides?: Record<string, string>
+) {
+  const payload = {
+    ...Object.fromEntries(new FormData(form).entries()),
+    ...(overrides || {}),
+  };
   const response = await fetch('/api/leads/partners', {
     method: 'POST',
     headers: {
@@ -55,16 +65,34 @@ export default function PartnerLeadCaptureForm({
   source = kind === 'admin' ? 'admin_capture_page' : 'sponsor_capture_page',
 }: Props) {
   const [status, setStatus] = useState<FormStatus>(initialStatus);
+  const [contactPhone, setContactPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const isAdmin = kind === 'admin';
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     setStatus({ pending: true, error: '', success: '' });
+    setPhoneError('');
+    const phoneValidation = isAdmin ? validateInternationalPhone(contactPhone) : null;
+
+    if (isAdmin) {
+      if (!phoneValidation?.isValid) {
+        setPhoneError('Ingresa un WhatsApp válido.');
+        setStatus({ pending: false, error: '', success: '' });
+        return;
+      }
+    }
 
     try {
-      const message = await submitLead(kind, source, form);
+      const message = await submitLead(
+        kind,
+        source,
+        form,
+        isAdmin && phoneValidation ? { contactPhone: phoneValidation.e164 } : undefined
+      );
       setStatus({ pending: false, error: '', success: message });
+      setPhoneError('');
       if (kind === 'admin') {
         trackEvent('admin_request_submitted', {
           source,
@@ -76,22 +104,27 @@ export default function PartnerLeadCaptureForm({
         });
       }
       form.reset();
+      setContactPhone('');
     } catch (error: any) {
+      const message = error?.message || 'No se pudo enviar tu información.';
+      if (isAdmin && /whatsapp|celular/i.test(message)) {
+        setPhoneError(message);
+      }
       if (kind === 'admin') {
         trackEvent('admin_request_failed', {
           source,
           channel: 'web',
-          reason: error?.message || 'submit_failed',
+          reason: message || 'submit_failed',
         });
         trackEvent('create_event_support_request_failed', {
           source,
           channel: 'web',
-          reason: error?.message || 'submit_failed',
+          reason: message || 'submit_failed',
         });
       }
       setStatus({
         pending: false,
-        error: error?.message || 'No se pudo enviar tu información.',
+        error: /whatsapp|celular/i.test(message) ? '' : message,
         success: '',
       });
     }
@@ -103,19 +136,24 @@ export default function PartnerLeadCaptureForm({
         <input
           name="contactName"
           placeholder="Nombre completo *"
-          className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-mulberry"
+          className="peloteras-form-control h-11"
           required
         />
-        <input
+        <InternationalPhoneField
           name="contactPhone"
           placeholder="WhatsApp *"
-          className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-mulberry"
+          value={contactPhone}
+          onChange={(phone) => {
+            setContactPhone(phone);
+            if (phoneError) setPhoneError('');
+          }}
+          errorText={phoneError}
           required
         />
         <input
           name="district"
           placeholder="Distrito base *"
-          className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-mulberry"
+          className="peloteras-form-control h-11"
           required
         />
         <p className="text-xs text-slate-500 md:col-span-2">
@@ -174,20 +212,20 @@ export default function PartnerLeadCaptureForm({
       <input
         name="contactName"
         placeholder="Nombre de contacto *"
-        className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-mulberry"
+        className="peloteras-form-control h-11"
         required
       />
       <input
         name="organizationName"
         placeholder="Marca o empresa *"
-        className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-mulberry"
+        className="peloteras-form-control h-11"
         required
       />
       <input
         name="contactEmail"
         type="email"
         placeholder="Correo de contacto *"
-        className="h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-mulberry"
+        className="peloteras-form-control h-11"
         required
       />
       <p className="text-xs text-slate-500 md:col-span-2">

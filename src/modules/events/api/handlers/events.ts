@@ -79,6 +79,7 @@ function applyFilters(events: EventEntity[], requestUrl: string) {
     filtered = filtered.filter(
       (event) =>
         event.title.toLowerCase().includes(q) ||
+        event.placeText.toLowerCase().includes(q) ||
         event.locationText.toLowerCase().includes(q) ||
         event.district.toLowerCase().includes(q)
     );
@@ -125,6 +126,7 @@ function validatePayload(body: any): CreateEventPayload {
     minUsers: parseNumber(body?.minUsers),
     maxUsers: parseNumber(body?.maxUsers),
     district: normalizeDistrict(body?.district),
+    placeText: String(body?.placeText ?? '').trim(),
     locationText: String(body?.locationText ?? '').trim(),
     locationReference: String(body?.locationReference ?? '').trim(),
     lat: parseNumber(body?.lat),
@@ -266,6 +268,7 @@ export async function POST(request: Request) {
           lat: payload.lat,
           long: payload.lng,
         },
+        place_text: payload.placeText,
         location_text: payload.locationText,
         district: payload.district,
         min_users: payload.minUsers,

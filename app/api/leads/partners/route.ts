@@ -4,6 +4,7 @@ import { rateLimitByRequest } from '@core/api/rateLimit';
 import { log } from '@core/lib/logger';
 import { sendEventAnnouncementEmail } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
 import { getSuperAdminEmails } from '@shared/lib/auth/isAdmin';
+import { validateInternationalPhone } from '@shared/lib/phone';
 
 type LeadType = 'admin' | 'sponsor';
 
@@ -35,10 +36,6 @@ function normalizeSource(value: unknown) {
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function isValidPhone(phone: string) {
-  return /^[+\d()\-\s]{7,24}$/.test(phone);
 }
 
 function validationError(message: string) {
@@ -120,19 +117,21 @@ export async function POST(request: Request) {
     const source = normalizeSource(body.source);
     const contactName = sanitizeText(body.contactName, 120);
     const contactEmail = sanitizeText(body.contactEmail, 160).toLowerCase();
-    const contactPhone = sanitizeText(body.contactPhone, 32);
+    const contactPhone = sanitizeText(body.contactPhone, 40);
     const district = sanitizeText(body.district, 100);
     const organizationName = sanitizeText(body.organizationName, 140);
     const commitmentReservedField = parseBoolean(body.commitmentReservedField);
     const commitmentNoCancellation = parseBoolean(body.commitmentNoCancellation);
     const commitmentReportIncidents = parseBoolean(body.commitmentReportIncidents);
+    const contactPhoneValidation = contactPhone ? validateInternationalPhone(contactPhone) : null;
+    const normalizedContactPhone = contactPhoneValidation?.e164 || '';
 
     if (contactName.length < 3) {
       return validationError('Ingresa tu nombre completo.');
     }
 
     if (leadTypeRaw === 'admin') {
-      if (!contactPhone || !isValidPhone(contactPhone)) {
+      if (!contactPhone || !contactPhoneValidation?.isValid) {
         return validationError('Ingresa un WhatsApp válido.');
       }
       if (contactEmail && !isValidEmail(contactEmail)) {
@@ -153,7 +152,7 @@ export async function POST(request: Request) {
       if (!contactEmail || !isValidEmail(contactEmail)) {
         return validationError('Ingresa un correo válido.');
       }
-      if (contactPhone && !isValidPhone(contactPhone)) {
+      if (contactPhone && !contactPhoneValidation?.isValid) {
         return validationError('El WhatsApp no tiene un formato válido.');
       }
     }
@@ -167,7 +166,7 @@ export async function POST(request: Request) {
       lead_type: leadTypeRaw,
       contact_name: contactName,
       contact_email: contactEmail || null,
-      contact_phone: contactPhone || null,
+      contact_phone: normalizedContactPhone || null,
       organization_name: leadTypeRaw === 'sponsor' ? organizationName || null : null,
       location_label: leadTypeRaw === 'admin' ? district || null : null,
       interest_level: null,
@@ -206,7 +205,7 @@ export async function POST(request: Request) {
       try {
         await notifySuperAdmins({
           contactName,
-          contactPhone,
+          contactPhone: normalizedContactPhone,
           contactEmail,
           district,
           source,

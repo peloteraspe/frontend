@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GoogleMap, InfoWindowF, MarkerClustererF, MarkerF } from '@react-google-maps/api';
+import type { ClusterIconStyle } from '@react-google-maps/marker-clusterer';
 import { EventEntity } from '@modules/events/model/types';
 import { useGoogleMapsApi } from '@core/ui/Map/useGoogleMapsApi';
 import {
@@ -36,6 +37,25 @@ const CLUSTERER_OPTIONS = {
   gridSize: 48,
   minimumClusterSize: 2,
 };
+
+const CLUSTER_ICON_SVG = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="54" height="54" viewBox="0 0 54 54" fill="none">
+    <circle cx="27" cy="27" r="26" fill="#54086F" fill-opacity="0.16" />
+    <circle cx="27" cy="27" r="21" fill="#54086F" fill-opacity="0.28" />
+    <circle cx="27" cy="27" r="16" fill="#54086F" />
+  </svg>
+`.trim();
+
+const CLUSTER_STYLES: ClusterIconStyle[] = [
+  {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(CLUSTER_ICON_SVG)}`,
+    height: 54,
+    width: 54,
+    textColor: '#FFFFFF',
+    textSize: 16,
+    fontWeight: '700',
+  },
+];
 
 function hasValidLocation(event: EventEntity) {
   return Number.isFinite(event.location.lat) && Number.isFinite(event.location.lng);
@@ -159,7 +179,7 @@ export default function EventsMap({
         }}
         onClick={closeActiveCard}
       >
-        <MarkerClustererF options={CLUSTERER_OPTIONS}>
+        <MarkerClustererF options={CLUSTERER_OPTIONS} styles={CLUSTER_STYLES}>
           {(clusterer) => (
             <>
               {mappableEvents.map((event) => {

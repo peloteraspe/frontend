@@ -18,6 +18,7 @@ import type { Step, SignupStep1Values } from './signup.types';
 import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
 import { authCallbackUrl, sanitizeNextPath } from '@modules/auth/lib/redirect';
 import { fetchLevelsOptions, fetchPositionsOptions } from '@modules/users/api/lookups.client';
+import { normalizePhoneMetadata } from '@shared/lib/phone';
 import {
   checkUsernameAvailabilityAction,
   completeOnboardingProfileAction,
@@ -560,7 +561,10 @@ export default function SignupClient() {
 
       if (authenticatedUser && isIdentityConfirmed) {
         const { error: metadataError } = await supabase.auth.updateUser({
-          data: { gender_identity_confirmed: true },
+          data: {
+            ...normalizePhoneMetadata(authenticatedUser.user_metadata),
+            gender_identity_confirmed: true,
+          },
         });
 
         if (metadataError) {
@@ -775,7 +779,7 @@ export default function SignupClient() {
               type="password"
               required
               placeholder="••••••••"
-              bgColor="bg-white ring-secondary focus:ring-secondary-dark border-mulberry"
+              bgColor="bg-white"
               {...register('password', {
                 required: 'Este campo es requerido',
                 minLength: { value: 6, message: 'Mínimo 6 caracteres' },
@@ -877,7 +881,7 @@ export default function SignupClient() {
               type="text"
               required
               placeholder="Ej: Pelotera123"
-              bgColor="bg-white ring-secondary focus:ring-secondary-dark border-mulberry"
+              bgColor="bg-white"
               {...register('username', {
                 required: 'Este campo es requerido',
                 minLength: { value: 3, message: 'Mínimo 3 caracteres' },

@@ -97,7 +97,7 @@ export default async function PaymentsAdminPage({
             name="q"
             defaultValue={q}
             placeholder="Buscar operación..."
-            className="w-full h-9 px-3 rounded-md border-2 border-mulberry focus:outline-none focus:border-mulberry bg-white text-sm"
+            className="peloteras-form-control h-9 px-3"
           />
           <input type="hidden" name="state" value={state} />
           <input type="hidden" name="event" value={selectedEventId} />

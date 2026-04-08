@@ -130,6 +130,7 @@ export default function EventDetailsClient({ data }: Props) {
       : toText(event?.description?.description, 'Sin descripción registrada.');
 
   const organizer = toText(event?.created_by ?? event?.createdBy, 'Peloteras');
+  const placeText = toText(event?.place_text ?? event?.placeText);
   const locationText = toText(event?.location_text ?? event?.locationText, 'Ubicación por confirmar');
   const eventTypeName = toText(
     event?.eventTypeName ?? event?.eventType?.name ?? post?.eventTypeName ?? post?.eventType?.name,
@@ -244,11 +245,11 @@ export default function EventDetailsClient({ data }: Props) {
     : `${approvedCount}`;
 
   const shareText = useMemo(() => {
-    const safeLocation = locationText || 'Ubicación por confirmar';
+    const safeLocation = placeText ? `${placeText} - ${locationText}` : locationText || 'Ubicación por confirmar';
     return `¿Te sumas a esta pichanga en Peloteras? ${eventTitle} · ${shortDate} · ${safeLocation} · S/ ${price.toFixed(
       2
     )}.`;
-  }, [eventTitle, shortDate, locationText, price]);
+  }, [eventTitle, shortDate, placeText, locationText, price]);
 
   const shareLinks = useMemo(() => {
     const refUserId = user?.id ? String(user.id) : null;
@@ -532,7 +533,10 @@ export default function EventDetailsClient({ data }: Props) {
                     <circle cx="7" cy="7" r="2" />
                     <path d="M6.3 15.7c-.1-.1-4.2-3.7-4.2-3.8C.7 10.7 0 8.9 0 7c0-3.9 3.1-7 7-7s7 3.1 7 7c0 1.9-.7 3.7-2.1 5-.1.1-4.1 3.7-4.2 3.8-.4.3-1 .3-1.4-.1Zm-2.7-5 3.4 3 3.4-3c1-1 1.6-2.2 1.6-3.6 0-2.8-2.2-5-5-5S2 4.2 2 7c0 1.4.6 2.7 1.6 3.7 0-.1 0-.1 0 0Z" />
                   </svg>
-                  <span>{locationText}</span>
+                  <span>
+                    {placeText ? <span className="block font-semibold text-slate-900">{placeText}</span> : null}
+                    <span className={placeText ? 'block text-slate-600' : ''}>{locationText}</span>
+                  </span>
                 </li>
 
                 <li className="flex items-start gap-2">

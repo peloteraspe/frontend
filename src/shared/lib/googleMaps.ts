@@ -1,6 +1,9 @@
 import type { Libraries } from '@react-google-maps/api';
 
 export const GOOGLE_MAPS_LIBRARIES: Libraries = ['places'];
+export const GOOGLE_MAPS_SCRIPT_ID = 'peloteras-google-maps';
+export const GOOGLE_MAPS_LANGUAGE = 'es';
+export const GOOGLE_MAPS_REGION = 'PE';
 export const LIMA_DEFAULT_CENTER = { lat: -12.0464, lng: -77.0428 };
 
 const DISTRICT_COMPONENT_PRIORITY = [

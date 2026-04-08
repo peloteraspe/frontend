@@ -1,6 +1,12 @@
 'use client';
 
 import { CatalogOption } from '@modules/events/model/types';
+import {
+  DEFAULT_EVENT_TIMEZONE,
+  formatTimeInTimeZoneWithMeridiem,
+  getIsoDateInTimeZone,
+  normalizeDateTimeLocalToLima,
+} from '@shared/lib/dateTime';
 
 type EventPreviewProps = {
   title?: string;
@@ -8,6 +14,7 @@ type EventPreviewProps = {
   startTime?: string;
   endTime?: string;
   district?: string;
+  placeText?: string;
   locationText?: string;
   price?: number;
   minUsers?: number;
@@ -17,12 +24,47 @@ type EventPreviewProps = {
   isPublished?: boolean;
 };
 
+const PREVIEW_DATE_FORMATTER = new Intl.DateTimeFormat('es-PE', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  timeZone: DEFAULT_EVENT_TIMEZONE,
+});
+
+function parsePreviewDateTime(value: string | undefined) {
+  const normalized = normalizeDateTimeLocalToLima(value);
+  if (!normalized) return null;
+
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatPreviewRange(startDate: Date | null, endDate: Date | null) {
+  if (!startDate) return '';
+  const startLabel = `${PREVIEW_DATE_FORMATTER.format(startDate)}, ${formatTimeInTimeZoneWithMeridiem(
+    startDate,
+    DEFAULT_EVENT_TIMEZONE
+  )}`;
+  if (!endDate) return startLabel;
+
+  const endLabel =
+    getIsoDateInTimeZone(startDate) === getIsoDateInTimeZone(endDate)
+      ? formatTimeInTimeZoneWithMeridiem(endDate, DEFAULT_EVENT_TIMEZONE)
+      : `${PREVIEW_DATE_FORMATTER.format(endDate)}, ${formatTimeInTimeZoneWithMeridiem(
+          endDate,
+          DEFAULT_EVENT_TIMEZONE
+        )}`;
+
+  return `${startLabel} - ${endLabel}`;
+}
+
 export default function EventPreview({
   title = 'Tu evento',
   description,
   startTime,
   endTime,
   district,
+  placeText,
   locationText,
   price,
   minUsers,
@@ -31,28 +73,12 @@ export default function EventPreview({
   level,
   isPublished,
 }: EventPreviewProps) {
-  const formatDateTime = (value: string | undefined) => {
-    if (!value) return '';
-    try {
-      const date = new Date(value);
-      return date.toLocaleDateString('es-PE', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return '';
-    }
-  };
-
   const priceDisplay = price ? `S/ ${price.toFixed(2)}` : 'A definir';
   const capacityDisplay = maxUsers ? `${minUsers || 0}-${maxUsers} jugadoras` : 'Sin límite';
   const isIncomplete = !title || !startTime || !locationText;
-  const endTimeLabel = endTime
-    ? formatDateTime(endTime).split(' ')[formatDateTime(endTime).split(' ').length - 1]
-    : '';
+  const startDate = parsePreviewDateTime(startTime);
+  const endDate = parsePreviewDateTime(endTime);
+  const scheduleLabel = formatPreviewRange(startDate, endDate);
 
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)]">
@@ -102,10 +128,7 @@ export default function EventPreview({
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
               Fecha y hora
             </p>
-            <p className="mt-2 text-sm font-medium text-slate-900">
-              {formatDateTime(startTime)}
-              {endTimeLabel ? ` - ${endTimeLabel}` : ''}
-            </p>
+            <p className="mt-2 text-sm font-medium text-slate-900">{scheduleLabel}</p>
           </div>
         ) : null}
 
@@ -114,7 +137,12 @@ export default function EventPreview({
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
               Ubicación
             </p>
-            <p className="mt-2 text-sm font-medium text-slate-900">{locationText}</p>
+            {placeText ? (
+              <p className="mt-2 text-sm font-semibold text-slate-900">{placeText}</p>
+            ) : null}
+            <p className={`${placeText ? 'mt-1' : 'mt-2'} text-sm font-medium text-slate-900`}>
+              {locationText}
+            </p>
             {district ? <p className="mt-1 text-xs text-slate-500">{district}</p> : null}
           </div>
         ) : null}

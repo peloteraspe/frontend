@@ -179,11 +179,6 @@ export default async function AdminEventsPage({ searchParams }: Props) {
 
   return (
     <div className="rounded-md bg-white shadow">
-      <div className="sticky top-0 z-20 flex justify-end border-b border-slate-200 bg-white/95 p-4 backdrop-blur">
-        <Link href="/admin/events/new" className="px-3 py-2 rounded-md bg-mulberry text-white">
-          Crear evento
-        </Link>
-      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">

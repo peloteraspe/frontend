@@ -75,6 +75,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         minUsers: number;
         maxUsers: number;
         district: string;
+        placeText: string;
         locationText: string;
         lat: number | undefined;
         lng: number | undefined;
@@ -142,6 +143,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         minUsers: Number(templateEvent.min_users || 0),
         maxUsers: Number(templateEvent.max_users || 0),
         district: String(templateEvent.district || ''),
+        placeText: String(templateEvent.place_text || ''),
         locationText: String(templateEvent.location_text || ''),
         lat: templateEvent.location?.lat,
         lng: templateEvent.location?.lng ?? templateEvent.location?.long,

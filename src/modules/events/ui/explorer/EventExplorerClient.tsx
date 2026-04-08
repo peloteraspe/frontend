@@ -97,6 +97,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const visibleEventIds = useMemo(() => new Set(visibleEvents.map((event) => event.id)), [visibleEvents]);
   const createIntentRequested = searchParams.get('create') === '1';
   const userIsAdmin = Boolean(user && isAdminUser(user as any));
+  const createEventHref = userIsAdmin ? '/admin/events/new' : '/create-event';
 
   useEffect(() => {
     setSelectedEventId((current) => (current && visibleEventIds.has(current) ? current : null));
@@ -105,8 +106,8 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
 
   useEffect(() => {
     if (!createIntentRequested) return;
-    router.replace('/create-event');
-  }, [createIntentRequested, router]);
+    router.replace(createEventHref);
+  }, [createEventHref, createIntentRequested, router]);
 
   async function refreshEvents(preferredId?: string, currentFilters?: Filters) {
     const activeFilters = currentFilters ?? filters;
@@ -213,7 +214,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
     });
 
     if (authLoading) return;
-    router.push('/create-event');
+    router.push(createEventHref);
   }
 
   return (

@@ -2,6 +2,7 @@
 
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import { normalizePhoneMetadata, validateInternationalPhone } from '@shared/lib/phone';
 
 type AuthUserLite = {
   id: string;
@@ -160,8 +161,8 @@ export async function setAdminRoleByUserId(userId: string, enableAdmin: boolean)
     throw new Error('No puedes retirar permisos admin a una superadmin.');
   }
 
-  const currentAppMetadata = (targetUser.app_metadata ?? {}) as Record<string, any>;
-  const currentUserMetadata = (targetUser.user_metadata ?? {}) as Record<string, any>;
+  const currentAppMetadata = normalizePhoneMetadata(targetUser.app_metadata) as Record<string, any>;
+  const currentUserMetadata = normalizePhoneMetadata(targetUser.user_metadata) as Record<string, any>;
 
   const nextAppMetadata: Record<string, any> = {
     ...currentAppMetadata,
@@ -191,8 +192,12 @@ export async function activateOrganizerByUserId(userId: string, input: Organizer
   const normalizedId = String(userId || '').trim();
   if (!normalizedId) throw new Error('Id de usuario inválido.');
 
-  const normalizedPhone = String(input.phone || '').trim();
-  if (!normalizedPhone) throw new Error('Ingresa un celular válido.');
+  const rawPhone = String(input.phone || '').trim();
+  const phoneValidation = validateInternationalPhone(rawPhone);
+  const normalizedPhone = phoneValidation.e164;
+  if (!rawPhone || !phoneValidation.isValid || !normalizedPhone) {
+    throw new Error('Ingresa un celular válido.');
+  }
   if (!input.commitmentReservedField || !input.commitmentNoCancellation || !input.commitmentReportIncidents) {
     throw new Error('Debes aceptar todos los compromisos para activar tu perfil organizadora.');
   }
@@ -203,15 +208,15 @@ export async function activateOrganizerByUserId(userId: string, input: Organizer
   if (!target?.user) throw new Error('Usuario no encontrado.');
 
   const targetUser = target.user as AuthUserLite;
-  const currentAppMetadata = (targetUser.app_metadata ?? {}) as Record<string, any>;
-  const currentUserMetadata = (targetUser.user_metadata ?? {}) as Record<string, any>;
+  const currentAppMetadata = normalizePhoneMetadata(targetUser.app_metadata) as Record<string, any>;
+  const currentUserMetadata = normalizePhoneMetadata(targetUser.user_metadata) as Record<string, any>;
   const activatedAt = new Date().toISOString();
   const source = String(input.source || 'self_serve_events').trim() || 'self_serve_events';
 
   const nextAppMetadata: Record<string, any> = {
     ...currentAppMetadata,
     is_admin: true,
-    organizer_phone: normalizedPhone,
+    phone: normalizedPhone,
     organizer_activated_at: activatedAt,
     organizer_activation_source: source,
     organizer_commitment_reserved_field: true,
@@ -221,7 +226,7 @@ export async function activateOrganizerByUserId(userId: string, input: Organizer
   const nextUserMetadata: Record<string, any> = {
     ...currentUserMetadata,
     is_admin: true,
-    organizer_phone: normalizedPhone,
+    phone: normalizedPhone,
     organizer_activated_at: activatedAt,
     organizer_activation_source: source,
     organizer_commitment_reserved_field: true,

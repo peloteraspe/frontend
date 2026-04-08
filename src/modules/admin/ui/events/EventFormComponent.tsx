@@ -28,6 +28,7 @@ import {
 } from '@shared/lib/googleMaps';
 import {
   DEFAULT_EVENT_TIMEZONE,
+  formatTimeInTimeZoneWithMeridiem,
   getIsoDateInTimeZone,
   normalizeDateTimeLocalToLima,
   toDateTimeLocalInTimeZone,
@@ -63,6 +64,7 @@ type EventCreateDraftSnapshot = {
   state: {
     startTime: string;
     endTime: string;
+    placeText: string;
     locationText: string;
     districtText: string;
     lat: number;
@@ -85,6 +87,7 @@ type Props = {
     minUsers: number;
     maxUsers: number;
     district: string;
+    placeText: string;
     locationText: string;
     lat: number;
     lng: number;
@@ -133,11 +136,11 @@ const FLOW_SURFACE_CLASS =
   'rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6';
 const FLOW_PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-slate-50/85';
 const FLOW_FIELD_CLASS =
-  'h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-slate-900 transition placeholder:text-slate-400 focus:border-mulberry focus:outline-none focus:ring-4 focus:ring-mulberry/10';
+  'peloteras-form-control h-12';
 const FLOW_TEXTAREA_CLASS =
-  'w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 transition placeholder:text-slate-400 focus:border-mulberry focus:outline-none focus:ring-4 focus:ring-mulberry/10';
+  'peloteras-form-control peloteras-form-control--textarea';
 const FLOW_NATIVE_SELECT_CLASS =
-  'h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-slate-900 focus:border-mulberry focus:outline-none focus:ring-4 focus:ring-mulberry/10';
+  'peloteras-form-control peloteras-form-control--select h-12';
 
 function asFiniteNumber(value: unknown, fallback: number) {
   const parsed = Number(value);
@@ -152,7 +155,10 @@ function parseDateTimeInLima(value: string | null | undefined) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function inferDurationMinutes(startValue: string | null | undefined, endValue: string | null | undefined) {
+function inferDurationMinutes(
+  startValue: string | null | undefined,
+  endValue: string | null | undefined
+) {
   const start = parseDateTimeInLima(startValue);
   const end = parseDateTimeInLima(endValue);
   if (!start || !end) return DEFAULT_EVENT_DURATION_MINUTES;
@@ -188,17 +194,16 @@ function formatScheduleDay(date: Date) {
 }
 
 function formatScheduleTime(date: Date) {
-  return new Intl.DateTimeFormat('es-PE', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: DEFAULT_EVENT_TIMEZONE,
-  }).format(date);
+  return formatTimeInTimeZoneWithMeridiem(date, DEFAULT_EVENT_TIMEZONE);
 }
 
 function capitalizeFirst(value: string) {
   if (!value) return value;
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function normalizeLocationLookupValue(value: string | null | undefined) {
+  return String(value || '').trim().toLowerCase();
 }
 
 function readLocalDatePart(value: string | null | undefined) {
@@ -314,7 +319,8 @@ const EventForm = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPostEditAnnouncementModal, setShowPostEditAnnouncementModal] = useState(false);
   const [createdEventId, setCreatedEventId] = useState('');
-  const { trackStepEntered, trackStepCompleted, trackFieldFilled, trackValidationError } = useCreateEventWizardTracking(createdEventId || undefined);
+  const { trackStepEntered, trackStepCompleted, trackFieldFilled, trackValidationError } =
+    useCreateEventWizardTracking(createdEventId || undefined);
   const { templates: eventTemplates, loading: templatesLoading } = useEventTemplates(undefined);
   const { isLoaded: isGoogleMapsLoaded, loadError: googleMapsLoadError } = useGoogleMapsApi();
   const [shareUrl, setShareUrl] = useState('');
@@ -342,28 +348,27 @@ const EventForm = ({
   );
   const [showExactEndEditor, setShowExactEndEditor] = useState(() => {
     const initialDuration = inferDurationMinutes(initial?.startTime, initial?.endTime);
-    return !QUICK_DURATION_OPTIONS.includes(initialDuration as (typeof QUICK_DURATION_OPTIONS)[number]);
+    return !QUICK_DURATION_OPTIONS.includes(
+      initialDuration as (typeof QUICK_DURATION_OPTIONS)[number]
+    );
   });
+  const [placeText, setPlaceText] = useState(initial?.placeText ?? '');
   const [locationText, setLocationText] = useState(initial?.locationText ?? '');
   const [districtText, setDistrictText] = useState(() => String(initial?.district || '').trim());
   const [districtOptions, setDistrictOptions] = useState<DistrictOption[]>(() => {
     const base = String(initial?.district || '').trim();
     if (!base) return [];
-    return [{ id: `initial:${normalizeDistrictKey(base)}`, type: 'manual', value: base, label: base }];
+    return [
+      { id: `initial:${normalizeDistrictKey(base)}`, type: 'manual', value: base, label: base },
+    ];
   });
-  const locationDisplay = useMemo(() => {
-    const base = locationText || String(initial?.locationText || '').trim();
-    return districtText ? `${base} · ${districtText}` : base;
-  }, [districtText, initial?.locationText, locationText]);
   const [lat, setLat] = useState(() => asFiniteNumber(initial?.lat, DEFAULT_LAT));
   const [lng, setLng] = useState(() => asFiniteNumber(initial?.lng, DEFAULT_LNG));
   const [selectedFeatureIds, setSelectedFeatureIds] = useState<number[]>(() => {
     const input = Array.isArray(initial?.featureIds) ? initial.featureIds : [];
     return Array.from(
       new Set(
-        input
-          .map((value) => Number(value))
-          .filter((value) => Number.isInteger(value) && value > 0)
+        input.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
       )
     );
   });
@@ -371,9 +376,7 @@ const EventForm = ({
     const input = Array.isArray(initial?.paymentMethodIds) ? initial.paymentMethodIds : [];
     return Array.from(
       new Set(
-        input
-          .map((value) => Number(value))
-          .filter((value) => Number.isInteger(value) && value > 0)
+        input.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
       )
     );
   });
@@ -386,14 +389,20 @@ const EventForm = ({
   const [isFieldReservedConfirmed, setIsFieldReservedConfirmed] = useState(
     Boolean(initial?.isFieldReservedConfirmed)
   );
-  const [pinSelected, setPinSelected] = useState(() =>
-    Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
+  const [pinSelected, setPinSelected] = useState(
+    () => Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
   );
   const [geoError, setGeoError] = useState('');
   const [createStep, setCreateStep] = useState<CreateStepId>(1);
   const [wizardError, setWizardError] = useState('');
   const [autosaveMessage, setAutosaveMessage] = useState('');
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const addressAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const resolvedAddressTextRef = useRef(
+    Number.isFinite(Number(initial?.lat)) && Number.isFinite(Number(initial?.lng))
+      ? normalizeLocationLookupValue(initial?.locationText)
+      : ''
+  );
+  const skipNextAddressBlurResolveRef = useRef(false);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   const startDateValue = useMemo(() => readLocalDatePart(startTime), [startTime]);
@@ -407,7 +416,8 @@ const EventForm = ({
     const start = parseDateTimeInLima(startTime);
     const end = parseDateTimeInLima(endTime);
     if (!start || !end) return 'Formato de fecha/hora inválido.';
-    if (end.getTime() <= start.getTime()) return 'La fecha y hora de fin debe ser posterior al inicio.';
+    if (end.getTime() <= start.getTime())
+      return 'La fecha y hora de fin debe ser posterior al inicio.';
     return '';
   }, [startTime, endTime]);
   const schedulePreview = useMemo(() => {
@@ -420,7 +430,9 @@ const EventForm = ({
       end,
       hasValidRange,
       spansMultipleDays:
-        Boolean(start && end) && readLocalDatePart(toDateTimeLocalInTimeZone(start)) !== readLocalDatePart(toDateTimeLocalInTimeZone(end)),
+        Boolean(start && end) &&
+        readLocalDatePart(toDateTimeLocalInTimeZone(start)) !==
+          readLocalDatePart(toDateTimeLocalInTimeZone(end)),
       dayLabel: start ? capitalizeFirst(formatScheduleDay(start)) : '',
       startLabel: start ? formatScheduleTime(start) : '',
       endLabel: end ? formatScheduleTime(end) : '',
@@ -432,7 +444,8 @@ const EventForm = ({
   }, [endTime, startTime]);
 
   const startDateTime = useMemo(
-    () => (schedulePreview.start ? `${schedulePreview.dayLabel} · ${schedulePreview.startLabel}` : ''),
+    () =>
+      schedulePreview.start ? `${schedulePreview.dayLabel} · ${schedulePreview.startLabel}` : '',
     [schedulePreview.dayLabel, schedulePreview.startLabel, schedulePreview.start]
   );
 
@@ -471,11 +484,7 @@ const EventForm = ({
     () =>
       activePaymentMethodCatalog.map((option) => {
         const methodType =
-          option.type === 'yape_plin'
-            ? 'Yape/Plin'
-            : option.type === 'plin'
-              ? 'Plin'
-              : 'Yape';
+          option.type === 'yape_plin' ? 'Yape/Plin' : option.type === 'plin' ? 'Plin' : 'Yape';
         const numberText = option.number ? ` · ${option.number}` : '';
         const stateText = option.isActive ? '' : ' (Inactivo)';
         return {
@@ -536,10 +545,7 @@ const EventForm = ({
       startTime,
     ]
   );
-  const publishMissingCount = useMemo(
-    () => publishReadiness.missingIds.length,
-    [publishReadiness]
-  );
+  const publishMissingCount = useMemo(() => publishReadiness.missingIds.length, [publishReadiness]);
   const publishMissingItems = useMemo(
     () => publishReadiness.items.filter((item) => !item.done),
     [publishReadiness]
@@ -593,7 +599,15 @@ const EventForm = ({
   useEffect(() => {
     if (!isCreateMode || previousTrackedStepRef.current === createStep) return;
     previousTrackedStepRef.current = createStep;
-    trackStepEntered((createStep === 1 ? 'basic_info' : createStep === 2 ? 'location' : createStep === 3 ? 'details' : 'publish') as any);
+    trackStepEntered(
+      (createStep === 1
+        ? 'basic_info'
+        : createStep === 2
+          ? 'location'
+          : createStep === 3
+            ? 'details'
+            : 'publish') as any
+    );
   }, [createStep, isCreateMode, trackStepEntered]);
 
   function getDraftStorageKey() {
@@ -610,7 +624,11 @@ const EventForm = ({
     const field = form.elements.namedItem(name);
     if (!field) return '';
 
-    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
+    if (
+      field instanceof HTMLInputElement ||
+      field instanceof HTMLTextAreaElement ||
+      field instanceof HTMLSelectElement
+    ) {
       return field.value;
     }
 
@@ -659,6 +677,7 @@ const EventForm = ({
       state: {
         startTime,
         endTime,
+        placeText,
         locationText,
         districtText,
         lat,
@@ -715,6 +734,7 @@ const EventForm = ({
     setIsFeaturedValue(snapshot.fields.isFeatured);
     setStartTime(snapshot.state.startTime);
     setEndTime(snapshot.state.endTime);
+    setPlaceText(snapshot.state.placeText);
     setLocationText(snapshot.state.locationText);
     setDistrictText(snapshot.state.districtText);
     if (snapshot.state.districtText) {
@@ -723,6 +743,9 @@ const EventForm = ({
     setLat(asFiniteNumber(snapshot.state.lat, DEFAULT_LAT));
     setLng(asFiniteNumber(snapshot.state.lng, DEFAULT_LNG));
     setPinSelected(Boolean(snapshot.state.pinSelected));
+    resolvedAddressTextRef.current = snapshot.state.pinSelected
+      ? normalizeLocationLookupValue(snapshot.state.locationText)
+      : '';
     setIsPublished(Boolean(snapshot.state.isPublished));
     setIsFieldReservedConfirmed(Boolean(snapshot.state.isFieldReservedConfirmed));
     setSelectedFeatureIds(snapshot.state.selectedFeatureIds);
@@ -776,16 +799,31 @@ const EventForm = ({
     }
   }
 
-  function handleAutocompleteLoad(autocomplete: google.maps.places.Autocomplete) {
-    autocompleteRef.current = autocomplete;
+  function hasPendingAddressResolution(value = locationText) {
+    const normalizedValue = normalizeLocationLookupValue(value);
+    if (!normalizedValue) return false;
+    return normalizedValue !== resolvedAddressTextRef.current;
   }
 
-  function handlePlaceChanged() {
-    const place = autocompleteRef.current?.getPlace();
+  function setResolvedAddressValue(displayValue: string, comparisonValue?: string) {
+    const nextDisplayValue = String(displayValue || '').trim();
+    const nextComparisonValue =
+      comparisonValue === undefined ? nextDisplayValue : String(comparisonValue || '').trim();
+
+    setLocationText(nextDisplayValue);
+    resolvedAddressTextRef.current = normalizeLocationLookupValue(nextComparisonValue);
+  }
+
+  function handleAddressAutocompleteLoad(autocomplete: google.maps.places.Autocomplete) {
+    addressAutocompleteRef.current = autocomplete;
+  }
+
+  async function handleAddressPlaceChanged() {
+    const place = addressAutocompleteRef.current?.getPlace();
     const placeLocation = place?.geometry?.location;
 
     if (!place || !placeLocation) {
-      setGeoError('Selecciona una ubicacion valida de las sugerencias.');
+      setGeoError('Selecciona una dirección válida de las sugerencias.');
       return;
     }
 
@@ -796,16 +834,74 @@ const EventForm = ({
       formattedAddress
     );
 
-    setLocationText(formattedAddress || locationText);
-    syncDistrictSelection(nextDistrictOptions, districtText);
+    skipNextAddressBlurResolveRef.current = true;
+    if (formattedAddress) {
+      setResolvedAddressValue(formattedAddress);
+      syncDistrictSelection(nextDistrictOptions, districtText);
+    }
     setLat(nextCoords.lat);
     setLng(nextCoords.lng);
     setPinSelected(true);
     setGeoError('');
     panMapToLocation(nextCoords.lat, nextCoords.lng);
+
   }
 
-  async function reverseGeocode(nextLat: number, nextLng: number) {
+  async function geocodeAddressText(rawAddress: string, options?: { preserveInput?: boolean }) {
+    if (!googleMapsApiKeyConfigured || !isGoogleMapsLoaded || typeof google === 'undefined') {
+      return false;
+    }
+
+    const nextAddress = String(rawAddress || '').trim();
+    if (!nextAddress) {
+      resolvedAddressTextRef.current = '';
+      setPinSelected(false);
+      return false;
+    }
+
+    try {
+      const geocoder = new google.maps.Geocoder();
+      const response = await geocoder.geocode({
+        address: nextAddress,
+        componentRestrictions: { country: 'PE' },
+        region: 'PE',
+      });
+      const result = response.results?.[0];
+      const resultLocation = result?.geometry?.location;
+
+      if (!result || !resultLocation) {
+        setGeoError('No encontramos esa dirección. Ajusta el texto o selecciona una sugerencia.');
+        setPinSelected(false);
+        return false;
+      }
+
+      const nextCoords = toFixedLatLng(resultLocation.lat(), resultLocation.lng());
+      const nextDistrictOptions = extractDistrictOptionsFromAddressComponents(
+        result.address_components,
+        result.formatted_address
+      );
+
+      setResolvedAddressValue(
+        options?.preserveInput ? nextAddress : String(result.formatted_address || nextAddress).trim(),
+        nextAddress
+      );
+      syncDistrictSelection(nextDistrictOptions, districtText);
+      setLat(nextCoords.lat);
+      setLng(nextCoords.lng);
+      setPinSelected(true);
+      setGeoError('');
+      panMapToLocation(nextCoords.lat, nextCoords.lng);
+      return true;
+    } catch {
+      setGeoError(
+        'No se pudo ubicar esa dirección. Selecciona una sugerencia o ajusta el pin manualmente.'
+      );
+      setPinSelected(false);
+      return false;
+    }
+  }
+
+  async function reverseGeocodeDistrict(nextLat: number, nextLng: number) {
     if (!googleMapsApiKeyConfigured || !isGoogleMapsLoaded || typeof google === 'undefined') return;
 
     try {
@@ -820,13 +916,10 @@ const EventForm = ({
         result?.formatted_address
       );
 
-      if (result?.formatted_address) {
-        setLocationText(result.formatted_address);
-      }
       syncDistrictSelection(nextDistrictOptions, districtText);
       setGeoError('');
     } catch {
-      setGeoError('No se pudo autocompletar la dirección. Puedes escribirla manualmente.');
+      setGeoError('No se pudo ajustar el distrito desde el mapa. La dirección escrita se mantiene.');
     }
   }
 
@@ -837,7 +930,41 @@ const EventForm = ({
     setPinSelected(true);
     setGeoError('');
     panMapToLocation(nextCoords.lat, nextCoords.lng);
-    await reverseGeocode(nextCoords.lat, nextCoords.lng);
+    await reverseGeocodeDistrict(nextCoords.lat, nextCoords.lng);
+  }
+
+  function handleAddressInputChange(nextValue: string) {
+    skipNextAddressBlurResolveRef.current = false;
+    setLocationText(nextValue);
+    setGeoError('');
+
+    const normalizedValue = normalizeLocationLookupValue(nextValue);
+    if (!normalizedValue) {
+      resolvedAddressTextRef.current = '';
+      setPinSelected(false);
+      return;
+    }
+
+    if (normalizedValue !== resolvedAddressTextRef.current) {
+      setPinSelected(false);
+    }
+  }
+
+  async function ensureAddressResolvedIfNeeded() {
+    const nextAddress = String(locationText || '').trim();
+    if (!nextAddress) return false;
+    if (!hasPendingAddressResolution(nextAddress)) return true;
+    return geocodeAddressText(nextAddress, { preserveInput: true });
+  }
+
+  async function handleAddressBlur() {
+    if (skipNextAddressBlurResolveRef.current) {
+      skipNextAddressBlurResolveRef.current = false;
+      return;
+    }
+
+    if (!hasPendingAddressResolution()) return;
+    await geocodeAddressText(locationText, { preserveInput: true });
   }
 
   function handleInlinePaymentMethodsChange(methods: InlinePaymentMethodSummary[]) {
@@ -910,8 +1037,10 @@ const EventForm = ({
       if (!description) return 'Incluye una descripción corta para explicar el plan.';
       if (!startTime || !endTime) return 'Define la fecha y hora de inicio y fin.';
       if (timeError) return timeError;
-      if (!Number.isFinite(minUsers) || minUsers <= 0) return 'Ingresa un mínimo de jugadoras válido.';
-      if (!Number.isFinite(maxUsers) || maxUsers <= 0) return 'Ingresa un máximo de jugadoras válido.';
+      if (!Number.isFinite(minUsers) || minUsers <= 0)
+        return 'Ingresa un mínimo de jugadoras válido.';
+      if (!Number.isFinite(maxUsers) || maxUsers <= 0)
+        return 'Ingresa un máximo de jugadoras válido.';
       if (maxUsers < minUsers) return 'El máximo de jugadoras debe ser igual o mayor al mínimo.';
       return '';
     }
@@ -921,6 +1050,7 @@ const EventForm = ({
       const price = Number(fd.get('price'));
 
       if (!nextLocationText) return 'Escribe la cancha o dirección donde jugarán.';
+      if (geoError) return geoError;
       if (locationError) return locationError;
       if (!Number.isFinite(price) || price < 0) return 'Define un precio válido para el evento.';
       return '';
@@ -947,10 +1077,18 @@ const EventForm = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function handleNextCreateStep() {
+  async function handleNextCreateStep() {
+    if (createStep === 2) {
+      await ensureAddressResolvedIfNeeded();
+    }
+
     const nextError = validateCreateStep(createStep);
     if (nextError) {
-      if (isPublished && (publishReadiness.missingIds.includes('payment_methods') || publishReadiness.missingIds.includes('field_reservation'))) {
+      if (
+        isPublished &&
+        (publishReadiness.missingIds.includes('payment_methods') ||
+          publishReadiness.missingIds.includes('field_reservation'))
+      ) {
         trackPublishBlocked('step_validation');
       }
       setWizardError(nextError);
@@ -979,17 +1117,27 @@ const EventForm = ({
     event.preventDefault();
     setPaymentMethodsError('');
     setFieldReservedError('');
+    if (String(locationText || '').trim()) {
+      await ensureAddressResolvedIfNeeded();
+    }
     if (isCreateMode) {
-      trackEvent(isPublished ? 'create_event_publish_attempted' : 'create_event_draft_save_attempted', {
-        channel: 'web',
-        step: createStep,
-      });
+      trackEvent(
+        isPublished ? 'create_event_publish_attempted' : 'create_event_draft_save_attempted',
+        {
+          channel: 'web',
+          step: createStep,
+        }
+      );
     }
 
     if (isCreateMode) {
       const stepError = validateCreateStep(createStep);
       if (stepError) {
-        if (isPublished && (publishReadiness.missingIds.includes('payment_methods') || publishReadiness.missingIds.includes('field_reservation'))) {
+        if (
+          isPublished &&
+          (publishReadiness.missingIds.includes('payment_methods') ||
+            publishReadiness.missingIds.includes('field_reservation'))
+        ) {
           trackPublishBlocked('step_validation');
         }
         setWizardError(stepError);
@@ -1051,7 +1199,9 @@ const EventForm = ({
       }
 
       if (isCreateMode) {
-        const createdEventId = String((result && 'eventId' in result ? result.eventId : '') || '').trim();
+        const createdEventId = String(
+          (result && 'eventId' in result ? result.eventId : '') || ''
+        ).trim();
         setSubmitStatus('success');
         clearAutosave();
         setCreatedEventId(createdEventId);
@@ -1086,7 +1236,9 @@ const EventForm = ({
         }
       } else {
         setSubmitStatus('success');
-        setSubmitMessage(isPublished ? 'Evento guardado con éxito.' : 'Borrador guardado con éxito.');
+        setSubmitMessage(
+          isPublished ? 'Evento guardado con éxito.' : 'Borrador guardado con éxito.'
+        );
         if (postEditAnnouncement && isPublished) {
           setShowPostEditAnnouncementModal(true);
         }
@@ -1203,6 +1355,7 @@ const EventForm = ({
     isPublished,
     lat,
     lng,
+    placeText,
     locationText,
     maxUsersValue,
     minUsersValue,
@@ -1224,7 +1377,9 @@ const EventForm = ({
           if (wizardError) setWizardError('');
           scheduleAutosave();
         }}
-        className={isCreateMode ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]' : 'max-w-4xl space-y-5'}
+        className={
+          isCreateMode ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]' : 'max-w-4xl space-y-5'
+        }
         noValidate
       >
         {isCreateMode ? (
@@ -1304,7 +1459,11 @@ const EventForm = ({
                         : isCompleted
                           ? 'border-emerald-200 bg-emerald-50/80 hover:border-emerald-300'
                           : 'border-slate-200 bg-slate-50/85',
-                      isCompleted ? 'cursor-pointer' : isActive ? 'cursor-default' : 'cursor-default opacity-80',
+                      isCompleted
+                        ? 'cursor-pointer'
+                        : isActive
+                          ? 'cursor-default'
+                          : 'cursor-default opacity-80',
                     ].join(' ')}
                   >
                     <span
@@ -1335,7 +1494,7 @@ const EventForm = ({
                 {createStep < 4
                   ? 'Puedes avanzar con calma. El progreso queda guardado mientras completas el flujo.'
                   : isPublished
-                    ? 'Revisaremos lo que falte antes de dejarlo visible en el explorer.'
+                    ? 'Revisaremos lo que falte antes de dejarlo visible en la plataforma.'
                     : 'Al guardar como borrador, podrás volver exactamente donde te quedaste.'}
               </p>
               <div className="flex flex-wrap items-center gap-3">
@@ -1358,641 +1517,693 @@ const EventForm = ({
         ) : null}
 
         <div className={isCreateMode ? 'space-y-5' : ''}>
-        <section
-          className={[
-            FLOW_SURFACE_CLASS,
-            isCreateMode && createStep !== 1 ? 'hidden' : 'block',
-          ].join(' ')}
-        >
-          <div className="mb-5">
-            <h3 className="text-lg font-semibold text-slate-900">Base del evento</h3>
-            <p className="mt-1 text-sm text-slate-600">
-              Define el plan principal para que las jugadoras entiendan rápido de qué se trata.
-            </p>
-          </div>
+          <section
+            className={[
+              FLOW_SURFACE_CLASS,
+              isCreateMode && createStep !== 1 ? 'hidden' : 'block',
+            ].join(' ')}
+          >
+            <div className="mb-5">
+              <h3 className="text-lg font-semibold text-slate-900">Base del evento</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Define el plan principal para que las jugadoras entiendan rápido de qué se trata.
+              </p>
+            </div>
 
-          <div className="grid gap-4">
-            <Input
-              label="Título"
-              name="title"
-              required
-              value={eventTitle}
-              onChange={(event) => setEventTitle(event.currentTarget.value)}
-              bgColor="bg-white"
-              tone="soft"
-            />
-
-            <label className="w-full">
-              <div className="mb-1 text-sm font-semibold text-slate-700">Descripción</div>
-              <textarea
-                name="description"
-                value={eventDescription}
-                onChange={(event) => setEventDescription(event.currentTarget.value)}
-                rows={4}
-                className={FLOW_TEXTAREA_CLASS}
+            <div className="grid gap-4">
+              <Input
+                label="Título"
+                name="title"
                 required
+                value={eventTitle}
+                onChange={(event) => setEventTitle(event.currentTarget.value)}
+                bgColor="bg-white"
+                tone="soft"
               />
-            </label>
 
-            <div className="pt-2">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Horario del partido</p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Elige fecha, hora de inicio y duración. El fin se calcula solo y puedes ajustarlo si hace falta.
-                  </p>
-                </div>
-                <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                  Hora Lima
-                </span>
-              </div>
+              <label className="w-full">
+                <div className="mb-1 text-sm font-semibold text-slate-700">Descripción</div>
+                <textarea
+                  name="description"
+                  value={eventDescription}
+                  onChange={(event) => setEventDescription(event.currentTarget.value)}
+                  rows={4}
+                  className={FLOW_TEXTAREA_CLASS}
+                  required
+                />
+              </label>
 
-              <div className="mt-4 grid gap-4 xl:grid-cols-[1fr,1fr,1.1fr]">
-                <label className="w-full">
-                  <div className="mb-1 text-sm font-semibold text-slate-700">Fecha *</div>
-                  <input
-                    type="date"
-                    value={startDateValue}
-                    onChange={(event) => {
-                      syncScheduleStart(event.currentTarget.value, startClockValue);
-                    }}
-                    className={FLOW_FIELD_CLASS}
-                  />
-                </label>
-
-                <label className="w-full">
-                  <div className="mb-1 text-sm font-semibold text-slate-700">Hora de inicio *</div>
-                  <input
-                    type="time"
-                    value={startClockValue}
-                    onChange={(event) => {
-                      syncScheduleStart(startDateValue, event.currentTarget.value);
-                    }}
-                    className={FLOW_FIELD_CLASS}
-                  />
-                </label>
-
-                <div className="w-full">
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-slate-700">Duración</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowExactEndEditor((current) => !current)}
-                      className="text-xs font-semibold text-mulberry transition hover:underline"
-                    >
-                      {showExactEndEditor ? 'Ocultar fin exacto' : 'Editar fin exacto'}
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {QUICK_DURATION_OPTIONS.map((durationOption) => (
-                      <button
-                        key={durationOption}
-                        type="button"
-                        onClick={() => applySuggestedEndTime(durationOption)}
-                        className={[
-                          'inline-flex rounded-full border px-3 py-2 text-xs font-semibold transition',
-                          preferredDurationMinutes === durationOption && !showExactEndEditor
-                            ? 'border-mulberry bg-mulberry text-white'
-                            : 'border-slate-300 bg-white text-slate-700 hover:border-mulberry hover:text-mulberry',
-                        ].join(' ')}
-                      >
-                        {formatDurationLabel(durationOption)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className={`mt-4 px-4 py-4 ${FLOW_PANEL_CLASS}`}>
-                {schedulePreview.start ? (
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        Horario calculado
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">
-                        {schedulePreview.dayLabel} · {schedulePreview.startLabel}
-                        {schedulePreview.hasValidRange ? ` - ${schedulePreview.endLabel}` : ''}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {schedulePreview.hasValidRange
-                          ? `Duración estimada: ${schedulePreview.durationLabel}.`
-                          : 'Todavía falta definir a qué hora termina.'}
-                      </p>
-                      {schedulePreview.spansMultipleDays ? (
-                        <p className="mt-1 text-xs font-medium text-amber-700">
-                          El fin cae al día siguiente. Revisa que esa sea la intención.
-                        </p>
-                      ) : null}
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Recomendación: los partidos abiertos suelen funcionar mejor entre 90 y 120 min.
+              <div className="pt-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Horario del partido</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Elige fecha, hora de inicio y duración. El fin se calcula solo y puedes
+                      ajustarlo si hace falta.
                     </p>
                   </div>
-                ) : (
-                  <p className="text-sm text-slate-600">
-                    Define fecha y hora de arranque para ver el horario final del partido.
-                  </p>
-                )}
-              </div>
+                  <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+                    Hora Lima
+                  </span>
+                </div>
 
-              {showExactEndEditor ? (
-                <label className="mt-4 block max-w-md">
-                  <div className="mb-1 text-sm font-semibold text-slate-700">Fin exacto *</div>
-                  <input
-                    name="endTimeEditor"
-                    type="datetime-local"
-                    value={endTime}
-                    onChange={(event) => setEndTime(event.currentTarget.value)}
-                    min={startTime || undefined}
+                <div className="mt-4 grid gap-4 xl:grid-cols-[1fr,1fr,1.1fr]">
+                  <label className="w-full">
+                    <div className="mb-1 text-sm font-semibold text-slate-700">Fecha *</div>
+                    <input
+                      type="date"
+                      value={startDateValue}
+                      onChange={(event) => {
+                        syncScheduleStart(event.currentTarget.value, startClockValue);
+                      }}
+                      className={FLOW_FIELD_CLASS}
+                    />
+                  </label>
+
+                  <label className="w-full">
+                    <div className="mb-1 text-sm font-semibold text-slate-700">
+                      Hora de inicio *
+                    </div>
+                    <input
+                      type="time"
+                      value={startClockValue}
+                      onChange={(event) => {
+                        syncScheduleStart(startDateValue, event.currentTarget.value);
+                      }}
+                      className={FLOW_FIELD_CLASS}
+                    />
+                  </label>
+
+                  <div className="w-full">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-slate-700">Duración</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowExactEndEditor((current) => !current)}
+                        className="text-xs font-semibold text-mulberry transition hover:underline"
+                      >
+                        {showExactEndEditor ? 'Ocultar fin exacto' : 'Editar fin exacto'}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {QUICK_DURATION_OPTIONS.map((durationOption) => (
+                        <button
+                          key={durationOption}
+                          type="button"
+                          onClick={() => applySuggestedEndTime(durationOption)}
+                          className={[
+                            'inline-flex rounded-full border px-3 py-2 text-xs font-semibold transition',
+                            preferredDurationMinutes === durationOption && !showExactEndEditor
+                              ? 'border-mulberry bg-mulberry text-white'
+                              : 'border-slate-300 bg-white text-slate-700 hover:border-mulberry hover:text-mulberry',
+                          ].join(' ')}
+                        >
+                          {formatDurationLabel(durationOption)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`mt-4 px-4 py-4 ${FLOW_PANEL_CLASS}`}>
+                  {schedulePreview.start ? (
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          Horario calculado
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {schedulePreview.dayLabel} · {schedulePreview.startLabel}
+                          {schedulePreview.hasValidRange ? ` - ${schedulePreview.endLabel}` : ''}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {schedulePreview.hasValidRange
+                            ? `Duración estimada: ${schedulePreview.durationLabel}.`
+                            : 'Todavía falta definir a qué hora termina.'}
+                        </p>
+                        {schedulePreview.spansMultipleDays ? (
+                          <p className="mt-1 text-xs font-medium text-amber-700">
+                            El fin cae al día siguiente. Revisa que esa sea la intención.
+                          </p>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Recomendación: los partidos abiertos suelen funcionar mejor entre 90 y 120
+                        min.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-600">
+                      Define fecha y hora de arranque para ver el horario final del partido.
+                    </p>
+                  )}
+                </div>
+
+                {showExactEndEditor ? (
+                  <label className="mt-4 block max-w-md">
+                    <div className="mb-1 text-sm font-semibold text-slate-700">Fin exacto *</div>
+                    <input
+                      name="endTimeEditor"
+                      type="datetime-local"
+                      value={endTime}
+                      onChange={(event) => setEndTime(event.currentTarget.value)}
+                      min={startTime || undefined}
                       className={[
                         FLOW_FIELD_CLASS,
                         timeError ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : '',
                       ].join(' ')}
-                  />
-                  <p className="mt-2 text-xs text-slate-500">
-                    Úsalo solo si necesitas un cierre distinto al sugerido o un fin al día siguiente.
-                  </p>
-                  {timeError ? <p className="mt-2 text-xs font-medium text-red-600">{timeError}</p> : null}
-                </label>
-              ) : null}
+                    />
+                    <p className="mt-2 text-xs text-slate-500">
+                      Úsalo solo si necesitas un cierre distinto al sugerido o un fin al día
+                      siguiente.
+                    </p>
+                    {timeError ? (
+                      <p className="mt-2 text-xs font-medium text-red-600">{timeError}</p>
+                    ) : null}
+                  </label>
+                ) : null}
 
-              <input type="hidden" name="startTime" value={startTime} readOnly />
-              <input type="hidden" name="endTime" value={endTime} readOnly />
+                <input type="hidden" name="startTime" value={startTime} readOnly />
+                <input type="hidden" name="endTime" value={endTime} readOnly />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Input
+                  label="Mínimo de jugadoras"
+                  name="minUsers"
+                  type="number"
+                  required
+                  value={minUsersValue}
+                  onChange={(event) => setMinUsersValue(event.currentTarget.value)}
+                  bgColor="bg-white"
+                  tone="soft"
+                />
+
+                <Input
+                  label="Máximo de jugadoras"
+                  name="maxUsers"
+                  type="number"
+                  required
+                  value={maxUsersValue}
+                  onChange={(event) => setMaxUsersValue(event.currentTarget.value)}
+                  bgColor="bg-white"
+                  tone="soft"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section
+            className={[
+              FLOW_SURFACE_CLASS,
+              isCreateMode && createStep !== 2 ? 'hidden' : 'block',
+            ].join(' ')}
+          >
+            <div className="mb-5">
+              <h3 className="text-lg font-semibold text-slate-900">Ubicación y precio</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Guarda el nombre del lugar si te sirve como referencia y usa la dirección para
+                ubicar el evento en el mapa.
+              </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input
-                label="Mínimo de jugadoras"
-                name="minUsers"
-                type="number"
-                required
-                value={minUsersValue}
-                onChange={(event) => setMinUsersValue(event.currentTarget.value)}
-                bgColor="bg-white"
-                tone="soft"
-              />
+            <div className="grid gap-4">
+              <label className="w-full">
+                <div className="mb-1 text-sm font-semibold text-slate-700">
+                  Nombre del local (opcional)
+                </div>
+                <input
+                  name="placeText"
+                  type="text"
+                  value={placeText}
+                  onChange={(event) => setPlaceText(event.currentTarget.value)}
+                  autoComplete="off"
+                  className={FLOW_FIELD_CLASS}
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Se guarda tal como lo escribas. No cambia la dirección ni el mapa.
+                </p>
+              </label>
 
-              <Input
-                label="Máximo de jugadoras"
-                name="maxUsers"
-                type="number"
-                required
-                value={maxUsersValue}
-                onChange={(event) => setMaxUsersValue(event.currentTarget.value)}
-                bgColor="bg-white"
-                tone="soft"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section
-          className={[
-            FLOW_SURFACE_CLASS,
-            isCreateMode && createStep !== 2 ? 'hidden' : 'block',
-          ].join(' ')}
-        >
-          <div className="mb-5">
-            <h3 className="text-lg font-semibold text-slate-900">Ubicación y precio</h3>
-            <p className="mt-1 text-sm text-slate-600">
-              Primero ubica la cancha. Luego ajusta el pin para que llegar sea fácil.
-            </p>
-          </div>
-
-          <div className="grid gap-4">
-            <label className="w-full">
-              <div className="mb-1 text-sm font-semibold text-slate-700">Dirección *</div>
-              {googleMapsApiKeyConfigured && isGoogleMapsLoaded ? (
-                <Autocomplete
-                  onLoad={handleAutocompleteLoad}
-                  onPlaceChanged={handlePlaceChanged}
-                  options={{
-                    componentRestrictions: { country: 'pe' },
-                    fields: ['address_components', 'formatted_address', 'geometry', 'name'],
-                  }}
-                >
+              <label className="w-full">
+                <div className="mb-1 text-sm font-semibold text-slate-700">Dirección *</div>
+                {googleMapsApiKeyConfigured && isGoogleMapsLoaded ? (
+                  <Autocomplete
+                    onLoad={handleAddressAutocompleteLoad}
+                    onPlaceChanged={handleAddressPlaceChanged}
+                    options={{
+                      componentRestrictions: { country: 'pe' },
+                      fields: ['address_components', 'formatted_address', 'geometry', 'name'],
+                    }}
+                  >
+                    <input
+                      name="locationText"
+                      type="text"
+                      required
+                      value={locationText}
+                      onChange={(event) => handleAddressInputChange(event.currentTarget.value)}
+                      onBlur={handleAddressBlur}
+                      autoComplete="off"
+                      className={FLOW_FIELD_CLASS}
+                    />
+                  </Autocomplete>
+                ) : (
                   <input
                     name="locationText"
                     type="text"
                     required
                     value={locationText}
-                    onChange={(event) => setLocationText(event.currentTarget.value)}
+                    onChange={(event) => handleAddressInputChange(event.currentTarget.value)}
+                    onBlur={handleAddressBlur}
                     autoComplete="off"
                     className={FLOW_FIELD_CLASS}
                   />
-                </Autocomplete>
-              ) : (
-                <input
-                  name="locationText"
-                  type="text"
-                  required
-                  value={locationText}
-                  onChange={(event) => setLocationText(event.currentTarget.value)}
-                  autoComplete="off"
-                  className={FLOW_FIELD_CLASS}
-                />
-              )}
-              <p className="mt-1 text-xs text-slate-500">
-                Busca una dirección o cancha y selecciona una sugerencia para actualizar el pin.
-              </p>
-            </label>
+                )}
+                <p className="mt-1 text-xs text-slate-500">
+                  Puedes escribir una dirección o el nombre de un lugar. Si Google lo encuentra,
+                  ubicaremos el punto en el mapa.
+                </p>
+              </label>
 
-            <div className="space-y-2">
-              <div className="text-sm font-semibold text-slate-700">Ubicación en mapa *</div>
-              {googleMapsApiKeyConfigured ? (
-                googleMapsLoadError ? (
-                  <div className="rounded-[20px] bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200/80">
-                    No se pudo cargar Google Maps.
-                  </div>
-                ) : !isGoogleMapsLoaded ? (
-                  <div className="h-[300px] animate-pulse rounded-[18px] bg-slate-100 ring-1 ring-slate-200/80" />
-                ) : (
-                  <div className="h-[300px] overflow-hidden rounded-[18px] ring-1 ring-slate-200/80">
-                    <GoogleMap
-                      mapContainerStyle={MAP_CONTAINER_STYLE}
-                      center={toLatLngLiteral(lat, lng)}
-                      zoom={12}
-                      options={MAP_OPTIONS}
-                      onLoad={(map) => {
-                        mapRef.current = map;
-                      }}
-                      onClick={async (event) => {
-                        const clickedLat = event.latLng?.lat();
-                        const clickedLng = event.latLng?.lng();
-                        if (clickedLat == null || clickedLng == null) return;
-                        const nextLat = Number(clickedLat.toFixed(6));
-                        const nextLng = Number(clickedLng.toFixed(6));
-                        await handleMapSelection(nextLat, nextLng);
-                      }}
-                    >
-                      <MarkerF
-                        position={toLatLngLiteral(lat, lng)}
-                        draggable
-                        onDragEnd={async (eventInfo) => {
-                          const draggedLat = eventInfo.latLng?.lat();
-                          const draggedLng = eventInfo.latLng?.lng();
-                          if (draggedLat == null || draggedLng == null) return;
-                          const nextLat = Number(draggedLat.toFixed(6));
-                          const nextLng = Number(draggedLng.toFixed(6));
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-slate-700">Ajustar ubicación *</div>
+                {googleMapsApiKeyConfigured ? (
+                  googleMapsLoadError ? (
+                    <div className="rounded-[20px] bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200/80">
+                      No se pudo cargar Google Maps.
+                    </div>
+                  ) : !isGoogleMapsLoaded ? (
+                    <div className="h-[300px] animate-pulse rounded-[18px] bg-slate-100 ring-1 ring-slate-200/80" />
+                  ) : (
+                    <div className="h-[300px] overflow-hidden rounded-[18px] ring-1 ring-slate-200/80">
+                      <GoogleMap
+                        mapContainerStyle={MAP_CONTAINER_STYLE}
+                        center={toLatLngLiteral(lat, lng)}
+                        zoom={12}
+                        options={MAP_OPTIONS}
+                        onLoad={(map) => {
+                          mapRef.current = map;
+                        }}
+                        onClick={async (event) => {
+                          const clickedLat = event.latLng?.lat();
+                          const clickedLng = event.latLng?.lng();
+                          if (clickedLat == null || clickedLng == null) return;
+                          const nextLat = Number(clickedLat.toFixed(6));
+                          const nextLng = Number(clickedLng.toFixed(6));
                           await handleMapSelection(nextLat, nextLng);
                         }}
-                      />
-                    </GoogleMap>
+                      >
+                        <MarkerF
+                          position={toLatLngLiteral(lat, lng)}
+                          draggable
+                          onDragEnd={async (eventInfo) => {
+                            const draggedLat = eventInfo.latLng?.lat();
+                            const draggedLng = eventInfo.latLng?.lng();
+                            if (draggedLat == null || draggedLng == null) return;
+                            const nextLat = Number(draggedLat.toFixed(6));
+                            const nextLng = Number(draggedLng.toFixed(6));
+                            await handleMapSelection(nextLat, nextLng);
+                          }}
+                        />
+                      </GoogleMap>
+                    </div>
+                  )
+                ) : (
+                  <div className="rounded-[20px] bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200/80">
+                    Falta configurar <code>NEXT_PUBLIC_GOOGLE_MAPS_KEY</code>.
                   </div>
-                )
-              ) : (
-                <div className="rounded-[20px] bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200/80">
-                  Falta configurar <code>NEXT_PUBLIC_GOOGLE_MAPS_KEY</code>.
-                </div>
-              )}
-              <p className={`text-xs ${locationError ? 'text-red-600' : 'text-slate-500'}`}>
-                {locationError || 'Ubicacion lista. Puedes hacer clic o mover el pin para ajustar.'}
-              </p>
-              {geoError ? <p className="text-xs text-amber-700">{geoError}</p> : null}
-              <input type="hidden" name="lat" value={lat} readOnly />
-              <input type="hidden" name="lng" value={lng} readOnly />
-              <input type="hidden" name="district" value={districtText} readOnly />
-            </div>
-
-            <div className="max-w-sm">
-              <Input
-                label="Precio (S/.)"
-                name="price"
-                type="number"
-                step="0.01"
-                required
-                value={priceValue}
-                onChange={(event) => setPriceValue(event.currentTarget.value)}
-                bgColor="bg-white"
-                tone="soft"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section
-          className={[
-            FLOW_SURFACE_CLASS,
-            isCreateMode && createStep !== 3 ? 'hidden' : 'block',
-          ].join(' ')}
-        >
-          <div className="mb-5">
-            <h3 className="text-lg font-semibold text-slate-900">Detalles y cobro</h3>
-            <p className="mt-1 text-sm text-slate-600">
-              Aquí defines el contexto del partido y cómo recibirás los pagos.
-            </p>
-          </div>
-
-          <div className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="w-full">
-                <div className="mb-1 text-sm font-semibold text-slate-700">Tipo de evento *</div>
-                <select
-                  name="eventTypeId"
-                  value={selectedEventTypeId}
-                  onChange={(event) => setSelectedEventTypeId(event.currentTarget.value)}
-                  className={FLOW_NATIVE_SELECT_CLASS}
-                  required
-                >
-                  {eventTypes.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="w-full">
-                <div className="mb-1 text-sm font-semibold text-slate-700">Nivel *</div>
-                <select
-                  name="levelId"
-                  value={selectedLevelId}
-                  onChange={(event) => setSelectedLevelId(event.currentTarget.value)}
-                  className={FLOW_NATIVE_SELECT_CLASS}
-                  required
-                >
-                  {levels.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="w-full">
-              <div className="mb-1 text-sm font-semibold text-slate-700">
-                Métodos de pago permitidos {isPublished ? '*' : '(opcional por ahora)'}
-              </div>
-              <SelectComponent
-                options={paymentMethodOptions}
-                value={selectedActivePaymentMethodIds}
-                onChange={(value) => {
-                  const nextIds = Array.isArray(value)
-                    ? value
-                        .map((item) => Number(item))
-                        .filter((item) => Number.isInteger(item) && item > 0)
-                    : [];
-                  setSelectedPaymentMethodIds(nextIds);
-                  if (nextIds.length > 0) {
-                    setPaymentMethodsError('');
-                  }
-                }}
-                isMulti
-                isSearchable={false}
-                bgColor="bg-white"
-                tone="soft"
-              />
-              {activePaymentMethodCatalog.length === 0 ? (
-                <div className="mt-2 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3">
-                  <p className="text-xs font-medium text-amber-800">
-                    No hay métodos disponibles todavía.
-                  </p>
-                  <Link
-                    href={paymentMethodsHref}
-                    onClick={() => {
-                      trackEvent('create_event_payment_setup_clicked', {
-                        channel: 'web',
-                        source: 'wizard_empty_state',
-                        step: createStep,
-                      });
-                    }}
-                    className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
-                  >
-                    Ir a Formas de pago
-                  </Link>
-                </div>
-              ) : (
-                <p className="mt-1 text-xs text-slate-500">
-                  {selectedActivePaymentMethodIds.length > 0
-                    ? `${selectedActivePaymentMethodIds.length} método(s) seleccionado(s).`
-                    : isPublished
-                      ? 'Selecciona uno o más métodos para publicar este evento.'
-                      : 'Puedes agregar métodos de pago después, antes de publicar.'}
+                )}
+                <p className={`text-xs ${locationError ? 'text-red-600' : 'text-slate-500'}`}>
+                  {locationError ||
+                    'Puedes hacer clic o mover el pin para ajustar la ubicación exacta sin cambiar la dirección escrita.'}
                 </p>
-              )}
-              {paymentMethodsError ? <p className="mt-1 text-xs text-red-600">{paymentMethodsError}</p> : null}
-              {selectedActivePaymentMethodIds.map((paymentMethodId) => (
-                <input
-                  key={`payment-method-${paymentMethodId}`}
-                  type="hidden"
-                  name="paymentMethodIds"
-                  value={paymentMethodId}
-                  readOnly
+                {geoError ? <p className="text-xs text-amber-700">{geoError}</p> : null}
+                <input type="hidden" name="lat" value={lat} readOnly />
+                <input type="hidden" name="lng" value={lng} readOnly />
+                <input type="hidden" name="district" value={districtText} readOnly />
+              </div>
+
+              <div className="max-w-sm">
+                <Input
+                  label="Precio (S/.)"
+                  name="price"
+                  type="number"
+                  step="0.01"
+                  required
+                  value={priceValue}
+                  onChange={(event) => setPriceValue(event.currentTarget.value)}
+                  bgColor="bg-white"
+                  tone="soft"
                 />
-              ))}
+              </div>
+            </div>
+          </section>
+
+          <section
+            className={[
+              FLOW_SURFACE_CLASS,
+              isCreateMode && createStep !== 3 ? 'hidden' : 'block',
+            ].join(' ')}
+          >
+            <div className="mb-5">
+              <h3 className="text-lg font-semibold text-slate-900">Detalles y cobro</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Aquí defines el contexto del partido y cómo recibirás los pagos.
+              </p>
             </div>
 
-            <InlinePaymentMethodSetup
-              initialMethods={paymentMethodCatalog}
-              onMethodsChange={handleInlinePaymentMethodsChange}
-              onMethodSaved={handleInlinePaymentMethodSaved}
-            />
+            <div className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="w-full">
+                  <div className="mb-1 text-sm font-semibold text-slate-700">Tipo de evento *</div>
+                  <select
+                    name="eventTypeId"
+                    value={selectedEventTypeId}
+                    onChange={(event) => setSelectedEventTypeId(event.currentTarget.value)}
+                    className={FLOW_NATIVE_SELECT_CLASS}
+                    required
+                  >
+                    {eventTypes.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <div className="w-full">
-              <div className="mb-1 text-sm font-semibold text-slate-700">Features</div>
-              <SelectComponent
-                options={featureOptions}
-                value={selectedFeatureIds}
-                onChange={(value) =>
-                  setSelectedFeatureIds(
-                    Array.isArray(value)
+                <label className="w-full">
+                  <div className="mb-1 text-sm font-semibold text-slate-700">Nivel *</div>
+                  <select
+                    name="levelId"
+                    value={selectedLevelId}
+                    onChange={(event) => setSelectedLevelId(event.currentTarget.value)}
+                    className={FLOW_NATIVE_SELECT_CLASS}
+                    required
+                  >
+                    {levels.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="w-full">
+                <div className="mb-1 text-sm font-semibold text-slate-700">
+                  Métodos de pago permitidos {isPublished ? '*' : '(opcional por ahora)'}
+                </div>
+                <SelectComponent
+                  options={paymentMethodOptions}
+                  value={selectedActivePaymentMethodIds}
+                  onChange={(value) => {
+                    const nextIds = Array.isArray(value)
                       ? value
                           .map((item) => Number(item))
                           .filter((item) => Number.isInteger(item) && item > 0)
-                      : []
-                  )
-                }
-                isMulti
-                isSearchable={false}
-                bgColor="bg-white"
-                tone="soft"
+                      : [];
+                    setSelectedPaymentMethodIds(nextIds);
+                    if (nextIds.length > 0) {
+                      setPaymentMethodsError('');
+                    }
+                  }}
+                  isMulti
+                  isSearchable={false}
+                  bgColor="bg-white"
+                  tone="soft"
+                />
+                {activePaymentMethodCatalog.length === 0 ? (
+                  <div className="mt-2 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3">
+                    <p className="text-xs font-medium text-amber-800">
+                      No hay métodos disponibles todavía.
+                    </p>
+                    <Link
+                      href={paymentMethodsHref}
+                      onClick={() => {
+                        trackEvent('create_event_payment_setup_clicked', {
+                          channel: 'web',
+                          source: 'wizard_empty_state',
+                          step: createStep,
+                        });
+                      }}
+                      className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
+                    >
+                      Ir a Formas de pago
+                    </Link>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500">
+                    {selectedActivePaymentMethodIds.length > 0
+                      ? `${selectedActivePaymentMethodIds.length} método(s) seleccionado(s).`
+                      : isPublished
+                        ? 'Selecciona uno o más métodos para publicar este evento.'
+                        : 'Puedes agregar métodos de pago después, antes de publicar.'}
+                  </p>
+                )}
+                {paymentMethodsError ? (
+                  <p className="mt-1 text-xs text-red-600">{paymentMethodsError}</p>
+                ) : null}
+                {selectedActivePaymentMethodIds.map((paymentMethodId) => (
+                  <input
+                    key={`payment-method-${paymentMethodId}`}
+                    type="hidden"
+                    name="paymentMethodIds"
+                    value={paymentMethodId}
+                    readOnly
+                  />
+                ))}
+              </div>
+
+              <InlinePaymentMethodSetup
+                initialMethods={paymentMethodCatalog}
+                onMethodsChange={handleInlinePaymentMethodsChange}
+                onMethodSaved={handleInlinePaymentMethodSaved}
               />
-              <p className="mt-1 text-xs text-slate-500">
-                {selectedFeatureIds.length > 0
-                  ? `${selectedFeatureIds.length} feature(s) seleccionada(s).`
-                  : 'Selecciona una o más features para el evento.'}
+
+              <div className="w-full">
+                <div className="mb-1 text-sm font-semibold text-slate-700">Features</div>
+                <SelectComponent
+                  options={featureOptions}
+                  value={selectedFeatureIds}
+                  onChange={(value) =>
+                    setSelectedFeatureIds(
+                      Array.isArray(value)
+                        ? value
+                            .map((item) => Number(item))
+                            .filter((item) => Number.isInteger(item) && item > 0)
+                        : []
+                    )
+                  }
+                  isMulti
+                  isSearchable={false}
+                  bgColor="bg-white"
+                  tone="soft"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedFeatureIds.length > 0
+                    ? `${selectedFeatureIds.length} feature(s) seleccionada(s).`
+                    : 'Selecciona una o más features para el evento.'}
+                </p>
+                {selectedFeatureIds.map((featureId) => (
+                  <input
+                    key={featureId}
+                    type="hidden"
+                    name="featureIds"
+                    value={featureId}
+                    readOnly
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section
+            className={[
+              FLOW_SURFACE_CLASS,
+              isCreateMode && createStep !== 4 ? 'hidden' : 'block',
+            ].join(' ')}
+          >
+            <div className="mb-5">
+              <h3 className="text-lg font-semibold text-slate-900">Final</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Decide si quieres publicarlo hoy o si prefieres dejarlo para después.
               </p>
-              {selectedFeatureIds.map((featureId) => (
-                <input key={featureId} type="hidden" name="featureIds" value={featureId} readOnly />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section
-          className={[
-            FLOW_SURFACE_CLASS,
-            isCreateMode && createStep !== 4 ? 'hidden' : 'block',
-          ].join(' ')}
-        >
-          <div className="mb-5">
-            <h3 className="text-lg font-semibold text-slate-900">Final</h3>
-            <p className="mt-1 text-sm text-slate-600">
-              Decide si quieres publicarlo hoy o si prefieres dejarlo para después.
-            </p>
-          </div>
-
-          <div className="grid gap-4">
-            <input type="hidden" name="isPublished" value={isPublished ? 'true' : 'false'} readOnly />
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setIsPublished(true)}
-                className={[
-                  'rounded-[16px] px-4 py-4 text-left ring-1 transition',
-                  isPublished
-                    ? 'bg-emerald-50/70 ring-emerald-200/90'
-                    : 'bg-white ring-slate-200/80 hover:bg-slate-50',
-                ].join(' ')}
-              >
-                <p className="text-sm font-semibold text-slate-900">Publicarlo hoy</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Úsalo si ya está todo listo y quieres que aparezca en el listado público.
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsPublished(false);
-                  setPaymentMethodsError('');
-                  setFieldReservedError('');
-                }}
-                className={[
-                  'rounded-[16px] px-4 py-4 text-left ring-1 transition',
-                  !isPublished
-                    ? 'bg-slate-100/90 ring-slate-300/90'
-                    : 'bg-white ring-slate-200/80 hover:bg-slate-50',
-                ].join(' ')}
-              >
-                <p className="text-sm font-semibold text-slate-900">Guardar para después</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Guarda el avance y vuelve más tarde. Todavía no será visible al público.
-                </p>
-              </button>
             </div>
 
-            {isPublished ? (
-              <div className="grid gap-4">
-                <div
+            <div className="grid gap-4">
+              <input
+                type="hidden"
+                name="isPublished"
+                value={isPublished ? 'true' : 'false'}
+                readOnly
+              />
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPublished(true)}
                   className={[
-                    'rounded-[16px] px-4 py-4 ring-1',
-                    publishMissingCount === 0
-                      ? 'bg-emerald-50/70 ring-emerald-200/80'
-                      : 'bg-amber-50/70 ring-amber-200/80',
+                    'rounded-[16px] px-4 py-4 text-left ring-1 transition',
+                    isPublished
+                      ? 'bg-emerald-50/70 ring-emerald-200/90'
+                      : 'bg-white ring-slate-200/80 hover:bg-slate-50',
                   ].join(' ')}
                 >
-                  <p className="text-sm font-semibold text-slate-900">
-                    {publishMissingCount === 0 ? 'Listo para publicar' : 'Antes de publicar'}
-                  </p>
+                  <p className="text-sm font-semibold text-slate-900">Publicarlo hoy</p>
                   <p className="mt-1 text-sm text-slate-600">
-                    {publishMissingCount === 0
-                      ? 'Cuando guardes, tu evento quedará público y listo para compartir.'
-                      : publishReadiness.primaryMessage || 'Termina estos puntos para poder publicarlo hoy.'}
+                    Úsalo si ya está todo listo y quieres que aparezca en el listado público.
                   </p>
-                </div>
+                </button>
 
-                <label className="flex items-start gap-3 rounded-[16px] bg-slate-50/80 px-4 py-4 ring-1 ring-slate-200/70">
-                  <input
-                    type="checkbox"
-                    name="isFieldReservedConfirmed"
-                    value="true"
-                    checked={isFieldReservedConfirmed}
-                    onChange={(event) => {
-                      setIsFieldReservedConfirmed(event.currentTarget.checked);
-                      if (event.currentTarget.checked) {
-                        setFieldReservedError('');
-                      }
-                    }}
-                    className="mt-1 h-4 w-4 rounded border-slate-300 text-mulberry focus:ring-mulberry/30"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      Confirmo que la cancha ya está reservada
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Este punto solo es obligatorio si hoy vas a publicarlo.
-                    </p>
-                    {fieldReservedError ? <p className="mt-2 text-xs text-red-600">{fieldReservedError}</p> : null}
-                  </div>
-                </label>
-
-                {publishMissingItems.length > 0 ? (
-                  <div className="rounded-[16px] bg-white/88 px-4 py-4 ring-1 ring-slate-200/70">
-                    <p className="text-sm font-semibold text-slate-900">Falta resolver</p>
-                    <div className="mt-3 grid gap-3">
-                      {publishMissingItems.map((item) => (
-                        <div key={item.id} className="flex items-start gap-3">
-                          <span className="mt-1.5 h-2 w-2 rounded-full bg-amber-500" />
-                          <div>
-                            <p className="text-sm font-medium text-slate-800">{item.title}</p>
-                            <p className="mt-1 text-xs text-slate-500">{item.description}</p>
-                            {!item.done && item.id === 'payment_methods' ? (
-                              <Link
-                                href={paymentMethodsHref}
-                                onClick={() => {
-                                  trackEvent('create_event_payment_setup_clicked', {
-                                    channel: 'web',
-                                    source: 'wizard_publish_checklist',
-                                    step: createStep,
-                                  });
-                                }}
-                                className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
-                              >
-                                Ir a Formas de pago
-                              </Link>
-                            ) : !item.done && item.id === 'field_reservation' ? (
-                              <p className="mt-2 text-xs font-medium text-slate-600">
-                                Si no quieres confirmarlo hoy, guárdalo para después.
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPublished(false);
+                    setPaymentMethodsError('');
+                    setFieldReservedError('');
+                  }}
+                  className={[
+                    'rounded-[16px] px-4 py-4 text-left ring-1 transition',
+                    !isPublished
+                      ? 'bg-slate-100/90 ring-slate-300/90'
+                      : 'bg-white ring-slate-200/80 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  <p className="text-sm font-semibold text-slate-900">Guardar para después</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Guarda el avance y vuelve más tarde. Todavía no será visible al público.
+                  </p>
+                </button>
               </div>
-            ) : (
-              <div className="rounded-[16px] bg-slate-50/80 px-4 py-4 ring-1 ring-slate-200/70">
-                <p className="text-sm font-semibold text-slate-900">Se guardará para terminar después</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Guarda lo que ya avanzaste. Luego podrás volver, revisar lo que falta y publicarlo cuando quieras.
-                </p>
-              </div>
-            )}
 
-            {canManageFeatured ? (
-              <div className="rounded-[16px] bg-slate-50/70 px-4 py-4 ring-1 ring-slate-200/70">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Opcional</p>
-                <label className="mt-3 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      Mostrar como partido destacado en la landing
+              {isPublished ? (
+                <div className="grid gap-4">
+                  <div
+                    className={[
+                      'rounded-[16px] px-4 py-4 ring-1',
+                      publishMissingCount === 0
+                        ? 'bg-emerald-50/70 ring-emerald-200/80'
+                        : 'bg-amber-50/70 ring-amber-200/80',
+                    ].join(' ')}
+                  >
+                    <p className="text-sm font-semibold text-slate-900">
+                      {publishMissingCount === 0 ? 'Listo para publicar' : 'Antes de publicar'}
                     </p>
-                    <p className="text-xs text-slate-500">Visible en la sección de destacados del inicio.</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {publishMissingCount === 0
+                        ? 'Cuando guardes, tu evento quedará público y listo para compartir.'
+                        : publishReadiness.primaryMessage ||
+                          'Termina estos puntos para poder publicarlo hoy.'}
+                    </p>
                   </div>
 
-                  <span className="relative inline-flex h-6 w-11 shrink-0">
+                  <label className="flex items-start gap-3 rounded-[16px] bg-slate-50/80 px-4 py-4 ring-1 ring-slate-200/70">
                     <input
                       type="checkbox"
-                      name="isFeatured"
+                      name="isFieldReservedConfirmed"
                       value="true"
-                      checked={isFeaturedValue}
-                      onChange={(event) => setIsFeaturedValue(event.currentTarget.checked)}
-                      className="peer sr-only"
+                      checked={isFieldReservedConfirmed}
+                      onChange={(event) => {
+                        setIsFieldReservedConfirmed(event.currentTarget.checked);
+                        if (event.currentTarget.checked) {
+                          setFieldReservedError('');
+                        }
+                      }}
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-mulberry focus:ring-mulberry/30"
                     />
-                    <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-mulberry" />
-                    <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
-                  </span>
-                </label>
-              </div>
-            ) : null}
-          </div>
-        </section>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        Confirmo que la cancha ya está reservada
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Este punto solo es obligatorio si hoy vas a publicarlo.
+                      </p>
+                      {fieldReservedError ? (
+                        <p className="mt-2 text-xs text-red-600">{fieldReservedError}</p>
+                      ) : null}
+                    </div>
+                  </label>
+
+                  {publishMissingItems.length > 0 ? (
+                    <div className="rounded-[16px] bg-white/88 px-4 py-4 ring-1 ring-slate-200/70">
+                      <p className="text-sm font-semibold text-slate-900">Falta resolver</p>
+                      <div className="mt-3 grid gap-3">
+                        {publishMissingItems.map((item) => (
+                          <div key={item.id} className="flex items-start gap-3">
+                            <span className="mt-1.5 h-2 w-2 rounded-full bg-amber-500" />
+                            <div>
+                              <p className="text-sm font-medium text-slate-800">{item.title}</p>
+                              <p className="mt-1 text-xs text-slate-500">{item.description}</p>
+                              {!item.done && item.id === 'payment_methods' ? (
+                                <Link
+                                  href={paymentMethodsHref}
+                                  onClick={() => {
+                                    trackEvent('create_event_payment_setup_clicked', {
+                                      channel: 'web',
+                                      source: 'wizard_publish_checklist',
+                                      step: createStep,
+                                    });
+                                  }}
+                                  className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
+                                >
+                                  Ir a Formas de pago
+                                </Link>
+                              ) : !item.done && item.id === 'field_reservation' ? (
+                                <p className="mt-2 text-xs font-medium text-slate-600">
+                                  Si no quieres confirmarlo hoy, guárdalo para después.
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="rounded-[16px] bg-slate-50/80 px-4 py-4 ring-1 ring-slate-200/70">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Se guardará para terminar después
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Guarda lo que ya avanzaste. Luego podrás volver, revisar lo que falta y
+                    publicarlo cuando quieras.
+                  </p>
+                </div>
+              )}
+
+              {canManageFeatured ? (
+                <div className="rounded-[16px] bg-slate-50/70 px-4 py-4 ring-1 ring-slate-200/70">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Opcional
+                  </p>
+                  <label className="mt-3 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        Mostrar como partido destacado en la landing
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Visible en la sección de destacados del inicio.
+                      </p>
+                    </div>
+
+                    <span className="relative inline-flex h-6 w-11 shrink-0">
+                      <input
+                        type="checkbox"
+                        name="isFeatured"
+                        value="true"
+                        checked={isFeaturedValue}
+                        onChange={(event) => setIsFeaturedValue(event.currentTarget.checked)}
+                        className="peer sr-only"
+                      />
+                      <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-mulberry" />
+                      <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+                    </span>
+                  </label>
+                </div>
+              ) : null}
+            </div>
+          </section>
         </div>
 
         {isCreateMode ? (
@@ -2001,6 +2212,7 @@ const EventForm = ({
               title={eventTitle}
               description={eventDescription}
               endTime={endTime}
+              placeText={placeText || initial?.placeText || ''}
               locationText={locationText || initial?.locationText || ''}
               district={districtText}
               startTime={startTime}
@@ -2042,11 +2254,7 @@ const EventForm = ({
             <ButtonWrapper
               width="fit-content"
               htmlType="submit"
-              disabled={
-                pending ||
-                Boolean(timeError) ||
-                Boolean(locationError)
-              }
+              disabled={pending || Boolean(timeError) || Boolean(locationError)}
             >
               {pending ? pendingLabel : resolvedSubmitLabel}
             </ButtonWrapper>
@@ -2104,19 +2312,28 @@ const EventForm = ({
               className="absolute right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
               onClick={() => setShowPostEditAnnouncementModal(false)}
             >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
 
             <div className="max-h-[88vh] overflow-y-auto p-5 sm:p-6">
               <div className="mb-3 rounded-2xl border border-mulberry/20 bg-mulberry/5 px-4 py-3">
-                <p id="post-edit-announcement-title" className="text-sm font-semibold text-mulberry">
+                <p
+                  id="post-edit-announcement-title"
+                  className="text-sm font-semibold text-mulberry"
+                >
                   Comunicado para inscritas
                 </p>
                 <p className="mt-1 text-sm text-slate-700">
-                  Puedes usar el mensaje base y ajustar solo los detalles del evento. Todo lo que escribas en el box
-                  se enviará con el template de correo de Peloteras.
+                  Puedes usar el mensaje base y ajustar solo los detalles del evento. Todo lo que
+                  escribas en el box se enviará con el template de correo de Peloteras.
                 </p>
               </div>
 

@@ -10,6 +10,7 @@ export type EventUpsertInput = {
   minUsers: number;
   maxUsers: number;
   district: string;
+  placeText: string;
   locationText: string;
   lat: number;
   lng: number;
@@ -71,6 +72,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     minUsers: parseNumber(fd.get('minUsers'), 0),
     maxUsers: parseNumber(fd.get('maxUsers'), 0),
     district: normalizeDistrict(fd.get('district')),
+    placeText: String(fd.get('placeText') || ''),
     locationText: String(fd.get('locationText') || ''),
     lat: parseNumber(fd.get('lat'), 0),
     lng: parseNumber(fd.get('lng'), 0),

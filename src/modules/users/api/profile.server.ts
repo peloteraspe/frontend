@@ -9,6 +9,11 @@ type BackendErrorWithStatus = Error & {
   bodyText?: string;
 };
 
+function stripPhoneFromProfilePayload<T extends Record<string, any>>(payload: T): Omit<T, 'phone'> {
+  const { phone: _phone, ...rest } = payload;
+  return rest;
+}
+
 async function readBackendResponse(response: Response) {
   const bodyText = await response.text().catch(() => '');
   if (!bodyText) {
@@ -50,7 +55,7 @@ export async function createProfile(requestBody: ProfileRequestBody) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(stripPhoneFromProfilePayload(requestBody as Record<string, any>)),
     }, 6000);
 
     log.apiCall('POST', `/profile`, response.status, { userId: requestBody.user });
@@ -108,7 +113,7 @@ export async function updateProfileByUserId(userId: string, requestBody: UserPro
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(stripPhoneFromProfilePayload(requestBody as Record<string, any>)),
     }, 6000);
 
     log.apiCall('PATCH', `/profile/${userId}`, response.status, { userId });

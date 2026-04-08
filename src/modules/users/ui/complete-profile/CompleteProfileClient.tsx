@@ -134,7 +134,7 @@ export default function CompleteProfileClient({
             type="text"
             required
             placeholder="Ej: Pelotera123"
-            bgColor="bg-white ring-secondary focus:ring-secondary-dark border-mulberry"
+            bgColor="bg-white"
             {...register('username', {
               required: 'Este campo es requerido',
               minLength: { value: 3, message: 'Mínimo 3 caracteres' },

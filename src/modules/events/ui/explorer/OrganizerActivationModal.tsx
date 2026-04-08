@@ -3,7 +3,9 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { getBrowserSupabase } from '@core/api/supabase.browser';
 import { useAuth } from '@core/auth/AuthProvider';
+import InternationalPhoneField from '@core/ui/InternationalPhoneField';
 import { trackEvent } from '@shared/lib/analytics';
+import { validateInternationalPhone } from '@shared/lib/phone';
 
 type Props = {
   isOpen: boolean;
@@ -22,6 +24,7 @@ export default function OrganizerActivationModal({
 }: Props) {
   const { refreshProfile } = useAuth();
   const [phone, setPhone] = useState(initialPhone);
+  const [phoneError, setPhoneError] = useState('');
   const [commitmentReservedField, setCommitmentReservedField] = useState(false);
   const [commitmentNoCancellation, setCommitmentNoCancellation] = useState(false);
   const [commitmentReportIncidents, setCommitmentReportIncidents] = useState(false);
@@ -34,6 +37,7 @@ export default function OrganizerActivationModal({
     setCommitmentReservedField(false);
     setCommitmentNoCancellation(false);
     setCommitmentReportIncidents(false);
+    setPhoneError('');
     setError('');
     trackEvent('organizer_activation_viewed', {
       source,
@@ -45,7 +49,15 @@ export default function OrganizerActivationModal({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const phoneValidation = validateInternationalPhone(phone);
+    if (!phoneValidation.isValid) {
+      setPhoneError('Ingresa un celular válido.');
+      setError('');
+      return;
+    }
+
     setPending(true);
+    setPhoneError('');
     setError('');
 
     try {
@@ -55,7 +67,7 @@ export default function OrganizerActivationModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phone,
+          phone: phoneValidation.e164,
           source,
           commitmentReservedField,
           commitmentNoCancellation,
@@ -80,12 +92,15 @@ export default function OrganizerActivationModal({
       await onActivated();
     } catch (submitError: any) {
       const message = submitError?.message || 'No se pudo activar tu perfil organizadora.';
+      if (/celular|whatsapp/i.test(message)) {
+        setPhoneError(message);
+      }
       trackEvent('organizer_activation_failed', {
         source,
         channel: 'web',
         reason: message,
       });
-      setError(message);
+      setError(/celular|whatsapp/i.test(message) ? '' : message);
     } finally {
       setPending(false);
     }
@@ -130,20 +145,19 @@ export default function OrganizerActivationModal({
         </div>
 
         <form className="mt-6 grid gap-3" onSubmit={handleSubmit}>
-          <label className="grid gap-1">
-            <span className="text-sm font-semibold text-slate-700">Celular</span>
-            <input
-              name="phone"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="999 999 999"
-              value={phone}
-              onChange={(event) => setPhone(event.currentTarget.value)}
-              className="h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-mulberry"
-              required
-            />
-          </label>
+          <InternationalPhoneField
+            label="Celular"
+            name="phone"
+            placeholder="999 999 999"
+            value={phone}
+            onChange={(nextPhone) => {
+              setPhone(nextPhone);
+              if (phoneError) setPhoneError('');
+            }}
+            errorText={phoneError}
+            size="lg"
+            required
+          />
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
             <p className="font-semibold text-slate-900">Antes de continuar confirma esto:</p>

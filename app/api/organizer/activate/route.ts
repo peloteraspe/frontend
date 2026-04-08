@@ -7,6 +7,7 @@ import { log } from '@core/lib/logger';
 import { sendEventAnnouncementEmail } from '@modules/admin/api/events/services/eventAnnouncementEmail.service';
 import { activateOrganizerByUserId } from '@modules/admin/api/users/services/adminUsers.service';
 import { getSuperAdminEmails } from '@shared/lib/auth/isAdmin';
+import { validateInternationalPhone } from '@shared/lib/phone';
 
 type OrganizerActivationPayload = {
   phone?: string;
@@ -25,10 +26,6 @@ function parseBoolean(value: unknown) {
   if (typeof value !== 'string') return false;
   const normalized = value.trim().toLowerCase();
   return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
-}
-
-function isValidPhone(phone: string) {
-  return /^[+\d()\-\s]{7,24}$/.test(phone);
 }
 
 function compactObject(input: Record<string, string | null | undefined>) {
@@ -153,13 +150,14 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json().catch(() => ({}))) as OrganizerActivationPayload;
-    const phone = sanitizeText(body.phone, 32);
+    const phone = sanitizeText(body.phone, 40);
     const source = sanitizeText(body.source, 80) || 'events_explorer';
     const commitmentReservedField = parseBoolean(body.commitmentReservedField);
     const commitmentNoCancellation = parseBoolean(body.commitmentNoCancellation);
     const commitmentReportIncidents = parseBoolean(body.commitmentReportIncidents);
+    const phoneValidation = validateInternationalPhone(phone);
 
-    if (!phone || !isValidPhone(phone)) {
+    if (!phone || !phoneValidation.isValid) {
       return NextResponse.json({ error: 'Ingresa un celular válido.' }, { status: 400 });
     }
 
@@ -180,7 +178,7 @@ export async function POST(request: Request) {
     }
 
     const activation = await activateOrganizerByUserId(user.id, {
-      phone,
+      phone: phoneValidation.e164,
       source,
       commitmentReservedField,
       commitmentNoCancellation,

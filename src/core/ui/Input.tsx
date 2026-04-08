@@ -13,22 +13,18 @@ type InputProps = {
 } & InputHTMLAttributes<HTMLInputElement>;
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, required, errorText, icon, bgColor = 'bg-transparent', tone = 'default', className, ...rest },
+  { label, required, errorText, icon, bgColor = '', tone: _tone = 'default', className, ...rest },
   ref
 ) {
   const hasError = Boolean(errorText);
   const isPasswordField = rest.type === 'password';
   const [showPassword, setShowPassword] = useState(false);
   const inputType = isPasswordField ? (showPassword ? 'text' : 'password') : rest.type;
-  const baseInputClass =
-    tone === 'soft'
-      ? 'w-full h-12 rounded-xl border px-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-mulberry focus:ring-4 focus:ring-mulberry/10'
-      : 'w-full h-12 rounded-lg border-2 px-4 focus:outline-none focus:border-mulberry focus:ring-0';
-  const toneBorderClass =
-    tone === 'soft' ? (hasError ? 'border-error' : 'border-slate-300') : hasError ? 'border-error' : 'border-mulberry';
+  const baseInputClass = 'peloteras-form-control h-11';
+  const stateClass = hasError ? 'peloteras-form-control--error' : '';
 
   return (
-    <label className="w-full">
+    <label className="block w-full">
       {label && (
         <div className="mb-1">
           <ParagraphM fontWeight="semibold">
@@ -43,9 +39,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           ref={ref}
           className={[
             baseInputClass,
+            stateClass,
             isPasswordField || icon ? 'pr-12' : '',
             bgColor,
-            toneBorderClass,
             className || '',
           ].join(' ')}
           {...rest}
@@ -57,7 +53,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
             aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
             aria-pressed={showPassword}
             onClick={() => setShowPassword((prev) => !prev)}
-            className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 transition-colors hover:text-slate-900"
+            className="absolute inset-y-0 right-0 flex items-center rounded-r-xl px-3 text-slate-500 transition-colors hover:bg-mulberry/5 hover:text-slate-900 focus:outline-none"
           >
             {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
           </button>

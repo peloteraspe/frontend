@@ -9,7 +9,7 @@ export default async function Page({ params }: Props) {
   const { id } = await params;
 
   return (
-    <section className="max-w-6xl mx-auto px-4 sm:px-6">
+    <section className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
       <EventDetailsPage id={id} />
     </section>
   );

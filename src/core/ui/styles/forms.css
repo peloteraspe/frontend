@@ -1,54 +1,107 @@
+.peloteras-form-control,
+.form-input,
+.form-textarea,
+.form-multiselect,
+.form-select,
+.input {
+  @apply w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 transition-colors duration-150;
+}
+
+.peloteras-form-control:hover:not(:disabled):not(:focus):not(:focus-visible),
+.form-input:hover:not(:disabled):not(:focus):not(:focus-visible),
+.form-textarea:hover:not(:disabled):not(:focus):not(:focus-visible),
+.form-multiselect:hover:not(:disabled):not(:focus):not(:focus-visible),
+.form-select:hover:not(:disabled):not(:focus):not(:focus-visible),
+.input:hover:not(:disabled):not(:focus):not(:focus-visible) {
+  @apply border-slate-400;
+}
+
+.peloteras-form-control:focus,
+.peloteras-form-control:focus-visible,
 .form-input:focus,
+.form-input:focus-visible,
 .form-textarea:focus,
+.form-textarea:focus-visible,
 .form-multiselect:focus,
+.form-multiselect:focus-visible,
 .form-select:focus,
-.form-checkbox:focus,
-.form-radio:focus {
-  @apply focus:ring-2 focus:ring-indigo-200;
+.form-select:focus-visible,
+.input:focus,
+.input:focus-visible {
+  @apply border-mulberry outline-none ring-4 ring-mulberry/10;
 }
 
-.form-checkbox:focus,
-.form-radio:focus {
-  @apply focus:ring-0;
+.peloteras-form-control:disabled,
+.form-input:disabled,
+.form-textarea:disabled,
+.form-multiselect:disabled,
+.form-select:disabled,
+.input:disabled {
+  @apply cursor-not-allowed opacity-70;
 }
 
-/* Base form styles */
-.form-input,
-.form-textarea,
-.form-multiselect,
-.form-select,
-.form-checkbox,
-.form-radio {
-  @apply bg-white border border-gray-300 focus:border-indigo-500;
+.peloteras-form-control--error {
+  @apply border-error;
 }
 
-.form-input,
-.form-textarea,
-.form-multiselect,
-.form-select,
-.form-checkbox {
-  @apply rounded;
+.peloteras-form-control--error:hover:not(:disabled):not(:focus):not(:focus-visible) {
+  @apply border-error;
 }
 
-.form-input,
-.form-textarea,
-.form-multiselect,
-.form-select {
-  @apply text-sm px-3 py-2;
+.peloteras-form-control--error:focus,
+.peloteras-form-control--error:focus-visible {
+  @apply border-error ring-4 ring-error/10;
 }
 
-.form-input,
+.peloteras-form-control--textarea,
 .form-textarea {
-  @apply placeholder-gray-400;
+  @apply py-3 leading-6;
+  resize: vertical;
 }
 
+.peloteras-form-control--select,
 .form-select {
   @apply pr-10;
 }
 
+.peloteras-form-control--file {
+  @apply px-3 py-1 text-sm text-slate-700;
+}
+
+.peloteras-form-control--file::file-selector-button {
+  margin-right: 0.75rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background-color: rgb(84 8 111);
+  color: rgb(255 255 255);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.peloteras-form-control--file:hover::file-selector-button {
+  background-color: rgb(71 7 96);
+}
+
+.input,
+.form-input,
+.form-select {
+  min-height: 2.75rem;
+}
+
 .form-checkbox,
 .form-radio {
-  @apply text-indigo-500 border-2 rounded-sm;
+  @apply border-slate-300 text-mulberry focus:ring-mulberry/30;
+}
+
+.form-checkbox {
+  @apply rounded;
+}
+
+.form-radio {
+  @apply rounded-full;
 }
 
 /* Remove default search input decorations */

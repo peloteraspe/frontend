@@ -254,7 +254,7 @@ export default function AdminSummaryCharts({ data }: { data: AdminSummaryChartsD
       <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-5">
         <ModuleHeader
           title="Funnel creación"
-          href="/create-event"
+          href="/admin/events/new"
           subtitle="Seguimiento del journey desde activación hasta borrador y publicación."
         />
         <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">

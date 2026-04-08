@@ -56,7 +56,7 @@ const TICKETS_ITEM: NavItem = {
 };
 
 const CREATE_EVENT_ITEM: NavItem = {
-  href: '/create-event',
+  href: '/admin/events/new',
   label: 'Crear',
   icon: (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
@@ -133,7 +133,7 @@ export default function BottomNavigation() {
 
     if (userIsAdmin) {
       return [
-        { label: 'Crear evento', href: '/create-event' },
+        { label: 'Crear evento', href: '/admin/events/new' },
         { label: 'Mis entradas', href: `/tickets/${user.id}` },
         { label: 'Mi perfil', href: '/profile' },
         { label: 'Eventos', href: '/events' },

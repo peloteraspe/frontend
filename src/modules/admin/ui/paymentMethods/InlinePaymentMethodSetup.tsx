@@ -1,8 +1,13 @@
 'use client';
 
 import { type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
+import InternationalPhoneField from '@core/ui/InternationalPhoneField';
 import Input from '@core/ui/Input';
 import { trackEvent } from '@shared/lib/analytics';
+import {
+  normalizePaymentMethodPhone,
+  validatePaymentMethodPhone,
+} from './paymentMethodPhone';
 
 export type InlinePaymentMethodSummary = {
   id: number;
@@ -149,6 +154,7 @@ export default function InlinePaymentMethodSetup({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [number, setNumber] = useState('');
+  const [numberError, setNumberError] = useState('');
   const [qrFile, setQrFile] = useState<File | null>(null);
   const [storedQrUrl, setStoredQrUrl] = useState('');
   const [qrPreview, setQrPreview] = useState('');
@@ -198,6 +204,7 @@ export default function InlinePaymentMethodSetup({
     setEditingId(null);
     setName('');
     setNumber('');
+    setNumberError('');
     setQrFile(null);
     setStoredQrUrl('');
     setQrPreviewValue('');
@@ -213,6 +220,7 @@ export default function InlinePaymentMethodSetup({
     setEditingId(method.id);
     setName(String(method.name || ''));
     setNumber(String(method.number ?? ''));
+    setNumberError('');
     const nextQrUrl = String(method.QR || '');
     setQrFile(null);
     setStoredQrUrl(nextQrUrl);
@@ -297,16 +305,14 @@ export default function InlinePaymentMethodSetup({
     setError('');
     setMessage('');
 
-    const normalizedNumber = number.replace(/\D+/g, '');
-    if (!normalizedNumber) {
-      setError('El número de pago es obligatorio.');
+    const nextNumberError = validatePaymentMethodPhone(number);
+    if (nextNumberError) {
+      setNumberError(nextNumberError);
       return;
     }
 
-    if (normalizedNumber.length < 8 || normalizedNumber.length > 15) {
-      setError('El número de pago debe tener entre 8 y 15 dígitos.');
-      return;
-    }
+    const normalizedNumber = normalizePaymentMethodPhone(number);
+    setNumberError('');
 
     if (!allowYape && !allowPlin) {
       setError('Activa Yape, Plin o ambos para definir el tipo.');
@@ -476,17 +482,29 @@ export default function InlinePaymentMethodSetup({
                 tone="soft"
               />
 
-              <Input
+              <InternationalPhoneField
                 label="Número de pago"
                 name="paymentMethodInlineNumber"
                 required
                 value={number}
-                onChange={(event) => setNumber(event.target.value)}
-                placeholder="987654321"
-                inputMode="numeric"
-                className="h-11"
-                bgColor="bg-white"
-                tone="soft"
+                defaultCountry="pe"
+                preferredCountries={['pe']}
+                lockCountryToDefault
+                onChange={(nextPhone) => {
+                  setNumber(nextPhone);
+                  if (numberError) setNumberError('');
+                }}
+                onBlur={() => {
+                  if (!number.trim()) {
+                    setNumberError('');
+                    return;
+                  }
+
+                  setNumberError(validatePaymentMethodPhone(number));
+                }}
+                placeholder="999 999 999"
+                autoComplete="tel-national"
+                errorText={numberError}
               />
             </div>
 
@@ -516,7 +534,7 @@ export default function InlinePaymentMethodSetup({
                 type="file"
                 accept="image/*"
                 onChange={handleQrFileChange}
-                className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 focus:border-mulberry focus:outline-none focus:ring-4 focus:ring-mulberry/10 file:mr-3 file:rounded-lg file:border-0 file:bg-mulberry file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
+                className="peloteras-form-control peloteras-form-control--file h-11"
               />
               <p className="text-xs text-slate-500">Sube una imagen PNG, JPG o WEBP con máximo 5MB.</p>
 

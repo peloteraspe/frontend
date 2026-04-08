@@ -1,6 +1,7 @@
 import { getServerSupabase } from '@core/api/supabase.server';
 import { resolveNextOnboardingStep } from '@modules/auth/lib/onboarding-state';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
+import { resolveStoredPhone } from '@shared/lib/phone';
 
 type OnboardingProfileRow = {
   username?: string | null;
@@ -39,7 +40,7 @@ function resolveOrganizerPhone(user: {
   app_metadata?: Record<string, unknown> | null;
   user_metadata?: Record<string, unknown> | null;
 }) {
-  return String(user.user_metadata?.organizer_phone || user.app_metadata?.organizer_phone || '').trim();
+  return resolveStoredPhone(user);
 }
 
 function resolveOnboardingRedirect(profile: OnboardingProfileRow, user: { email?: string | null; email_confirmed_at?: string | null }) {

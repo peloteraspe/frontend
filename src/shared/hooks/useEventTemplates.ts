@@ -7,6 +7,7 @@ export type EventTemplate = {
   title: string;
   eventTypeId: number;
   levelId: number;
+  placeText: string;
   locationText: string;
   district: string;
   lat: number;
@@ -53,6 +54,7 @@ export function useEventTemplates(userId?: string) {
       description: template.description,
       eventTypeId: template.eventTypeId,
       levelId: template.levelId,
+      placeText: template.placeText,
       locationText: template.locationText,
       district: template.district,
       lat: template.lat,

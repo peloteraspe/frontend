@@ -215,10 +215,10 @@ export default function UsersBroadcastForm({
           rows={4}
           placeholder={'correo1@ejemplo.com\ncorreo2@ejemplo.com\ncorreo3@ejemplo.com'}
           className={[
-            'w-full rounded-xl border px-4 py-3 text-sm text-slate-900 outline-none transition focus:ring-2',
+            'peloteras-form-control peloteras-form-control--textarea',
             parsedManualEmails.invalid.length === 0
-              ? 'border-slate-300 focus:border-mulberry focus:ring-mulberry/20'
-              : 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20',
+              ? ''
+              : 'peloteras-form-control--error',
           ].join(' ')}
         />
         <p className="mt-2 text-xs text-slate-500">
@@ -269,7 +269,7 @@ export default function UsersBroadcastForm({
           name="subject"
           type="text"
           defaultValue={defaultSubject}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-mulberry focus:ring-2 focus:ring-mulberry/20"
+          className="peloteras-form-control h-11"
         />
       </div>
 

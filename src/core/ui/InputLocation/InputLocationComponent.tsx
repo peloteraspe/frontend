@@ -1,11 +1,14 @@
 'use client';
 
 import { Autocomplete, LoadScript } from '@react-google-maps/api';
-import type { Libraries } from '@react-google-maps/api';
 import React, { useState } from 'react';
 import { log } from '@src/core/lib/logger';
-
-const GOOGLE_MAPS_LIBRARIES: Libraries = ['places'];
+import {
+  GOOGLE_MAPS_LANGUAGE,
+  GOOGLE_MAPS_LIBRARIES,
+  GOOGLE_MAPS_REGION,
+  GOOGLE_MAPS_SCRIPT_ID,
+} from '@shared/lib/googleMaps';
 
 const InputLocation: React.FC = () => {
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
@@ -30,8 +33,11 @@ const InputLocation: React.FC = () => {
 
   return (
     <LoadScript
+      id={GOOGLE_MAPS_SCRIPT_ID}
       googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || ''}
       libraries={GOOGLE_MAPS_LIBRARIES}
+      language={GOOGLE_MAPS_LANGUAGE}
+      region={GOOGLE_MAPS_REGION}
     >
       <Autocomplete
         onLoad={onLoad}
@@ -43,7 +49,7 @@ const InputLocation: React.FC = () => {
           fields: ['name'],
         }}
       >
-        <input type="text" placeholder="Escribe un distrito de Perú" />
+        <input type="text" placeholder="Escribe un distrito de Perú" className="peloteras-form-control h-11" />
       </Autocomplete>
     </LoadScript>
   );
