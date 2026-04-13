@@ -82,7 +82,6 @@ export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const didProcessFlashParams = useRef(false);
   const didAutoRedirectAuthenticated = useRef(false);
 
   const {
@@ -96,14 +95,19 @@ export default function LoginForm() {
   });
 
   useEffect(() => {
-    if (didProcessFlashParams.current) return;
-    didProcessFlashParams.current = true;
-
     router.prefetch('/');
+    if (typeof window === 'undefined') return;
 
-    const error = searchParams.get('error');
-    const message = searchParams.get('message');
-    const signup = searchParams.get('signup');
+    const historyState =
+      window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
+    const flashHandled = Boolean((historyState as Record<string, unknown>).__loginFlashHandled);
+    const currentUrl = new URL(window.location.href);
+    const error = currentUrl.searchParams.get('error');
+    const message = currentUrl.searchParams.get('message');
+    const signup = currentUrl.searchParams.get('signup');
+    const hasFlashParams = Boolean(error || message || signup);
+
+    if (!hasFlashParams || flashHandled) return;
 
     if (error) toast.error('Error de autenticacion: ' + decodeURIComponent(error));
     if (message === 'session_closed') {
@@ -115,13 +119,10 @@ export default function LoginForm() {
     }
     if (signup === 'success') toast.success('Cuenta creada. Ahora inicia sesion.');
 
-    if (error || message || signup) {
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('error');
-      newUrl.searchParams.delete('message');
-      newUrl.searchParams.delete('signup');
-      window.history.replaceState({}, '', newUrl.toString());
-    }
+    currentUrl.searchParams.delete('error');
+    currentUrl.searchParams.delete('message');
+    currentUrl.searchParams.delete('signup');
+    window.history.replaceState({ ...historyState, __loginFlashHandled: true }, '', currentUrl.toString());
   }, [router, searchParams]);
 
   useEffect(() => {

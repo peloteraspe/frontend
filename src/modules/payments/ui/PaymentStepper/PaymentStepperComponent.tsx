@@ -203,7 +203,7 @@ const PaymentStepper = (props: any) => {
         if (registerResponse.status === 409) {
           const message =
             String(body?.error || '').trim() ||
-            'Este evento ya inició o finalizó. La inscripción está cerrada.';
+            'Este evento ya finalizó. La inscripción está cerrada.';
           toast.error(message);
           setError('operationNumber', {
             type: 'manual',

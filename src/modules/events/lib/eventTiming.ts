@@ -10,3 +10,13 @@ export function hasEventStarted(startTime: string | null | undefined, referenceT
   if (timestamp == null) return false;
   return timestamp <= referenceTime;
 }
+
+export function hasEventEnded(
+  endTime: string | null | undefined,
+  referenceTime = Date.now(),
+  fallbackStartTime?: string | null | undefined
+) {
+  const timestamp = getEventTimestamp(endTime) ?? getEventTimestamp(fallbackStartTime);
+  if (timestamp == null) return false;
+  return timestamp <= referenceTime;
+}

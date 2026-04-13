@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import SoccerField from '@core/ui/SoccerField';
@@ -12,6 +11,8 @@ import Collapse from '@core/ui/Collapse';
 import { StatusBadge } from '@core/ui/Badge';
 import { ButtonWrapper } from '@core/ui/Button';
 import { useAuth } from '@core/auth/AuthProvider';
+import AuthRedirectLoader from '@modules/auth/ui/AuthRedirectLoader';
+import { useSessionGuardNavigation } from '@modules/auth/ui/useSessionGuardNavigation';
 import { EVENT_SOLD_OUT_MESSAGE, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import {
   EVENT_ALREADY_APPROVED_REGISTRATION_MESSAGE,
@@ -20,7 +21,7 @@ import {
   getEventJoinRestrictionMessage,
   isEventJoinDisabled,
 } from '@modules/events/lib/eventJoinState';
-import { hasEventStarted } from '@modules/events/lib/eventTiming';
+import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import EventShareModal from './EventShareModal';
 import { trackEvent } from '@shared/lib/analytics';
@@ -114,8 +115,9 @@ function getNameInitials(name: string) {
 
 export default function EventDetailsClient({ data }: Props) {
   const post = data;
-  const router = useRouter();
   const { user } = useAuth();
+  const { navigateWithSessionCheck, isPendingNavigation, pendingNavigationMessage } =
+    useSessionGuardNavigation();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareFeedback, setShareFeedback] = useState('');
 
@@ -147,6 +149,7 @@ export default function EventDetailsClient({ data }: Props) {
   );
 
   const startTimeIso = event?.start_time ?? event?.startTime ?? null;
+  const endTimeIso = event?.end_time ?? event?.endTime ?? null;
   const startDate = startTimeIso ? new Date(startTimeIso) : null;
   const formattedDate =
     startDate && !Number.isNaN(startDate.getTime())
@@ -168,7 +171,7 @@ export default function EventDetailsClient({ data }: Props) {
           timeZone: DEFAULT_TIMEZONE,
         })
       : 'Fecha por confirmar';
-  const isPastEvent = hasEventStarted(startTimeIso);
+  const isPastEvent = hasEventEnded(endTimeIso, undefined, startTimeIso);
   const isRegistrationClosed = isPastEvent;
 
   const price = toNumber(event?.price, 0);
@@ -319,6 +322,8 @@ export default function EventDetailsClient({ data }: Props) {
   };
 
   const handleJoinClick = () => {
+    const joinDestination = isVersus ? `/versus/${event.id}` : `/payments/${event.id}`;
+
     if (joinRestrictionMessage) {
       toast(joinRestrictionMessage);
       return;
@@ -330,7 +335,7 @@ export default function EventDetailsClient({ data }: Props) {
     }
 
     if (isRegistrationClosed) {
-      toast.error('Este evento ya inició o finalizó. La inscripción está cerrada.');
+      toast.error('Este evento ya finalizó. La inscripción está cerrada.');
       return;
     }
 
@@ -339,22 +344,19 @@ export default function EventDetailsClient({ data }: Props) {
       return;
     }
 
-    if (!user) {
-      const nextPath = `/events/${event.id}`;
-      router.push(
-        `/login?message=Inicia sesion para inscribirte a un evento&next=${encodeURIComponent(nextPath)}`
-      );
-      return;
-    }
-    if (!user.email_confirmed_at) {
-      toast.error('Verifica tu identidad para poder inscribirte a este evento.');
-      return;
-    }
-    router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
+    navigateWithSessionCheck({
+      destination: joinDestination,
+      authenticatedMessage: 'Preparando tu inscripción...',
+      loginMessage: 'Inicia sesion para inscribirte al evento',
+      loginRedirectMessage: 'Redirigiendo al login...',
+      requireEmailConfirmed: true,
+      emailConfirmationMessage: 'Verifica tu identidad para poder inscribirte a este evento.',
+    });
   };
 
   return (
     <div className="py-6 md:py-10">
+      <AuthRedirectLoader visible={isPendingNavigation} message={pendingNavigationMessage} />
       <div className="mb-5">
         <Link
           className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-[#54086F]"

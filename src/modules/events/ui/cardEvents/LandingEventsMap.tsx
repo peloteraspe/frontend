@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GoogleMap, InfoWindowF, MarkerF } from '@react-google-maps/api';
-import { hasEventStarted } from '@modules/events/lib/eventTiming';
+import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { buildCircleMarkerIcon, LIMA_DEFAULT_CENTER, toLatLngLiteral } from '@shared/lib/googleMaps';
 import { useGoogleMapsApi } from '@core/ui/Map/useGoogleMapsApi';
 
@@ -13,6 +13,7 @@ type EventLite = {
   formattedDateTime?: string;
   dateLabel?: string;
   startTime?: string | null;
+  endTime?: string | null;
   locationText?: string;
   price?: number;
   location?: {
@@ -67,7 +68,7 @@ export default function LandingEventsMap({ events }: Props) {
             id: String(event.id),
             title: event.title || 'Evento',
             date: event.formattedDateTime || event.dateLabel || 'Fecha por confirmar',
-            isPastEvent: hasEventStarted(event.startTime),
+            isPastEvent: hasEventEnded(event.endTime, undefined, event.startTime),
             locationText: event.locationText || 'Ubicacion por confirmar',
             price: Number(event.price ?? 0),
             ...coords,

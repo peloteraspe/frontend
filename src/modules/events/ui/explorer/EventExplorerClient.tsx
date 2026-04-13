@@ -6,7 +6,7 @@ import { useAuth } from '@core/auth/AuthProvider';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import Input from '@core/ui/Input';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
-import { hasEventStarted } from '@modules/events/lib/eventTiming';
+import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { CatalogOption, EventEntity } from '@modules/events/model/types';
 import { trackEvent } from '@shared/lib/analytics';
 import { isAdmin as isAdminUser } from '@shared/lib/auth/isAdmin';
@@ -86,11 +86,14 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   );
 
   const upcomingEvents = useMemo(
-    () => events.filter((event) => !hasEventStarted(event.startTime)),
+    () => events.filter((event) => !hasEventEnded(event.endTime, undefined, event.startTime)),
     [events]
   );
 
-  const pastEvents = useMemo(() => events.filter((event) => hasEventStarted(event.startTime)), [events]);
+  const pastEvents = useMemo(
+    () => events.filter((event) => hasEventEnded(event.endTime, undefined, event.startTime)),
+    [events]
+  );
 
   const visibleEvents = timeFilter === 'upcoming' ? upcomingEvents : pastEvents;
 

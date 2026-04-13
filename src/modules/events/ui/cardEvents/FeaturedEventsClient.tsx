@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-import { hasEventStarted } from '@modules/events/lib/eventTiming';
+import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { EventEntity } from '@modules/events/model/types';
 
 import CardEventItem from './CardEventItem';
@@ -19,11 +19,14 @@ export default function FeaturedEventsClient({ events, previewCount }: Props) {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('upcoming');
 
   const upcomingEvents = useMemo(
-    () => events.filter((event) => !hasEventStarted(event.startTime)),
+    () => events.filter((event) => !hasEventEnded(event.endTime, undefined, event.startTime)),
     [events]
   );
 
-  const pastEvents = useMemo(() => events.filter((event) => hasEventStarted(event.startTime)), [events]);
+  const pastEvents = useMemo(
+    () => events.filter((event) => hasEventEnded(event.endTime, undefined, event.startTime)),
+    [events]
+  );
 
   const visibleEvents = useMemo(() => {
     const filteredEvents = timeFilter === 'upcoming' ? upcomingEvents : pastEvents;

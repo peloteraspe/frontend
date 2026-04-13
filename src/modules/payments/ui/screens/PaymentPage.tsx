@@ -6,6 +6,7 @@ import {
   getPaymentPageData,
   PAYMENT_METHOD_NOT_CONFIGURED,
 } from '@modules/payments/api/queries/getPaymentPageData';
+import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -83,11 +84,8 @@ export default async function PaymentPage({ id }: { id: string }) {
   ).trim();
   const isVersus = isVersusEventTypeName(eventTypeName);
   const rawStartTime = event?.start_time ?? event?.startTime ?? null;
-  const eventStart = rawStartTime ? new Date(String(rawStartTime)) : null;
-  const isRegistrationClosed =
-    eventStart instanceof Date &&
-    !Number.isNaN(eventStart.getTime()) &&
-    eventStart.getTime() <= Date.now();
+  const rawEndTime = event?.end_time ?? event?.endTime ?? null;
+  const isRegistrationClosed = hasEventEnded(rawEndTime, undefined, rawStartTime);
 
   if (isRegistrationClosed) {
     return (

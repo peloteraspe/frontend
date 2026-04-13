@@ -5,12 +5,14 @@ import Badge, { StatusBadge } from '@src/core/ui/Badge';
 import Image from 'next/image';
 import CardEvent from '../CardEvent';
 import { ButtonWrapper } from '@src/core/ui/Button';
-
+import AuthRedirectLoader from '@modules/auth/ui/AuthRedirectLoader';
+import { useSessionGuardNavigation } from '@modules/auth/ui/useSessionGuardNavigation';
 import { useRouter } from 'next/navigation';
+
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import { isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { getEventJoinLabel, isEventJoinDisabled } from '@modules/events/lib/eventJoinState';
-import { hasEventStarted } from '@modules/events/lib/eventTiming';
+import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { formattedPrice } from '@src/shared/lib/utils';
 
 interface CardEventItemProps {
@@ -24,6 +26,7 @@ type CardEventData = {
   formattedDateTime?: string;
   dateLabel?: string;
   startTime?: string | null;
+  endTime?: string | null;
   locationText?: string;
   price?: number;
   placesLeft?: number;
@@ -77,16 +80,30 @@ function getBadges(event: CardEventData) {
 
 const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) => {
   const router = useRouter();
+  const { navigateWithSessionCheck, isPendingNavigation, pendingNavigationMessage } =
+    useSessionGuardNavigation();
   const itemContainerClass = variant === 'landing' ? 'w-full max-w-none' : 'max-w-xl';
+
+  function openJoinFlow(eventId: string | number, isVersus: boolean) {
+    navigateWithSessionCheck({
+      destination: isVersus ? `/versus/${eventId}` : `/payments/${eventId}`,
+      authenticatedMessage: 'Preparando tu inscripción...',
+      loginMessage: 'Inicia sesion para inscribirte al evento',
+      loginRedirectMessage: 'Redirigiendo al login...',
+      requireEmailConfirmed: true,
+      emailConfirmationMessage: 'Verifica tu identidad para poder inscribirte a este evento.',
+    });
+  }
 
   return (
     <div className="flex flex-col">
+      <AuthRedirectLoader visible={isPendingNavigation} message={pendingNavigationMessage} />
       {cardEvents?.map((event) => {
         const eventTypeName = getEventTypeName(event);
         const badges = getBadges(event);
         const isVersus = isVersusEventTypeName(eventTypeName);
         const isSoldOut = getIsSoldOut(event);
-        const isPastEvent = hasEventStarted(event.startTime);
+        const isPastEvent = hasEventEnded(event.endTime, undefined, event.startTime);
         const isJoinDisabled = isEventJoinDisabled({
           isPastEvent,
           isPublished: event.isPublished,
@@ -123,7 +140,7 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
                     if (isJoinDisabled) return;
-                    router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
+                    openJoinFlow(event.id, isVersus);
                   }}
                   children={joinLabel}
                 />

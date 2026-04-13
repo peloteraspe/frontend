@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { getServerSupabase } from '@core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
@@ -196,7 +197,7 @@ export async function POST(request: Request) {
 
     const { data: eventRow, error: eventError } = await admin
       .from('event')
-      .select('id,start_time,title,location_text,is_published,created_by,created_by_id,max_users')
+      .select('id,start_time,end_time,title,location_text,is_published,created_by,created_by_id,max_users')
       .eq('id', eventId)
       .maybeSingle();
 
@@ -216,10 +217,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const eventStart = eventRow?.start_time ? new Date(String(eventRow.start_time)) : null;
-    if (eventStart && !Number.isNaN(eventStart.getTime()) && eventStart.getTime() <= Date.now()) {
+    if (hasEventEnded(String(eventRow?.end_time || ''), undefined, String(eventRow?.start_time || ''))) {
       return NextResponse.json(
-        { error: 'Este evento ya inició o finalizó. La inscripción está cerrada.' },
+        { error: 'Este evento ya finalizó. La inscripción está cerrada.' },
         { status: 409 }
       );
     }

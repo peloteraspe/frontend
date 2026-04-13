@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import ArrowRight from '@core/assets/images/arrow-right.png';
 import Badge, { StatusBadge } from '@core/ui/Badge';
 import { ButtonWrapper } from '@core/ui/Button';
-import { hasEventStarted } from '@modules/events/lib/eventTiming';
+import AuthRedirectLoader from '@modules/auth/ui/AuthRedirectLoader';
+import { useSessionGuardNavigation } from '@modules/auth/ui/useSessionGuardNavigation';
+import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { getEventJoinLabel, isEventJoinDisabled } from '@modules/events/lib/eventJoinState';
 import CardEvent from '@modules/events/ui/CardEvent';
 import { EventEntity } from '@modules/events/model/types';
@@ -26,16 +28,19 @@ function EventCardSameAsLanding({
   isActive,
   onHover,
   onLeave,
+  onOpenEvent,
+  onOpenJoinFlow,
 }: {
   event: EventEntity;
   isActive: boolean;
   onHover: () => void;
   onLeave: () => void;
+  onOpenEvent: (eventId: string) => void;
+  onOpenJoinFlow: (eventId: string, isVersus: boolean) => void;
 }) {
-  const router = useRouter();
   const isVersus = isVersusEventTypeName(event.eventTypeName);
   const isSoldOut = event.isSoldOut === true;
-  const isPastEvent = hasEventStarted(event.startTime);
+  const isPastEvent = hasEventEnded(event.endTime, undefined, event.startTime);
   const isJoinDisabled = isEventJoinDisabled({
     isPastEvent,
     isPublished: event.isPublished,
@@ -55,7 +60,7 @@ function EventCardSameAsLanding({
 
   return (
     <div
-      onClick={() => router.push(`/events/${event.id}`)}
+      onClick={() => onOpenEvent(event.id)}
       onMouseEnter={onHover}
       onMouseLeave={onLeave}
       className={isActive ? 'rounded-xl ring-2 ring-[#54086F]/40 ring-offset-2 ring-offset-white' : ''}
@@ -74,7 +79,7 @@ function EventCardSameAsLanding({
             onClick={(e: any) => {
               e.stopPropagation();
               if (isJoinDisabled) return;
-              router.push(isVersus ? `/versus/${event.id}` : `/payments/${event.id}`);
+              onOpenJoinFlow(event.id, isVersus);
             }}
           >
             {joinLabel}
@@ -117,6 +122,25 @@ export default function EventListPanel({
   isLoading = false,
   emptyMessage = 'No hay eventos en esta zona todavía.',
 }: Props) {
+  const router = useRouter();
+  const { navigateWithSessionCheck, isPendingNavigation, pendingNavigationMessage } =
+    useSessionGuardNavigation();
+
+  function openEventDetails(eventId: string) {
+    router.push(`/events/${eventId}`);
+  }
+
+  function openJoinFlow(eventId: string, isVersus: boolean) {
+    navigateWithSessionCheck({
+      destination: isVersus ? `/versus/${eventId}` : `/payments/${eventId}`,
+      authenticatedMessage: 'Preparando tu inscripción...',
+      loginMessage: 'Inicia sesion para inscribirte al evento',
+      loginRedirectMessage: 'Redirigiendo al login...',
+      requireEmailConfirmed: true,
+      emailConfirmationMessage: 'Verifica tu identidad para poder inscribirte a este evento.',
+    });
+  }
+
   if (!events.length) {
     return (
       <div className="h-[60vh] md:h-[76vh] rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
@@ -126,22 +150,27 @@ export default function EventListPanel({
   }
 
   return (
-    <div
-      className="relative h-auto min-h-0 overflow-visible [overflow-anchor:none] md:h-[76vh] md:min-h-[520px] md:overflow-y-auto md:pr-2 xl:h-[calc(100vh-140px)]"
-      aria-busy={isLoading}
-    >
-      <div className="space-y-5 pb-4 mt-5 ml-1">
-        {events.map((event) => (
-          <div key={event.id} data-event-id={event.id}>
-            <EventCardSameAsLanding
-              event={event}
-              isActive={selectedEventId === event.id || hoveredEventId === event.id}
-              onHover={() => onHoverEvent(event.id)}
-              onLeave={() => onHoverEvent(null)}
-            />
-          </div>
-        ))}
+    <>
+      <AuthRedirectLoader visible={isPendingNavigation} message={pendingNavigationMessage} />
+      <div
+        className="relative h-auto min-h-0 overflow-visible [overflow-anchor:none] md:h-[76vh] md:min-h-[520px] md:overflow-y-auto md:pr-2 xl:h-[calc(100vh-140px)]"
+        aria-busy={isLoading}
+      >
+        <div className="space-y-5 pb-4 mt-5 ml-1">
+          {events.map((event) => (
+            <div key={event.id} data-event-id={event.id}>
+              <EventCardSameAsLanding
+                event={event}
+                isActive={selectedEventId === event.id || hoveredEventId === event.id}
+                onHover={() => onHoverEvent(event.id)}
+                onLeave={() => onHoverEvent(null)}
+                onOpenEvent={openEventDetails}
+                onOpenJoinFlow={openJoinFlow}
+              />
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
