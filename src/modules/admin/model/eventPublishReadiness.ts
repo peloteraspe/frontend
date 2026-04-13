@@ -101,8 +101,8 @@ export function getEventPublishReadiness(
     },
     {
       id: 'payment_methods',
-      title: 'Método de pago elegido',
-      description: 'Necesitas al menos uno para publicar.',
+      title: 'Método de pago activo elegido',
+      description: 'Necesitas al menos uno activo para publicar.',
       done: paymentMethodsReady,
     },
     {
@@ -121,7 +121,7 @@ export function getEventPublishReadiness(
   } else if (!fieldReservationReady) {
     primaryMessage = 'Confirma que la cancha ya está reservada antes de publicar el evento.';
   } else if (!paymentMethodsReady) {
-    primaryMessage = 'Agrega al menos un método de pago antes de publicar el evento.';
+    primaryMessage = 'Agrega al menos un método de pago activo antes de publicar el evento.';
   }
 
   return {

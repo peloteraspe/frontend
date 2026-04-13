@@ -2,6 +2,7 @@ import { getServerSupabase } from '@core/api/supabase.server';
 import { getApprovedParticipantsCountByEventId } from '@modules/events/api/queries/getApprovedParticipantsCount';
 import { getViewerRegistrationState } from '@modules/events/api/queries/getViewerApprovedRegistrations';
 import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
+import { getActiveLinkedPaymentMethodIdsForEvent } from '@shared/lib/paymentMethodSelection.server';
 
 export type PaymentPageData = {
   event: any;
@@ -42,22 +43,12 @@ export async function getPaymentPageData(id: string) {
     throw new Error(EVENT_REGISTRATION_LOCKED);
   }
 
-  const { data: links, error: linksError } = await supabase
-    .from('eventPaymentMethod')
-    .select('paymentMethod')
-    .eq('event', event.id);
-
-  if (linksError) {
+  let paymentMethodIds: number[] = [];
+  try {
+    paymentMethodIds = await getActiveLinkedPaymentMethodIdsForEvent(supabase, event.id);
+  } catch {
     throw new Error(PAYMENT_METHOD_NOT_CONFIGURED);
   }
-
-  const paymentMethodIds = Array.from(
-    new Set(
-      (links || [])
-        .map((row) => Number(row.paymentMethod))
-        .filter((value) => Number.isInteger(value) && value > 0)
-    )
-  );
 
   if (paymentMethodIds.length === 0) {
     throw new Error(PAYMENT_METHOD_NOT_CONFIGURED);
@@ -66,8 +57,7 @@ export async function getPaymentPageData(id: string) {
   const { data: paymentMethods, error: paymentError } = await supabase
     .from('paymentMethod')
     .select('id,name,QR,number,type,is_active')
-    .in('id', paymentMethodIds)
-    .eq('is_active', true);
+    .in('id', paymentMethodIds);
 
   if (paymentError || !paymentMethods || paymentMethods.length === 0) {
     throw new Error(PAYMENT_METHOD_NOT_CONFIGURED);

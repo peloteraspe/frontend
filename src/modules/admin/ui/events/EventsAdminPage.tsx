@@ -7,6 +7,7 @@ import { getAllUserEmailsForBroadcast } from '@modules/admin/api/users/services/
 import EventQuickActionsMenu from '@modules/admin/ui/events/EventQuickActionsMenu';
 import { getApprovedParticipantsCountByEventIds } from '@modules/admin/api/events/services/eventParticipants.service';
 import { getEventPublishReadiness, parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
+import { getEventIdsWithActivePaymentMethods } from '@shared/lib/paymentMethodSelection.server';
 
 type Props = {
   searchParams?: {
@@ -114,45 +115,7 @@ export default async function AdminEventsPage({ searchParams }: Props) {
   const approvedParticipantsByEventId = await getApprovedParticipantsCountByEventIds(
     eventIds
   );
-  const paymentMethodRows =
-    eventIds.length > 0
-      ? await supabase.from('eventPaymentMethod').select('event,paymentMethod').in('event', eventIds)
-      : { data: [], error: null };
-
-  if (paymentMethodRows.error) {
-    throw new Error(paymentMethodRows.error.message);
-  }
-
-  const linkedPaymentMethodIds = Array.from(
-    new Set(
-      (paymentMethodRows.data ?? [])
-        .map((row) => Number((row as { paymentMethod: number | string | null }).paymentMethod))
-        .filter((value) => Number.isInteger(value) && value > 0)
-    )
-  );
-  const activePaymentMethods =
-    linkedPaymentMethodIds.length > 0
-      ? await supabase
-          .from('paymentMethod')
-          .select('id')
-          .in('id', linkedPaymentMethodIds)
-          .eq('is_active', true)
-      : { data: [], error: null };
-
-  if (activePaymentMethods.error) {
-    throw new Error(activePaymentMethods.error.message);
-  }
-
-  const activePaymentMethodIds = new Set(
-    (activePaymentMethods.data ?? []).map((row) => Number((row as { id: number | string }).id))
-  );
-  const eventIdsWithPaymentMethods = new Set(
-    (paymentMethodRows.data ?? [])
-      .filter((row) =>
-        activePaymentMethodIds.has(Number((row as { paymentMethod: number | string | null }).paymentMethod))
-      )
-      .map((row) => String((row as { event: string | number }).event))
-  );
+  const eventIdsWithPaymentMethods = await getEventIdsWithActivePaymentMethods(supabase, eventIds);
 
   function canPublishEvent(event: any) {
     const description =

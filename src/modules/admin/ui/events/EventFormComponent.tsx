@@ -40,6 +40,10 @@ import EventTemplatesPanel from '@modules/admin/ui/events/EventTemplatesPanel';
 import { getSuggestionsForEvent } from '@modules/admin/model/eventSmartSuggestions';
 import { useCreateEventWizardTracking } from '@shared/lib/tracking/useCreateEventWizardTracking';
 import { useEventTemplates } from '@shared/hooks/useEventTemplates';
+import {
+  normalizePaymentMethodIds,
+  partitionPaymentMethodSelection,
+} from '@shared/lib/paymentMethodSelection';
 
 type SubmitResult = {
   eventId?: string | number;
@@ -143,6 +147,11 @@ const FLOW_NATIVE_SELECT_CLASS = 'peloteras-form-control peloteras-form-control-
 function asFiniteNumber(value: unknown, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function areNumberArraysEqual(a: number[], b: number[]) {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
 }
 
 function parseDateTimeInLima(value: string | null | undefined) {
@@ -532,29 +541,17 @@ const EventForm = ({
     () => features.map((option) => ({ value: option.id, label: option.name })),
     [features]
   );
-  const paymentMethodIdSet = useMemo(
-    () => new Set(paymentMethodCatalog.map((method) => method.id)),
-    [paymentMethodCatalog]
-  );
   const activePaymentMethodCatalog = useMemo(
     () => paymentMethodCatalog.filter((method) => method.isActive),
     [paymentMethodCatalog]
   );
-  const activePaymentMethodIdSet = useMemo(
-    () => new Set(activePaymentMethodCatalog.map((method) => method.id)),
-    [activePaymentMethodCatalog]
+  const paymentMethodSelection = useMemo(
+    () => partitionPaymentMethodSelection(selectedPaymentMethodIds, paymentMethodCatalog),
+    [paymentMethodCatalog, selectedPaymentMethodIds]
   );
-  const selectedVisiblePaymentMethodIds = useMemo(
-    () => selectedPaymentMethodIds.filter((id) => paymentMethodIdSet.has(id)),
-    [paymentMethodIdSet, selectedPaymentMethodIds]
-  );
-  const selectedActivePaymentMethodIds = useMemo(() => {
-    return selectedVisiblePaymentMethodIds.filter((id) => activePaymentMethodIdSet.has(id));
-  }, [activePaymentMethodIdSet, selectedVisiblePaymentMethodIds]);
-  const selectedInactivePaymentMethodIds = useMemo(
-    () => selectedVisiblePaymentMethodIds.filter((id) => !activePaymentMethodIdSet.has(id)),
-    [activePaymentMethodIdSet, selectedVisiblePaymentMethodIds]
-  );
+  const selectedVisiblePaymentMethodIds = paymentMethodSelection.selectedVisibleIds;
+  const selectedActivePaymentMethodIds = paymentMethodSelection.selectedActiveIds;
+  const selectedInactivePaymentMethodIds = paymentMethodSelection.selectedInactiveIds;
   const paymentMethodOptions = useMemo(
     () =>
       paymentMethodCatalog.map((option) => {
@@ -635,8 +632,13 @@ const EventForm = ({
   }, [paymentMethods]);
 
   useEffect(() => {
-    setSelectedPaymentMethodIds((current) => current.filter((id) => paymentMethodIdSet.has(id)));
-  }, [paymentMethodIdSet]);
+    setSelectedPaymentMethodIds((current) => {
+      const nextSelection = partitionPaymentMethodSelection(current, paymentMethodCatalog);
+      return areNumberArraysEqual(current, nextSelection.selectedVisibleIds)
+        ? current
+        : nextSelection.selectedVisibleIds;
+    });
+  }, [paymentMethodCatalog]);
 
   useEffect(() => {
     if (eventTypes.some((option) => String(option.id) === selectedEventTypeId)) return;
@@ -1145,8 +1147,8 @@ const EventForm = ({
     if (!savedMethod) return;
 
     setSelectedPaymentMethodIds((current) => {
-      const availableIds = new Set(nextCatalog.map((method) => method.id));
-      const nextSelection = current.filter((id) => availableIds.has(id));
+      const currentSelection = partitionPaymentMethodSelection(current, nextCatalog);
+      const nextSelection = [...currentSelection.selectedVisibleIds];
 
       if (savedMethod.is_active !== false) {
         nextSelection.push(savedMethod.id);
@@ -1155,18 +1157,23 @@ const EventForm = ({
       return Array.from(new Set(nextSelection));
     });
 
-    if (savedMethod.is_active !== false) {
+    const nextSelectedIds = savedMethod.is_active !== false
+      ? Array.from(new Set([...selectedPaymentMethodIds, savedMethod.id]))
+      : selectedPaymentMethodIds;
+    const nextSelection = partitionPaymentMethodSelection(nextSelectedIds, nextCatalog);
+
+    if (nextSelection.selectedActiveIds.length > 0) {
       setPaymentMethodsError('');
     }
   }
 
   function resolveCurrentPublishReadiness(fd?: FormData) {
-    const paymentMethodIds = fd
-      ? fd
-          .getAll('paymentMethodIds')
-          .map((value) => Number(value))
-          .filter((value) => Number.isInteger(value) && value > 0)
-      : selectedActivePaymentMethodIds;
+    const selectedIds = fd
+      ? normalizePaymentMethodIds(
+          fd.getAll('paymentMethodIds').map((value) => Number(value))
+        )
+      : paymentMethodSelection.selectedIds;
+    const nextPaymentMethodSelection = partitionPaymentMethodSelection(selectedIds, paymentMethodCatalog);
 
     return getEventPublishReadiness({
       title: fd ? String(fd.get('title') || '') : eventTitle,
@@ -1176,7 +1183,7 @@ const EventForm = ({
       locationText: fd ? String(fd.get('locationText') || '') : locationText,
       lat: pinSelectedRef.current ? latRef.current : null,
       lng: pinSelectedRef.current ? lngRef.current : null,
-      paymentMethodIds,
+      paymentMethodIds: nextPaymentMethodSelection.selectedActiveIds,
       isFieldReservedConfirmed: fd
         ? parseBooleanFormValue(fd.get('isFieldReservedConfirmed'))
         : isFieldReservedConfirmed,
@@ -1187,7 +1194,7 @@ const EventForm = ({
     if (!isPublished) return '';
 
     if (readiness.missingIds.includes('payment_methods')) {
-      setPaymentMethodsError('Selecciona al menos un método de pago antes de publicar.');
+      setPaymentMethodsError('Selecciona al menos un método de pago activo antes de publicar.');
     }
 
     if (readiness.missingIds.includes('field_reservation')) {
@@ -1245,8 +1252,8 @@ const EventForm = ({
 
     if (step === 3) {
       if (isPublished && currentPublishReadiness.missingIds.includes('payment_methods')) {
-        setPaymentMethodsError('Selecciona al menos un método de pago antes de publicar.');
-        return 'Agrega un método de pago o deja el evento como borrador por ahora.';
+        setPaymentMethodsError('Selecciona al menos un método de pago activo antes de publicar.');
+        return 'Agrega un método de pago activo o deja el evento como borrador por ahora.';
       }
       return '';
     }
@@ -2129,13 +2136,10 @@ const EventForm = ({
                   options={paymentMethodOptions}
                   value={selectedVisiblePaymentMethodIds}
                   onChange={(value) => {
-                    const nextIds = Array.isArray(value)
-                      ? value
-                          .map((item) => Number(item))
-                          .filter((item) => Number.isInteger(item) && item > 0)
-                      : [];
+                    const nextIds = Array.isArray(value) ? normalizePaymentMethodIds(value) : [];
+                    const nextSelection = partitionPaymentMethodSelection(nextIds, paymentMethodCatalog);
                     setSelectedPaymentMethodIds(nextIds);
-                    if (nextIds.length > 0) {
+                    if (nextSelection.selectedActiveIds.length > 0) {
                       setPaymentMethodsError('');
                     }
                   }}
@@ -2165,10 +2169,12 @@ const EventForm = ({
                   </div>
                 ) : (
                   <p className="mt-1 text-xs text-slate-500">
-                    {selectedVisiblePaymentMethodIds.length > 0
-                      ? `${selectedVisiblePaymentMethodIds.length} método(s) seleccionado(s).`
+                    {selectedActivePaymentMethodIds.length > 0
+                      ? `${selectedActivePaymentMethodIds.length} método(s) activo(s) listo(s) para publicar.`
+                      : selectedInactivePaymentMethodIds.length > 0
+                        ? `${selectedInactivePaymentMethodIds.length} método(s) seleccionado(s), pero no cuentan para publicar porque están inactivos.`
                       : isPublished
-                        ? 'Selecciona uno o más métodos para publicar este evento.'
+                        ? 'Selecciona uno o más métodos activos para publicar este evento.'
                         : 'Puedes agregar métodos de pago después, antes de publicar.'}
                   </p>
                 )}

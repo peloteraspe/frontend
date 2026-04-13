@@ -10,6 +10,11 @@ import {
   parseStoredBoolean,
 } from '@modules/admin/model/eventPublishReadiness';
 import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import {
+  getActiveLinkedPaymentMethodIdsForEvent,
+  resolveOwnedPaymentMethodSelection,
+} from '@shared/lib/paymentMethodSelection.server';
+import { normalizePaymentMethodIds } from '@shared/lib/paymentMethodSelection';
 import { ensureGoogleWalletEventClass } from '@modules/tickets/api/services/google-wallet.service';
 
 type SupabaseClientLike =
@@ -184,33 +189,7 @@ async function assertEventCanBePublished(
   const location = event.location && typeof event.location === 'object'
     ? (event.location as Record<string, unknown>)
     : {};
-
-  const { data: paymentMethodLinks, error: paymentMethodsError } = await supabase
-    .from('eventPaymentMethod')
-    .select('paymentMethod')
-    .eq('event', eventId);
-
-  if (paymentMethodsError) throw new Error(paymentMethodsError.message);
-
-  const paymentMethodIds = Array.from(
-    new Set(
-      (paymentMethodLinks ?? [])
-        .map((row) => Number((row as { paymentMethod: number | string | null }).paymentMethod))
-        .filter((id) => Number.isInteger(id) && id > 0)
-    )
-  );
-
-  const { data: activePaymentMethods, error: activePaymentMethodsError } =
-    paymentMethodIds.length > 0
-      ? await supabase
-          .from('paymentMethod')
-          .select('id')
-          .in('id', paymentMethodIds)
-          .eq('is_active', true)
-          .limit(1)
-      : { data: [], error: null };
-
-  if (activePaymentMethodsError) throw new Error(activePaymentMethodsError.message);
+  const activePaymentMethodIds = await getActiveLinkedPaymentMethodIdsForEvent(supabase, eventId);
 
   const publishReadiness = getEventPublishReadiness({
     title: event.title,
@@ -220,7 +199,7 @@ async function assertEventCanBePublished(
     locationText: event.location_text,
     lat: location.lat,
     lng: location.lng ?? location.long,
-    paymentMethodCount: (activePaymentMethods ?? []).length,
+    paymentMethodCount: activePaymentMethodIds.length,
     isFieldReservedConfirmed: parseStoredBoolean(description.field_reserved_confirmed),
   });
 
@@ -233,36 +212,6 @@ function normalizeFeatureIds(ids: number[]) {
   return Array.from(
     new Set(ids.filter((id) => Number.isInteger(id) && id > 0))
   );
-}
-
-function normalizePaymentMethodIds(ids: number[]) {
-  return Array.from(
-    new Set(ids.filter((id) => Number.isInteger(id) && id > 0))
-  );
-}
-
-async function loadOwnedPaymentMethods(
-  supabase: SupabaseClientLike,
-  ownerUserId: string,
-  paymentMethodIds: number[]
-) {
-  const normalizedPaymentMethodIds = normalizePaymentMethodIds(paymentMethodIds);
-  if (normalizedPaymentMethodIds.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from('paymentMethod')
-    .select('id,is_active')
-    .eq('created_by', ownerUserId)
-    .in('id', normalizedPaymentMethodIds);
-
-  if (error) throw new Error(error.message);
-
-  return (data ?? [])
-    .map((row) => ({
-      id: Number((row as { id: number | string | null }).id),
-      isActive: (row as { is_active?: boolean | null }).is_active !== false,
-    }))
-    .filter((method) => Number.isInteger(method.id) && method.id > 0);
 }
 
 async function syncEventFeatures(
@@ -290,10 +239,9 @@ async function syncEventFeatures(
 async function syncEventPaymentMethods(
   supabase: SupabaseClientLike,
   eventId: string | number,
-  ownerUserId: string,
-  paymentMethodIds: number[]
+  ownedPaymentMethodIds: number[]
 ) {
-  const normalizedPaymentMethodIds = normalizePaymentMethodIds(paymentMethodIds);
+  const normalizedPaymentMethodIds = normalizePaymentMethodIds(ownedPaymentMethodIds);
 
   const { error: deleteError } = await supabase
     .from('eventPaymentMethod')
@@ -304,16 +252,8 @@ async function syncEventPaymentMethods(
 
   if (normalizedPaymentMethodIds.length === 0) return;
 
-  const ownedMethodIds = Array.from(
-    new Set((await loadOwnedPaymentMethods(supabase, ownerUserId, normalizedPaymentMethodIds)).map((method) => method.id))
-  );
-
-  if (ownedMethodIds.length !== normalizedPaymentMethodIds.length) {
-    throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
-  }
-
   const { error: insertError } = await supabase.from('eventPaymentMethod').insert(
-    ownedMethodIds.map((paymentMethodId) => ({
+    normalizedPaymentMethodIds.map((paymentMethodId) => ({
       event: eventId,
       paymentMethod: paymentMethodId,
     }))
@@ -341,18 +281,19 @@ async function clearEventRelations(supabase: SupabaseClientLike, eventId: string
 
 export async function createEvent(input: EventUpsertInput) {
   const { adminSupabase, user } = await getAuthenticatedAdminContext('crear');
-  const ownedPaymentMethods = await loadOwnedPaymentMethods(adminSupabase, user.id, input.paymentMethodIds);
-  const normalizedPaymentMethodIds = normalizePaymentMethodIds(input.paymentMethodIds);
+  const paymentMethodSelection = await resolveOwnedPaymentMethodSelection(
+    adminSupabase,
+    user.id,
+    input.paymentMethodIds
+  );
 
-  if (ownedPaymentMethods.length !== normalizedPaymentMethodIds.length) {
+  if (paymentMethodSelection.ownedIds.length !== paymentMethodSelection.selectedIds.length) {
     throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
   }
 
   validateEventFormInput({
     ...input,
-    paymentMethodIds: ownedPaymentMethods
-      .filter((method) => method.isActive)
-      .map((method) => method.id),
+    paymentMethodIds: paymentMethodSelection.activeOwnedIds,
   });
 
   const { data: profile, error: profileError } = await adminSupabase
@@ -393,7 +334,7 @@ export async function createEvent(input: EventUpsertInput) {
     createdEventId = createdEvent.id;
 
     await syncEventFeatures(adminSupabase, createdEvent.id, input.featureIds);
-    await syncEventPaymentMethods(adminSupabase, createdEvent.id, user.id, input.paymentMethodIds);
+    await syncEventPaymentMethods(adminSupabase, createdEvent.id, paymentMethodSelection.ownedIds);
 
     try {
       await ensureGoogleWalletEventClass({
@@ -444,18 +385,19 @@ export async function createEvent(input: EventUpsertInput) {
 
 export async function updateEvent(id: string, input: EventUpsertInput) {
   const { adminSupabase, user } = await getAuthenticatedAdminContext('editar');
-  const ownedPaymentMethods = await loadOwnedPaymentMethods(adminSupabase, user.id, input.paymentMethodIds);
-  const normalizedPaymentMethodIds = normalizePaymentMethodIds(input.paymentMethodIds);
+  const paymentMethodSelection = await resolveOwnedPaymentMethodSelection(
+    adminSupabase,
+    user.id,
+    input.paymentMethodIds
+  );
 
-  if (ownedPaymentMethods.length !== normalizedPaymentMethodIds.length) {
+  if (paymentMethodSelection.ownedIds.length !== paymentMethodSelection.selectedIds.length) {
     throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
   }
 
   validateEventFormInput({
     ...input,
-    paymentMethodIds: ownedPaymentMethods
-      .filter((method) => method.isActive)
-      .map((method) => method.id),
+    paymentMethodIds: paymentMethodSelection.activeOwnedIds,
   });
 
   await assertCanManageEvent(adminSupabase, id, user);
@@ -495,7 +437,7 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
   if (error) throw new Error(error.message);
 
   await syncEventFeatures(adminSupabase, id, input.featureIds);
-  await syncEventPaymentMethods(adminSupabase, id, user.id, input.paymentMethodIds);
+  await syncEventPaymentMethods(adminSupabase, id, paymentMethodSelection.ownedIds);
 
   try {
     await ensureGoogleWalletEventClass({
