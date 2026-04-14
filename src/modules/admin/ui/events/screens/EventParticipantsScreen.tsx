@@ -88,7 +88,10 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
   const approvedCount = participants.filter((participant) => participant.state === 'approved').length;
   const pendingCount = participants.filter((participant) => participant.state === 'pending').length;
   const attendedCount = participants.filter((participant) => participant.hasAttended).length;
-  const recipients = participants.filter((participant) => participant.email && participant.email !== 'Sin correo');
+  const approvedRecipients = participants.filter(
+    (participant) =>
+      participant.state === 'approved' && participant.email && participant.email !== 'Sin correo'
+  );
   const defaults = getDefaultEventAnnouncementEmail();
 
   return (
@@ -181,7 +184,7 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
         eventId={id}
         defaultSubject={defaults.subject}
         defaultBody={defaults.body}
-        recipientCount={recipients.length}
+        recipientCount={approvedRecipients.length}
       />
 
       <EventAnnouncementHistory history={history} />
