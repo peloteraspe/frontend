@@ -75,6 +75,23 @@ function normalizeHref(value: string) {
   }
 }
 
+function normalizeImageSrc(value: string) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+
+  try {
+    const parsed = new URL(trimmed);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
+function normalizeAltText(value: string) {
+  return normalizeText(value).replace(/\s+/g, ' ').trim();
+}
+
 function splitTrailingPunctuation(value: string) {
   let url = value;
   let trailing = '';
@@ -193,7 +210,11 @@ function applyInlineFormatting(html: string, formatting: ReturnType<typeof getIn
 }
 
 function hasVisibleContent(content: SerializedContent) {
-  return Boolean(content.text.replace(/\s+/g, '').trim()) || /<br\s*\/?>/i.test(content.html);
+  return (
+    Boolean(content.text.replace(/\s+/g, '').trim()) ||
+    /<br\s*\/?>/i.test(content.html) ||
+    /<img\b/i.test(content.html)
+  );
 }
 
 function serializeInlineNodes(nodes: ChildNode[], options?: { insideLink?: boolean }): SerializedContent {
@@ -239,6 +260,17 @@ function serializeInlineNode(node: ChildNode, options?: { insideLink?: boolean }
     return {
       html: href ? `<a href="${escapeAttribute(href)}">${labelHtml}</a>` : labelHtml,
       text: children.text || element.textContent || href,
+    };
+  }
+
+  if (tagName === 'IMG') {
+    const src = normalizeImageSrc(element.getAttribute('src') || '');
+    if (!src) return { html: '', text: '' };
+
+    const alt = normalizeAltText(element.getAttribute('alt') || '');
+    return {
+      html: `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(alt)}" />`,
+      text: alt ? `[Imagen: ${alt}]` : '',
     };
   }
 
@@ -460,6 +492,26 @@ export default function UsersRichTextEditor({ id, textName, htmlName, defaultVal
     syncHiddenFields();
   };
 
+  const insertImage = () => {
+    const rawUrl = window.prompt('Pega la URL publica de la imagen');
+    if (rawUrl === null) return;
+
+    const src = normalizeImageSrc(rawUrl);
+    if (!src) {
+      window.alert('La imagen debe tener una URL publica valida (http o https).');
+      return;
+    }
+
+    const alt = normalizeAltText(window.prompt('Texto alternativo de la imagen (opcional)') || '');
+    editorRef.current?.focus();
+    document.execCommand(
+      'insertHTML',
+      false,
+      `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(alt)}" />`
+    );
+    syncHiddenFields();
+  };
+
   useEffect(() => {
     if (!editorRef.current) return;
 
@@ -473,6 +525,7 @@ export default function UsersRichTextEditor({ id, textName, htmlName, defaultVal
         <ToolbarButton label="Negrita" onClick={() => runCommand('bold')} />
         <ToolbarButton label="Cursiva" onClick={() => runCommand('italic')} />
         <ToolbarButton label="Subrayado" onClick={() => runCommand('underline')} />
+        <ToolbarButton label="Imagen" onClick={insertImage} />
         <ToolbarButton label="Lista" onClick={() => runCommand('insertUnorderedList')} />
         <ToolbarButton label="Numerada" onClick={() => runCommand('insertOrderedList')} />
         <ToolbarButton label="Sangría" onClick={() => runCommand('indent')} />
@@ -504,8 +557,8 @@ export default function UsersRichTextEditor({ id, textName, htmlName, defaultVal
       <input ref={htmlInputRef} type="hidden" name={htmlName} />
 
       <p className="mt-2 text-xs text-slate-500">
-        Puedes pegar contenido con formato desde Docs o Word. Se respetan negritas, listas, enlaces y sangrías
-        básicas en el correo.
+        Puedes pegar contenido con formato desde Docs o Word. Se respetan negritas, listas, enlaces, imágenes por
+        URL y sangrías básicas en el correo.
       </p>
     </div>
   );

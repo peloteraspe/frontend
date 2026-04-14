@@ -274,6 +274,7 @@ create table if not exists public.event_announcement (
   created_by_user_id uuid,
   subject text not null,
   body text not null,
+  body_html text,
   total_recipients integer not null default 0,
   sent_count integer not null default 0,
   failed_count integer not null default 0,

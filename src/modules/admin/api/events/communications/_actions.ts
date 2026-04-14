@@ -256,6 +256,7 @@ export async function sendEventAnnouncement(
     const eventId = String(formData.get('eventId') || '').trim();
     const subject = String(formData.get('subject') || '').trim();
     const body = String(formData.get('body') || '').trim();
+    const bodyHtml = String(formData.get('bodyHtml') || '').trim();
 
     if (!eventId) {
       return {
@@ -275,7 +276,7 @@ export async function sendEventAnnouncement(
       };
     }
 
-    if (!body) {
+    if (!body && !bodyHtml) {
       return {
         status: 'error',
         message: 'Ingresa el contenido del correo antes de enviar.',
@@ -314,6 +315,7 @@ export async function sendEventAnnouncement(
     const result = await sendEventAnnouncementEmail({
       subject,
       body,
+      bodyHtml,
       recipients,
     });
 
@@ -331,6 +333,7 @@ export async function sendEventAnnouncement(
       createdByUserId: String(user.id || '') || null,
       subject,
       body,
+      bodyHtml,
       totalRecipients: recipientMetadata.size,
       sentCount: result.sentCount,
       failedCount: result.failedCount,
@@ -545,6 +548,7 @@ export async function resendFailedEventAnnouncement(
     const result = await sendEventAnnouncementEmail({
       subject: String(announcement.subject || '').trim(),
       body: String(announcement.body || '').trim(),
+      bodyHtml: String(announcement.body_html || '').trim(),
       recipients: failedRecipients.map((recipient) => recipient.email),
     });
 
@@ -562,6 +566,7 @@ export async function resendFailedEventAnnouncement(
       createdByUserId: String(user.id || '') || null,
       subject: String(announcement.subject || '').trim(),
       body: String(announcement.body || '').trim(),
+      bodyHtml: String(announcement.body_html || '').trim(),
       totalRecipients: recipientMetadata.size,
       sentCount: result.sentCount,
       failedCount: result.failedCount,

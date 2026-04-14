@@ -7,6 +7,7 @@ import {
   sendEventAnnouncement,
   type EventAnnouncementActionState,
 } from '@modules/admin/api/events/communications/_actions';
+import UsersRichTextEditor from '@modules/admin/ui/users/UsersRichTextEditor';
 
 type Props = {
   eventId: string;
@@ -103,16 +104,12 @@ export default function EventAnnouncementForm({
         <label htmlFor="event-announcement-body" className="mb-2 block text-sm font-semibold text-slate-800">
           Contenido
         </label>
-        <textarea
+        <UsersRichTextEditor
           id="event-announcement-body"
-          name="body"
           defaultValue={defaultBody}
-          rows={16}
-          className="peloteras-form-control peloteras-form-control--textarea"
+          textName="body"
+          htmlName="bodyHtml"
         />
-        <p className="mt-2 text-xs text-slate-500">
-          Las líneas que empiecen con <code>⚽</code>, <code>•</code> o <code>-</code> se enviarán como lista.
-        </p>
       </div>
 
       {state.status !== 'idle' ? (

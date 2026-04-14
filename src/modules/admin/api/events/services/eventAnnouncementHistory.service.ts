@@ -45,6 +45,7 @@ export async function recordEventAnnouncement(input: {
   createdByUserId: string | null;
   subject: string;
   body: string;
+  bodyHtml?: string | null;
   totalRecipients: number;
   sentCount: number;
   failedCount: number;
@@ -63,6 +64,7 @@ export async function recordEventAnnouncement(input: {
         created_by_user_id: input.createdByUserId,
         subject: input.subject,
         body: input.body,
+        body_html: String(input.bodyHtml || '').trim() || null,
         total_recipients: input.totalRecipients,
         sent_count: input.sentCount,
         failed_count: input.failedCount,
@@ -297,7 +299,7 @@ export async function getEventAnnouncementById(announcementId: number) {
   const adminSupabase = getAdminSupabase();
   const { data, error } = await adminSupabase
     .from('event_announcement')
-    .select('id, event_id, subject, body, failed_count')
+    .select('id, event_id, subject, body, body_html, failed_count')
     .eq('id', announcementId)
     .maybeSingle();
 
@@ -311,6 +313,7 @@ export async function getEventAnnouncementById(announcementId: number) {
         event_id: number;
         subject: string;
         body: string;
+        body_html: string | null;
         failed_count: number;
       }
     | null;

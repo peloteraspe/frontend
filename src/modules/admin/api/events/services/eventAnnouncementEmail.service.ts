@@ -135,6 +135,25 @@ function normalizeRichHref(value: string | undefined | null) {
   }
 }
 
+function normalizeRichImageSrc(value: string | undefined | null) {
+  const candidate = String(value || '').trim();
+  if (!candidate) return '';
+
+  try {
+    const parsed = new URL(candidate);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
+function normalizeRichAlt(value: string | undefined | null) {
+  return normalizeBodyText(String(value || ''))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function normalizeUrl(value: string | undefined | null, fallback: string) {
   const candidate = String(value || '').trim();
   if (!candidate) return fallback;
@@ -228,6 +247,8 @@ function getRichTextStyleDefaults(tagName: string) {
       return 'margin:0 0 10px 0;';
     case 'a':
       return 'color:#175cd3;font-weight:700;text-decoration:underline;';
+    case 'img':
+      return 'display:block;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;border-radius:18px;margin:0 0 18px 0;';
     default:
       return '';
   }
@@ -295,6 +316,7 @@ function sanitizeRichTextHtml(bodyHtml: string | undefined | null) {
     br: 'br',
     div: 'p',
     em: 'em',
+    img: 'img',
     i: 'em',
     li: 'li',
     ol: 'ol',
@@ -318,13 +340,23 @@ function sanitizeRichTextHtml(bodyHtml: string | undefined | null) {
     if (!tagName) continue;
 
     if (isClosingTag) {
-      if (tagName === 'br') continue;
+      if (tagName === 'br' || tagName === 'img') continue;
       output += `</${tagName}>`;
       continue;
     }
 
     if (tagName === 'br') {
       output += '<br />';
+      continue;
+    }
+
+    if (tagName === 'img') {
+      const src = normalizeRichImageSrc(getRichTextAttribute(match[2] || '', 'src'));
+      if (!src) continue;
+
+      const alt = normalizeRichAlt(getRichTextAttribute(match[2] || '', 'alt'));
+      const defaultStyle = getRichTextStyleDefaults(tagName);
+      output += `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(alt)}" style="${escapeAttribute(defaultStyle)}" />`;
       continue;
     }
 
