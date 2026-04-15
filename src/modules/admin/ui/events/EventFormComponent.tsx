@@ -44,6 +44,7 @@ import {
   normalizePaymentMethodIds,
   partitionPaymentMethodSelection,
 } from '@shared/lib/paymentMethodSelection';
+import UsersRichTextEditor from '@modules/admin/ui/users/UsersRichTextEditor';
 
 type SubmitResult = {
   eventId?: string | number;
@@ -58,6 +59,7 @@ type EventCreateDraftSnapshot = {
   fields: {
     title: string;
     description: string;
+    descriptionHtml: string;
     minUsers: string;
     maxUsers: string;
     price: string;
@@ -85,6 +87,7 @@ type Props = {
   initial?: Partial<{
     title: string;
     description: string;
+    descriptionHtml: string;
     startTime: string;
     endTime: string;
     price: number;
@@ -141,7 +144,6 @@ const FLOW_SURFACE_CLASS =
   'rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6';
 const FLOW_PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-slate-50/85';
 const FLOW_FIELD_CLASS = 'peloteras-form-control h-12';
-const FLOW_TEXTAREA_CLASS = 'peloteras-form-control peloteras-form-control--textarea';
 const FLOW_NATIVE_SELECT_CLASS = 'peloteras-form-control peloteras-form-control--select h-12';
 
 function asFiniteNumber(value: unknown, fallback: number) {
@@ -357,6 +359,8 @@ const EventForm = ({
   const [shareTitle, setShareTitle] = useState('');
   const [eventTitle, setEventTitle] = useState(initial?.title ?? '');
   const [eventDescription, setEventDescription] = useState(initial?.description ?? '');
+  const [eventDescriptionHtml, setEventDescriptionHtml] = useState(initial?.descriptionHtml ?? '');
+  const [descriptionEditorResetKey, setDescriptionEditorResetKey] = useState(0);
   const [minUsersValue, setMinUsersValue] = useState(String(initial?.minUsers ?? 10));
   const [maxUsersValue, setMaxUsersValue] = useState(String(initial?.maxUsers ?? 20));
   const [priceValue, setPriceValue] = useState(String(initial?.price ?? 0));
@@ -749,6 +753,7 @@ const EventForm = ({
       fields: {
         title: eventTitle,
         description: eventDescription,
+        descriptionHtml: eventDescriptionHtml,
         minUsers: minUsersValue,
         maxUsers: maxUsersValue,
         price: priceValue,
@@ -834,6 +839,8 @@ const EventForm = ({
     setCreateStep(snapshot.step);
     setEventTitle(snapshot.fields.title);
     setEventDescription(snapshot.fields.description);
+    setEventDescriptionHtml(snapshot.fields.descriptionHtml || '');
+    setDescriptionEditorResetKey((current) => current + 1);
     setMinUsersValue(snapshot.fields.minUsers);
     setMaxUsersValue(snapshot.fields.maxUsers);
     setPriceValue(snapshot.fields.price);
@@ -1568,6 +1575,7 @@ const EventForm = ({
     districtText,
     endTime,
     eventDescription,
+    eventDescriptionHtml,
     eventTitle,
     isFeaturedValue,
     isCreateMode,
@@ -1763,14 +1771,21 @@ const EventForm = ({
 
               <label className="w-full">
                 <div className="mb-1 text-sm font-semibold text-slate-700">Descripción</div>
-                <textarea
-                  name="description"
-                  value={eventDescription}
-                  onChange={(event) => setEventDescription(event.currentTarget.value)}
-                  rows={4}
-                  className={FLOW_TEXTAREA_CLASS}
-                  required
+                <UsersRichTextEditor
+                  id="event-description"
+                  textName="description"
+                  htmlName="descriptionHtml"
+                  defaultValue={eventDescription}
+                  defaultHtml={eventDescriptionHtml}
+                  resetKey={descriptionEditorResetKey}
+                  onChange={(content) => {
+                    setEventDescription(content.text);
+                    setEventDescriptionHtml(content.html);
+                  }}
                 />
+                <p className="mt-2 text-xs text-slate-500">
+                  Usa formato enriquecido para destacar detalles, listas y enlaces del evento.
+                </p>
               </label>
 
               <div className="pt-2">
@@ -2436,6 +2451,7 @@ const EventForm = ({
             <EventPreview
               title={eventTitle}
               description={eventDescription}
+              descriptionHtml={eventDescriptionHtml}
               endTime={endTime}
               placeText={placeText || initial?.placeText || ''}
               locationText={locationText || initial?.locationText || ''}

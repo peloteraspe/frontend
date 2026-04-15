@@ -1,4 +1,8 @@
 import { EventEntity } from '@modules/events/model/types';
+import {
+  extractEventDescriptionHtml,
+  extractEventDescriptionText,
+} from '@shared/lib/eventDescription';
 import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
 import { getPlacesLeft, isEventSoldOut } from './eventCapacity';
 
@@ -12,14 +16,6 @@ function asNumber(value: unknown, fallback = 0) {
 
 function asString(value: unknown, fallback = '') {
   return typeof value === 'string' ? value : fallback;
-}
-
-function extractDescription(value: unknown) {
-  if (value && typeof value === 'object') {
-    const maybe = value as { description?: string };
-    return asString(maybe.description, '');
-  }
-  return asString(value, '');
 }
 
 function extractLocationReference(value: unknown) {
@@ -66,7 +62,8 @@ export function normalizeEvent(raw: any, eventTypeById: Dictionary, levelById: D
   return {
     id: String(raw?.id ?? ''),
     title: asString(raw?.title, 'Evento sin título'),
-    description: extractDescription(raw?.description),
+    description: extractEventDescriptionText(raw?.description),
+    descriptionHtml: extractEventDescriptionHtml(raw?.description),
     dateLabel: formatDateLabel(raw?.start_time ?? null),
     startTime: raw?.start_time ?? null,
     endTime: raw?.end_time ?? null,

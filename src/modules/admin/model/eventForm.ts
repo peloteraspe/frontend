@@ -4,6 +4,7 @@ import { getEventPublishReadiness } from '@modules/admin/model/eventPublishReadi
 export type EventUpsertInput = {
   title: string;
   description: string;
+  descriptionHtml: string;
   startTime: string;
   endTime: string;
   price: number;
@@ -66,6 +67,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
   return {
     title: String(fd.get('title') || ''),
     description: String(fd.get('description') || ''),
+    descriptionHtml: String(fd.get('descriptionHtml') || ''),
     startTime: normalizeDateTimeLocalToLima(rawStartTime) ?? rawStartTime,
     endTime: normalizeDateTimeLocalToLima(rawEndTime) ?? rawEndTime,
     price: parseNumber(fd.get('price'), 0),

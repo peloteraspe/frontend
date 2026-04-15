@@ -16,6 +16,7 @@ import {
 } from '@shared/lib/paymentMethodSelection.server';
 import { normalizePaymentMethodIds } from '@shared/lib/paymentMethodSelection';
 import { ensureGoogleWalletEventClass } from '@modules/tickets/api/services/google-wallet.service';
+import { sanitizeRichTextHtml } from '@shared/lib/richText';
 
 type SupabaseClientLike =
   | Awaited<ReturnType<typeof getServerSupabase>>
@@ -27,9 +28,11 @@ type EventPayloadOptions = {
 
 function buildEventDescription(input: EventUpsertInput, options: EventPayloadOptions = {}) {
   const includePlaceTextColumn = options.includePlaceTextColumn !== false;
+  const descriptionHtml = sanitizeRichTextHtml(input.descriptionHtml);
   const description: Record<string, unknown> = {
     title: input.title,
     description: input.description,
+    description_html: descriptionHtml || null,
     field_reserved_confirmed: input.isFieldReservedConfirmed,
   };
 

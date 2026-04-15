@@ -7,10 +7,12 @@ import {
   getIsoDateInTimeZone,
   normalizeDateTimeLocalToLima,
 } from '@shared/lib/dateTime';
+import RichTextContent from '@shared/ui/RichTextContent';
 
 type EventPreviewProps = {
   title?: string;
   description?: string;
+  descriptionHtml?: string;
   startTime?: string;
   endTime?: string;
   district?: string;
@@ -61,6 +63,7 @@ function formatPreviewRange(startDate: Date | null, endDate: Date | null) {
 export default function EventPreview({
   title = 'Tu evento',
   description,
+  descriptionHtml,
   startTime,
   endTime,
   district,
@@ -117,9 +120,12 @@ export default function EventPreview({
           ) : null}
         </div>
 
-        <p className="mt-4 text-sm leading-6 text-slate-600">
-          {description || 'Aquí verás cómo se va armando el copy de tu evento mientras completas el formulario.'}
-        </p>
+        <RichTextContent
+          html={descriptionHtml}
+          text={description}
+          emptyText="Aquí verás cómo se va armando el copy de tu evento mientras completas el formulario."
+          className="mt-4 text-sm leading-6 text-slate-600"
+        />
       </div>
 
       <div className="space-y-3 px-5 py-5 sm:px-6">

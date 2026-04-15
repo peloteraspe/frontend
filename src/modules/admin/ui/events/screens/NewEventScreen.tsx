@@ -8,6 +8,10 @@ import { getEventById } from '@shared/lib/data/getEventById';
 import { toDateTimeLocalInTimeZone } from '@shared/lib/dateTime';
 import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
 import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
+import {
+  extractEventDescriptionHtml,
+  extractEventDescriptionText,
+} from '@shared/lib/eventDescription';
 
 type Props = {
   templateId?: string;
@@ -70,6 +74,7 @@ export default async function NewEventScreen({ templateId }: Props) {
     | {
         title: string;
         description: string;
+        descriptionHtml: string;
         startTime: string;
         endTime: string;
         price: number;
@@ -134,10 +139,8 @@ export default async function NewEventScreen({ templateId }: Props) {
           : null;
       templateInitial = {
         title: String(templateEvent.title || ''),
-        description:
-          typeof templateEvent.description === 'object'
-            ? String(templateEvent.description?.description || '')
-            : String(templateEvent.description || ''),
+        description: extractEventDescriptionText(templateEvent.description),
+        descriptionHtml: extractEventDescriptionHtml(templateEvent.description),
         startTime: toDateTimeLocalInTimeZone(templateEvent.start_time),
         endTime: toDateTimeLocalInTimeZone(templateEvent.end_time),
         price: Number(templateEvent.price || 0),

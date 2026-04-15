@@ -1,12 +1,17 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { sanitizeRichTextHtml } from '@shared/lib/richText';
 
 type Props = {
   id: string;
   textName: string;
   htmlName: string;
   defaultValue: string;
+  defaultHtml?: string;
+  resetKey?: string | number;
+  onChange?: (content: SerializedContent) => void;
 };
 
 type SerializedContent = {
@@ -452,6 +457,12 @@ function renderInitialHtml(value: string) {
     .join('');
 }
 
+function resolveInitialEditorHtml(defaultValue: string, defaultHtml?: string) {
+  const sanitizedHtml = sanitizeRichTextHtml(defaultHtml);
+  if (sanitizedHtml) return sanitizedHtml;
+  return renderInitialHtml(defaultValue);
+}
+
 function ToolbarButton({
   label,
   onClick,
@@ -473,10 +484,41 @@ function ToolbarButton({
   );
 }
 
-export default function UsersRichTextEditor({ id, textName, htmlName, defaultValue }: Props) {
+export default function UsersRichTextEditor({
+  id,
+  textName,
+  htmlName,
+  defaultValue,
+  defaultHtml,
+  resetKey,
+  onChange,
+}: Props) {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const plainInputRef = useRef<HTMLInputElement | null>(null);
   const htmlInputRef = useRef<HTMLInputElement | null>(null);
+  const initialContentRef = useRef({
+    defaultValue,
+    defaultHtml,
+  });
+  const savedSelectionRef = useRef<Range | null>(null);
+  const imageUrlInputRef = useRef<HTMLInputElement | null>(null);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageAlt, setImageAlt] = useState('');
+  const [hasTouchedImageUrl, setHasTouchedImageUrl] = useState(false);
+  const [hasAttemptedImageInsert, setHasAttemptedImageInsert] = useState(false);
+
+  const normalizedImageUrl = normalizeImageSrc(imageUrl);
+  const normalizedImageAlt = normalizeAltText(imageAlt);
+  const showImageUrlError = !normalizedImageUrl && (hasTouchedImageUrl || hasAttemptedImageInsert);
+  const imageUrlFieldId = `${id}-image-url`;
+  const imageAltFieldId = `${id}-image-alt`;
+  const imageDialogTitleId = `${id}-image-modal-title`;
+
+  initialContentRef.current = {
+    defaultValue,
+    defaultHtml,
+  };
 
   const syncHiddenFields = () => {
     if (!editorRef.current || !plainInputRef.current || !htmlInputRef.current) return;
@@ -484,6 +526,53 @@ export default function UsersRichTextEditor({ id, textName, htmlName, defaultVal
     const serialized = serializeEditorContent(editorRef.current);
     plainInputRef.current.value = serialized.text;
     htmlInputRef.current.value = serialized.html;
+    onChange?.(serialized);
+  };
+
+  const storeCurrentSelection = () => {
+    if (!editorRef.current) return;
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    if (!editorRef.current.contains(range.commonAncestorContainer)) return;
+
+    savedSelectionRef.current = range.cloneRange();
+  };
+
+  const restoreEditorSelection = () => {
+    if (!editorRef.current) return;
+
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    selection.removeAllRanges();
+
+    if (savedSelectionRef.current) {
+      selection.addRange(savedSelectionRef.current);
+      return;
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(editorRef.current);
+    range.collapse(false);
+    selection.addRange(range);
+  };
+
+  const resetImageModalState = () => {
+    setImageUrl('');
+    setImageAlt('');
+    setHasTouchedImageUrl(false);
+    setHasAttemptedImageInsert(false);
+  };
+
+  const closeImageModal = () => {
+    setIsImageModalOpen(false);
+    resetImageModalState();
+    requestAnimationFrame(() => {
+      editorRef.current?.focus();
+    });
   };
 
   const runCommand = (command: string) => {
@@ -492,32 +581,200 @@ export default function UsersRichTextEditor({ id, textName, htmlName, defaultVal
     syncHiddenFields();
   };
 
-  const insertImage = () => {
-    const rawUrl = window.prompt('Pega la URL publica de la imagen');
+  const openImageModal = () => {
+    storeCurrentSelection();
+    resetImageModalState();
+    setIsImageModalOpen(true);
+  };
+
+  const insertLink = () => {
+    storeCurrentSelection();
+
+    const rawUrl = window.prompt('Pega la URL del enlace');
     if (rawUrl === null) return;
 
-    const src = normalizeImageSrc(rawUrl);
-    if (!src) {
-      window.alert('La imagen debe tener una URL publica valida (http o https).');
+    const href = normalizeHref(rawUrl);
+    if (!href) {
+      window.alert('El enlace debe tener una URL valida que empiece con http, https o mailto.');
       return;
     }
 
-    const alt = normalizeAltText(window.prompt('Texto alternativo de la imagen (opcional)') || '');
     editorRef.current?.focus();
+    restoreEditorSelection();
+
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim() || '';
+
+    if (selectedText) {
+      document.execCommand('createLink', false, href);
+    } else {
+      document.execCommand(
+        'insertHTML',
+        false,
+        `<a href="${escapeAttribute(href)}">${escapeHtml(rawUrl.trim())}</a>`
+      );
+    }
+
+    syncHiddenFields();
+    storeCurrentSelection();
+  };
+
+  const insertImage = () => {
+    if (!normalizedImageUrl) {
+      setHasAttemptedImageInsert(true);
+      imageUrlInputRef.current?.focus();
+      return;
+    }
+
+    editorRef.current?.focus();
+    restoreEditorSelection();
     document.execCommand(
       'insertHTML',
       false,
-      `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(alt)}" />`
+      `<img src="${escapeAttribute(normalizedImageUrl)}" alt="${escapeAttribute(normalizedImageAlt)}" />`
     );
     syncHiddenFields();
+    closeImageModal();
   };
 
   useEffect(() => {
     if (!editorRef.current) return;
 
-    editorRef.current.innerHTML = renderInitialHtml(defaultValue);
+    editorRef.current.innerHTML = resolveInitialEditorHtml(
+      initialContentRef.current.defaultValue,
+      initialContentRef.current.defaultHtml
+    );
     syncHiddenFields();
-  }, [defaultValue]);
+  }, [resetKey]);
+
+  useEffect(() => {
+    if (!isImageModalOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const focusTimeout = window.setTimeout(() => {
+      imageUrlInputRef.current?.focus();
+    }, 0);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setIsImageModalOpen(false);
+      resetImageModalState();
+      requestAnimationFrame(() => {
+        editorRef.current?.focus();
+      });
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.clearTimeout(focusTimeout);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isImageModalOpen]);
+
+  const imageModal =
+    isImageModalOpen && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-950/70 px-4 py-4 backdrop-blur-[3px] sm:py-6"
+            onClick={closeImageModal}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={imageDialogTitleId}
+              className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white text-left shadow-[0_32px_90px_-28px_rgba(15,23,42,0.58)]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                aria-label="Cerrar modal de imagen"
+                className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                onClick={closeImageModal}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              <div className="border-b border-slate-200 bg-gradient-to-br from-mulberry/7 via-white to-primary/10 px-5 py-5 sm:px-6">
+                <h4 id={imageDialogTitleId} className="pr-12 text-lg font-semibold text-slate-900">
+                  Insertar imagen
+                </h4>
+              </div>
+
+              <div className="px-5 py-5 sm:px-6 sm:py-6">
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor={imageUrlFieldId} className="mb-2 block text-sm font-semibold text-slate-800">
+                      URL de la imagen
+                    </label>
+                    <input
+                      ref={imageUrlInputRef}
+                      id={imageUrlFieldId}
+                      type="url"
+                      inputMode="url"
+                      value={imageUrl}
+                      onChange={(event) => setImageUrl(event.target.value)}
+                      onBlur={() => setHasTouchedImageUrl(true)}
+                      placeholder="https://ejemplo.com/banner-del-correo.jpg"
+                      className={[
+                        'peloteras-form-control h-11',
+                        showImageUrlError ? 'peloteras-form-control--error' : '',
+                      ].join(' ')}
+                    />
+                    {showImageUrlError ? (
+                      <p className="mt-2 text-xs text-rose-700">
+                        Pega una URL publica valida que empiece con `http://` o `https://`.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label htmlFor={imageAltFieldId} className="mb-2 block text-sm font-semibold text-slate-800">
+                      Texto alternativo
+                    </label>
+                    <input
+                      id={imageAltFieldId}
+                      type="text"
+                      value={imageAlt}
+                      onChange={(event) => setImageAlt(event.target.value)}
+                      className="peloteras-form-control h-11"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={closeImageModal}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!normalizedImageUrl}
+                      onClick={insertImage}
+                      className={[
+                        'inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-semibold text-white transition',
+                        normalizedImageUrl
+                          ? 'bg-mulberry hover:bg-mulberry/90'
+                          : 'cursor-not-allowed bg-slate-400',
+                      ].join(' ')}
+                    >
+                      Insertar imagen
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
     <div>
@@ -525,7 +782,8 @@ export default function UsersRichTextEditor({ id, textName, htmlName, defaultVal
         <ToolbarButton label="Negrita" onClick={() => runCommand('bold')} />
         <ToolbarButton label="Cursiva" onClick={() => runCommand('italic')} />
         <ToolbarButton label="Subrayado" onClick={() => runCommand('underline')} />
-        <ToolbarButton label="Imagen" onClick={insertImage} />
+        <ToolbarButton label="Enlace" onClick={insertLink} />
+        <ToolbarButton label="Imagen" onClick={openImageModal} />
         <ToolbarButton label="Lista" onClick={() => runCommand('insertUnorderedList')} />
         <ToolbarButton label="Numerada" onClick={() => runCommand('insertOrderedList')} />
         <ToolbarButton label="Sangría" onClick={() => runCommand('indent')} />
@@ -538,12 +796,23 @@ export default function UsersRichTextEditor({ id, textName, htmlName, defaultVal
         ref={editorRef}
         contentEditable
         suppressContentEditableWarning
-        onInput={syncHiddenFields}
+        onInput={() => {
+          syncHiddenFields();
+          storeCurrentSelection();
+        }}
+        onMouseUp={storeCurrentSelection}
         onBlur={syncHiddenFields}
         onPaste={() => {
-          requestAnimationFrame(syncHiddenFields);
+          requestAnimationFrame(() => {
+            syncHiddenFields();
+            storeCurrentSelection();
+          });
         }}
-        onKeyUp={syncHiddenFields}
+        onFocus={storeCurrentSelection}
+        onKeyUp={() => {
+          syncHiddenFields();
+          storeCurrentSelection();
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Tab') {
             event.preventDefault();
@@ -560,6 +829,8 @@ export default function UsersRichTextEditor({ id, textName, htmlName, defaultVal
         Puedes pegar contenido con formato desde Docs o Word. Se respetan negritas, listas, enlaces, imágenes por
         URL y sangrías básicas en el correo.
       </p>
+
+      {imageModal}
     </div>
   );
 }

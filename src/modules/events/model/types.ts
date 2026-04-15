@@ -7,6 +7,7 @@ export type EventEntity = {
   id: string;
   title: string;
   description: string;
+  descriptionHtml?: string;
   dateLabel: string;
   startTime: string | null;
   endTime: string | null;

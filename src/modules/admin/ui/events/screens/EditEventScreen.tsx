@@ -11,6 +11,10 @@ import { getDefaultEventAnnouncementEmail } from '@modules/admin/api/events/serv
 import { getApprovedParticipantsByEventId } from '@modules/admin/api/events/services/eventParticipants.service';
 import { parseStoredBoolean } from '@modules/admin/model/eventPublishReadiness';
 import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
+import {
+  extractEventDescriptionHtml,
+  extractEventDescriptionText,
+} from '@shared/lib/eventDescription';
 
 export default async function EditEventScreen({ id }: { id: string }) {
   const supabase = await getServerSupabase();
@@ -123,8 +127,8 @@ export default async function EditEventScreen({ id }: { id: string }) {
         paymentMethods={paymentMethods}
         initial={{
           title: event.title,
-          description:
-            typeof event.description === 'object' ? event.description?.description : event.description,
+          description: extractEventDescriptionText(event.description),
+          descriptionHtml: extractEventDescriptionHtml(event.description),
           startTime: toDateTimeLocalInTimeZone(event.start_time),
           endTime: toDateTimeLocalInTimeZone(event.end_time),
           price: event.price,

@@ -25,7 +25,12 @@ import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import EventShareModal from './EventShareModal';
 import { trackEvent } from '@shared/lib/analytics';
+import {
+  extractEventDescriptionHtml,
+  extractEventDescriptionText,
+} from '@shared/lib/eventDescription';
 import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
+import RichTextContent from '@shared/ui/RichTextContent';
 
 import arrowAnotarse from '@core/assets/images/arrow-anotarse.svg';
 import Calendar from '@core/assets/images/calendar.png';
@@ -35,6 +40,7 @@ type Props = {
 };
 
 const DEFAULT_TIMEZONE = 'America/Lima';
+const DESCRIPTION_PREVIEW_CHAR_LIMIT = 220;
 
 function resolvePublicOrigin() {
   if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin;
@@ -127,10 +133,14 @@ export default function EventDetailsClient({ data }: Props) {
   const extras = extractExtraNames(post, event);
 
   const eventTitle = toText(event?.title ?? event?.description?.title, 'Evento sin título');
-  const eventDescription =
-    typeof event?.description === 'string'
-      ? toText(event.description, 'Sin descripción registrada.')
-      : toText(event?.description?.description, 'Sin descripción registrada.');
+  const eventDescription = toText(
+    extractEventDescriptionText(event?.description),
+    'Sin descripción registrada.'
+  );
+  const eventDescriptionHtml = toText(extractEventDescriptionHtml(event?.description));
+  const shouldTruncateDescriptionPreview =
+    eventDescription.replace(/\s+/g, ' ').trim().length > DESCRIPTION_PREVIEW_CHAR_LIMIT;
+  const fullDescriptionSectionId = 'event-description-full';
 
   const organizer = toText(event?.created_by ?? event?.createdBy, 'Peloteras');
   const placeText = toText(extractEventPlaceText(event));
@@ -392,7 +402,35 @@ export default function EventDetailsClient({ data }: Props) {
                 </StatusBadge>
               )}
             </div>
-            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-600">{eventDescription}</p>
+            <div className="mt-3">
+              <div className={shouldTruncateDescriptionPreview ? 'relative overflow-hidden max-h-[170px]' : ''}>
+                <RichTextContent
+                  html={eventDescriptionHtml}
+                  text={eventDescription}
+                  emptyText="Sin descripción registrada."
+                  className="text-sm leading-6 text-slate-600"
+                />
+                {shouldTruncateDescriptionPreview ? (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/90 to-transparent" />
+                ) : null}
+              </div>
+              {shouldTruncateDescriptionPreview ? (
+                <div className="mt-3">
+                  <a
+                    href={`#${fullDescriptionSectionId}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      const target = document.getElementById(fullDescriptionSectionId);
+                      if (!target) return;
+                      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="inline-flex items-center text-sm font-semibold text-mulberry transition hover:underline"
+                  >
+                    Ver más
+                  </a>
+                </div>
+              ) : null}
+            </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Fecha</p>
@@ -450,35 +488,48 @@ export default function EventDetailsClient({ data }: Props) {
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-                <h3 className="mb-3 text-xl font-bold text-slate-900">
-                  Participantes ({assistants.length})
-                </h3>
-                {assistants.length ? (
-                  <ul className="grid gap-2 sm:grid-cols-2">
-                    {assistants.map((assistant) => (
-                      <li
-                        key={assistant.id}
-                        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
-                      >
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#54086F] text-xs font-semibold text-white">
-                          {assistant.initials}
-                        </span>
-                        <span className="text-sm text-slate-800">{assistant.name}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-slate-600">Aún no hay participantes confirmados.</p>
-                )}
+                <Collapse
+                  title={`Participantes (${assistants.length})`}
+                  content={
+                    assistants.length ? (
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {assistants.map((assistant) => (
+                          <li
+                            key={assistant.id}
+                            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                          >
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#54086F] text-xs font-semibold text-white">
+                              {assistant.initials}
+                            </span>
+                            <span className="text-sm text-slate-800">{assistant.name}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-slate-600">Aún no hay participantes confirmados.</p>
+                    )
+                  }
+                  defaultOpen
+                />
               </section>
             </>
           )}
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+          <section
+            id={fullDescriptionSectionId}
+            className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"
+          >
             <div className="space-y-4">
               <Collapse
                 title="Descripción"
-                content={<p className="whitespace-pre-line leading-6">{eventDescription}</p>}
+                content={
+                  <RichTextContent
+                    html={eventDescriptionHtml}
+                    text={eventDescription}
+                    emptyText="Sin descripción registrada."
+                    className="leading-6 text-slate-700"
+                  />
+                }
                 defaultOpen
               />
               <Collapse
