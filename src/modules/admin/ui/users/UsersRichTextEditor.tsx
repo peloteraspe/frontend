@@ -10,6 +10,8 @@ type Props = {
   htmlName: string;
   defaultValue: string;
   defaultHtml?: string;
+  ariaLabel?: string;
+  ariaLabelledBy?: string;
   resetKey?: string | number;
   onChange?: (content: SerializedContent) => void;
 };
@@ -490,6 +492,8 @@ export default function UsersRichTextEditor({
   htmlName,
   defaultValue,
   defaultHtml,
+  ariaLabel,
+  ariaLabelledBy,
   resetKey,
   onChange,
 }: Props) {
@@ -794,6 +798,10 @@ export default function UsersRichTextEditor({
       <div
         id={id}
         ref={editorRef}
+        role="textbox"
+        aria-multiline="true"
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         contentEditable
         suppressContentEditableWarning
         onInput={() => {

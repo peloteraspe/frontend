@@ -1769,12 +1769,18 @@ const EventForm = ({
                 tone="soft"
               />
 
-              <label className="w-full">
-                <div className="mb-1 text-sm font-semibold text-slate-700">Descripción</div>
+              <div className="w-full">
+                <div
+                  id="event-description-label"
+                  className="mb-1 text-sm font-semibold text-slate-700"
+                >
+                  Descripción
+                </div>
                 <UsersRichTextEditor
                   id="event-description"
                   textName="description"
                   htmlName="descriptionHtml"
+                  ariaLabelledBy="event-description-label"
                   defaultValue={eventDescription}
                   defaultHtml={eventDescriptionHtml}
                   resetKey={descriptionEditorResetKey}
@@ -1786,7 +1792,7 @@ const EventForm = ({
                 <p className="mt-2 text-xs text-slate-500">
                   Usa formato enriquecido para destacar detalles, listas y enlaces del evento.
                 </p>
-              </label>
+              </div>
 
               <div className="pt-2">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
