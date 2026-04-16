@@ -19,6 +19,12 @@ type FormValues = {
   operationNumber: string;
 };
 
+type AppliedCoupon = {
+  couponId: number;
+  code: string;
+  discountAmount: number;
+};
+
 const PAYMENT_CONFIRM_TIMEOUT_MS = 12000;
 const OPERATION_NUMBER_REGEX = /^\d{8}$/;
 
@@ -60,6 +66,16 @@ const PaymentStepper = (props: any) => {
   const price = Number(post?.price ?? 0);
   const formattedPrice = Number.isFinite(price) ? price.toFixed(2) : '0.00';
 
+  // ── Coupon state ──
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+
+  const discountAmount = appliedCoupon?.discountAmount ?? 0;
+  const totalAfterDiscount = Math.max(price - discountAmount, 0);
+  const formattedDiscount = discountAmount > 0 ? discountAmount.toFixed(2) : '0.00';
+  const formattedTotal = totalAfterDiscount.toFixed(2);
+  const isFullyCoveredByCoupon = appliedCoupon !== null && totalAfterDiscount <= 0;
+
   const {
     register,
     handleSubmit,
@@ -92,9 +108,53 @@ const PaymentStepper = (props: any) => {
     }
   }, [paymentMethods, selectedPaymentMethod, selectedPaymentMethodId]);
 
-  const handleApplyPromCode = (_data: FormValues) => {
-    // Aquí podrías validar el cupón via API. Por ahora, forzamos error de ejemplo:
-    setError('promCode', { type: 'manual', message: 'Código inválido o expirado' });
+  const handleApplyPromCode = async (_data: FormValues) => {
+    const code = getValues('promCode')?.trim();
+    if (!code) {
+      setError('promCode', { type: 'manual', message: 'Ingresa un código de cupón.' });
+      return;
+    }
+
+    setCouponLoading(true);
+    clearErrors('promCode');
+
+    try {
+      const response = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, eventId: post.id }),
+      });
+
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError('promCode', {
+          type: 'manual',
+          message: String(body?.error || 'Código inválido o expirado'),
+        });
+        setAppliedCoupon(null);
+        return;
+      }
+
+      if (body?.valid) {
+        setAppliedCoupon({
+          couponId: body.couponId,
+          code: body.code,
+          discountAmount: Number(body.discountAmount),
+        });
+        toast.success(`Cupón ${body.code} aplicado.`);
+        clearErrors('promCode');
+      }
+    } catch {
+      setError('promCode', { type: 'manual', message: 'No se pudo validar el cupón. Intenta de nuevo.' });
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    clearErrors('promCode');
   };
 
   async function handleCopyPaymentNumber() {
@@ -136,6 +196,71 @@ const PaymentStepper = (props: any) => {
       .finally(() => {
         clearTimeout(timeout);
       });
+  };
+
+  /** Confirm payment with coupon (free registration) */
+  const handleCouponFreeRegistration = async () => {
+    if (!currentUserId) {
+      toast.error('Inicia sesión para completar la inscripción.');
+      router.push(
+        `/login?message=Inicia sesion para completar la inscripcion&next=${encodeURIComponent(
+          `/payments/${post.id}`
+        )}`
+      );
+      return;
+    }
+
+    if (!isEmailConfirmed) {
+      toast.error('Verifica tu identidad para completar la inscripcion.');
+      return;
+    }
+
+    setLoading(true);
+    setCurrentStep(3);
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), PAYMENT_CONFIRM_TIMEOUT_MS);
+
+      const response = await fetch('/api/payments/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: post.id,
+          couponCode: appliedCoupon?.code,
+        }),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout));
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const message = String(body?.error || '').trim() || 'No pudimos completar tu inscripción.';
+        toast.error(message);
+
+        if (
+          String(body?.code || '').trim() === 'ALREADY_REGISTERED' ||
+          String(body?.code || '').trim() === 'PAYMENT_PENDING_REVIEW'
+        ) {
+          router.replace(`/events/${post.id}`);
+          return;
+        }
+
+        setCurrentStep(1);
+        return;
+      }
+
+      const body = await response.json().catch(() => ({}));
+      const assistantId = Number(body?.assistantId);
+
+      if (Number.isFinite(assistantId) && assistantId > 0) {
+        issueTicketInBackground(assistantId);
+      }
+    } catch (error) {
+      toast.error('Error al procesar la inscripción. Intenta de nuevo.');
+      setCurrentStep(1);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePaymentConfirmation = async () => {
@@ -192,6 +317,7 @@ const PaymentStepper = (props: any) => {
         body: JSON.stringify({
           eventId: post.id,
           operationNumber: op,
+          couponCode: appliedCoupon?.code || undefined,
         }),
         signal: controller.signal,
       }).finally(() => {
@@ -324,58 +450,12 @@ const PaymentStepper = (props: any) => {
       case 1:
         return (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-              <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Paga ahora</h1>
-              <p className="mt-2 text-sm text-slate-600 sm:text-base">
-                Completa el pago para reservar tu cupo en el evento.
-              </p>
-
-              {paymentMethods.length > 1 ? (
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Elige método de pago
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {paymentMethods.map((method) => {
-                      const methodId = Number(method?.id);
-                      const methodLabel = getPaymentMethodLabel(method?.type);
-                      const isActive =
-                        Number.isFinite(methodId) && methodId > 0 && methodId === selectedPaymentMethodId;
-
-                      return (
-                        <button
-                          key={String(method?.id || methodLabel)}
-                          type="button"
-                          onClick={() => {
-                            if (Number.isFinite(methodId) && methodId > 0) {
-                              setSelectedPaymentMethodId(methodId);
-                            }
-                          }}
-                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                            isActive
-                              ? 'border-mulberry bg-mulberry text-white'
-                              : 'border-slate-300 bg-white text-slate-700'
-                          }`}
-                        >
-                          {methodLabel}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-
-              <ol className="mt-5 space-y-3 text-sm text-slate-700 sm:text-base">
-                <li>
-                  1. Escanea el código QR o realiza el pago usando <strong>{paymentMethodLabel}</strong>.
-                </li>
-                <li>2. Guarda el número de operación de 8 dígitos.</li>
-                <li>3. Regresa aquí para confirmar tu pago.</li>
-              </ol>
-
-              <div className="mt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Número para pagar
+            {/* ── Left: Payment instructions (hidden if fully covered by coupon) ── */}
+            {!isFullyCoveredByCoupon && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Paga ahora</h1>
+                <p className="mt-2 text-sm text-slate-600 sm:text-base">
+                  Completa el pago para reservar tu cupo en el evento.
                 </p>
                 <div className="relative mt-1">
                   <input
@@ -395,74 +475,179 @@ const PaymentStepper = (props: any) => {
                     <ClipboardDocumentIcon className="h-5 w-5" />
                   </button>
                 </div>
-              </div>
 
-              <button
-                type="button"
-                className="mt-4 text-sm font-semibold text-sky-600 hover:underline"
-                onClick={() => setShowModal(true)}
-              >
-                ¿Dónde encuentro mi número de operación?
-              </button>
+                {paymentMethods.length > 1 ? (
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Elige método de pago
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {paymentMethods.map((method) => {
+                        const methodId = Number(method?.id);
+                        const methodLabel = getPaymentMethodLabel(method?.type);
+                        const isActive =
+                          Number.isFinite(methodId) && methodId > 0 && methodId === selectedPaymentMethodId;
 
-              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                {paymentQr ? (
-                  <div className="mx-auto flex w-full max-w-[320px] items-center justify-center rounded-xl border border-slate-200 bg-white p-4">
-                    <img
-                      className="block h-auto max-h-[320px] w-full object-contain"
-                      src={paymentQr}
-                      alt={`QR de pago ${paymentMethodLabel}`}
-                      width={320}
-                      height={320}
-                    />
+                        return (
+                          <button
+                            key={String(method?.id || methodLabel)}
+                            type="button"
+                            onClick={() => {
+                              if (Number.isFinite(methodId) && methodId > 0) {
+                                setSelectedPaymentMethodId(methodId);
+                              }
+                            }}
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                              isActive
+                                ? 'border-mulberry bg-mulberry text-white'
+                                : 'border-slate-300 bg-white text-slate-700'
+                            }`}
+                          >
+                            {methodLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-sm text-slate-500">QR no disponible por el momento.</p>
-                )}
-              </div>
-            </section>
+                ) : null}
 
-            <aside className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <ol className="mt-5 space-y-3 text-sm text-slate-700 sm:text-base">
+                  <li>
+                    1. Escanea el código QR o realiza el pago usando <strong>{paymentMethodLabel}</strong>.
+                  </li>
+                  <li>2. Guarda el número de operación de 8 dígitos.</li>
+                  <li>3. Regresa aquí para confirmar tu pago.</li>
+                </ol>
+
+                <div className="mt-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Número para pagar
+                  </p>
+                  <div className="relative mt-1">
+                    <input
+                      type="text"
+                      readOnly
+                      value={paymentNumberText || 'No disponible'}
+                      className="h-11 w-full rounded-xl border-2 border-mulberry bg-white px-3 pr-12 text-sm text-slate-700 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyPaymentNumber}
+                      disabled={!paymentNumberText}
+                      className="absolute inset-y-0 right-1 my-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-mulberry transition hover:bg-mulberry hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Copiar número de pago"
+                      title="Copiar número de pago"
+                    >
+                      <ClipboardDocumentIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="mt-4 text-sm font-semibold text-sky-600 hover:underline"
+                  onClick={() => setShowModal(true)}
+                >
+                  ¿Dónde encuentro mi número de operación?
+                </button>
+
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  {paymentQr ? (
+                    <div className="mx-auto flex w-full max-w-[320px] items-center justify-center rounded-xl border border-slate-200 bg-white p-4">
+                      <img
+                        className="block h-auto max-h-[320px] w-full object-contain"
+                        src={paymentQr}
+                        alt={`QR de pago ${paymentMethodLabel}`}
+                        width={320}
+                        height={320}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">QR no disponible por el momento.</p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* ── Right (or full-width): Booking summary ── */}
+            <aside
+              className={[
+                'flex flex-col rounded-2xl border border-slate-200 bg-white p-5 sm:p-6',
+                isFullyCoveredByCoupon ? 'lg:col-span-2 mx-auto max-w-lg w-full' : '',
+              ].join(' ')}
+            >
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Resumen de reserva</h2>
                 <p className="mt-1 text-sm text-slate-600">{eventTitle}</p>
               </div>
 
-              <form
-                className="mt-5 flex flex-col gap-3 sm:flex-row"
-                onSubmit={handleSubmit(handleApplyPromCode)}
-                noValidate
-              >
-                <Input
-                  label="Código promocional"
-                  placeholder="Ingresa tu código"
-                  {...register('promCode')}
-                  errorText={errors.promCode?.message as string | undefined}
-                  bgColor="bg-white"
-                />
-                <div className="sm:w-40 sm:pt-7">
-                  <ButtonWrapper type="submit" width="full">
-                    Aplicar
-                  </ButtonWrapper>
+              {/* ── Coupon form ── */}
+              {!appliedCoupon ? (
+                <form
+                  className="mt-5 flex flex-col gap-3 sm:flex-row"
+                  onSubmit={handleSubmit(handleApplyPromCode)}
+                  noValidate
+                >
+                  <Input
+                    label="Código promocional"
+                    placeholder="Ingresa tu código"
+                    {...register('promCode')}
+                    errorText={errors.promCode?.message as string | undefined}
+                    bgColor="bg-white"
+                  />
+                  <div className="sm:w-40 sm:pt-7">
+                    <ButtonWrapper type="submit" width="full" disabled={couponLoading}>
+                      {couponLoading ? 'Validando...' : 'Aplicar'}
+                    </ButtonWrapper>
+                  </div>
+                </form>
+              ) : (
+                <div className="mt-5 flex items-center justify-between rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-green-800">
+                      Cupón {appliedCoupon.code} aplicado
+                    </p>
+                    <p className="text-xs text-green-600">Descuento: S/. {formattedDiscount}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="text-xs font-semibold text-red-600 hover:underline"
+                  >
+                    Quitar
+                  </button>
                 </div>
-              </form>
+              )}
 
+              {/* ── Price breakdown ── */}
               <div className="mt-6 space-y-3 text-sm text-slate-700">
                 <div className="flex items-center justify-between">
                   <p>Entrada</p>
                   <span className="text-lg font-bold text-[#54086F]">S/. {formattedPrice}</span>
                 </div>
+                {appliedCoupon && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-green-700">Cupón {appliedCoupon.code}</p>
+                    <span className="text-lg font-bold text-green-700">- S/. {formattedDiscount}</span>
+                  </div>
+                )}
                 <div className="h-px bg-slate-200" />
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">Total</p>
-                  <span className="text-xl font-bold text-[#54086F]">S/. {formattedPrice}</span>
+                  <span className="text-xl font-bold text-[#54086F]">S/. {formattedTotal}</span>
                 </div>
               </div>
 
               <div className="mt-6">
-                <ButtonWrapper type="button" onClick={() => setCurrentStep(2)} width="full">
-                  Ya realicé el pago
-                </ButtonWrapper>
+                {isFullyCoveredByCoupon ? (
+                  <ButtonWrapper type="button" onClick={handleCouponFreeRegistration} width="full">
+                    Enviar solicitud con cupón
+                  </ButtonWrapper>
+                ) : (
+                  <ButtonWrapper type="button" onClick={() => setCurrentStep(2)} width="full">
+                    Ya realicé el pago
+                  </ButtonWrapper>
+                )}
               </div>
             </aside>
           </div>
@@ -475,6 +660,15 @@ const PaymentStepper = (props: any) => {
             <p className="mt-2 text-sm text-slate-600 sm:text-base">
               Ingresa tu número de operación de {paymentMethodLabel} para validar el pago.
             </p>
+
+            {appliedCoupon && (
+              <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-4 py-2">
+                <p className="text-sm text-green-800">
+                  Cupón {appliedCoupon.code} aplicado: <strong>- S/. {formattedDiscount}</strong>.
+                  Paga solo <strong>S/. {formattedTotal}</strong>.
+                </p>
+              </div>
+            )}
 
             <form className="mt-5" onSubmit={handleSubmit(handlePaymentConfirmation)} noValidate>
               <Input
@@ -540,11 +734,21 @@ const PaymentStepper = (props: any) => {
             <div className="mx-auto mb-3 h-10 w-10">
               <Image src={soccerBall} alt="balón" width={40} height={40} />
             </div>
-            <h2 className="text-xl font-bold text-slate-900">¡Ya estás registrada!</h2>
-            <p className="mt-3 text-sm text-slate-600">
-              La reserva se completará después de validar el comprobante de pago. Si no coincide,
-              se cancelará la reserva.
-            </p>
+            <h2 className="text-xl font-bold text-slate-900">
+              {appliedCoupon ? 'Tu solicitud fue enviada' : '¡Ya estás registrada!'}
+            </h2>
+            {appliedCoupon ? (
+              <p className="mt-3 text-sm text-slate-600">
+                Registramos tu cupón <strong>{appliedCoupon.code}</strong>
+                {totalAfterDiscount > 0 ? ' junto con tu pago.' : '.'} Tu cupo quedará confirmado cuando la
+                organizadora valide la recepción completa del abono.
+              </p>
+            ) : (
+              <p className="mt-3 text-sm text-slate-600">
+                La reserva se completará después de validar el comprobante de pago. Si no coincide,
+                se cancelará la reserva.
+              </p>
+            )}
 
             <div className="mt-6 flex flex-col gap-3">
               <ButtonWrapper

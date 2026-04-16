@@ -2,7 +2,7 @@ import 'server-only';
 
 import { log } from '@core/lib/logger';
 
-export type PaymentEmailStatus = 'pending' | 'approved' | 'rejected';
+export type PaymentEmailStatus = 'pending' | 'approved' | 'rejected' | 'coupon_pending';
 
 type PaymentEmailDetail = {
   label: string;
@@ -31,6 +31,38 @@ type SendAdminPaymentPendingReviewEmailInput = {
   participantName?: string | null;
   participantEmail?: string | null;
   operationNumber?: string | null;
+  couponCode?: string | null;
+  couponDiscount?: number | null;
+  requiresPeloterasRequest?: boolean;
+};
+
+type SendCouponReimbursementRequestEmailInput = {
+  toEmail: string;
+  toName?: string | null;
+  baseUrl?: string | null;
+  eventId?: number | null;
+  eventTitle?: string | null;
+  eventStartTime?: string | null;
+  eventLocation?: string | null;
+  participantName?: string | null;
+  participantEmail?: string | null;
+  organizerName?: string | null;
+  couponCode?: string | null;
+  discountAmount?: number | null;
+};
+
+type SendOrganizerCouponTransferSentEmailInput = {
+  toEmail: string;
+  toName?: string | null;
+  baseUrl?: string | null;
+  eventId?: number | null;
+  eventTitle?: string | null;
+  eventStartTime?: string | null;
+  eventLocation?: string | null;
+  participantName?: string | null;
+  participantEmail?: string | null;
+  couponCode?: string | null;
+  discountAmount?: number | null;
 };
 
 const DEFAULT_TZ = 'America/Lima';
@@ -64,9 +96,23 @@ function trimTrailingSlash(value: string) {
   return value.endsWith('/') ? value.slice(0, -1) : value;
 }
 
+function formatMoney(value: number | null | undefined) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount) || amount <= 0) return '0.00';
+  return amount.toFixed(2);
+}
+
 function resolveBaseUrl(preferred?: string | null) {
   const configured = normalizeUrl(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL, DEFAULT_SITE_URL);
   return trimTrailingSlash(normalizeUrl(preferred, configured));
+}
+
+function resolveSupportEmail() {
+  return String(
+    process.env.COUPON_REIMBURSEMENTS_EMAIL ||
+      process.env.NEXT_PUBLIC_SUPPORT_EMAIL ||
+      DEFAULT_SUPPORT_EMAIL
+  ).trim();
 }
 
 function formatEventDate(startTime: string | null | undefined) {
@@ -113,6 +159,16 @@ function resolveCopy(status: PaymentEmailStatus) {
     };
   }
 
+  if (status === 'coupon_pending') {
+    return {
+      subjectPrefix: 'Solicitud con cupón recibida',
+      title: 'Solicitud con cupón en revisión',
+      message:
+        'Registramos tu cupón y validaremos tu cupo cuando el organizador confirme la recepción completa del abono.',
+      ctaText: 'Ver estado de mi entrada',
+    };
+  }
+
   return {
     subjectPrefix: 'Registro recibido',
     title: 'Ya estás registrada',
@@ -126,8 +182,20 @@ function buildSubject(status: PaymentEmailStatus, eventTitle: string) {
   return `[Peloteras] ${copy.subjectPrefix} - ${eventTitle}`;
 }
 
-function buildAdminPendingReviewSubject(eventTitle: string) {
+function buildAdminPendingReviewSubject(eventTitle: string, hasCouponOnly: boolean) {
+  if (hasCouponOnly) {
+    return `[Peloteras] Solicitud con cupón pendiente - ${eventTitle}`;
+  }
+
   return `[Peloteras] Pago pendiente de revisión - ${eventTitle}`;
+}
+
+function buildCouponReimbursementRequestSubject(eventTitle: string) {
+  return `[Peloteras] Solicitud de abono por cupón - ${eventTitle}`;
+}
+
+function buildCouponTransferSentSubject(eventTitle: string) {
+  return `[Peloteras] Abono enviado por cupón - ${eventTitle}`;
 }
 
 function buildDetailsHtml(details: PaymentEmailDetail[] | undefined) {
@@ -461,7 +529,7 @@ export async function sendPaymentStatusEmail(input: SendPaymentStatusEmailInput)
   const homeUrl = baseUrl;
   const instagramUrl = normalizeUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, DEFAULT_INSTAGRAM_URL);
   const tiktokUrl = normalizeUrl(process.env.NEXT_PUBLIC_TIKTOK_URL, DEFAULT_TIKTOK_URL);
-  const supportEmail = String(process.env.NEXT_PUBLIC_SUPPORT_EMAIL || DEFAULT_SUPPORT_EMAIL).trim();
+  const supportEmail = resolveSupportEmail();
 
   const eventTitle = String(input.eventTitle || '').trim() || 'Tu pichanga';
   const eventDate = formatEventDate(input.eventStartTime);
@@ -512,21 +580,40 @@ export async function sendAdminPaymentPendingReviewEmail(input: SendAdminPayment
   const participantName = String(input.participantName || '').trim();
   const participantEmail = String(input.participantEmail || '').trim();
   const operationNumber = String(input.operationNumber || '').trim();
+  const couponCode = String(input.couponCode || '').trim();
+  const couponDiscount = Number(input.couponDiscount ?? 0);
+  const hasCoupon = couponCode.length > 0 && couponDiscount > 0;
   const eventId = Number(input.eventId);
   const reviewUrl = Number.isInteger(eventId) && eventId > 0
     ? `${baseUrl}/admin/payments?event=${eventId}&state=pending`
     : `${baseUrl}/admin/payments?state=pending`;
+  const hasCouponOnly = hasCoupon && !operationNumber;
+  const title = hasCouponOnly ? 'Solicitud con cupón pendiente' : 'Pago pendiente de revisión';
 
-  const title = 'Pago pendiente de revisión';
-  const message = participantName
+  let message = participantName
     ? `${participantName} registró un pago en tu evento. Revisa el número de operación y apruébalo si corresponde.`
     : 'Una jugadora registró un pago en tu evento. Revisa el número de operación y apruébalo si corresponde.';
-  const subject = buildAdminPendingReviewSubject(eventTitle);
+
+  if (hasCoupon && operationNumber) {
+    message = participantName
+      ? `${participantName} registró un pago con cupón en tu evento. Valida el comprobante y luego solicita a Peloteras el abono restante.`
+      : 'Una jugadora registró un pago con cupón en tu evento. Valida el comprobante y luego solicita a Peloteras el abono restante.';
+  }
+
+  if (hasCouponOnly) {
+    message = participantName
+      ? `${participantName} se inscribió usando un cupón. Solicita a Peloteras el abono para que luego puedas aprobar su cupo.`
+      : 'Una jugadora se inscribió usando un cupón. Solicita a Peloteras el abono para que luego puedas aprobar su cupo.';
+  }
+
+  const subject = buildAdminPendingReviewSubject(eventTitle, hasCouponOnly);
   const details: PaymentEmailDetail[] = [
     { label: 'Evento', value: eventTitle },
     ...(participantName ? [{ label: 'Jugadora', value: participantName }] : []),
     ...(participantEmail ? [{ label: 'Correo', value: participantEmail }] : []),
     ...(operationNumber ? [{ label: 'Número de operación', value: operationNumber }] : []),
+    ...(hasCoupon ? [{ label: 'Cupón', value: couponCode }] : []),
+    ...(hasCoupon ? [{ label: 'Monto a cubrir por Peloteras', value: `S/. ${formatMoney(couponDiscount)}` }] : []),
   ];
 
   const html = buildEmailHtml({
@@ -537,13 +624,15 @@ export async function sendAdminPaymentPendingReviewEmail(input: SendAdminPayment
     eventLocation,
     title,
     message,
-    ctaText: 'Revisar pagos pendientes',
+    ctaText: hasCoupon ? 'Revisar pago y solicitar abono' : 'Revisar pagos pendientes',
     ctaUrl: reviewUrl,
     homeUrl,
     instagramUrl,
     tiktokUrl,
     details,
-    closingText: 'Tienes una inscripción pendiente por revisar',
+    closingText: hasCoupon
+      ? 'Tienes una inscripción con cupón pendiente por gestionar'
+      : 'Tienes una inscripción pendiente por revisar',
   });
 
   return sendPaymentEmail({
@@ -552,6 +641,127 @@ export async function sendAdminPaymentPendingReviewEmail(input: SendAdminPayment
     html,
     logContext: {
       emailType: 'admin_payment_pending_review',
+      eventId: Number.isInteger(eventId) && eventId > 0 ? eventId : null,
+    },
+  });
+}
+
+export async function sendCouponReimbursementRequestEmail(
+  input: SendCouponReimbursementRequestEmailInput
+) {
+  const baseUrl = resolveBaseUrl(input.baseUrl);
+  const homeUrl = baseUrl;
+  const instagramUrl = normalizeUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, DEFAULT_INSTAGRAM_URL);
+  const tiktokUrl = normalizeUrl(process.env.NEXT_PUBLIC_TIKTOK_URL, DEFAULT_TIKTOK_URL);
+  const eventTitle = String(input.eventTitle || '').trim() || 'Tu pichanga';
+  const eventDate = formatEventDate(input.eventStartTime);
+  const eventTime = formatEventTime(input.eventStartTime);
+  const eventLocation = String(input.eventLocation || '').trim() || 'Por confirmar';
+  const name = String(input.toName || '').trim() || 'equipo Peloteras';
+  const participantName = String(input.participantName || '').trim();
+  const participantEmail = String(input.participantEmail || '').trim();
+  const organizerName = String(input.organizerName || '').trim();
+  const couponCode = String(input.couponCode || '').trim();
+  const discountAmount = Number(input.discountAmount ?? 0);
+  const eventId = Number(input.eventId);
+  const reviewUrl = Number.isInteger(eventId) && eventId > 0
+    ? `${baseUrl}/admin/payments?event=${eventId}&state=reimbursements`
+    : `${baseUrl}/admin/payments?state=reimbursements`;
+
+  const subject = buildCouponReimbursementRequestSubject(eventTitle);
+  const details: PaymentEmailDetail[] = [
+    ...(participantName ? [{ label: 'Jugadora', value: participantName }] : []),
+    ...(participantEmail ? [{ label: 'Correo', value: participantEmail }] : []),
+    ...(organizerName ? [{ label: 'Organizadora', value: organizerName }] : []),
+    ...(couponCode ? [{ label: 'Cupón', value: couponCode }] : []),
+    ...(discountAmount > 0
+      ? [{ label: 'Monto solicitado', value: `S/. ${formatMoney(discountAmount)}` }]
+      : []),
+  ];
+
+  const html = buildEmailHtml({
+    name,
+    eventTitle,
+    eventDate,
+    eventTime,
+    eventLocation,
+    title: 'Nueva solicitud de abono',
+    message:
+      'Una organizadora solicitó que Peloteras cubra el descuento aplicado con cupón. Revisa la cola de reembolsos y marca el abono cuando se haya enviado.',
+    ctaText: 'Abrir cola de reembolsos',
+    ctaUrl: reviewUrl,
+    homeUrl,
+    instagramUrl,
+    tiktokUrl,
+    details,
+    closingText: 'Hay una solicitud interna lista para procesar',
+  });
+
+  return sendPaymentEmail({
+    toEmail: input.toEmail,
+    subject,
+    html,
+    logContext: {
+      emailType: 'coupon_reimbursement_request',
+      eventId: Number.isInteger(eventId) && eventId > 0 ? eventId : null,
+    },
+  });
+}
+
+export async function sendOrganizerCouponTransferSentEmail(
+  input: SendOrganizerCouponTransferSentEmailInput
+) {
+  const baseUrl = resolveBaseUrl(input.baseUrl);
+  const homeUrl = baseUrl;
+  const instagramUrl = normalizeUrl(process.env.NEXT_PUBLIC_INSTAGRAM_URL, DEFAULT_INSTAGRAM_URL);
+  const tiktokUrl = normalizeUrl(process.env.NEXT_PUBLIC_TIKTOK_URL, DEFAULT_TIKTOK_URL);
+  const eventTitle = String(input.eventTitle || '').trim() || 'Tu pichanga';
+  const eventDate = formatEventDate(input.eventStartTime);
+  const eventTime = formatEventTime(input.eventStartTime);
+  const eventLocation = String(input.eventLocation || '').trim() || 'Por confirmar';
+  const name = String(input.toName || '').trim() || 'organizadora';
+  const participantName = String(input.participantName || '').trim();
+  const participantEmail = String(input.participantEmail || '').trim();
+  const couponCode = String(input.couponCode || '').trim();
+  const discountAmount = Number(input.discountAmount ?? 0);
+  const eventId = Number(input.eventId);
+  const reviewUrl = Number.isInteger(eventId) && eventId > 0
+    ? `${baseUrl}/admin/payments?event=${eventId}&state=pending`
+    : `${baseUrl}/admin/payments?state=pending`;
+  const subject = buildCouponTransferSentSubject(eventTitle);
+  const details: PaymentEmailDetail[] = [
+    ...(participantName ? [{ label: 'Jugadora', value: participantName }] : []),
+    ...(participantEmail ? [{ label: 'Correo', value: participantEmail }] : []),
+    ...(couponCode ? [{ label: 'Cupón', value: couponCode }] : []),
+    ...(discountAmount > 0
+      ? [{ label: 'Monto enviado', value: `S/. ${formatMoney(discountAmount)}` }]
+      : []),
+  ];
+
+  const html = buildEmailHtml({
+    name,
+    eventTitle,
+    eventDate,
+    eventTime,
+    eventLocation,
+    title: 'Abono enviado por Peloteras',
+    message:
+      'Peloteras ya envió el monto cubierto por el cupón. Ahora puedes confirmar la recepción completa y aprobar a la jugadora desde pagos.',
+    ctaText: 'Revisar pagos pendientes',
+    ctaUrl: reviewUrl,
+    homeUrl,
+    instagramUrl,
+    tiktokUrl,
+    details,
+    closingText: 'Tu inscripción con cupón ya está lista para aprobación final',
+  });
+
+  return sendPaymentEmail({
+    toEmail: input.toEmail,
+    subject,
+    html,
+    logContext: {
+      emailType: 'coupon_transfer_sent',
       eventId: Number.isInteger(eventId) && eventId > 0 ? eventId : null,
     },
   });
