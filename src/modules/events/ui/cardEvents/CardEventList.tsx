@@ -47,9 +47,16 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
   return (
     <div className="pb-8 md:pb-16">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-3xl font-bold font-inter">Partidos destacados</h2>
-          <p className="mt-1 text-sm text-slate-600">Explora los encuentros destacados por nuestro equipo.</p>
+        <div className="max-w-[39rem]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-mulberry/75">
+            Eventos destacados
+          </p>
+          <h2 className="mt-3 font-eastman-extrabold text-3xl leading-[1.02] text-slate-900 sm:text-4xl lg:text-[2.75rem]">
+            Pichangas y partidos listos para sumarte.
+          </h2>
+          <p className="mt-4 text-sm leading-7 text-slate-600 sm:text-base">
+            Explora pichangas, partidos y encuentros destacados publicados en Peloteras.
+          </p>
         </div>
         {showViewAll && (
           <Link

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@core/auth/AuthProvider';
 import { isAdmin as isAdminUser } from '@shared/lib/auth/isAdmin';
-import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+import UserImage from '@shared/ui/UserImage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 type NavItem = {
@@ -97,6 +97,22 @@ export default function BottomNavigation() {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const userIsAdmin = Boolean(user && isAdminUser(user as any));
+  const accountName = useMemo(() => {
+    const candidates = [
+      user?.username,
+      user?.user_metadata?.username,
+      user?.user_metadata?.full_name,
+      String(user?.email || '').split('@')[0],
+    ];
+
+    for (const candidate of candidates) {
+      const value = String(candidate || '').trim();
+      if (value) return value;
+    }
+
+    return 'Usuario';
+  }, [user]);
+  const accountEmail = useMemo(() => String(user?.email || '').trim() || 'Sin correo', [user?.email]);
 
   const hiddenRoutes = ['/login', '/signUp', '/onboarding', '/auth'];
   const shouldHide = hiddenRoutes.some((route) => pathname.startsWith(route));
@@ -226,16 +242,32 @@ export default function BottomNavigation() {
               ].join(' ')}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              aria-label="Opciones"
+              aria-label={`Cuenta de ${accountName}`}
             >
-              <Cog6ToothIcon className={['h-6 w-6 transition-transform', menuOpen ? 'rotate-45' : ''].join(' ')} />
-              <span className={['text-xs mt-1', menuOpen ? 'font-semibold' : 'font-medium'].join(' ')}>
-                Opciones
+              <span className={menuOpen ? 'rounded-full ring-2 ring-mulberry/20 ring-offset-2 ring-offset-white' : ''}>
+                <UserImage src={user.avatar_url} name={accountName} size={28} />
+              </span>
+              <span
+                className={[
+                  'mt-1 max-w-[72px] truncate text-xs',
+                  menuOpen ? 'font-semibold text-mulberry' : 'font-medium',
+                ].join(' ')}
+              >
+                Cuenta
               </span>
             </button>
 
             {menuOpen ? (
-              <div className="absolute bottom-[calc(100%+8px)] right-2 min-w-[190px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+              <div className="absolute bottom-[calc(100%+8px)] right-2 min-w-[240px] overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <UserImage src={user.avatar_url} name={accountName} size={40} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{accountName}</p>
+                      <p className="truncate text-xs text-slate-500">{accountEmail}</p>
+                    </div>
+                  </div>
+                </div>
                 {dropdownItems.map((item) =>
                   item.href ? (
                     <Link
