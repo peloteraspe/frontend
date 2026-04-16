@@ -5,6 +5,69 @@ import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import type { HomeAlly } from '@modules/home/ui/homeContent';
 
+const AUTO_SCROLL_INTERVAL_MS = 2600;
+const AUTO_SCROLL_RESUME_DELAY_MS = 4000;
+const EDGE_TOLERANCE_PX = 8;
+const LOOP_MULTIPLIER = 3;
+const LOOP_NORMALIZE_DELAY_MS = 140;
+
+function getScrollStep(track: HTMLDivElement) {
+  const firstCard = track.firstElementChild;
+
+  if (!(firstCard instanceof HTMLElement)) {
+    return Math.max(track.clientWidth * 0.4, 120);
+  }
+
+  return Math.max(firstCard.getBoundingClientRect().width, 120);
+}
+
+function getLoopSpan(track: HTMLDivElement, itemsPerLoop: number) {
+  if (itemsPerLoop > 0) {
+    const middleStart = track.children.item(itemsPerLoop);
+    const finalStart = track.children.item(itemsPerLoop * 2);
+
+    if (middleStart instanceof HTMLElement && finalStart instanceof HTMLElement) {
+      return finalStart.offsetLeft - middleStart.offsetLeft;
+    }
+  }
+
+  return track.scrollWidth / LOOP_MULTIPLIER;
+}
+
+function normalizeLoopScroll(track: HTMLDivElement, itemsPerLoop: number) {
+  const loopSpan = getLoopSpan(track, itemsPerLoop);
+
+  if (loopSpan <= 0) {
+    return;
+  }
+
+  while (track.scrollLeft < loopSpan - EDGE_TOLERANCE_PX) {
+    track.scrollLeft += loopSpan;
+  }
+
+  while (track.scrollLeft >= loopSpan * 2 - EDGE_TOLERANCE_PX) {
+    track.scrollLeft -= loopSpan;
+  }
+}
+
+function getLogoScaleClass(logoSrc: string | StaticImageData) {
+  if (typeof logoSrc === 'string') {
+    return '';
+  }
+
+  const aspectRatio = logoSrc.width / logoSrc.height;
+
+  if (aspectRatio <= 1.1) {
+    return 'scale-[1.22] sm:scale-[1.28]';
+  }
+
+  if (aspectRatio <= 1.55) {
+    return 'scale-110 sm:scale-[1.15]';
+  }
+
+  return '';
+}
+
 function AllyCard({
   name,
   logoSrc,
@@ -14,20 +77,21 @@ function AllyCard({
   logoSrc: string | StaticImageData;
   href: string;
 }) {
+  const logoScaleClass = getLogoScaleClass(logoSrc);
   const inner = logoSrc ? (
     <Image
       src={logoSrc}
       alt={`Logo de ${name}`}
       width={180}
       height={80}
-      className="h-9 w-auto max-w-[120px] object-contain sm:h-10"
+      className={`h-9 w-auto max-w-[120px] origin-center object-contain ${logoScaleClass} sm:h-10`}
     />
   ) : (
     <span className="text-sm font-semibold text-slate-600">{name}</span>
   );
 
   const baseClass =
-    'flex h-full items-center justify-center px-4 py-3 opacity-40 grayscale transition duration-300 hover:opacity-100 hover:grayscale-0';
+    'mx-auto inline-flex shrink-0 items-center justify-center bg-transparent px-4 py-3 opacity-40 grayscale no-underline outline-none shadow-none ring-0 transition duration-300 hover:bg-transparent hover:opacity-100 hover:grayscale-0 hover:shadow-none focus:bg-transparent focus:outline-none focus-visible:bg-transparent focus-visible:outline-none focus-visible:ring-0 active:bg-transparent';
 
   if (!href) {
     return <div className={baseClass}>{inner}</div>;
@@ -42,46 +106,217 @@ function AllyCard({
 
 export default function AlliesCarousel({ allies }: { allies: HomeAlly[] }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const [canScrollNext, setCanScrollNext] = useState(allies.length > 1);
+  const autoScrollPausedRef = useRef(false);
+  const autoScrollResumeTimeoutRef = useRef<number | null>(null);
+  const loopNormalizeTimeoutRef = useRef<number | null>(null);
+  const [hasOverflow, setHasOverflow] = useState(allies.length > 1);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const shouldLoop = allies.length > 1;
+  const renderedAllies = shouldLoop ? [...allies, ...allies, ...allies] : allies;
+
+  const clearAutoScrollResumeTimeout = () => {
+    if (autoScrollResumeTimeoutRef.current === null) return;
+
+    window.clearTimeout(autoScrollResumeTimeoutRef.current);
+    autoScrollResumeTimeoutRef.current = null;
+  };
+
+  const clearLoopNormalizeTimeout = () => {
+    if (loopNormalizeTimeoutRef.current === null) return;
+
+    window.clearTimeout(loopNormalizeTimeoutRef.current);
+    loopNormalizeTimeoutRef.current = null;
+  };
+
+  const pauseAutoScroll = () => {
+    autoScrollPausedRef.current = true;
+    clearAutoScrollResumeTimeout();
+  };
+
+  const resumeAutoScroll = (delayMs = 0) => {
+    clearAutoScrollResumeTimeout();
+
+    if (delayMs <= 0) {
+      autoScrollPausedRef.current = false;
+      return;
+    }
+
+    autoScrollResumeTimeoutRef.current = window.setTimeout(() => {
+      autoScrollPausedRef.current = false;
+      autoScrollResumeTimeoutRef.current = null;
+    }, delayMs);
+  };
+
+  const scheduleLoopNormalize = () => {
+    if (!shouldLoop) {
+      return;
+    }
+
+    clearLoopNormalizeTimeout();
+    loopNormalizeTimeoutRef.current = window.setTimeout(() => {
+      const currentTrack = trackRef.current;
+
+      loopNormalizeTimeoutRef.current = null;
+
+      if (!currentTrack) {
+        return;
+      }
+
+      normalizeLoopScroll(currentTrack, allies.length);
+    }, LOOP_NORMALIZE_DELAY_MS);
+  };
 
   useEffect(() => {
     const track = trackRef.current;
-    if (!track) return undefined;
+    if (!track || typeof window === 'undefined') return undefined;
 
-    const update = () => {
-      const maxScrollLeft = Math.max(track.scrollWidth - track.clientWidth, 0);
-      setCanScrollNext(track.scrollLeft < maxScrollLeft - 4);
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    const syncTrackLayout = () => {
+      const contentWidth = shouldLoop ? getLoopSpan(track, allies.length) : track.scrollWidth;
+      const maxScrollLeft = Math.max(contentWidth - track.clientWidth, 0);
+      const hasScrollableOverflow = maxScrollLeft > EDGE_TOLERANCE_PX;
+
+      setHasOverflow(hasScrollableOverflow);
+
+      if (!hasScrollableOverflow) {
+        clearLoopNormalizeTimeout();
+        track.scrollLeft = 0;
+        return;
+      }
+
+      if (!shouldLoop) {
+        return;
+      }
+
+      if (track.scrollLeft <= EDGE_TOLERANCE_PX) {
+        track.scrollLeft = getLoopSpan(track, allies.length);
+        return;
+      }
+
+      normalizeLoopScroll(track, allies.length);
     };
 
-    update();
-    track.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
+    const syncReducedMotionPreference = () => {
+      setPrefersReducedMotion(mediaQuery.matches);
+    };
+
+    syncTrackLayout();
+    syncReducedMotionPreference();
+
+    window.addEventListener('resize', syncTrackLayout);
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncReducedMotionPreference);
+    } else {
+      mediaQuery.addListener(syncReducedMotionPreference);
+    }
+
     return () => {
-      track.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
+      clearAutoScrollResumeTimeout();
+      clearLoopNormalizeTimeout();
+      window.removeEventListener('resize', syncTrackLayout);
+
+      if (typeof mediaQuery.removeEventListener === 'function') {
+        mediaQuery.removeEventListener('change', syncReducedMotionPreference);
+      } else {
+        mediaQuery.removeListener(syncReducedMotionPreference);
+      }
     };
-  }, [allies.length]);
+  }, [allies.length, shouldLoop]);
+
+  useEffect(() => {
+    const track = trackRef.current;
+
+    if (!track || !shouldLoop || !hasOverflow) {
+      return undefined;
+    }
+
+    const handleScroll = () => {
+      scheduleLoopNormalize();
+    };
+
+    track.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      clearLoopNormalizeTimeout();
+      track.removeEventListener('scroll', handleScroll);
+    };
+  }, [allies.length, hasOverflow, shouldLoop]);
+
+  useEffect(() => {
+    const track = trackRef.current;
+
+    if (!track || prefersReducedMotion || !hasOverflow || !shouldLoop) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      const currentTrack = trackRef.current;
+
+      if (!currentTrack || autoScrollPausedRef.current) {
+        return;
+      }
+
+      const maxScrollLeft = Math.max(getLoopSpan(currentTrack, allies.length) - currentTrack.clientWidth, 0);
+
+      if (maxScrollLeft <= EDGE_TOLERANCE_PX) {
+        return;
+      }
+
+      normalizeLoopScroll(currentTrack, allies.length);
+      const step = getScrollStep(currentTrack);
+      currentTrack.scrollBy({ left: step, behavior: 'smooth' });
+    }, AUTO_SCROLL_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [allies.length, hasOverflow, prefersReducedMotion, shouldLoop]);
 
   return (
-    <div className="relative mt-5">
+    <div
+      className="relative mt-5"
+      onBlurCapture={() => {
+        window.requestAnimationFrame(() => {
+          const track = trackRef.current;
+
+          if (!track || track.contains(document.activeElement)) {
+            return;
+          }
+
+          resumeAutoScroll(AUTO_SCROLL_RESUME_DELAY_MS);
+        });
+      }}
+      onFocusCapture={pauseAutoScroll}
+      onMouseEnter={pauseAutoScroll}
+      onMouseLeave={() => resumeAutoScroll(1200)}
+      onPointerCancel={() => resumeAutoScroll(AUTO_SCROLL_RESUME_DELAY_MS)}
+      onPointerDown={pauseAutoScroll}
+      onPointerUp={() => resumeAutoScroll(AUTO_SCROLL_RESUME_DELAY_MS)}
+      onWheel={() => {
+        pauseAutoScroll();
+        resumeAutoScroll(AUTO_SCROLL_RESUME_DELAY_MS);
+      }}
+    >
       <div
-        className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-white to-transparent"
+        className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-white to-transparent transition-opacity duration-300 ${hasOverflow ? 'opacity-100' : 'opacity-0'}`}
         aria-hidden="true"
       />
       <div
-        className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-white to-transparent transition-opacity duration-300 ${canScrollNext ? 'opacity-100' : 'opacity-0'}`}
+        className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-white to-transparent transition-opacity duration-300 ${hasOverflow ? 'opacity-100' : 'opacity-0'}`}
         aria-hidden="true"
       />
 
       <div
         ref={trackRef}
-        className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto"
+        className="no-scrollbar flex snap-x snap-proximity overflow-x-auto"
         aria-label="Aliadxs de Peloteras"
       >
-        {allies.map((ally) => (
+        {renderedAllies.map((ally, index) => (
           <div
-            key={ally.name}
-            className="w-[42%] flex-none snap-start sm:w-[26%] md:w-[20%] lg:w-[16%]"
+            key={`${ally.name}-${index}`}
+            className="flex w-[42%] flex-none items-center justify-center snap-start sm:w-[26%] md:w-[20%] lg:w-[16%]"
           >
             <AllyCard name={ally.name} logoSrc={ally.logoSrc} href={ally.href} />
           </div>

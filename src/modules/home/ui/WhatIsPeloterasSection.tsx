@@ -1,12 +1,13 @@
 import Link from 'next/link';
+import HomeReveal from '@modules/home/ui/HomeReveal';
 import { whatIsPeloterasCards } from '@modules/home/ui/homeContent';
 
 export default function WhatIsPeloterasSection() {
   return (
-    <section className="w-full bg-white" id="que-es-peloteras">
+    <section className="home-scroll-target w-full bg-white" id="que-es-peloteras">
       <div className="mx-auto w-full max-w-[1600px] px-5 py-12 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] lg:items-center">
-          <div>
+          <HomeReveal>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-mulberry/75">
               Qué es Peloteras
             </p>
@@ -19,16 +20,19 @@ export default function WhatIsPeloterasSection() {
             </p>
             <Link
               href="/events"
-              className="mt-6 inline-flex h-11 items-center rounded-full bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760]"
+              className="home-button-micro mt-6 inline-flex h-11 items-center rounded-full bg-mulberry px-5 text-sm font-semibold text-white shadow-[0_18px_36px_-28px_rgba(84,8,111,0.9)] hover:bg-[#470760]"
             >
               Ver eventos publicados
             </Link>
-          </div>
+          </HomeReveal>
 
-          <div className="flex flex-col divide-y divide-slate-100">
+          <HomeReveal className="flex flex-col divide-y divide-slate-100" delayMs={90}>
             {whatIsPeloterasCards.map((card, i) => (
-              <div key={card.title} className="flex gap-5 py-5 first:pt-0 last:pb-0">
-                <span className="mt-0.5 w-8 shrink-0 font-eastman-extrabold text-2xl leading-none text-slate-100 select-none">
+              <div
+                key={card.title}
+                className="group flex gap-5 py-5 transition-transform duration-300 first:pt-0 last:pb-0 hover:translate-x-1"
+              >
+                <span className="mt-0.5 w-8 shrink-0 select-none font-eastman-extrabold text-2xl leading-none text-slate-100 transition-colors duration-300 group-hover:text-mulberry/25">
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <div>
@@ -37,7 +41,7 @@ export default function WhatIsPeloterasSection() {
                 </div>
               </div>
             ))}
-          </div>
+          </HomeReveal>
         </div>
       </div>
     </section>

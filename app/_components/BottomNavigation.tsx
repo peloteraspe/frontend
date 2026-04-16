@@ -191,18 +191,18 @@ export default function BottomNavigation() {
       className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 pb-safe md:hidden"
       aria-label="Navegacion principal"
     >
-      <div className="relative flex items-center justify-around h-16">
+      <div className="relative flex h-16 items-stretch">
         {navItems.map((item) => {
           if (item.authRequired && !user && !loading) {
             return (
               <Link
                 key={item.href}
                 href="/login"
-                className="flex flex-col items-center justify-center flex-1 h-full text-slate-400 transition-colors"
+                className="relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors"
                 aria-label={`${item.label} - Inicia sesion`}
               >
-                <span className="opacity-50">{item.icon}</span>
-                <span className="text-xs mt-1 font-medium">{item.label}</span>
+                <span className="flex h-8 w-8 items-center justify-center opacity-50">{item.icon}</span>
+                <span className="text-xs font-medium leading-none">{item.label}</span>
               </Link>
             );
           }
@@ -215,41 +215,56 @@ export default function BottomNavigation() {
               key={item.href}
               href={href}
               className={[
-                'flex flex-col items-center justify-center flex-1 h-full transition-colors',
+                'relative flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors',
                 active ? 'text-mulberry' : 'text-slate-500 hover:text-slate-700',
               ].join(' ')}
               aria-current={active ? 'page' : undefined}
             >
-              <span className={active ? 'scale-110 transition-transform' : ''}>{item.icon}</span>
-              <span className={['text-xs mt-1', active ? 'font-semibold' : 'font-medium'].join(' ')}>
+              <span className="flex h-8 w-8 items-center justify-center">
+                <span className={active ? 'scale-110 transition-transform' : ''}>{item.icon}</span>
+              </span>
+              <span className={['text-xs leading-none', active ? 'font-semibold' : 'font-medium'].join(' ')}>
                 {item.label}
               </span>
               {active && (
-                <span className="absolute bottom-1 w-1 h-1 rounded-full bg-mulberry" aria-hidden="true" />
+                <span className="absolute bottom-1 h-1 w-1 rounded-full bg-mulberry" aria-hidden="true" />
               )}
             </Link>
           );
         })}
 
         {user ? (
-          <div ref={menuRef} className="relative flex flex-col items-center justify-center flex-1 h-full">
+          <div ref={menuRef} className="relative flex h-full flex-1 items-stretch">
             <button
               type="button"
               onClick={() => setMenuOpen((current) => !current)}
               className={[
-                'flex flex-col items-center justify-center h-full transition-colors',
+                'relative flex h-full w-full flex-col items-center justify-center gap-1 transition-colors',
                 menuOpen ? 'text-mulberry' : 'text-slate-500 hover:text-slate-700',
               ].join(' ')}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               aria-label={`Cuenta de ${accountName}`}
             >
-              <span className={menuOpen ? 'rounded-full ring-2 ring-mulberry/20 ring-offset-2 ring-offset-white' : ''}>
-                <UserImage src={user.avatar_url} name={accountName} size={28} />
+              <span className="relative flex h-8 w-8 items-center justify-center">
+                {menuOpen ? (
+                  <span
+                    className="absolute inset-0 rounded-full bg-mulberry/15 blur-[6px]"
+                    aria-hidden="true"
+                  />
+                ) : null}
+                <span
+                  className={[
+                    'relative inline-flex h-8 w-8 items-center justify-center rounded-full',
+                    menuOpen ? 'ring-1 ring-mulberry/15' : '',
+                  ].join(' ')}
+                >
+                  <UserImage src={user.avatar_url} name={accountName} size={28} />
+                </span>
               </span>
               <span
                 className={[
-                  'mt-1 max-w-[72px] truncate text-xs',
+                  'max-w-[72px] truncate text-xs leading-none',
                   menuOpen ? 'font-semibold text-mulberry' : 'font-medium',
                 ].join(' ')}
               >

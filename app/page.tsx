@@ -4,6 +4,7 @@ import Link from 'next/link';
 import CardEventList from '@modules/events/ui/cardEvents/CardEventList';
 import AlliesCarousel from '@modules/home/ui/AlliesCarousel';
 import LandingGrowthBlocks from '@modules/home/ui/LandingGrowthBlocks';
+import HomeReveal from '@modules/home/ui/HomeReveal';
 import MainSection from '@modules/home/ui/MainSection';
 import { homeAllies } from '@modules/home/ui/homeContent';
 
@@ -87,31 +88,31 @@ export default async function Index() {
       <MainSection />
 
       {homeAllies.length > 0 && (
-        <section className="w-full border-t border-slate-100 bg-white" id="aliadxs">
-          <div className="mx-auto w-full max-w-[1600px] px-5 py-10 sm:px-8 lg:px-10">
+        <section className="home-scroll-target w-full border-t border-slate-100 bg-white" id="aliadxs">
+          <HomeReveal className="mx-auto w-full max-w-[1600px] px-5 py-10 sm:px-8 lg:px-10">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                 Aliadxs
               </p>
               <Link
                 href="/patrocinios"
-                className="text-xs font-semibold text-mulberry transition hover:underline"
+                className="home-button-micro rounded-full px-3 py-2 text-xs font-semibold text-mulberry hover:bg-mulberry/5"
               >
                 ¿Tu marca quiere sumarse?
               </Link>
             </div>
             <AlliesCarousel allies={homeAllies} />
-          </div>
+          </HomeReveal>
         </section>
       )}
 
       <section
-        className="mx-auto w-full max-w-[1600px] px-5 py-8 sm:px-8 md:py-10 lg:px-10"
+        className="home-scroll-target mx-auto w-full max-w-[1600px] px-5 py-8 sm:px-8 md:py-10 lg:px-10"
         id="eventos-destacados"
       >
-        <div className="w-full">
+        <HomeReveal className="w-full">
           <CardEventList />
-        </div>
+        </HomeReveal>
       </section>
       <div className="w-full">
         <LandingGrowthBlocks />

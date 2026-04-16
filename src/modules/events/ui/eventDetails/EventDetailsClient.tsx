@@ -482,6 +482,7 @@ export default function EventDetailsClient({ data }: Props) {
                 <SoccerField
                   minUsers={minUsers}
                   maxUsers={maxUsers}
+                  playersPerTeam={6}
                   participants={assistants}
                   interactive={false}
                 />

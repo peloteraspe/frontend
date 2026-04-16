@@ -20,6 +20,7 @@ type ParticipantMarker = {
 export type SoccerFieldDynamicProps = {
   minUsers: number;
   maxUsers?: number;
+  playersPerTeam?: number;
   selectedId?: string | null;
   onSelect?: (pos: Position) => void;
   interactive?: boolean;
@@ -32,6 +33,7 @@ type AnchorContainer = 'portrait' | 'landscape' | 'bench' | null;
 export default function SoccerField({
   minUsers,
   maxUsers,
+  playersPerTeam,
   selectedId = null,
   onSelect,
   interactive = true,
@@ -41,7 +43,10 @@ export default function SoccerField({
   const registeredCount = participants.length;
   const rosterTarget = Math.max(minUsers, maxUsers ?? minUsers, registeredCount);
   const useSixVsSixLayout = rosterTarget >= 24;
-  const nPerTeam = useSixVsSixLayout ? 6 : Math.max(0, Math.floor(minUsers / 2));
+  const nPerTeam = Math.max(
+    0,
+    Math.floor(playersPerTeam ?? (useSixVsSixLayout ? 6 : Math.floor(minUsers / 2)))
+  );
   const fieldSpots = nPerTeam * 2;
   const extras = Math.max(0, rosterTarget - fieldSpots);
   const [placementSeed] = useState(() => Math.floor(Math.random() * 2147483647));
@@ -61,7 +66,7 @@ export default function SoccerField({
     () =>
       Array.from({ length: extras }, (_, i) => ({
         id: `bench-${i + 1}`,
-        label: 'Suplente',
+        label: 'Otra jugadora / equipo',
         x: 0,
         y: 0,
         kind: 'bench',
@@ -301,7 +306,7 @@ export default function SoccerField({
             className="rounded-xl border border-purple-200 bg-white/80 backdrop-blur-sm p-2"
           >
             <div className="mb-2 w-max mx-auto text-xs px-2 py-1 rounded bg-white/90 border border-purple-200 text-[#5b1c70]">
-              Suplentes: {benchPositions.length}
+              Otras jugadoras / equipos: {benchPositions.length}
             </div>
             <div className="flex flex-wrap justify-center gap-2">
               {benchPositions.map((p) => (

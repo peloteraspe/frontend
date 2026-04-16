@@ -284,12 +284,8 @@ function AvatarBadge({
   const [imageFailed, setImageFailed] = useState(false);
   const isOuter = node.kind === 'outer';
   const size = isOuter ? 22 : 19;
-  const ringColor = highlighted ? PRIMARY_COLOR : isOuter ? RIM_COLOR : PLUM_COLOR;
-  const glowColor = highlighted
-    ? 'rgba(240,129,91,0.34)'
-    : isOuter
-      ? 'rgba(249,189,175,0.28)'
-      : 'rgba(116,77,124,0.28)';
+  const ringColor = MULBERRY_COLOR;
+  const glowColor = highlighted ? 'rgba(84,8,111,0.34)' : 'rgba(84,8,111,0.28)';
 
   return (
     <div
@@ -297,7 +293,7 @@ function AvatarBadge({
       style={{
         width: size,
         height: size,
-        border: '1px solid rgba(255,247,242,0.84)',
+        border: '1px solid rgba(84,8,111,0.42)',
         background:
           player.avatarUrl && !imageFailed
             ? 'rgba(255,255,255,0.94)'
