@@ -11,21 +11,12 @@ type Props = {
 };
 
 export default function OrganizerEntryLink({ children, className = '' }: Props) {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const userIsAdmin = isAdminUser(user);
   const href = userIsAdmin ? '/admin' : '/create-event';
 
   return (
-    <Link
-      href={href}
-      aria-disabled={loading}
-      onClick={(event) => {
-        if (loading) {
-          event.preventDefault();
-        }
-      }}
-      className={`${className}${loading ? ' pointer-events-none opacity-80' : ''}`}
-    >
+    <Link href={href} className={className}>
       {children}
     </Link>
   );

@@ -7,17 +7,24 @@ type HomeRevealProps = {
   children: ReactNode;
   className?: string;
   delayMs?: number;
+  eager?: boolean;
 };
 
 export default function HomeReveal({
   children,
   className = '',
   delayMs = 0,
+  eager = false,
 }: HomeRevealProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(eager);
 
   useEffect(() => {
+    if (eager) {
+      setIsVisible(true);
+      return undefined;
+    }
+
     if (typeof window === 'undefined') {
       return undefined;
     }
@@ -57,7 +64,7 @@ export default function HomeReveal({
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [eager]);
 
   return (
     <div

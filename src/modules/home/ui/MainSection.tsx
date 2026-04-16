@@ -16,7 +16,7 @@ export default async function MainSection() {
       <div className="absolute right-0 top-0 h-52 w-52 rounded-full bg-mulberry/12 blur-3xl" />
 
       <div className="relative grid gap-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(320px,0.98fr)] lg:items-center">
-        <HomeReveal className="flex flex-col justify-center">
+        <HomeReveal className="flex flex-col justify-center" eager>
           <span className="inline-flex w-fit items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase text-mulberry bg-orange-400 italic">
             Más jugadoras, más fútbol
           </span>
@@ -70,7 +70,11 @@ export default async function MainSection() {
           )}
         </HomeReveal>
 
-        <HomeReveal className="relative flex items-center justify-center lg:pl-4" delayMs={120}>
+        <HomeReveal
+          className="relative flex items-center justify-center lg:pl-4"
+          delayMs={120}
+          eager
+        >
           <div className="absolute left-1/2 top-1/2 h-40 w-40 -translate-x-[62%] -translate-y-[56%] rounded-full bg-[#f0815b]/18 blur-3xl" />
           <div className="absolute left-1/2 top-1/2 h-44 w-44 translate-x-[10%] -translate-y-[42%] rounded-full bg-mulberry/12 blur-3xl" />
           <div className="relative w-full max-w-[560px] lg:max-w-[600px]">

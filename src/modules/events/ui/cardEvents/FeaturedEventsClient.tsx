@@ -1,12 +1,18 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
 
 import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { EventEntity } from '@modules/events/model/types';
 
 import CardEventItem from './CardEventItem';
-import LandingEventsMap from './LandingEventsMap';
+const LandingEventsMap = dynamic(() => import('./LandingEventsMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[360px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100 md:h-[520px]" />
+  ),
+});
 
 type Props = {
   events: EventEntity[];

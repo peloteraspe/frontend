@@ -1,8 +1,7 @@
 // AuthProvider.tsx
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { getBrowserSupabase } from '@core/api/supabase.browser';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { normalizePhoneMetadata } from '@shared/lib/phone';
 
 type UserLite = {
@@ -24,12 +23,23 @@ type AuthCtx = {
   signOut: () => Promise<void>;
 };
 
+type BrowserSupabaseModule = typeof import('@core/api/supabase.browser');
+type BrowserSupabaseClient = ReturnType<BrowserSupabaseModule['getBrowserSupabase']>;
+
 const Ctx = createContext<AuthCtx>({
   user: null,
   loading: true,
   refreshProfile: async () => {},
   signOut: async () => {},
 });
+
+type BrowserWindow = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
+const AUTH_EAGER_PATHS = ['/admin', '/auth', '/create-event', '/login', '/payments', '/profile', '/signUp', '/tickets', '/versus'];
 
 function isEventsVerified(value: unknown) {
   return value === true || value === 'true';
@@ -80,9 +90,20 @@ function resolveAvatarUrl(metadata: Record<string, any> | undefined) {
 }
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const supabase = useMemo(() => getBrowserSupabase(), []);
   const [user, setUser] = useState<UserLite>(null);
   const [loading, setLoading] = useState(true);
+  const supabasePromiseRef = useRef<Promise<BrowserSupabaseClient> | null>(null);
+  const initializedRef = useRef(false);
+
+  const getSupabaseClient = async () => {
+    if (!supabasePromiseRef.current) {
+      supabasePromiseRef.current = import('@core/api/supabase.browser').then((module) =>
+        module.getBrowserSupabase()
+      );
+    }
+
+    return supabasePromiseRef.current;
+  };
 
   const mapAuthUserToLite = (authUser: {
     id: string;
@@ -108,6 +129,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   const clearInvalidLocalSession = async (reason: string) => {
+    const supabase = await getSupabaseClient();
     console.warn('⚠️ Clearing invalid local session:', reason);
     try {
       await supabase.auth.signOut({ scope: 'local' });
@@ -120,6 +142,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   const loadProfileUsername = async (userId: string) => {
+    const supabase = await getSupabaseClient();
+
     try {
       const { data: rows, error } = await supabase
         .from('profile')
@@ -149,34 +173,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   const hydrateFromSession = async () => {
-    console.log('🔄 AuthProvider: Starting session hydration...');
+    const supabase = await getSupabaseClient();
     setLoading(true);
 
     try {
-      // First, get the current session
       const {
         data: { session },
         error: sessionError,
       } = await supabase.auth.getSession();
-      console.log('📊 Session check:', {
-        hasSession: !!session,
-        error: sessionError?.message,
-        accessToken: session?.access_token ? 'present' : 'missing',
-        expiresAt: session?.expires_at
-          ? new Date(session.expires_at * 1000).toISOString()
-          : 'no expiry',
-      });
 
-      // If no session, try to get user directly (checks localStorage)
       if (!session) {
-        console.log('❌ No session found, checking localStorage for user...');
         const {
           data: { user: directUser },
           error: directUserError,
         } = await supabase.auth.getUser();
 
         if (directUser && !directUserError) {
-          console.log('✅ User found in localStorage:', directUser.id);
           const userData = mapAuthUserToLite(directUser);
           setUser(userData);
           hydrateUsernameFromProfile(directUser.id);
@@ -194,7 +206,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             }
             return;
           }
-          console.log('❌ No user found anywhere');
           setUser(null);
           return;
         }
@@ -213,15 +224,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         userErrorMessage = userError?.message;
       }
 
-      console.log('👤 User from session:', {
-        user: !!sessionUser,
-        id: sessionUser?.id,
-        email: sessionUser?.email,
-        error: userErrorMessage,
-      });
-
       if (!sessionUser) {
-        console.log('❌ Could not get user from session');
         if (shouldClearSessionForError(userErrorMessage || '')) {
           await clearInvalidLocalSession(
             `session user lookup failed: ${userErrorMessage || 'missing user'}`
@@ -236,10 +239,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const userData = mapAuthUserToLite(sessionUser);
 
       setUser(userData);
-      console.log('✅ User set successfully:', userData);
       hydrateUsernameFromProfile(sessionUser.id);
     } catch (err) {
-      console.error('❌ Session hydration error:', err);
       const message = errorMessage(err);
       if (shouldClearSessionForError(message)) {
         await clearInvalidLocalSession(`session hydration failed: ${message || 'unknown error'}`);
@@ -249,47 +250,108 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
     } finally {
       setLoading(false);
-      console.log('🔄 Session hydration complete');
     }
   };
 
   useEffect(() => {
-    console.log('🚀 AuthProvider: Initializing...');
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
 
-    // Initial session check
-    hydrateFromSession();
+    const browserWindow = window as BrowserWindow;
+    const pathname = window.location.pathname;
+    const shouldInitImmediately = AUTH_EAGER_PATHS.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`)
+    );
 
-    // Listen to auth state changes
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔔 Auth state change:', { event, hasSession: !!session });
+    let idleCallbackId: number | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let unsubscribe: (() => void) | null = null;
+    let cancelled = false;
 
-      if (event === 'SIGNED_OUT' || !session?.user) {
-        console.log('📤 User signed out');
-        setUser(null);
-        setLoading(false);
+    const initializeAuth = () => {
+      if (cancelled || initializedRef.current) {
         return;
       }
 
-      if (
-        event === 'SIGNED_IN' ||
-        event === 'TOKEN_REFRESHED' ||
-        event === 'INITIAL_SESSION' ||
-        event === 'USER_UPDATED'
-      ) {
-        const u = session.user;
-        const userData = mapAuthUserToLite(u);
+      initializedRef.current = true;
+      void (async () => {
+        const supabase = await getSupabaseClient();
 
-        setUser(userData);
-        setLoading(false);
-        console.log('✅ User updated from auth event:', userData);
-        hydrateUsernameFromProfile(u.id);
+        if (cancelled) {
+          return;
+        }
+
+        void hydrateFromSession();
+
+        const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_OUT' || !session?.user) {
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+
+          if (
+            event === 'SIGNED_IN' ||
+            event === 'TOKEN_REFRESHED' ||
+            event === 'INITIAL_SESSION' ||
+            event === 'USER_UPDATED'
+          ) {
+            const currentUser = session.user;
+            const userData = mapAuthUserToLite(currentUser);
+
+            setUser(userData);
+            setLoading(false);
+            hydrateUsernameFromProfile(currentUser.id);
+          }
+        });
+
+        unsubscribe = () => {
+          sub.subscription.unsubscribe();
+        };
+      })();
+    };
+
+    const initializeSoon = () => {
+      if (shouldInitImmediately) {
+        initializeAuth();
+        return;
       }
-    });
+
+      if (typeof browserWindow.requestIdleCallback === 'function') {
+        idleCallbackId = browserWindow.requestIdleCallback(initializeAuth, { timeout: 1200 });
+        return;
+      }
+
+      timeoutId = setTimeout(initializeAuth, 220);
+    };
+
+    const initializeOnInteraction = () => {
+      initializeAuth();
+    };
+
+    initializeSoon();
+
+    window.addEventListener('pointerdown', initializeOnInteraction, { passive: true, once: true });
+    window.addEventListener('keydown', initializeOnInteraction, { once: true });
+    window.addEventListener('focus', initializeOnInteraction, { once: true });
 
     return () => {
-      sub.subscription.unsubscribe();
+      cancelled = true;
+      unsubscribe?.();
+      window.removeEventListener('pointerdown', initializeOnInteraction);
+      window.removeEventListener('keydown', initializeOnInteraction);
+      window.removeEventListener('focus', initializeOnInteraction);
+
+      if (idleCallbackId !== null && typeof browserWindow.cancelIdleCallback === 'function') {
+        browserWindow.cancelIdleCallback(idleCallbackId);
+      }
+
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [supabase]);
+  }, []);
 
   const refreshProfile = async () => {
     await hydrateFromSession();
@@ -375,6 +437,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   const signOut = async () => {
+    const supabase = await getSupabaseClient();
+
     setLoading(true);
     try {
       await supabase.auth.signOut({ scope: 'local' });

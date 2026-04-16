@@ -23,7 +23,7 @@ const NETWORK_SCALE = 0.8;
 const OUTER_RADIUS = 3.34;
 const OUTER_NODE_COUNT = 72;
 const INNER_NODE_COUNT = 28;
-const DISPLAY_NODE_COUNT = 50;
+const DISPLAY_NODE_COUNT = 24;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const RIM_COLOR = '#F9BDAF';
 const CORE_COLOR = '#FFF7F2';
@@ -270,10 +270,9 @@ function NetworkNodes({
 
         return (
           <group key={node.id} position={node.position}>
-
             {!player ? (
               <mesh>
-                <sphereGeometry args={isActive ? [node.size * 1.12, 12, 12] : [node.size, 10, 10]} />
+                <sphereGeometry args={isActive ? [node.size * 1.12, 10, 10] : [node.size, 8, 8]} />
                 <meshStandardMaterial
                   color={coreColor}
                   emissive={haloColor}
@@ -403,7 +402,7 @@ function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
   return (
     <group ref={groupRef} scale={NETWORK_SCALE}>
       <mesh>
-        <sphereGeometry args={[3.04, 56, 56]} />
+        <sphereGeometry args={[3.04, 36, 36]} />
         <meshPhysicalMaterial
           color="#FFF4EE"
           transparent
@@ -416,7 +415,7 @@ function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
       </mesh>
 
       <mesh scale={1.1}>
-        <sphereGeometry args={[3.04, 44, 44]} />
+        <sphereGeometry args={[3.04, 28, 28]} />
         <meshBasicMaterial
           color={PRIMARY_COLOR}
           transparent
@@ -428,7 +427,7 @@ function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
       </mesh>
 
       <mesh scale={1.16}>
-        <sphereGeometry args={[3.04, 40, 40]} />
+        <sphereGeometry args={[3.04, 24, 24]} />
         <meshBasicMaterial
           color={PLUM_COLOR}
           transparent
@@ -440,7 +439,7 @@ function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
       </mesh>
 
       <mesh>
-        <sphereGeometry args={[1.3, 24, 24]} />
+        <sphereGeometry args={[1.3, 16, 16]} />
         <meshBasicMaterial
           color={PRIMARY_COLOR}
           transparent
@@ -480,9 +479,10 @@ export default function HeroSoccerBall({ players }: HeroSoccerBallProps) {
 
       <div className="relative z-[1] aspect-square w-full max-w-[23rem] sm:max-w-[27rem] lg:max-w-[30rem]">
         <Canvas
-          dpr={[1, 2]}
+          dpr={[1, 1.35]}
+          performance={{ min: 0.7 }}
           camera={{ position: [0, 0, 10.9], fov: 32 }}
-          gl={{ alpha: true, antialias: true }}
+          gl={{ alpha: true, antialias: false, powerPreference: 'low-power' }}
           className="h-full w-full"
         >
           <ambientLight intensity={0.86} />

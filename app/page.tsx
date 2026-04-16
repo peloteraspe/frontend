@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { enforceOnboardingGuard } from '@modules/auth/lib/onboarding.server';
 import Link from 'next/link';
 import CardEventList from '@modules/events/ui/cardEvents/CardEventList';
-import AlliesCarousel from '@modules/home/ui/AlliesCarousel';
+import AlliesCarouselEntry from '@modules/home/ui/AlliesCarouselEntry';
 import LandingGrowthBlocks from '@modules/home/ui/LandingGrowthBlocks';
 import HomeReveal from '@modules/home/ui/HomeReveal';
 import MainSection from '@modules/home/ui/MainSection';
@@ -101,7 +101,7 @@ export default async function Index() {
                 ¿Tu marca quiere sumarse?
               </Link>
             </div>
-            <AlliesCarousel allies={homeAllies} />
+            <AlliesCarouselEntry allies={homeAllies} />
           </HomeReveal>
         </section>
       )}

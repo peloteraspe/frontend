@@ -1,7 +1,7 @@
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
 import { log } from '@src/core/lib/logger';
 import Link from 'next/link';
-import FeaturedEventsClient from './FeaturedEventsClient';
+import FeaturedEventsClientEntry from './FeaturedEventsClientEntry';
 
 type CardEventListProps = {
   previewCount?: number;
@@ -81,7 +81,7 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
         )}
       </div>
 
-      <FeaturedEventsClient events={featuredEvents} previewCount={previewCount} />
+      <FeaturedEventsClientEntry events={featuredEvents} previewCount={previewCount} />
     </div>
   );
 };

@@ -1,10 +1,23 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import type { HeroVerifiedPlayer } from '@modules/home/model/heroVerifiedPlayer';
 
 type HeroSoccerBallClientProps = {
   players: HeroVerifiedPlayer[];
+};
+
+type BrowserWindow = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
+type BrowserNavigator = Navigator & {
+  connection?: {
+    saveData?: boolean;
+  };
 };
 
 const FALLBACK_OUTER_LINES = [
@@ -94,7 +107,98 @@ const HeroSoccerBall = dynamic(() => import('@modules/home/ui/HeroSoccerBall'), 
 });
 
 export default function HeroSoccerBallClient({ players }: HeroSoccerBallClientProps) {
-  return <HeroSoccerBall players={players} />;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [shouldLoad3D, setShouldLoad3D] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || shouldLoad3D) {
+      return undefined;
+    }
+
+    const browserWindow = window as BrowserWindow;
+    const browserNavigator = navigator as BrowserNavigator;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const connection = browserNavigator.connection;
+
+    if (mediaQuery.matches || connection?.saveData) {
+      return undefined;
+    }
+
+    const container = containerRef.current;
+    if (!container) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+    let idleCallbackId: number | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const load3D = () => {
+      if (isCancelled) return;
+      startTransition(() => {
+        setShouldLoad3D(true);
+      });
+    };
+
+    const scheduleLoad = () => {
+      if (typeof browserWindow.requestIdleCallback === 'function') {
+        idleCallbackId = browserWindow.requestIdleCallback(load3D, { timeout: 1400 });
+        return;
+      }
+
+      timeoutId = setTimeout(load3D, 240);
+    };
+
+    if (!('IntersectionObserver' in window)) {
+      scheduleLoad();
+
+      return () => {
+        isCancelled = true;
+        if (idleCallbackId !== null && typeof browserWindow.cancelIdleCallback === 'function') {
+          browserWindow.cancelIdleCallback(idleCallbackId);
+        }
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+
+        if (!entry?.isIntersecting) {
+          return;
+        }
+
+        observer.disconnect();
+        scheduleLoad();
+      },
+      {
+        threshold: 0.2,
+        rootMargin: '160px 0px',
+      }
+    );
+
+    observer.observe(container);
+
+    return () => {
+      isCancelled = true;
+      observer.disconnect();
+      if (idleCallbackId !== null && typeof browserWindow.cancelIdleCallback === 'function') {
+        browserWindow.cancelIdleCallback(idleCallbackId);
+      }
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [shouldLoad3D]);
+
+  return (
+    <div ref={containerRef}>
+      {shouldLoad3D ? <HeroSoccerBall players={players} /> : <HeroSoccerBallFallback />}
+    </div>
+  );
 }
 
 function HeroSoccerBallFallback() {
@@ -188,7 +292,7 @@ function HeroSoccerBallFallback() {
         </svg>
       </div>
       <div className="absolute bottom-6 left-1/2 w-full max-w-[18rem] -translate-x-1/2 px-5 text-center text-[11px] leading-5 text-white/62">
-        Cargando red 3D de la comunidad Peloteras.
+        Vista ligera de la red de la comunidad Peloteras.
       </div>
     </div>
   );

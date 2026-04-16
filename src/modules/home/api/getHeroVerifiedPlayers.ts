@@ -24,6 +24,7 @@ type ProfileRow = {
 };
 
 const HERO_PLAYER_CACHE_SECONDS = 30 * 60;
+const HERO_PLAYER_PAYLOAD_LIMIT = 32;
 
 function normalizeText(value: unknown) {
   return String(value ?? '').trim();
@@ -48,6 +49,36 @@ function toInitials(value: unknown) {
 
 function hasTimestamp(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function evenlySamplePlayers(players: HeroVerifiedPlayer[], limit: number) {
+  if (players.length <= limit) {
+    return players;
+  }
+
+  const step = players.length / limit;
+
+  return Array.from({ length: limit }, (_, index) => players[Math.floor(index * step)]).filter(
+    (player): player is HeroVerifiedPlayer => Boolean(player)
+  );
+}
+
+function trimHeroPlayers(players: HeroVerifiedPlayer[], limit: number) {
+  if (players.length <= limit) {
+    return players;
+  }
+
+  const playersWithAvatar = players.filter((player) => typeof player.avatarUrl === 'string' && player.avatarUrl.trim());
+  const playersWithoutAvatar = players.filter(
+    (player) => !(typeof player.avatarUrl === 'string' && player.avatarUrl.trim())
+  );
+
+  const avatarTarget = Math.min(limit, Math.max(Math.ceil(limit * 0.75), Math.min(playersWithAvatar.length, 1)));
+  const sampledWithAvatar = evenlySamplePlayers(playersWithAvatar, avatarTarget);
+  const remainingSlots = Math.max(limit - sampledWithAvatar.length, 0);
+  const sampledWithoutAvatar = evenlySamplePlayers(playersWithoutAvatar, remainingSlots);
+
+  return [...sampledWithAvatar, ...sampledWithoutAvatar].slice(0, limit);
 }
 
 function isVerifiedAuthUser(user?: AuthUserLite | null) {
@@ -151,7 +182,7 @@ async function loadHeroVerifiedPlayers(): Promise<HeroCommunitySnapshot> {
 
   return {
     registeredPlayersCount,
-    verifiedPlayers,
+    verifiedPlayers: trimHeroPlayers(verifiedPlayers, HERO_PLAYER_PAYLOAD_LIMIT),
   };
 }
 

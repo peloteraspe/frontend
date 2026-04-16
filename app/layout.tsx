@@ -2,12 +2,10 @@ import type { Metadata, Viewport } from 'next';
 import '../global.css';
 import '../src/core/ui/styles/index.css';
 import { eastmanBold, eastmanExtrabold } from './fonts';
-import { Toaster } from 'react-hot-toast';
 import AuthProvider from '@core/auth/AuthProvider';
-import EmailVerificationBanner from '@app/_components/EmailVerificationBanner';
+import LayoutClientEnhancements from '@app/_components/LayoutClientEnhancements';
 import { NavBar } from './_components/NavBar';
 import Footer from '@src/core/ui/Footer';
-import BottomNavigation from './_components/BottomNavigation';
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -49,21 +47,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <body
-        className="bg-cover bg-center h-full w-full"
+        className="h-full w-full"
         style={{
-          backgroundImage: "url('/assets/images/Hero.png')",
+          backgroundColor: '#fffdfb',
+          backgroundImage: `radial-gradient(42rem 30rem at 18% 2%, rgba(240, 129, 91, 0.22), transparent 60%),
+            radial-gradient(44rem 32rem at 72% 6%, rgba(179, 71, 177, 0.2), transparent 58%),
+            radial-gradient(36rem 28rem at 88% 92%, rgba(76, 129, 214, 0.16), transparent 50%),
+            linear-gradient(180deg, rgba(255, 252, 249, 1) 0%, rgba(255, 255, 255, 1) 34%)`,
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: 'cover',
         }}
         suppressHydrationWarning
       >
         <AuthProvider>
           <main className="flex-1 w-full flex flex-col items-center min-h-screen pb-16 md:pb-0">
-            <EmailVerificationBanner />
             <NavBar />
             {children}
             <Footer />
           </main>
-          <BottomNavigation />
-          <Toaster />
+          <LayoutClientEnhancements />
 
           {/* Auth debugger for development */}
           {/* Debug components removed */}
