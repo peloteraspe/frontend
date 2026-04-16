@@ -18,6 +18,7 @@ function isAllowedPath(pathname: string) {
 }
 
 function isPublicPath(pathname: string) {
+  if (pathname === '/') return true;
   if (pathname.startsWith('/_next')) return true;
   if (pathname.startsWith('/api')) return true;
   if (pathname.startsWith('/assets')) return true;

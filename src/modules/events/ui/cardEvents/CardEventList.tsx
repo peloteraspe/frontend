@@ -1,7 +1,8 @@
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
+import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { log } from '@src/core/lib/logger';
 import Link from 'next/link';
-import FeaturedEventsClientEntry from './FeaturedEventsClientEntry';
+import { formattedPrice } from '@shared/lib/utils';
 
 type CardEventListProps = {
   previewCount?: number;
@@ -38,6 +39,15 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
   }
 
   const featuredEvents = Array.isArray(events) ? events.filter((event) => event.isFeatured) : [];
+  const upcomingFeaturedEvents = featuredEvents.filter(
+    (event) => !hasEventEnded(event.endTime, undefined, event.startTime)
+  );
+  const pastFeaturedEvents = featuredEvents.filter((event) =>
+    hasEventEnded(event.endTime, undefined, event.startTime)
+  );
+  const visibleEvents = (
+    upcomingFeaturedEvents.length > 0 ? upcomingFeaturedEvents : pastFeaturedEvents
+  ).slice(0, previewCount ?? 4);
 
   log.debug('Retrieved events for card list', 'CARD_EVENT_LIST', {
     featuredCount: featuredEvents.length,
@@ -81,7 +91,65 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
         )}
       </div>
 
-      <FeaturedEventsClientEntry events={featuredEvents} previewCount={previewCount} />
+      {visibleEvents.length === 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+          Aún no hay partidos destacados publicados.
+        </div>
+      ) : (
+        <div className="grid gap-5 md:grid-cols-2">
+          {visibleEvents.map((event) => {
+            const isPastEvent = hasEventEnded(event.endTime, undefined, event.startTime);
+
+            return (
+              <article
+                key={event.id}
+                className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.45)]"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-mulberry/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-mulberry">
+                    {event.levelName || 'Sin nivel'}
+                  </span>
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                    {event.eventTypeName || 'Partido'}
+                  </span>
+                  {isPastEvent ? (
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-800">
+                      Finalizado
+                    </span>
+                  ) : null}
+                </div>
+
+                <h3 className="mt-4 font-eastman-bold text-2xl leading-tight text-slate-900">
+                  {event.title || 'Evento sin título'}
+                </h3>
+
+                <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                  <p>{event.dateLabel || 'Fecha por confirmar'}</p>
+                  <p>{event.locationText || 'Ubicación por confirmar'}</p>
+                </div>
+
+                <div className="mt-6 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      Desde
+                    </p>
+                    <p className="mt-1 font-eastman-extrabold text-3xl leading-none text-mulberry">
+                      {formattedPrice(Number(event.price ?? 0))}
+                    </p>
+                  </div>
+
+                  <Link
+                    href={`/events/${event.id}`}
+                    className="home-button-micro inline-flex h-11 items-center rounded-full bg-mulberry px-5 text-sm font-semibold text-white hover:bg-[#470760]"
+                  >
+                    Ver detalle
+                  </Link>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

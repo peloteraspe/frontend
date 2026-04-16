@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { enforceOnboardingGuard } from '@modules/auth/lib/onboarding.server';
 import Link from 'next/link';
 import CardEventList from '@modules/events/ui/cardEvents/CardEventList';
 import AlliesCarouselEntry from '@modules/home/ui/AlliesCarouselEntry';
@@ -77,8 +76,6 @@ const structuredData = {
 };
 
 export default async function Index() {
-  await enforceOnboardingGuard();
-
   return (
     <>
       <script
