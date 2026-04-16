@@ -88,6 +88,8 @@ const PROFILE_ITEM: NavItem = {
   authRequired: true,
 };
 
+const ACCOUNT_TAP_HIGHLIGHT = 'rgba(84, 8, 111, 0.18)';
+
 export default function BottomNavigation() {
   const pathname = usePathname();
   const { user, loading } = useAuth();
@@ -239,9 +241,10 @@ export default function BottomNavigation() {
               type="button"
               onClick={() => setMenuOpen((current) => !current)}
               className={[
-                'relative flex h-full w-full flex-col items-center justify-center gap-1 transition-colors',
+                'relative flex h-full w-full flex-col items-center justify-center gap-1 transition-colors active:bg-mulberry/5',
                 menuOpen ? 'text-mulberry' : 'text-slate-500 hover:text-slate-700',
               ].join(' ')}
+              style={{ WebkitTapHighlightColor: ACCOUNT_TAP_HIGHLIGHT }}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               aria-label={`Cuenta de ${accountName}`}
@@ -249,14 +252,14 @@ export default function BottomNavigation() {
               <span className="relative flex h-8 w-8 items-center justify-center">
                 {menuOpen ? (
                   <span
-                    className="absolute inset-0 rounded-full bg-mulberry/15 blur-[6px]"
+                    className="absolute -inset-1 rounded-full bg-[#54086F]/25 blur-[8px]"
                     aria-hidden="true"
                   />
                 ) : null}
                 <span
                   className={[
                     'relative inline-flex h-8 w-8 items-center justify-center rounded-full',
-                    menuOpen ? 'ring-1 ring-mulberry/15' : '',
+                    menuOpen ? 'ring-1 ring-mulberry/25' : '',
                   ].join(' ')}
                 >
                   <UserImage src={user.avatar_url} name={accountName} size={28} />
