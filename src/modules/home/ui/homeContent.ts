@@ -53,7 +53,7 @@ export const playerBenefits: HomeCard[] = [
   {
     title: 'Más comunidad en cancha',
     description:
-      'Peloteras conecta mujeres y diversidades que quieren jugar, compartir y sostener el hábito de jugar fútbol.',
+      'Conoce a jugadoras con las mismas ganas de jugar y construye el hábito de estar en cancha más seguido.',
   },
 ];
 

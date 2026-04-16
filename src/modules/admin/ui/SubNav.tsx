@@ -10,6 +10,7 @@ const links = [
   { href: '/admin/communications', label: 'Correos', superadminOnly: true },
   { href: '/admin/payments', label: 'Pagos' },
   { href: '/admin/payment-methods', label: 'Formas de pago' },
+  { href: '/admin/coupons', label: 'Cupones', superadminOnly: true },
   { href: '/admin/scan', label: 'Validar QR' },
   { href: '/admin/users', label: 'Usuarios', superadminOnly: true },
 ];

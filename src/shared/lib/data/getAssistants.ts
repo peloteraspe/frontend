@@ -1,5 +1,10 @@
 import { getServerSupabase } from '@src/core/api/supabase.server';
+import { getAdminSupabase } from '@src/core/api/supabase.admin';
 import { log } from '@src/core/lib/logger';
+import {
+  normalizeCouponReimbursementStatus,
+  type CouponReimbursementStatus,
+} from '@modules/payments/lib/couponReimbursement';
 
 export type Assistant = {
   id: string;
@@ -7,6 +12,14 @@ export type Assistant = {
   state: 'pending' | 'approved' | 'rejected';
   event: string; // event id
   user: string; // user id
+  created_at: string;
+};
+
+export type CouponRedemptionInfo = {
+  redemptionId: number;
+  couponCode: string;
+  discountApplied: number;
+  reimbursementStatus: CouponReimbursementStatus;
 };
 
 export type AssistantDetails = Assistant & {
@@ -14,6 +27,7 @@ export type AssistantDetails = Assistant & {
   eventDate?: string;
   eventPrice?: number | string;
   userName?: string;
+  coupon?: CouponRedemptionInfo;
 };
 
 export type AssistantsQuery = {
@@ -172,15 +186,60 @@ export async function getAssistantsWithDetails(
     });
   }
 
+  // Fetch coupon redemptions for these assistants (uses admin client to bypass RLS)
+  const admin = getAdminSupabase();
+  const assistantIds = items.map((i) => Number(i.id)).filter((id) => Number.isFinite(id) && id > 0);
+  let couponMap = new Map<number, CouponRedemptionInfo>();
+  if (assistantIds.length) {
+    const { data: redemptions, error: redemptionsError } = await admin
+      .from('coupon_redemption')
+      .select('id, assistant_id, discount_applied, reimbursement_status, coupon_id')
+      .in('assistant_id', assistantIds);
+
+    if (redemptionsError) {
+      log.warn('Could not fetch coupon_redemptions (table may not exist yet)', 'ADMIN_PAYMENTS', {
+        errorMessage: redemptionsError.message,
+        assistantIds: assistantIds.slice(0, 5),
+      });
+    }
+
+    if (redemptions && redemptions.length > 0) {
+      const couponIds = Array.from(new Set(redemptions.map((r: any) => Number(r.coupon_id)).filter(Boolean)));
+      let couponCodesMap = new Map<number, string>();
+      if (couponIds.length) {
+        const { data: coupons } = await admin
+          .from('coupon')
+          .select('id, code')
+          .in('id', couponIds);
+        (coupons || []).forEach((c: any) => {
+          couponCodesMap.set(Number(c.id), String(c.code || ''));
+        });
+      }
+
+      (redemptions as any[]).forEach((r) => {
+        const assistantId = Number(r.assistant_id);
+        if (!assistantId) return;
+        couponMap.set(assistantId, {
+          redemptionId: Number(r.id),
+          couponCode: couponCodesMap.get(Number(r.coupon_id)) || '',
+          discountApplied: Number(r.discount_applied),
+          reimbursementStatus: normalizeCouponReimbursementStatus(r.reimbursement_status),
+        });
+      });
+    }
+  }
+
   return items.map((a) => {
     const ev = eventsMap.get(normalizeId(a.event));
     const pr = profilesMap.get(normalizeId(a.user));
+    const cp = couponMap.get(Number(a.id));
     return {
       ...a,
       eventTitle: ev?.title,
       eventDate: ev?.formattedDateTime,
       eventPrice: ev?.price,
       userName: pr?.username,
+      coupon: cp,
     } as AssistantDetails;
   });
 }

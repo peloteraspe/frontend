@@ -12,7 +12,7 @@ type EventOption = {
 type Props = {
   options: EventOption[];
   selectedEventId: string;
-  state: 'pending' | 'approved' | 'rejected';
+  state: 'pending' | 'approved' | 'rejected' | 'reimbursements';
   q: string;
 };
 

@@ -11,6 +11,8 @@ import {
 
 type Props = {
   assistantId: string;
+  allowApprove?: boolean;
+  allowReject?: boolean;
 };
 
 const INITIAL_PAYMENT_REVIEW_STATE: PaymentReviewActionState = {
@@ -83,10 +85,14 @@ function PaymentDecisionFormContent({
   currentDecision,
   onSelectDecision,
   state,
+  allowApprove,
+  allowReject,
 }: {
   currentDecision: PaymentReviewDecision | null;
   onSelectDecision: (decision: PaymentReviewDecision) => void;
   state: PaymentReviewActionState;
+  allowApprove: boolean;
+  allowReject: boolean;
 }) {
   const { pending } = useFormStatus();
   const isVisualPending = pending || (currentDecision !== null && state.status !== 'error');
@@ -94,18 +100,22 @@ function PaymentDecisionFormContent({
   return (
     <div className="inline-flex flex-col items-end gap-2 transition-all duration-200">
       <div className="flex flex-wrap justify-end gap-2">
-        <ActionButton
-          decision="approve"
-          currentDecision={currentDecision}
-          isVisualPending={isVisualPending}
-          onSelect={onSelectDecision}
-        />
-        <ActionButton
-          decision="reject"
-          currentDecision={currentDecision}
-          isVisualPending={isVisualPending}
-          onSelect={onSelectDecision}
-        />
+        {allowApprove ? (
+          <ActionButton
+            decision="approve"
+            currentDecision={currentDecision}
+            isVisualPending={isVisualPending}
+            onSelect={onSelectDecision}
+          />
+        ) : null}
+        {allowReject ? (
+          <ActionButton
+            decision="reject"
+            currentDecision={currentDecision}
+            isVisualPending={isVisualPending}
+            onSelect={onSelectDecision}
+          />
+        ) : null}
       </div>
 
       {!pending && state.status === 'error' && state.message ? (
@@ -117,11 +127,19 @@ function PaymentDecisionFormContent({
   );
 }
 
-export default function PaymentDecisionActions({ assistantId }: Props) {
+export default function PaymentDecisionActions({
+  assistantId,
+  allowApprove = true,
+  allowReject = true,
+}: Props) {
   const router = useRouter();
   const handledSuccessRef = useRef('');
   const [currentDecision, setCurrentDecision] = useState<PaymentReviewDecision | null>(null);
   const [state, formAction] = useActionState(submitPaymentReviewAction, INITIAL_PAYMENT_REVIEW_STATE);
+
+  if (!allowApprove && !allowReject) {
+    return null;
+  }
 
   useEffect(() => {
     if (state.status !== 'success' || !state.message || state.message === handledSuccessRef.current) return;
@@ -139,6 +157,8 @@ export default function PaymentDecisionActions({ assistantId }: Props) {
         currentDecision={currentDecision}
         onSelectDecision={setCurrentDecision}
         state={state}
+        allowApprove={allowApprove}
+        allowReject={allowReject}
       />
     </form>
   );
