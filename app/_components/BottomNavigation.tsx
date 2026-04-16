@@ -186,7 +186,7 @@ export default function BottomNavigation() {
     return pathname.startsWith(item.href);
   };
 
-  if (shouldHide) return null;
+  if (shouldHide || loading || !user) return null;
 
   return (
     <nav
