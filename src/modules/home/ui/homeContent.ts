@@ -9,6 +9,7 @@ import mipMasIgualdadLogo from '@core/assets/aliadxs/mip_mas-igualdad.png';
 import papatasComunidadLogo from '@core/assets/aliadxs/Papatas-comunidad.png';
 import redBusLogo from '@core/assets/aliadxs/RedBus_Logo.png';
 import vidaSinPlasticoPeruLogo from '@core/assets/aliadxs/vida-sin-plastico-peru.jpeg';
+import biciOrgulloLogo from '@core/assets/aliadxs/bici-orgullo.png';
 
 export type HomeCard = {
   title: string;
@@ -155,5 +156,10 @@ export const homeAllies: HomeAlly[] = [
     name: 'Mat Cafecito',
     logoSrc: matCafecitoLogo,
     href: 'https://www.instagram.com/matcafecito/',
+  },
+  {
+    name: 'Bici Orgullo',
+    logoSrc: biciOrgulloLogo,
+    href: 'https://www.instagram.com/biciorgullo.pe/',
   },
 ];
