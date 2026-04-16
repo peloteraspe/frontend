@@ -23,6 +23,7 @@ const NETWORK_SCALE = 0.8;
 const OUTER_RADIUS = 3.34;
 const OUTER_NODE_COUNT = 72;
 const INNER_NODE_COUNT = 28;
+const DISPLAY_NODE_COUNT = 50;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const RIM_COLOR = '#F9BDAF';
 const CORE_COLOR = '#FFF7F2';
@@ -60,18 +61,6 @@ function seededShuffle<T>(items: T[], seed: number) {
   return result;
 }
 
-function hashPlayers(players: HeroVerifiedPlayer[]) {
-  let hash = 0x811c9dc5;
-  const source = players.map((player) => `${player.id}:${player.name}`).join('|') || 'peloteras';
-
-  for (let index = 0; index < source.length; index += 1) {
-    hash ^= source.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-
-  return hash >>> 0;
-}
-
 function hasDisplayAvatar(player: HeroVerifiedPlayer) {
   return typeof player.avatarUrl === 'string' && player.avatarUrl.trim().length > 0;
 }
@@ -88,13 +77,15 @@ function nodeShowcaseScore(node: NodeSpec) {
   return outerBonus + frontness * 2.5 + verticalFocus * 0.7 + horizontalFocus * 0.35 + sizeBonus;
 }
 
-function orderNodesForShowcase(nodes: NodeSpec[], seed: number) {
-  return seededShuffle(nodes, seed ^ 0xa511e9b3).sort(
-    (left, right) => nodeShowcaseScore(right) - nodeShowcaseScore(left)
-  );
+function orderNodesForShowcase(nodes: NodeSpec[]) {
+  return [...nodes].sort((left, right) => {
+    const scoreDifference = nodeShowcaseScore(right) - nodeShowcaseScore(left);
+    if (scoreDifference !== 0) return scoreDifference;
+    return left.id.localeCompare(right.id);
+  });
 }
 
-function orderPlayersForShowcase(players: HeroVerifiedPlayer[], seed: number) {
+function selectPlayersForDisplay(players: HeroVerifiedPlayer[], seed: number) {
   const playersWithAvatar = seededShuffle(
     players.filter((player) => hasDisplayAvatar(player)),
     seed ^ 0xc2b2ae35
@@ -104,7 +95,7 @@ function orderPlayersForShowcase(players: HeroVerifiedPlayer[], seed: number) {
     seed ^ 0x27d4eb2f
   );
 
-  return [...playersWithAvatar, ...playersWithoutAvatar];
+  return [...playersWithAvatar, ...playersWithoutAvatar].slice(0, DISPLAY_NODE_COUNT);
 }
 
 function createOuterNodes() {
@@ -217,10 +208,15 @@ function buildBridgeSegments(innerNodes: NodeSpec[], outerNodes: NodeSpec[]) {
 const NETWORK_DATA = (() => {
   const outerNodes = createOuterNodes();
   const innerNodes = createInnerNodes();
+  const displayNodes = orderNodesForShowcase([
+    ...outerNodes.filter((_, index) => index % 2 === 0),
+    ...innerNodes.filter((_, index) => index % 2 === 0),
+  ]);
 
   return {
     outerNodes,
     innerNodes,
+    displayNodes,
     outerSegments: buildSegments(outerNodes, 4, 1.62, 0.44),
     innerSegments: buildSegments(innerNodes, 4, 1.95, 0.4),
     bridgeSegments: buildBridgeSegments(innerNodes, outerNodes),
@@ -361,36 +357,30 @@ function AvatarBadge({
 
 function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
   const groupRef = useRef<THREE.Group | null>(null);
-  const seed = useMemo(() => hashPlayers(players), [players]);
+  const [displaySeed] = useState(() => Math.floor(Math.random() * 0xffffffff));
+  const displayPlayers = useMemo(
+    () => selectPlayersForDisplay(players, displaySeed),
+    [players, displaySeed]
+  );
   const assignedPlayerByNodeId = useMemo(() => {
     const assignments = new Map<string, HeroVerifiedPlayer>();
-    if (!players.length) return assignments;
+    if (!displayPlayers.length) return assignments;
 
-    const orderedNodes = orderNodesForShowcase(
-      [...NETWORK_DATA.outerNodes, ...NETWORK_DATA.innerNodes],
-      seed
-    );
-    const orderedPlayers = orderPlayersForShowcase(players, seed);
-    const limit = Math.min(orderedPlayers.length, orderedNodes.length);
+    const limit = Math.min(displayPlayers.length, NETWORK_DATA.displayNodes.length);
 
     for (let index = 0; index < limit; index += 1) {
-      assignments.set(orderedNodes[index].id, orderedPlayers[index]);
+      assignments.set(NETWORK_DATA.displayNodes[index].id, displayPlayers[index]);
     }
 
     return assignments;
-  }, [players, seed]);
+  }, [displayPlayers]);
   const activeNodeIds = useMemo(() => {
     if (assignedPlayerByNodeId.size > 0) {
       return new Set(Array.from(assignedPlayerByNodeId.keys()));
     }
 
-    const allNodes = [...NETWORK_DATA.outerNodes, ...NETWORK_DATA.innerNodes];
-    return new Set(
-      seededShuffle(allNodes, seed)
-        .slice(0, 12)
-        .map((node) => node.id)
-    );
-  }, [assignedPlayerByNodeId, seed]);
+    return new Set(NETWORK_DATA.displayNodes.slice(0, 12).map((node) => node.id));
+  }, [assignedPlayerByNodeId]);
 
   useFrame((state, delta) => {
     const group = groupRef.current;
