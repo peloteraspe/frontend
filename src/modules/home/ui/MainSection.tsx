@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import OrganizerEntryLink from '@modules/home/ui/OrganizerEntryLink';
-import { getHeroVerifiedPlayers } from '@modules/home/api/getHeroVerifiedPlayers';
+import { getHeroCommunitySnapshot } from '@modules/home/api/getHeroVerifiedPlayers';
 import HomeReveal from '@modules/home/ui/HomeReveal';
 import HeroSoccerBallClient from '@modules/home/ui/HeroSoccerBallClient';
 
 export default async function MainSection() {
-  const verifiedPlayers = await getHeroVerifiedPlayers();
+  const { registeredPlayersCount, verifiedPlayers } = await getHeroCommunitySnapshot();
 
   return (
     <section
@@ -62,10 +62,10 @@ export default async function MainSection() {
             </OrganizerEntryLink>
           </div>
 
-          {verifiedPlayers.length > 0 && (
+          {registeredPlayersCount > 0 && (
             <p className="mt-4 text-sm text-slate-500">
-              <span className="font-semibold text-slate-700">{verifiedPlayers.length}+</span>{' '}
-              jugadoras verificadas en la comunidad
+              <span className="font-semibold text-slate-700">{registeredPlayersCount}+</span>{' '}
+              jugadoras en la comunidad
             </p>
           )}
         </HomeReveal>

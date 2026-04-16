@@ -72,6 +72,41 @@ function hashPlayers(players: HeroVerifiedPlayer[]) {
   return hash >>> 0;
 }
 
+function hasDisplayAvatar(player: HeroVerifiedPlayer) {
+  return typeof player.avatarUrl === 'string' && player.avatarUrl.trim().length > 0;
+}
+
+function nodeShowcaseScore(node: NodeSpec) {
+  const [x, y, z] = node.position;
+  const radius = Math.max(Math.sqrt(x * x + y * y + z * z), 1);
+  const frontness = (z / radius + 1) / 2;
+  const verticalFocus = 1 - Math.min(Math.abs(y) / radius, 1);
+  const horizontalFocus = 1 - Math.min(Math.abs(x) / radius, 1);
+  const outerBonus = node.kind === 'outer' ? 1.15 : 0;
+  const sizeBonus = node.size * 3.4;
+
+  return outerBonus + frontness * 2.5 + verticalFocus * 0.7 + horizontalFocus * 0.35 + sizeBonus;
+}
+
+function orderNodesForShowcase(nodes: NodeSpec[], seed: number) {
+  return seededShuffle(nodes, seed ^ 0xa511e9b3).sort(
+    (left, right) => nodeShowcaseScore(right) - nodeShowcaseScore(left)
+  );
+}
+
+function orderPlayersForShowcase(players: HeroVerifiedPlayer[], seed: number) {
+  const playersWithAvatar = seededShuffle(
+    players.filter((player) => hasDisplayAvatar(player)),
+    seed ^ 0xc2b2ae35
+  );
+  const playersWithoutAvatar = seededShuffle(
+    players.filter((player) => !hasDisplayAvatar(player)),
+    seed ^ 0x27d4eb2f
+  );
+
+  return [...playersWithAvatar, ...playersWithoutAvatar];
+}
+
 function createOuterNodes() {
   return Array.from({ length: OUTER_NODE_COUNT }, (_, index) => {
     const progress = index / OUTER_NODE_COUNT;
@@ -331,15 +366,15 @@ function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
     const assignments = new Map<string, HeroVerifiedPlayer>();
     if (!players.length) return assignments;
 
-    const orderedNodes = [
-      ...seededShuffle(NETWORK_DATA.outerNodes, seed ^ 0x9e3779b9),
-      ...seededShuffle(NETWORK_DATA.innerNodes, seed ^ 0x85ebca6b),
-    ];
-    const shuffledPlayers = seededShuffle(players, seed ^ 0xc2b2ae35);
-    const limit = Math.min(shuffledPlayers.length, orderedNodes.length);
+    const orderedNodes = orderNodesForShowcase(
+      [...NETWORK_DATA.outerNodes, ...NETWORK_DATA.innerNodes],
+      seed
+    );
+    const orderedPlayers = orderPlayersForShowcase(players, seed);
+    const limit = Math.min(orderedPlayers.length, orderedNodes.length);
 
     for (let index = 0; index < limit; index += 1) {
-      assignments.set(orderedNodes[index].id, shuffledPlayers[index]);
+      assignments.set(orderedNodes[index].id, orderedPlayers[index]);
     }
 
     return assignments;

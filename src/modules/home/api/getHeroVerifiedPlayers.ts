@@ -5,14 +5,16 @@ import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
 import type { HeroVerifiedPlayer } from '@modules/home/model/heroVerifiedPlayer';
 
-type AssistantUserRow = {
-  user: string | null;
+export type HeroCommunitySnapshot = {
+  registeredPlayersCount: number;
+  verifiedPlayers: HeroVerifiedPlayer[];
 };
 
 type AuthUserLite = {
   id: string;
   email?: string | null;
   email_confirmed_at?: string | null;
+  last_sign_in_at?: string | null;
   user_metadata?: Record<string, any> | null;
 };
 
@@ -44,8 +46,12 @@ function toInitials(value: unknown) {
   return normalizeText(value).slice(0, 2).toUpperCase() || 'PL';
 }
 
-function hasConfirmedEmail(value: unknown) {
+function hasTimestamp(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isVerifiedAuthUser(user?: AuthUserLite | null) {
+  return hasTimestamp(user?.email_confirmed_at) || hasTimestamp(user?.last_sign_in_at);
 }
 
 function resolveAvatarUrl(metadata?: Record<string, any> | null) {
@@ -68,32 +74,10 @@ function resolveAvatarUrl(metadata?: Record<string, any> | null) {
   return null;
 }
 
-async function loadHeroVerifiedPlayers(): Promise<HeroVerifiedPlayer[]> {
+async function loadHeroVerifiedPlayers(): Promise<HeroCommunitySnapshot> {
   const adminSupabase = getAdminSupabase();
-
-  const { data: assistantsData, error: assistantsError } = await adminSupabase
-    .from('assistants')
-    .select('user')
-    .eq('state', 'approved')
-    .not('user', 'is', null);
-
-  if (assistantsError) {
-    log.database('SELECT approved assistants for home hero', 'assistants', assistantsError as any);
-    return [];
-  }
-
-  const approvedUserIds = Array.from(
-    new Set(
-      ((assistantsData ?? []) as AssistantUserRow[])
-        .map((row) => normalizeText(row.user))
-        .filter((userId) => userId.length > 0)
-    )
-  );
-
-  if (!approvedUserIds.length) return [];
-
-  const approvedUserIdSet = new Set(approvedUserIds);
   const verifiedUsers: AuthUserLite[] = [];
+  let registeredPlayersCount = 0;
   let page = 1;
   const perPage = 200;
 
@@ -106,11 +90,10 @@ async function loadHeroVerifiedPlayers(): Promise<HeroVerifiedPlayer[]> {
 
     const chunk = (data?.users ?? []) as AuthUserLite[];
     if (!chunk.length) break;
+    registeredPlayersCount += chunk.length;
 
     chunk.forEach((authUser) => {
-      const userId = normalizeText(authUser?.id);
-      if (!userId || !approvedUserIdSet.has(userId)) return;
-      if (!hasConfirmedEmail(authUser?.email_confirmed_at)) return;
+      if (!isVerifiedAuthUser(authUser)) return;
       verifiedUsers.push(authUser);
     });
 
@@ -118,7 +101,12 @@ async function loadHeroVerifiedPlayers(): Promise<HeroVerifiedPlayer[]> {
     page += 1;
   }
 
-  if (!verifiedUsers.length) return [];
+  if (!verifiedUsers.length) {
+    return {
+      registeredPlayersCount,
+      verifiedPlayers: [],
+    };
+  }
 
   const verifiedUserIds = Array.from(
     new Set(verifiedUsers.map((user) => normalizeText(user.id)).filter(Boolean))
@@ -144,7 +132,7 @@ async function loadHeroVerifiedPlayers(): Promise<HeroVerifiedPlayer[]> {
     }
   });
 
-  return verifiedUsers
+  const verifiedPlayers = verifiedUsers
     .map((user) => {
       const userId = normalizeText(user.id);
       const metadataName =
@@ -160,17 +148,30 @@ async function loadHeroVerifiedPlayers(): Promise<HeroVerifiedPlayer[]> {
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
+  return {
+    registeredPlayersCount,
+    verifiedPlayers,
+  };
 }
 
 const getHeroVerifiedPlayersCached = unstable_cache(loadHeroVerifiedPlayers, ['home-hero-verified-players'], {
   revalidate: HERO_PLAYER_CACHE_SECONDS,
 });
 
-export async function getHeroVerifiedPlayers() {
+export async function getHeroCommunitySnapshot(): Promise<HeroCommunitySnapshot> {
   try {
     return await getHeroVerifiedPlayersCached();
   } catch (error) {
     log.warn('Could not load verified players for home hero', 'HOME_HERO', { error });
-    return [];
+    return {
+      registeredPlayersCount: 0,
+      verifiedPlayers: [],
+    };
   }
+}
+
+export async function getHeroVerifiedPlayers() {
+  const snapshot = await getHeroCommunitySnapshot();
+  return snapshot.verifiedPlayers;
 }
