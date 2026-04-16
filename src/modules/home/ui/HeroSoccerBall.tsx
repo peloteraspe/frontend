@@ -239,20 +239,10 @@ function NetworkNodes({
 
         return (
           <group key={node.id} position={node.position}>
-            <mesh scale={haloScale}>
-              <sphereGeometry args={[node.size, 12, 12]} />
-              <meshBasicMaterial
-                color={haloColor}
-                transparent
-                opacity={haloOpacity}
-                blending={THREE.AdditiveBlending}
-                depthWrite={false}
-                toneMapped={false}
-              />
-            </mesh>
+
             {!player ? (
               <mesh>
-                <sphereGeometry args={[node.size * (isActive ? 1.1 : 1), 14, 14]} />
+                <sphereGeometry args={isActive ? [node.size * 1.12, 12, 12] : [node.size, 10, 10]} />
                 <meshStandardMaterial
                   color={coreColor}
                   emissive={haloColor}
@@ -466,13 +456,7 @@ export default function HeroSoccerBall({ players }: HeroSoccerBallProps) {
       <div className="pointer-events-none absolute inset-[10%] rounded-full bg-[radial-gradient(circle_at_center,rgba(39,16,51,0.9),rgba(84,8,111,0.78)_38%,rgba(116,77,124,0.32)_58%,rgba(255,255,255,0)_78%)] blur-2xl" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-[18rem] w-[18rem] -translate-x-[58%] -translate-y-[54%] rounded-full bg-primary/16 blur-3xl sm:h-[21rem] sm:w-[21rem]" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-[17rem] w-[17rem] translate-x-[10%] -translate-y-[42%] rounded-full bg-mulberry/16 blur-3xl sm:h-[20rem] sm:w-[20rem]" />
-      <div className="pointer-events-none absolute inset-[18%] rounded-full border border-white/8 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),rgba(255,255,255,0)_68%)]" />
-      <div className="absolute left-5 top-5 rounded-full border border-white/12 bg-[#2f1939]/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 shadow-[0_16px_32px_-20px_rgba(39,16,51,0.8)] backdrop-blur-md">
-        Comunidad conectada
-      </div>
-      <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 w-full max-w-[18rem] -translate-x-1/2 px-5 text-center text-[11px] leading-5 text-white/62">
-        Red activa de jugadoras y organizadoras dentro de Peloteras.
-      </div>
+
       <div className="relative z-[1] aspect-square w-full max-w-[23rem] sm:max-w-[27rem] lg:max-w-[30rem]">
         <Canvas
           dpr={[1, 2]}

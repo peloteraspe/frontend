@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import { enforceOnboardingGuard } from '@modules/auth/lib/onboarding.server';
+import Link from 'next/link';
 import CardEventList from '@modules/events/ui/cardEvents/CardEventList';
+import AlliesCarousel from '@modules/home/ui/AlliesCarousel';
 import LandingGrowthBlocks from '@modules/home/ui/LandingGrowthBlocks';
 import MainSection from '@modules/home/ui/MainSection';
-import WhatIsPeloterasSection from '@modules/home/ui/WhatIsPeloterasSection';
+import { homeAllies } from '@modules/home/ui/homeContent';
 
 const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://peloteras.com';
 
@@ -83,7 +85,26 @@ export default async function Index() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <MainSection />
-      <WhatIsPeloterasSection />
+
+      {homeAllies.length > 0 && (
+        <section className="w-full border-t border-slate-100 bg-white" id="aliadxs">
+          <div className="mx-auto w-full max-w-[1600px] px-5 py-10 sm:px-8 lg:px-10">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Aliadxs
+              </p>
+              <Link
+                href="/patrocinios"
+                className="text-xs font-semibold text-mulberry transition hover:underline"
+              >
+                ¿Tu marca quiere sumarse?
+              </Link>
+            </div>
+            <AlliesCarousel allies={homeAllies} />
+          </div>
+        </section>
+      )}
+
       <section
         className="mx-auto w-full max-w-[1600px] px-5 py-8 sm:px-8 md:py-10 lg:px-10"
         id="eventos-destacados"
@@ -92,9 +113,9 @@ export default async function Index() {
           <CardEventList />
         </div>
       </section>
-      <section className="mx-auto w-full max-w-[1600px] px-5 pb-8 sm:px-8 md:pb-12 lg:px-10">
+      <div className="w-full">
         <LandingGrowthBlocks />
-      </section>
+      </div>
     </>
   );
 }
