@@ -37,8 +37,7 @@ export default function ComingSoonLanding() {
   const valuePoints = [
     {
       title: 'Encuentra partidos en minutos',
-      description:
-        'Publicamos fechas, horarios, sede y nivel para que sepas rápido dónde jugar.',
+      description: 'Publicamos fechas, horarios, sede y nivel para que sepas rápido dónde jugar.',
     },
     {
       title: 'Arma equipo sin chats infinitos',
@@ -143,7 +142,7 @@ export default function ComingSoonLanding() {
 
         <header className="mx-auto max-w-5xl text-center">
           <p className="font-eastman-bold text-sm uppercase tracking-[0.2em] text-[#54086F]">
-            Donde las mujeres jugamos
+            Juega, organiza y conecta con más mujeres y diversidades a través del fútbol.
           </p>
           <h1 className="mt-3 font-eastman-extrabold text-5xl leading-[0.95] text-slate-900 sm:text-6xl md:text-7xl">
             Organiza tus partidos
@@ -238,12 +237,7 @@ export default function ComingSoonLanding() {
             {/* Messages */}
             <div className="mt-3 space-y-2">
               {error && (
-                <p
-                  id={errorId}
-                  role="alert"
-                  aria-live="assertive"
-                  className="text-sm text-red-600"
-                >
+                <p id={errorId} role="alert" aria-live="assertive" className="text-sm text-red-600">
                   {error}
                 </p>
               )}
@@ -304,7 +298,6 @@ export default function ComingSoonLanding() {
                 {shareMessage && <p className="mt-2 text-xs text-slate-600">{shareMessage}</p>}
               </div>
             )}
-
           </div>
         </div>
       </div>

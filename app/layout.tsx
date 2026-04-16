@@ -16,19 +16,19 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: 'Peloteras',
-  description: 'Donde las mujeres jugamos',
+  description: 'Juega, organiza y conecta con más mujeres y diversidades a través del fútbol.',
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
     url: defaultUrl,
     title: 'Peloteras',
-    description: 'Donde las mujeres jugamos',
+    description: 'Juega, organiza y conecta con más mujeres y diversidades a través del fútbol.',
     siteName: 'Peloteras',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Peloteras',
-    description: 'Donde las mujeres jugamos',
+    description: 'Juega, organiza y conecta con más mujeres y diversidades a través del fútbol.',
   },
 };
 
