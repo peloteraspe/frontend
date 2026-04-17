@@ -1,4 +1,5 @@
 import { resolveAppOrigin } from '@modules/auth/lib/redirect';
+import { buildQrImageUrl } from '@shared/lib/qr';
 
 const LEGACY_TICKET_PREFIX = 'PELOTERAS:TICKET:';
 const VERIFIED_PLAYER_SEGMENT = 'verified-player';
@@ -46,8 +47,7 @@ export function buildVerifiedPlayerUrl(input: BuildVerifiedPlayerUrlInput) {
 }
 
 export function buildTicketQrImageUrl(value: string, size = 260) {
-  const normalizedSize = Number.isFinite(size) && size > 0 ? Math.round(size) : 260;
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${normalizedSize}x${normalizedSize}&qzone=2&data=${encodeURIComponent(value)}`;
+  return buildQrImageUrl(value, size);
 }
 
 export function normalizeLegacyTicketQrToken(rawValue: string) {

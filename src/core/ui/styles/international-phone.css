@@ -1,4 +1,14 @@
 .peloteras-phone-input {
+  --peloteras-phone-border: rgb(var(--color-border-strong));
+  --peloteras-phone-border-focus: rgb(var(--color-mulberry) / 0.24);
+  --peloteras-phone-ring: rgb(var(--color-mulberry) / 0.1);
+  --peloteras-phone-shadow: 0 20px 44px -28px rgb(var(--color-mulberry) / 0.28);
+  --react-international-phone-border-color: var(--peloteras-phone-border);
+  --react-international-phone-country-selector-border-color: var(--peloteras-phone-border);
+  --react-international-phone-dropdown-shadow: var(--peloteras-phone-shadow);
+  --react-international-phone-selected-dropdown-item-background-color: rgb(var(--color-mulberry) / 0.08);
+  --react-international-phone-selected-dropdown-item-text-color: rgb(var(--color-foreground));
+  --react-international-phone-selected-dropdown-item-dial-code-color: rgb(var(--color-mulberry));
   @apply relative flex w-full overflow-visible rounded-xl border bg-white transition;
 }
 
@@ -33,6 +43,11 @@
 
 .peloteras-phone-input .react-international-phone-country-selector-button:focus-visible {
   @apply outline-none;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-button:focus {
+  outline: none;
+  box-shadow: none;
 }
 
 .peloteras-phone-input .react-international-phone-country-selector-button__button-content {
@@ -74,6 +89,17 @@
   left: 0;
   width: min(320px, calc(100vw - 2rem));
   @apply z-50 flex max-h-72 flex-col overflow-auto rounded-xl border border-slate-300 bg-white py-1 shadow-lg;
+  box-shadow: var(--peloteras-phone-shadow);
+  outline: none;
+}
+
+.peloteras-phone-input .react-international-phone-country-selector-dropdown:focus,
+.peloteras-phone-input .react-international-phone-country-selector-dropdown:focus-visible {
+  border-color: var(--peloteras-phone-border-focus);
+  box-shadow:
+    0 0 0 3px var(--peloteras-phone-ring),
+    var(--peloteras-phone-shadow);
+  outline: none;
 }
 
 .peloteras-phone-input .react-international-phone-country-selector-dropdown__list-item {

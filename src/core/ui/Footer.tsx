@@ -14,7 +14,7 @@ const SOCIAL_LINKS = {
 
 const Footer: React.FC = () => {
   return (
-    <footer className="mt-auto w-full pb-6 pt-8 font-poppins md:pb-10 hidden md:block">
+    <footer className="mt-auto w-full pb-6 pt-8 font-poppins md:pb-10">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col items-center gap-6 px-5 sm:px-8 lg:px-10 sm:text-left text-center sm:flex-row sm:items-start sm:justify-between">
         {/* Logo y tagline */}
         <div className="flex flex-col sm:items-start items-center gap-2">
