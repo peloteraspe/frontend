@@ -221,240 +221,214 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   }
 
   return (
-    <section className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 py-8 md:py-12">
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-eastman-extrabold text-slate-900">Eventos en mapa</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Explora partidos, revisa detalle sin salir del mapa y crea eventos con ubicación exacta.
-          </p>
-        </div>
+    <section className="site-shell site-section-compact">
+      <div className="site-panel-soft px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-eastman-extrabold text-slate-900">Eventos en mapa</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Explora partidos, revisa detalle sin salir del mapa y crea eventos con ubicación exacta.
+            </p>
+          </div>
 
-        <button
-          type="button"
-          onClick={openCreateEventFlow}
-          disabled={authLoading}
-          className="inline-flex h-11 items-center justify-center rounded-xl bg-[#54086F] px-4 text-sm font-semibold text-white"
-        >
-          Crear evento
-        </button>
-      </div>
-
-      <div className="mb-4">
-        <div
-          className="inline-flex rounded-2xl bg-slate-100 p-1"
-          role="tablist"
-          aria-label="Filtrar eventos por estado"
-        >
           <button
             type="button"
-            role="tab"
-            aria-selected={timeFilter === 'upcoming'}
-            onClick={() => setTimeFilter('upcoming')}
-            className={[
-              'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition',
-              timeFilter === 'upcoming'
-                ? 'bg-mulberry text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900',
-            ].join(' ')}
+            onClick={openCreateEventFlow}
+            disabled={authLoading}
+            className="home-button-micro inline-flex h-11 items-center justify-center rounded-full bg-[#54086F] px-5 text-sm font-semibold text-white"
           >
-            Próximos
-            <span
-              className={[
-                'rounded-full px-2 py-0.5 text-xs',
-                timeFilter === 'upcoming' ? 'bg-white/20 text-white' : 'bg-white text-slate-600',
-              ].join(' ')}
-            >
-              {upcomingEvents.length}
-            </span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={timeFilter === 'past'}
-            onClick={() => setTimeFilter('past')}
-            className={[
-              'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition',
-              timeFilter === 'past'
-                ? 'bg-mulberry text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900',
-            ].join(' ')}
-          >
-            Pasados
-            <span
-              className={[
-                'rounded-full px-2 py-0.5 text-xs',
-                timeFilter === 'past' ? 'bg-white/20 text-white' : 'bg-white text-slate-600',
-              ].join(' ')}
-            >
-              {pastEvents.length}
-            </span>
+            Crear evento
           </button>
         </div>
-      </div>
 
-      <div className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-6">
-        <Input
-          value={filters.q}
-          onChange={(event) => setFilters((prev) => ({ ...prev, q: event.target.value }))}
-          className="h-11 md:col-span-2"
-          placeholder="Buscar por título o dirección"
-        />
+        <div className="mb-4">
+          <div className="premium-tab-group" role="tablist" aria-label="Filtrar eventos por estado">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={timeFilter === 'upcoming'}
+              onClick={() => setTimeFilter('upcoming')}
+              data-active={timeFilter === 'upcoming'}
+              className="premium-tab-button"
+            >
+              Próximos
+              <span className="premium-tab-count">
+                {upcomingEvents.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={timeFilter === 'past'}
+              onClick={() => setTimeFilter('past')}
+              data-active={timeFilter === 'past'}
+              className="premium-tab-button"
+            >
+              Pasados
+              <span className="premium-tab-count">
+                {pastEvents.length}
+              </span>
+            </button>
+          </div>
+        </div>
 
-        <Input
-          type="date"
-          value={filters.date}
-          onChange={(event) => setFilters((prev) => ({ ...prev, date: event.target.value }))}
-          className="h-11"
-        />
+        <div className="premium-card mb-4 grid gap-3 p-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
+          <Input
+            value={filters.q}
+            onChange={(event) => setFilters((prev) => ({ ...prev, q: event.target.value }))}
+            className="h-11"
+            placeholder="Buscar por título o dirección"
+          />
 
-        <SelectComponent
-          options={eventTypeOptions}
-          value={filters.eventTypeId}
-          onChange={(value) => setFilters((prev) => ({ ...prev, eventTypeId: Number(value) || 0 }))}
-          isSearchable={false}
-          className="text-sm"
-          selectProps={{
-            instanceId: 'event-map-type-filter',
-            inputId: 'event-map-type-filter',
-            placeholder: 'Tipo de evento',
-          }}
-        />
+          <Input
+            type="date"
+            value={filters.date}
+            onChange={(event) => setFilters((prev) => ({ ...prev, date: event.target.value }))}
+            className="h-11"
+          />
 
-        <SelectComponent
-          options={levelOptions}
-          value={filters.levelId}
-          onChange={(value) => setFilters((prev) => ({ ...prev, levelId: Number(value) || 0 }))}
-          isSearchable={false}
-          className="text-sm"
-          selectProps={{
-            instanceId: 'event-map-level-filter',
-            inputId: 'event-map-level-filter',
-            placeholder: 'Nivel',
-          }}
-        />
+          <SelectComponent
+            options={eventTypeOptions}
+            value={filters.eventTypeId}
+            onChange={(value) => setFilters((prev) => ({ ...prev, eventTypeId: Number(value) || 0 }))}
+            isSearchable={false}
+            className="text-sm"
+            selectProps={{
+              instanceId: 'event-map-type-filter',
+              inputId: 'event-map-type-filter',
+              placeholder: 'Tipo de evento',
+            }}
+          />
 
-        <Input
-          type="number"
-          min={0}
-          placeholder="Distancia (km)"
-          value={filters.distanceKm || ''}
-          onChange={(event) =>
-            setFilters((prev) => ({ ...prev, distanceKm: Number(event.target.value) || 0 }))
-          }
-          className="h-11"
-        />
-      </div>
+          <SelectComponent
+            options={levelOptions}
+            value={filters.levelId}
+            onChange={(value) => setFilters((prev) => ({ ...prev, levelId: Number(value) || 0 }))}
+            isSearchable={false}
+            className="text-sm"
+            selectProps={{
+              instanceId: 'event-map-level-filter',
+              inputId: 'event-map-level-filter',
+              placeholder: 'Nivel',
+            }}
+          />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold text-slate-700">
-          {visibleEvents.length} {timeFilter === 'upcoming' ? 'próximos' : 'pasados'} encontrados
-        </p>
-        <button
-          type="button"
-          onClick={useMyLocation}
-          className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700"
-        >
-          Usar mi ubicación
-        </button>
-        <button
-          type="button"
-          onClick={() =>
+          <button
+            type="button"
+            onClick={useMyLocation}
+            className="home-button-micro premium-outline inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full px-4 text-sm font-medium text-slate-700"
+          >
+            Usar mi ubicación
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
             setFilters((prev) => ({
-              ...prev,
-              userLat: LIMA_DEFAULT.lat,
-              userLng: LIMA_DEFAULT.lng,
-              distanceKm: prev.distanceKm || 10,
-            }))
-          }
-          className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700"
-        >
-          Centro Lima
-        </button>
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700"
-          >
-            <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
-            Limpiar filtros
-          </button>
-        )}
-        {loading && <p className="text-sm text-slate-500">Actualizando resultados...</p>}
-        {geoError && <p className="text-sm text-red-600">{geoError}</p>}
-      </div>
-
-      <div className="mb-4 xl:hidden">
-        <div className="inline-flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Cambiar vista">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mobileView === 'list'}
-            onClick={() => setMobileView('list')}
-            className={[
-              'flex items-center gap-2 h-10 rounded-lg px-4 text-sm font-semibold transition-all duration-200',
-              mobileView === 'list'
-                ? 'bg-mulberry text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900',
-            ].join(' ')}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" aria-hidden="true">
-              <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
-            </svg>
-            Lista
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mobileView === 'map'}
-            onClick={() => setMobileView('map')}
-            className={[
-              'flex items-center gap-2 h-10 rounded-lg px-4 text-sm font-semibold transition-all duration-200',
-              mobileView === 'map'
-                ? 'bg-mulberry text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900',
-            ].join(' ')}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" aria-hidden="true">
-              <path fillRule="evenodd" d="M8.157 2.176a1.5 1.5 0 00-1.147 0l-4.084 1.69A1.5 1.5 0 002 5.25v10.877a1.5 1.5 0 002.074 1.386l3.51-1.452 4.26 1.762a1.5 1.5 0 001.146 0l4.083-1.69A1.5 1.5 0 0018 14.75V3.872a1.5 1.5 0 00-2.073-1.386l-3.51 1.452-4.26-1.762zM7.58 5a.75.75 0 01.75.75v6.5a.75.75 0 01-1.5 0v-6.5A.75.75 0 017.58 5zm5.59 2.75a.75.75 0 00-1.5 0v6.5a.75.75 0 001.5 0v-6.5z" clipRule="evenodd" />
-            </svg>
-            Mapa
-          </button>
-        </div>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className={['order-2 xl:order-1', mobileView === 'map' ? 'hidden xl:block' : 'block'].join(' ')}>
-          <EventListPanel
-            events={visibleEvents}
-            selectedEventId={selectedEventId}
-            hoveredEventId={hoveredEventId}
-            onHoverEvent={setHoveredEventId}
-            isLoading={loading}
-            emptyMessage={
-              timeFilter === 'upcoming'
-                ? 'No hay eventos próximos con estos filtros.'
-                : 'No hay eventos finalizados con estos filtros.'
+                ...prev,
+                userLat: LIMA_DEFAULT.lat,
+                userLng: LIMA_DEFAULT.lng,
+                distanceKm: prev.distanceKm || 10,
+              }))
             }
+            className="home-button-micro premium-outline inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full px-4 text-sm font-medium text-slate-700"
+          >
+            Centro Lima
+          </button>
+
+          <Input
+            type="number"
+            min={0}
+            placeholder="Distancia (km)"
+            value={filters.distanceKm || ''}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, distanceKm: Number(event.target.value) || 0 }))
+            }
+            className="h-11"
           />
         </div>
 
-        <div
-          className={[
-            'order-1 xl:order-2 xl:sticky xl:top-24',
-            mobileView === 'list' ? 'hidden xl:block' : 'block',
-          ].join(' ')}
-        >
-          <EventsMap
-            events={visibleEvents}
-            selectedEventId={selectedEventId}
-            hoveredEventId={hoveredEventId}
-            onSelectEvent={(id) => setSelectedEventId(id)}
-            className="xl:h-[calc(100vh-140px)]"
-          />
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-slate-700">
+            {visibleEvents.length} {timeFilter === 'upcoming' ? 'próximos' : 'pasados'} encontrados
+          </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="home-button-micro premium-outline inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium text-slate-700"
+            >
+              <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
+              Limpiar filtros
+            </button>
+          )}
+          {loading && <p className="text-sm text-slate-500">Actualizando resultados...</p>}
+          {geoError && <p className="text-sm text-red-600">{geoError}</p>}
+        </div>
+
+        <div className="mb-4 xl:hidden">
+          <div className="premium-tab-group" role="tablist" aria-label="Cambiar vista">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileView === 'list'}
+              onClick={() => setMobileView('list')}
+              data-active={mobileView === 'list'}
+              className="premium-tab-button"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+                <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10zm0 5.25a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+              </svg>
+              Lista
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileView === 'map'}
+              onClick={() => setMobileView('map')}
+              data-active={mobileView === 'map'}
+              className="premium-tab-button"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+                <path fillRule="evenodd" d="M8.157 2.176a1.5 1.5 0 00-1.147 0l-4.084 1.69A1.5 1.5 0 002 5.25v10.877a1.5 1.5 0 002.074 1.386l3.51-1.452 4.26 1.762a1.5 1.5 0 001.146 0l4.083-1.69A1.5 1.5 0 0018 14.75V3.872a1.5 1.5 0 00-2.073-1.386l-3.51 1.452-4.26-1.762zM7.58 5a.75.75 0 01.75.75v6.5a.75.75 0 01-1.5 0v-6.5A.75.75 0 017.58 5zm5.59 2.75a.75.75 0 00-1.5 0v6.5a.75.75 0 001.5 0v-6.5z" clipRule="evenodd" />
+              </svg>
+              Mapa
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className={['order-2 xl:order-1', mobileView === 'map' ? 'hidden xl:block' : 'block'].join(' ')}>
+            <EventListPanel
+              events={visibleEvents}
+              selectedEventId={selectedEventId}
+              hoveredEventId={hoveredEventId}
+              onHoverEvent={setHoveredEventId}
+              isLoading={loading}
+              emptyMessage={
+                timeFilter === 'upcoming'
+                  ? 'No hay eventos próximos con estos filtros.'
+                  : 'No hay eventos finalizados con estos filtros.'
+              }
+            />
+          </div>
+
+          <div
+            className={[
+              'order-1 xl:order-2 xl:sticky xl:top-24',
+              mobileView === 'list' ? 'hidden xl:block' : 'block',
+            ].join(' ')}
+          >
+            <EventsMap
+              events={visibleEvents}
+              selectedEventId={selectedEventId}
+              hoveredEventId={hoveredEventId}
+              onSelectEvent={(id) => setSelectedEventId(id)}
+              className="xl:h-[calc(100vh-140px)]"
+            />
+          </div>
         </div>
       </div>
-      </section>
+    </section>
   );
 }

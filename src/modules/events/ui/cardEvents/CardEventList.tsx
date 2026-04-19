@@ -45,25 +45,26 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
   });
 
   return (
-    <div className="pb-8 md:pb-16">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-6 md:space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-[39rem]">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-mulberry/75">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-mulberry/75">
             Eventos destacados
           </p>
-          <h2 className="mt-3 font-eastman-extrabold text-3xl leading-[1.02] text-slate-900 sm:text-4xl lg:text-[2.75rem]">
-            Pichangas y partidos listos para sumarte.
+          <h2 className="mt-3 font-eastman-extrabold text-4xl leading-[1.02] text-slate-900 sm:text-5xl lg:text-[3rem]">
+            Partidos y pichangas para volver a la cancha.
           </h2>
-          <p className="mt-4 text-sm leading-7 text-slate-600 sm:text-base">
-            Explora pichangas, partidos y encuentros destacados publicados en Peloteras.
+          <p className="mt-4 text-base leading-8 text-slate-600 sm:text-lg">
+            Explora las próximas pichangas en Peloteras y encuentra una oportunidad para jugar,
+            conocer gente nueva y sumarte a la comunidad.
           </p>
         </div>
         {showViewAll && (
           <Link
             href="/events"
-            className="group home-button-micro inline-flex h-10 items-center gap-2 rounded-lg border border-[#54086F] px-4 text-sm font-semibold text-[#54086F] hover:bg-[#54086F] hover:text-white"
+            className="group home-button-micro premium-outline inline-flex h-12 items-center gap-2 rounded-full px-6 text-base font-semibold text-[#54086F] hover:border-[#54086F] hover:bg-[#54086F] hover:text-white"
           >
-            <span>Ver todos los partidos</span>
+            <span>Ver todos los eventos</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 16 16"

@@ -14,59 +14,68 @@ const SOCIAL_LINKS = {
 
 const Footer: React.FC = () => {
   return (
-    <footer className="mt-auto w-full pb-6 pt-8 font-poppins md:pb-10">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col items-center gap-6 px-5 sm:px-8 lg:px-10 sm:text-left text-center sm:flex-row sm:items-start sm:justify-between">
-        {/* Logo y tagline */}
-        <div className="flex flex-col sm:items-start items-center gap-2">
-          <Image src={Logo} alt="Peloteras logo" width={150} height={40} />
-          <div className="mt-2">
-            <SubtitleM color="text-mulberry">
-              Hecho por <strong>Peloteras</strong> con amor
-            </SubtitleM>
-          </div>
-        </div>
+    <footer className="mt-auto w-full pb-8 pt-5 font-poppins sm:pb-12 sm:pt-8">
+      <div className="site-shell">
+        <div className="site-panel-soft px-6 py-8 sm:px-8 sm:py-10">
+          <div className="flex flex-col gap-8 text-center sm:text-left lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex max-w-sm flex-col items-center gap-3 sm:items-start">
+              <Image src={Logo} alt="Peloteras logo" width={150} height={40} />
+              <div className="space-y-2">
+                <SubtitleM color="text-slate-900">
+                  Hecho por <strong>Peloteras</strong> para abrir más espacios, jugar más y hacer
+                  comunidad.
+                </SubtitleM>
+              </div>
+            </div>
 
-        {/* Links de navegacion */}
-        <nav aria-label="Enlaces del footer" className="flex flex-col sm:items-start gap-3">
-          <ParagraphM fontWeight="bold" color="text-mulberry">
-            <Link href="/sobre-peloteras" className="hover:underline focus:underline focus:outline-none">
-              Sobre Peloteras
-            </Link>
-          </ParagraphM>
-          <ParagraphM fontWeight="bold" color="text-mulberry">
-            <Link href="/como-inscribir-nuevo-evento" className="hover:underline focus:underline focus:outline-none">
-              Inscribir un evento
-            </Link>
-          </ParagraphM>
-          <ParagraphM fontWeight="bold" color="text-mulberry">
-            <Link href="/contactanos" className="hover:underline focus:underline focus:outline-none">
-              Contactanos
-            </Link>
-          </ParagraphM>
-        </nav>
+            <nav
+              aria-label="Enlaces del footer"
+              className="flex flex-col items-center gap-3 sm:items-start"
+            >
+              <ParagraphM fontWeight="bold" color="text-mulberry">
+                <Link
+                  href="/sobre-peloteras"
+                  className="transition-colors hover:text-slate-900 focus:text-slate-900 focus:outline-none"
+                >
+                  Sobre Peloteras
+                </Link>
+              </ParagraphM>
 
-        {/* Redes sociales */}
-        <div>
-          <div className="text-mulberry font-semibold mb-4">Nuestras redes</div>
-          <div className="flex gap-4">
-            <a
-              href={SOCIAL_LINKS.instagram}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Siguenos en Instagram"
-              className="p-2 rounded-xl border-2 border-btnBg-light text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark transition-colors focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
-            >
-              <InstagramIcon />
-            </a>
-            <a
-              href={SOCIAL_LINKS.tiktok}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Siguenos en TikTok"
-              className="p-2 rounded-xl border-2 border-btnBg-light text-btnBg-light hover:bg-btnBg-trans hover:text-btnBg-dark transition-colors focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
-            >
-              <TiktokIcon />
-            </a>
+              <ParagraphM fontWeight="bold" color="text-mulberry">
+                <Link
+                  href="/contactanos"
+                  className="transition-colors hover:text-slate-900 focus:text-slate-900 focus:outline-none"
+                >
+                  Contáctanos
+                </Link>
+              </ParagraphM>
+            </nav>
+
+            <div className="flex flex-col items-center gap-4 sm:items-start">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-mulberry/70">
+                Nuestras redes
+              </div>
+              <div className="flex gap-3">
+                <a
+                  href={SOCIAL_LINKS.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Siguenos en Instagram"
+                  className="home-button-micro premium-outline rounded-2xl p-3 text-btnBg-light transition-colors hover:border-mulberry/30 hover:bg-white hover:text-btnBg-dark focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
+                >
+                  <InstagramIcon />
+                </a>
+                <a
+                  href={SOCIAL_LINKS.tiktok}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Siguenos en TikTok"
+                  className="home-button-micro premium-outline rounded-2xl p-3 text-btnBg-light transition-colors hover:border-mulberry/30 hover:bg-white hover:text-btnBg-dark focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
+                >
+                  <TiktokIcon />
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </div>

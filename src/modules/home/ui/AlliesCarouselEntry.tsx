@@ -120,14 +120,14 @@ function AlliesCarouselFallback({ allies }: { allies: HomeAlly[] }) {
   const previewAllies = allies.slice(0, 6);
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {previewAllies.map((ally) => (
         <a
           key={ally.name}
           href={ally.href || undefined}
           target={ally.href ? '_blank' : undefined}
           rel={ally.href ? 'noreferrer' : undefined}
-          className="flex min-h-[88px] items-center justify-center rounded-2xl border border-slate-100 bg-white/80 px-4 py-3 opacity-80 transition"
+          className="flex min-h-[84px] items-center justify-center px-4 py-3 opacity-45 grayscale transition duration-300 hover:opacity-100 hover:grayscale-0"
         >
           <Image
             src={ally.logoSrc}

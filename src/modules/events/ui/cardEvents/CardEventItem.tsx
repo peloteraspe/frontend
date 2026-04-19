@@ -136,7 +136,9 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
               button={
                 <ButtonWrapper
                   icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
+                  width="fit-content"
                   disabled={isJoinDisabled}
+                  className="!h-11 !rounded-full !px-5 !py-0 shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
                     if (isJoinDisabled) return;

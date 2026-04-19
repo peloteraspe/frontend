@@ -128,7 +128,7 @@ export default function EventsMap({
     return (
       <div
         className={[
-          'h-[60vh] rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700',
+          'h-[60vh] rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-sm text-red-700',
           className || '',
         ].join(' ')}
       >
@@ -141,7 +141,7 @@ export default function EventsMap({
     return (
       <div
         className={[
-          'h-[60vh] rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700',
+          'h-[60vh] rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-sm text-red-700',
           className || '',
         ].join(' ')}
       >
@@ -154,7 +154,7 @@ export default function EventsMap({
     return (
       <div
         className={[
-          'h-[60vh] animate-pulse rounded-2xl border border-slate-200 bg-slate-100 md:h-[76vh]',
+          'premium-card h-[60vh] animate-pulse md:h-[76vh]',
           className || '',
         ].join(' ')}
       />
@@ -164,7 +164,7 @@ export default function EventsMap({
   return (
     <div
       className={[
-        'h-[60vh] md:h-[76vh] rounded-2xl overflow-hidden border border-slate-200 shadow-sm',
+        'premium-card h-[60vh] overflow-hidden md:h-[76vh]',
         className || '',
       ].join(' ')}
     >

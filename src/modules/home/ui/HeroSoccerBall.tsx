@@ -19,7 +19,7 @@ type NodeSpec = {
   size: number;
 };
 
-const NETWORK_SCALE = 0.8;
+const NETWORK_SCALE = 0.72;
 const OUTER_RADIUS = 3.34;
 const OUTER_NODE_COUNT = 72;
 const INNER_NODE_COUNT = 28;

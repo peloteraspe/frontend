@@ -41,39 +41,26 @@ export default function FeaturedEventsClient({ events, previewCount }: Props) {
 
   if (!events.length) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-        Aún no hay partidos destacados publicados.
+      <div className="premium-card px-6 py-6 text-sm text-slate-600">
+        Aún no hay fechas destacadas publicadas.
       </div>
     );
   }
 
   return (
     <>
-      <div className="mb-4">
-        <div
-          className="inline-flex rounded-2xl bg-slate-100 p-1"
-          role="tablist"
-          aria-label="Filtrar partidos destacados por estado"
-        >
+      <div className="mb-5">
+        <div className="premium-tab-group" role="tablist" aria-label="Filtrar partidos destacados por estado">
           <button
             type="button"
             role="tab"
             aria-selected={timeFilter === 'upcoming'}
             onClick={() => setTimeFilter('upcoming')}
-            className={[
-              'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition',
-              timeFilter === 'upcoming'
-                ? 'bg-mulberry text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900',
-            ].join(' ')}
+            data-active={timeFilter === 'upcoming'}
+            className="premium-tab-button"
           >
             Próximos
-            <span
-              className={[
-                'rounded-full px-2 py-0.5 text-xs',
-                timeFilter === 'upcoming' ? 'bg-white/20 text-white' : 'bg-white text-slate-600',
-              ].join(' ')}
-            >
+            <span className="premium-tab-count">
               {upcomingEvents.length}
             </span>
           </button>
@@ -82,20 +69,11 @@ export default function FeaturedEventsClient({ events, previewCount }: Props) {
             role="tab"
             aria-selected={timeFilter === 'past'}
             onClick={() => setTimeFilter('past')}
-            className={[
-              'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition',
-              timeFilter === 'past'
-                ? 'bg-mulberry text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900',
-            ].join(' ')}
+            data-active={timeFilter === 'past'}
+            className="premium-tab-button"
           >
             Pasados
-            <span
-              className={[
-                'rounded-full px-2 py-0.5 text-xs',
-                timeFilter === 'past' ? 'bg-white/20 text-white' : 'bg-white text-slate-600',
-              ].join(' ')}
-            >
+            <span className="premium-tab-count">
               {pastEvents.length}
             </span>
           </button>
@@ -103,13 +81,13 @@ export default function FeaturedEventsClient({ events, previewCount }: Props) {
       </div>
 
       {!visibleEvents.length ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+        <div className="premium-card px-6 py-6 text-sm text-slate-600">
           {timeFilter === 'upcoming'
-            ? 'Aún no hay partidos destacados próximos.'
-            : 'Aún no hay partidos destacados finalizados.'}
+            ? 'Aún no hay fechas destacadas próximas.'
+            : 'Aún no hay fechas destacadas finalizadas.'}
         </div>
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
+        <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
           <div className="order-2 xl:order-1 [&>div]:gap-5">
             <CardEventItem cardEvents={visibleEvents} variant="landing" />
           </div>

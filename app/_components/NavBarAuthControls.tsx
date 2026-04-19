@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { startTransition, useEffect, useState } from 'react';
 import { useAuth } from '@core/auth/AuthProvider';
+import UserImage from '@src/shared/ui/UserImage';
 
 type BrowserWindow = Window &
   typeof globalThis & {
@@ -13,7 +14,9 @@ type BrowserWindow = Window &
 
 const UserMenu = dynamic(() => import('./UserMenu'), {
   ssr: false,
-  loading: () => <div className="h-10 w-44 animate-pulse rounded-xl bg-slate-100" aria-hidden="true" />,
+  loading: () => (
+    <div className="h-11 w-44 animate-pulse rounded-full bg-slate-100/90" aria-hidden="true" />
+  ),
 });
 
 export default function NavBarAuthControls() {
@@ -67,20 +70,27 @@ export default function NavBarAuthControls() {
         {shouldLoadDesktopMenu ? (
           <UserMenu user={user} loading={loading} />
         ) : (
-          <div className="h-10 w-44 animate-pulse rounded-xl bg-slate-100" aria-hidden="true" />
+          <div className="h-11 w-44 animate-pulse rounded-full bg-slate-100/90" aria-hidden="true" />
         )}
       </div>
 
-      {!user && !loading ? (
-        <div className="md:hidden">
+      <div className="md:hidden">
+        {user ? (
+          <Link href="/profile" aria-label="Mi perfil">
+            <UserImage
+              src={user.avatar_url}
+              name={user.username || user.email || 'Usuario'}
+            />
+          </Link>
+        ) : !loading ? (
           <Link
             href="/signUp"
-            className="rounded-xl bg-btnBg-light px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-btnBg-dark"
+            className="home-button-micro inline-flex h-11 items-center justify-center rounded-full bg-mulberry px-5 text-[0.92rem] font-eastman-bold font-bold tracking-[0.015em] text-white shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)] hover:bg-[#470760] whitespace-nowrap"
           >
-            Registrate
+            Regístrate
           </Link>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </>
   );
 }

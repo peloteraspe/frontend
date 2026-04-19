@@ -75,7 +75,9 @@ function EventCardSameAsLanding({
         button={
           <ButtonWrapper
             icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
+            width="fit-content"
             disabled={isJoinDisabled}
+            className="!h-11 !rounded-full !px-5 !py-0 shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
             onClick={(e: any) => {
               e.stopPropagation();
               if (isJoinDisabled) return;
@@ -143,7 +145,7 @@ export default function EventListPanel({
 
   if (!events.length) {
     return (
-      <div className="h-[60vh] md:h-[76vh] rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
+      <div className="premium-card h-[60vh] border-dashed p-6 text-center text-sm text-slate-600 md:h-[76vh]">
         {emptyMessage}
       </div>
     );
@@ -156,7 +158,7 @@ export default function EventListPanel({
         className="relative h-auto min-h-0 overflow-visible [overflow-anchor:none] md:h-[76vh] md:min-h-[520px] md:overflow-y-auto md:pr-2 xl:h-[calc(100vh-140px)]"
         aria-busy={isLoading}
       >
-        <div className="space-y-5 pb-4 mt-5 ml-1">
+        <div className="ml-1 mt-4 space-y-5 pb-4">
           {events.map((event) => (
             <div key={event.id} data-event-id={event.id}>
               <EventCardSameAsLanding
