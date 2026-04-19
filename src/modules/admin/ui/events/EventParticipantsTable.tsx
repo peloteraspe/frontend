@@ -96,21 +96,49 @@ function pickLotteryWinner(participants: EventParticipant[]) {
   return shuffled[0] ?? null;
 }
 
+function haveSameParticipantIds(current: string[] | null, next: string[]) {
+  if (!current) return false;
+  if (current.length !== next.length) return false;
+
+  const currentIds = new Set(current);
+  return next.every((id) => currentIds.has(id));
+}
+
 export default function EventParticipantsTable({ participants, isSuperAdmin }: Props) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [generatedTeamIds, setGeneratedTeamIds] = useState<string[] | null>(null);
+  const [hasGeneratedTeamsOnce, setHasGeneratedTeamsOnce] = useState(false);
   const [winner, setWinner] = useState<EventParticipant | null>(null);
   const [isWinnerModalOpen, setIsWinnerModalOpen] = useState(false);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
 
   const participantIds = participants.map((participant) => participant.userId);
   const selectedParticipants = participants.filter((participant) => selectedIds.includes(participant.userId));
+  const generatedTeamParticipants = participants.filter((participant) =>
+    Boolean(generatedTeamIds?.includes(participant.userId))
+  );
   const selectedCount = selectedParticipants.length;
   const allSelected = participants.length > 0 && selectedCount === participants.length;
   const canDraw = isSuperAdmin && selectedCount >= 2;
+  const canGenerateTeams = isSuperAdmin && selectedCount >= 1;
+  const hasGeneratedTeams = Boolean(generatedTeamIds && generatedTeamIds.length > 0);
+  const needsTeamRegeneration = selectedCount > 0 && !hasGeneratedTeams && hasGeneratedTeamsOnce;
 
   useEffect(() => {
     setSelectedIds((current) => {
       const next = current.filter((id) => participantIds.includes(id));
+      if (next.length === current.length && next.every((id, index) => id === current[index])) {
+        return current;
+      }
+
+      return next;
+    });
+
+    setGeneratedTeamIds((current) => {
+      if (!current) return current;
+
+      const next = current.filter((id) => participantIds.includes(id));
+      if (next.length === 0) return null;
       if (next.length === current.length && next.every((id, index) => id === current[index])) {
         return current;
       }
@@ -123,6 +151,13 @@ export default function EventParticipantsTable({ participants, isSuperAdmin }: P
     if (!selectAllRef.current) return;
     selectAllRef.current.indeterminate = selectedCount > 0 && !allSelected;
   }, [allSelected, selectedCount]);
+
+  useEffect(() => {
+    setGeneratedTeamIds((current) => {
+      if (!current) return current;
+      return haveSameParticipantIds(current, selectedIds) ? current : null;
+    });
+  }, [selectedIds]);
 
   useEffect(() => {
     if (!isWinnerModalOpen) return;
@@ -162,7 +197,31 @@ export default function EventParticipantsTable({ participants, isSuperAdmin }: P
     setIsWinnerModalOpen(Boolean(selectedWinner));
   }
 
+  function generateTeams() {
+    if (!canGenerateTeams) return;
+    setGeneratedTeamIds([...selectedIds]);
+    setHasGeneratedTeamsOnce(true);
+  }
+
   const emptyColSpan = isSuperAdmin ? 5 : 4;
+  const teamStatusText =
+    selectedCount === 0
+      ? 'Selecciona inscritas para habilitar el sorteo y la generación de equipos.'
+      : selectedCount === 1
+        ? hasGeneratedTeams
+          ? 'Sugerencia generada. Para sortear necesitas 1 inscrita más.'
+          : 'Ya puedes generar equipos. Para sortear necesitas 1 inscrita más.'
+        : hasGeneratedTeams
+          ? 'Equipos sugeridos generados con la selección actual.'
+          : needsTeamRegeneration
+            ? 'La selección cambió. Genera de nuevo los equipos para actualizar la sugerencia.'
+            : 'Listo para sortear y generar equipos con la selección actual.';
+  const teamPanelHint =
+    selectedCount === 0
+      ? 'Selecciona al menos una jugadora y luego haz clic en "Generar equipos".'
+      : needsTeamRegeneration
+        ? 'La selección cambió. Haz clic en "Generar equipos" para actualizar la sugerencia.'
+        : 'Haz clic en "Generar equipos" para ver la sugerencia 6 vs 6 con la selección actual.';
 
   function renderPlayerProfileHint(participant: EventParticipant) {
     if (!isSuperAdmin) return null;
@@ -191,7 +250,7 @@ export default function EventParticipantsTable({ participants, isSuperAdmin }: P
                 <div>
                   <h3 className="text-sm font-semibold text-mulberry">Selección superadmin</h3>
                   <p className="mt-1 text-sm text-slate-600">
-                    Marca a todas o solo a las jugadoras que quieras usar para sorteo y sugerencia de equipos.
+                    Marca a todas o solo a las jugadoras que quieras usar para sorteo y luego generar equipos.
                   </p>
                 </div>
 
@@ -206,11 +265,24 @@ export default function EventParticipantsTable({ participants, isSuperAdmin }: P
                   </button>
                   <button
                     type="button"
+                    onClick={generateTeams}
+                    disabled={!canGenerateTeams}
+                    className={[
+                      'inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold text-white transition',
+                      canGenerateTeams ? 'bg-mulberry hover:bg-mulberry/90' : 'cursor-not-allowed bg-slate-400',
+                    ].join(' ')}
+                  >
+                    Generar equipos
+                  </button>
+                  <button
+                    type="button"
                     onClick={runLottery}
                     disabled={!canDraw}
                     className={[
-                      'inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold text-white transition',
-                      canDraw ? 'bg-mulberry hover:bg-mulberry/90' : 'cursor-not-allowed bg-slate-400',
+                      'inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold transition',
+                      canDraw
+                        ? 'border border-mulberry bg-white text-mulberry hover:bg-mulberry/5'
+                        : 'cursor-not-allowed border border-slate-200 bg-slate-50 text-slate-400',
                     ].join(' ')}
                   >
                     Sortear ganadora
@@ -228,17 +300,27 @@ export default function EventParticipantsTable({ participants, isSuperAdmin }: P
                   <p className="mt-1 text-2xl font-bold text-slate-900">{participants.length}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado del sorteo</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {selectedCount === 0 && 'Selecciona inscritas para habilitar el sorteo y la sugerencia 6 vs 6.'}
-                    {selectedCount === 1 && 'Falta 1 inscrita más para poder sortear.'}
-                    {selectedCount >= 2 && 'Listo para sortear y balancear equipos con la selección actual.'}
-                  </p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado actual</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{teamStatusText}</p>
                 </div>
               </div>
             </div>
 
-            <EventTeamSuggestionsPanel selectedParticipants={selectedParticipants} />
+            {hasGeneratedTeams ? (
+              <EventTeamSuggestionsPanel selectedParticipants={generatedTeamParticipants} />
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Equipos sugeridos 6 vs 6</h3>
+                    <p className="mt-1 text-sm text-slate-600">{teamPanelHint}</p>
+                  </div>
+                  <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    Solo superadmin
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
