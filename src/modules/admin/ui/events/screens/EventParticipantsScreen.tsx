@@ -15,10 +15,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 export default async function EventParticipantsScreen({ id }: { id: string }) {
-  let canRunLottery = false;
+  let isSuperAdminUser = false;
   try {
     const access = await assertCanManageEvent(id);
-    canRunLottery = isSuperAdmin(access.user as any);
+    isSuperAdminUser = isSuperAdmin(access.user as any);
   } catch {
     redirect('/admin/events');
   }
@@ -26,7 +26,9 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
   const event = await getEventById(id);
   if (!event) redirect('/admin/events');
 
-  const participants = await getParticipantContactsByEventId(id);
+  const participants = await getParticipantContactsByEventId(id, ['pending', 'approved'], {
+    includePlayerProfile: isSuperAdminUser,
+  });
   const history = await getEventAnnouncementHistory(id);
   const eventTitle = String(event.title || '').trim() || `Evento #${id}`;
   const approvedCount = participants.filter((participant) => participant.state === 'approved').length;
@@ -73,7 +75,7 @@ export default async function EventParticipantsScreen({ id }: { id: string }) {
           </div>
         </div>
 
-        <EventParticipantsTable participants={participants} canRunLottery={canRunLottery} />
+        <EventParticipantsTable participants={participants} isSuperAdmin={isSuperAdminUser} />
       </div>
 
       <EventAnnouncementForm

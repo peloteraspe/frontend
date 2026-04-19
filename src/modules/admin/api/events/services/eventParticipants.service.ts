@@ -9,8 +9,25 @@ type AuthUserLite = {
 };
 
 type ProfileRow = {
+  id: number;
   user: string;
   username: string | null;
+  level_id: number | null;
+};
+
+type ProfilePositionRow = {
+  profile_id: number;
+  position_id: number;
+};
+
+type PlayerPositionRow = {
+  id: number;
+  name: string | null;
+};
+
+type LevelRow = {
+  id: number;
+  name: string | null;
 };
 
 type TicketAttendanceRow = {
@@ -25,9 +42,16 @@ export type EventParticipant = {
   name: string;
   email: string;
   state: string;
+  levelId: number | null;
+  levelName: string;
+  positions: string[];
   ticketStatus: string;
   attendedAt: string | null;
   hasAttended: boolean;
+};
+
+type ParticipantQueryOptions = {
+  includePlayerProfile?: boolean;
 };
 
 function normalizeId(value: unknown) {
@@ -36,6 +60,12 @@ function normalizeId(value: unknown) {
 
 function normalizeName(input: unknown) {
   return String(input ?? '').trim();
+}
+
+function toFiniteNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
 }
 
 function emailName(email: string) {
@@ -139,10 +169,12 @@ export async function getApprovedParticipantsByEventId(eventId: string): Promise
 
 export async function getParticipantContactsByEventId(
   eventId: string,
-  allowedStates: string[] = ['pending', 'approved']
+  allowedStates: string[] = ['pending', 'approved'],
+  options: ParticipantQueryOptions = {}
 ): Promise<EventParticipant[]> {
   const normalizedEventId = normalizeId(eventId);
   if (!normalizedEventId) return [];
+  const includePlayerProfile = Boolean(options.includePlayerProfile);
   const allowedStateSet = new Set(
     allowedStates.map((state) => String(state || '').trim().toLowerCase()).filter(Boolean)
   );
@@ -174,7 +206,7 @@ export async function getParticipantContactsByEventId(
 
   const adminSupabase = getAdminSupabase();
   const [profilesRes, authUsersById, ticketsRes] = await Promise.all([
-    supabase.from('profile').select('user,username').in('user', userIds as any),
+    supabase.from('profile').select('id,user,username,level_id').in('user', userIds as any),
     getAuthUsersByIds(userIds),
     adminSupabase
       .from('ticket')
@@ -185,16 +217,117 @@ export async function getParticipantContactsByEventId(
   ]);
 
   const profileByUserId = new Map<string, string>();
+  const profileIdByUserId = new Map<string, string>();
+  const levelIdByUserId = new Map<string, number>();
+  let profileRows: ProfileRow[] = [];
   if (profilesRes.error) {
     log.database('SELECT profile names for event participants', 'profile', profilesRes.error, {
       eventId: normalizedEventId,
     });
   } else {
-    ((profilesRes.data ?? []) as ProfileRow[]).forEach((profile) => {
+    profileRows = (profilesRes.data ?? []) as ProfileRow[];
+    profileRows.forEach((profile) => {
       const userId = normalizeId(profile.user);
       const username = normalizeName(profile.username);
       if (userId && username) profileByUserId.set(userId, username);
+      if (userId) {
+        profileIdByUserId.set(userId, normalizeId(profile.id));
+        const levelId = toFiniteNumber(profile.level_id);
+        if (levelId !== null) {
+          levelIdByUserId.set(userId, levelId);
+        }
+      }
     });
+  }
+
+  const positionsByProfileId = new Map<string, string[]>();
+  const levelNameById = new Map<string, string>();
+
+  if (includePlayerProfile && profileRows.length > 0) {
+    const profileIds = Array.from(
+      new Set(
+        profileRows
+          .map((profile) => toFiniteNumber(profile.id))
+          .filter((profileId): profileId is number => profileId !== null)
+      )
+    );
+    const levelIds = Array.from(
+      new Set(
+        profileRows
+          .map((profile) => toFiniteNumber(profile.level_id))
+          .filter((levelId): levelId is number => levelId !== null)
+      )
+    );
+
+    const [profilePositionsRes, levelsRes] = await Promise.all([
+      profileIds.length
+        ? supabase
+            .from('profile_position')
+            .select('profile_id,position_id')
+            .in('profile_id', profileIds as any)
+            .order('position_id', { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
+      levelIds.length
+        ? supabase.from('level').select('id,name').in('id', levelIds as any)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (profilePositionsRes.error) {
+      log.database('SELECT profile positions for event participants', 'profile_position', profilePositionsRes.error, {
+        eventId: normalizedEventId,
+      });
+    } else {
+      const profilePositions = (profilePositionsRes.data ?? []) as ProfilePositionRow[];
+      const positionIds = Array.from(
+        new Set(
+          profilePositions
+            .map((profilePosition) => toFiniteNumber(profilePosition.position_id))
+            .filter((positionId): positionId is number => positionId !== null)
+        )
+      );
+
+      const playerPositionsRes = positionIds.length
+        ? await supabase.from('player_position').select('id,name').in('id', positionIds as any)
+        : { data: [], error: null };
+
+      const playerPositionNameById = new Map<string, string>();
+      if (playerPositionsRes.error) {
+        log.database('SELECT player positions for event participants', 'player_position', playerPositionsRes.error, {
+          eventId: normalizedEventId,
+          positionIds,
+        });
+      } else {
+        ((playerPositionsRes.data ?? []) as PlayerPositionRow[]).forEach((playerPosition) => {
+          const positionId = normalizeId(playerPosition.id);
+          const positionName = normalizeName(playerPosition.name);
+          if (positionId && positionName) {
+            playerPositionNameById.set(positionId, positionName);
+          }
+        });
+      }
+
+      profilePositions.forEach((profilePosition) => {
+        const profileId = normalizeId(profilePosition.profile_id);
+        const positionName = playerPositionNameById.get(normalizeId(profilePosition.position_id));
+        if (!profileId || !positionName) return;
+        const current = positionsByProfileId.get(profileId) ?? [];
+        if (!current.includes(positionName)) current.push(positionName);
+        positionsByProfileId.set(profileId, current);
+      });
+    }
+
+    if (levelsRes.error) {
+      log.database('SELECT levels for event participants', 'level', levelsRes.error, {
+        eventId: normalizedEventId,
+        levelIds,
+      });
+    } else {
+      ((levelsRes.data ?? []) as LevelRow[]).forEach((level) => {
+        const levelId = normalizeId(level.id);
+        const levelName = normalizeName(level.name);
+        if (levelId && levelName) levelNameById.set(levelId, levelName);
+      });
+    }
   }
 
   const ticketByUserId = new Map<string, TicketAttendanceRow>();
@@ -224,6 +357,8 @@ export async function getParticipantContactsByEventId(
       const metadataName = normalizeName(
         authUser?.user_metadata?.username || authUser?.user_metadata?.full_name
       );
+      const levelId = levelIdByUserId.get(userId) ?? null;
+      const profileId = profileIdByUserId.get(userId) ?? '';
       const ticket = ticketByUserId.get(userId);
       const ticketStatus = normalizeName(ticket?.status).toLowerCase();
       const attendedAt = ticket?.used_at ?? null;
@@ -237,6 +372,9 @@ export async function getParticipantContactsByEventId(
         }),
         email: email || 'Sin correo',
         state: assistantsByUserId.get(userId) || '',
+        levelId,
+        levelName: includePlayerProfile ? levelNameById.get(normalizeId(levelId)) || 'Sin nivel' : 'Sin nivel',
+        positions: includePlayerProfile ? positionsByProfileId.get(profileId) ?? [] : [],
         ticketStatus,
         attendedAt,
         hasAttended: ticketStatus === 'used' || Boolean(attendedAt),

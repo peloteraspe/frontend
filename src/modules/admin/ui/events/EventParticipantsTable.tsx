@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { EventParticipant } from '@modules/admin/api/events/services/eventParticipants.service';
+import EventTeamSuggestionsPanel from '@modules/admin/ui/events/EventTeamSuggestionsPanel';
 
 type Props = {
   participants: EventParticipant[];
-  canRunLottery: boolean;
+  isSuperAdmin: boolean;
 };
 
 function stateLabel(state: string) {
@@ -95,7 +96,7 @@ function pickLotteryWinner(participants: EventParticipant[]) {
   return shuffled[0] ?? null;
 }
 
-export default function EventParticipantsTable({ participants, canRunLottery }: Props) {
+export default function EventParticipantsTable({ participants, isSuperAdmin }: Props) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [winner, setWinner] = useState<EventParticipant | null>(null);
   const [isWinnerModalOpen, setIsWinnerModalOpen] = useState(false);
@@ -105,7 +106,7 @@ export default function EventParticipantsTable({ participants, canRunLottery }: 
   const selectedParticipants = participants.filter((participant) => selectedIds.includes(participant.userId));
   const selectedCount = selectedParticipants.length;
   const allSelected = participants.length > 0 && selectedCount === participants.length;
-  const canDraw = canRunLottery && selectedCount >= 2;
+  const canDraw = isSuperAdmin && selectedCount >= 2;
 
   useEffect(() => {
     setSelectedIds((current) => {
@@ -161,62 +162,83 @@ export default function EventParticipantsTable({ participants, canRunLottery }: 
     setIsWinnerModalOpen(Boolean(selectedWinner));
   }
 
-  const emptyColSpan = canRunLottery ? 5 : 4;
+  const emptyColSpan = isSuperAdmin ? 5 : 4;
+
+  function renderPlayerProfileHint(participant: EventParticipant) {
+    if (!isSuperAdmin) return null;
+
+    const positionText = participant.positions.length > 0 ? participant.positions.join(', ') : 'Sin posición';
+
+    return (
+      <div className="mt-1 flex flex-wrap gap-2">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          {participant.levelName || 'Sin nivel'}
+        </span>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+          {positionText}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <>
-      {canRunLottery ? (
+      {isSuperAdmin ? (
         <div className="border-b p-4">
-          <div className="rounded-2xl border border-mulberry/15 bg-mulberry/[0.03] p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-mulberry">Sorteo de inscritas</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  Marca las inscritas que entran al sorteo. El botón se habilita cuando hay al menos 2 seleccionadas.
-                </p>
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-mulberry/15 bg-mulberry/[0.03] p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-mulberry">Selección superadmin</h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Marca a todas o solo a las jugadoras que quieras usar para sorteo y sugerencia de equipos.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds([])}
+                    disabled={selectedCount === 0}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                  >
+                    Limpiar selección
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runLottery}
+                    disabled={!canDraw}
+                    className={[
+                      'inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold text-white transition',
+                      canDraw ? 'bg-mulberry hover:bg-mulberry/90' : 'cursor-not-allowed bg-slate-400',
+                    ].join(' ')}
+                  >
+                    Sortear ganadora
+                  </button>
+                </div>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={() => setSelectedIds([])}
-                  disabled={selectedCount === 0}
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
-                >
-                  Limpiar selección
-                </button>
-                <button
-                  type="button"
-                  onClick={runLottery}
-                  disabled={!canDraw}
-                  className={[
-                    'inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold text-white transition',
-                    canDraw ? 'bg-mulberry hover:bg-mulberry/90' : 'cursor-not-allowed bg-slate-400',
-                  ].join(' ')}
-                >
-                  Sortear ganadora
-                </button>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Seleccionadas</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{selectedCount}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total visibles</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{participants.length}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado del sorteo</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {selectedCount === 0 && 'Selecciona inscritas para habilitar el sorteo y la sugerencia 6 vs 6.'}
+                    {selectedCount === 1 && 'Falta 1 inscrita más para poder sortear.'}
+                    {selectedCount >= 2 && 'Listo para sortear y balancear equipos con la selección actual.'}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inscritas elegibles</p>
-                <p className="mt-1 text-2xl font-bold text-slate-900">{selectedCount}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total visibles</p>
-                <p className="mt-1 text-2xl font-bold text-slate-900">{participants.length}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado del sorteo</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">
-                  {selectedCount === 0 && 'Selecciona inscritas para habilitar el sorteo.'}
-                  {selectedCount === 1 && 'Falta 1 inscrita más para poder sortear.'}
-                  {selectedCount >= 2 && 'Listo para ejecutar un sorteo aleatorio.'}
-                </p>
-              </div>
-            </div>
+            <EventTeamSuggestionsPanel selectedParticipants={selectedParticipants} />
           </div>
         </div>
       ) : null}
@@ -225,7 +247,7 @@ export default function EventParticipantsTable({ participants, canRunLottery }: 
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              {canRunLottery ? (
+              {isSuperAdmin ? (
                 <th className="px-4 py-2 text-left">
                   <div className="flex items-center gap-2">
                     <input
@@ -234,7 +256,7 @@ export default function EventParticipantsTable({ participants, canRunLottery }: 
                       type="checkbox"
                       checked={allSelected}
                       onChange={toggleSelectAll}
-                      aria-label="Seleccionar todas las inscritas para el sorteo"
+                      aria-label="Seleccionar todas las inscritas"
                       className="h-4 w-4 rounded border-slate-300 text-mulberry focus:ring-mulberry"
                     />
                     <label htmlFor="participants-select-all" className="cursor-pointer text-xs font-semibold text-slate-600">
@@ -266,10 +288,10 @@ export default function EventParticipantsTable({ participants, canRunLottery }: 
                   key={participant.userId}
                   className={[
                     'border-t transition-colors',
-                    canRunLottery && isSelected ? 'bg-mulberry/[0.03]' : 'bg-white',
+                    isSuperAdmin && isSelected ? 'bg-mulberry/[0.03]' : 'bg-white',
                   ].join(' ')}
                 >
-                  {canRunLottery ? (
+                  {isSuperAdmin ? (
                     <td className="px-4 py-2">
                       <input
                         id={`participant-lottery-${participant.userId}`}
@@ -282,7 +304,7 @@ export default function EventParticipantsTable({ participants, canRunLottery }: 
                     </td>
                   ) : null}
                   <td className="px-4 py-2">
-                    {canRunLottery ? (
+                    {isSuperAdmin ? (
                       <label
                         htmlFor={`participant-lottery-${participant.userId}`}
                         className="cursor-pointer font-medium text-slate-900"
@@ -290,8 +312,9 @@ export default function EventParticipantsTable({ participants, canRunLottery }: 
                         {participant.name}
                       </label>
                     ) : (
-                      participant.name
+                      <span className="font-medium text-slate-900">{participant.name}</span>
                     )}
+                    {renderPlayerProfileHint(participant)}
                   </td>
                   <td className="px-4 py-2">{participant.email}</td>
                   <td className="px-4 py-2">
