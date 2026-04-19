@@ -12,7 +12,7 @@ const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '
 export const metadata: Metadata = {
   title: 'Peloteras | Pichangas, eventos y fútbol femenino en comunidad',
   description:
-    'Peloteras es la plataforma para mujeres y diversidades que quieren jugar fútbol, encontrar eventos deportivos y organizar pichangas con más orden.',
+    'Peloteras conecta a mujeres y diversidades que quieren jugar fútbol, sumarse a más pichangas y abrir más espacios para estar en cancha.',
   keywords: [
     'Peloteras',
     'fútbol femenino',
@@ -28,14 +28,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Peloteras | Pichangas, eventos y fútbol femenino en comunidad',
     description:
-      'Encuentra dónde jugar, descubre eventos deportivos y organiza tus propias fechas con Peloteras.',
+      'Encuentra dónde jugar, súmate a más pichangas y abre más espacios para estar en cancha con Peloteras.',
     url: siteUrl,
     images: [
       {
-        url: '/assets/images/peloteras-hero.png',
-        width: 1200,
-        height: 1200,
-        alt: 'Jugadoras de Peloteras celebrando en la cancha',
+        url: '/assets/logo.png',
+        width: 512,
+        height: 512,
+        alt: 'Logo de Peloteras',
       },
     ],
   },
@@ -43,8 +43,8 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Peloteras | Pichangas, eventos y fútbol femenino en comunidad',
     description:
-      'Encuentra dónde jugar, descubre eventos deportivos y organiza tus propias fechas con Peloteras.',
-    images: ['/assets/images/peloteras-hero.png'],
+      'Encuentra dónde jugar, súmate a más pichangas y abre más espacios para estar en cancha con Peloteras.',
+    images: ['/assets/logo.png'],
   },
 };
 
@@ -58,7 +58,7 @@ const structuredData = {
       url: siteUrl,
       logo: `${siteUrl}/assets/logo.png`,
       description:
-        'Plataforma para mujeres y diversidades que quieren jugar fútbol, encontrar eventos y organizar pichangas.',
+        'Comunidad para mujeres y diversidades que quieren jugar fútbol, encontrar más pichangas y abrir más espacios para estar en cancha.',
     },
     {
       '@type': 'WebSite',
@@ -66,7 +66,7 @@ const structuredData = {
       url: siteUrl,
       name: 'Peloteras',
       description:
-        'Encuentra eventos de fútbol femenino, únete a la comunidad y organiza tus propios encuentros con Peloteras.',
+        'Encuentra dónde jugar, únete a la comunidad y abre más espacios para estar en cancha con Peloteras.',
       inLanguage: 'es-PE',
       publisher: {
         '@id': `${siteUrl}/#organization`,
@@ -82,36 +82,41 @@ export default async function Index() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      <MainSection />
+      <div className="flex w-full flex-col gap-8 pb-8 sm:gap-10 sm:pb-10 lg:gap-12 lg:pb-12">
+        <MainSection />
 
-      {homeAllies.length > 0 && (
-        <section className="home-scroll-target w-full border-t border-slate-100 bg-white" id="aliadxs">
-          <HomeReveal className="mx-auto w-full max-w-[1600px] px-5 py-10 sm:px-8 lg:px-10">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Aliadxs
-              </p>
-              <Link
-                href="/patrocinios"
-                className="home-button-micro rounded-full px-3 py-2 text-xs font-semibold text-mulberry hover:bg-mulberry/5"
-              >
-                ¿Tu marca quiere sumarse?
-              </Link>
-            </div>
-            <AlliesCarouselEntry allies={homeAllies} />
+        {homeAllies.length > 0 && (
+          <section className="home-scroll-target w-full" id="aliadxs">
+            <HomeReveal className="site-shell">
+              <div className="flex flex-col gap-4 sm:gap-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-mulberry/70">
+                      Aliadxs que impulsan esta comunidad
+                    </p>
+                    <p className="max-w-xl text-base leading-7 text-slate-600">
+                      Marcas y organizaciones que acompañan el crecimiento de Peloteras.
+                    </p>
+                  </div>
+                  <Link
+                    href="/patrocinios"
+                    className="home-button-micro inline-flex w-fit rounded-full px-5 py-2.5 text-sm font-semibold text-mulberry hover:bg-mulberry/5"
+                  >
+                    ¿Tu marca quiere sumarse?
+                  </Link>
+                </div>
+                <AlliesCarouselEntry allies={homeAllies} />
+              </div>
+            </HomeReveal>
+          </section>
+        )}
+
+        <section className="home-scroll-target w-full" id="eventos-destacados">
+          <HomeReveal className="site-shell">
+            <CardEventList />
           </HomeReveal>
         </section>
-      )}
 
-      <section
-        className="home-scroll-target mx-auto w-full max-w-[1600px] px-5 py-8 sm:px-8 md:py-10 lg:px-10"
-        id="eventos-destacados"
-      >
-        <HomeReveal className="w-full">
-          <CardEventList />
-        </HomeReveal>
-      </section>
-      <div className="w-full">
         <LandingGrowthBlocks />
       </div>
     </>

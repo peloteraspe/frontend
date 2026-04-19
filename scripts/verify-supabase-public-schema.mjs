@@ -9,6 +9,8 @@ const checks = [
   { table: 'product_analytics_events', select: 'id,event_name,event_id,ref_user_id' },
   { table: 'event_announcement', select: 'id,event_id,source_announcement_id,status' },
   { table: 'event_announcement_recipient', select: 'id,announcement_id,event_id,status' },
+  { table: 'event_checkin', select: 'id,event_id,slug,is_active' },
+  { table: 'event_checkin_registration', select: 'id,checkin_id,email_normalized,created_at' },
 ];
 
 function loadDotEnv(filePath) {

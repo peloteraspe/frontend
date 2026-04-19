@@ -37,7 +37,7 @@ export default function ComingSoonLanding() {
   const valuePoints = [
     {
       title: 'Encuentra partidos en minutos',
-      description: 'Publicamos fechas, horarios, sede y nivel para que sepas rápido dónde jugar.',
+      description: 'Publicamos día, horario, sede y nivel para que sepas rápido dónde jugar.',
     },
     {
       title: 'Arma equipo sin chats infinitos',
@@ -52,7 +52,7 @@ export default function ComingSoonLanding() {
   ];
 
   const howItWorks = [
-    'Explora partidos por fecha, zona y nivel.',
+    'Explora partidos por día, zona y nivel.',
     'Únete al evento y confirma tu asistencia.',
     'Recibe recordatorios y llega lista para jugar.',
   ];

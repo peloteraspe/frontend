@@ -12,7 +12,7 @@ interface BadgeProps {
 
 const Badge = ({ badgeType, text, icon }: BadgeProps) => {
   const baseStyle =
-    'text-btnBg-light px-3 py-1 rounded-lg h-7 text-center leading-5 font-poppins text-sm font-medium';
+    'inline-flex items-center justify-center gap-2 rounded-full px-3 py-1 text-center font-poppins text-xs font-semibold tracking-[0.04em]';
   const iconStyle = 'flex justify-center items-center gap-2';
   const cloudColor =
     badgeType === 'Primary' ? 'btnBg-light' : badgeType === 'Secondary' ? 'btnBg-light' : 'white';
@@ -20,11 +20,11 @@ const Badge = ({ badgeType, text, icon }: BadgeProps) => {
   const style = [
     baseStyle,
     badgeType === 'Primary'
-      ? 'bg-plum/40'
+      ? 'border border-mulberry/10 bg-plum/12 text-btnBg-light'
       : badgeType === 'Secondary'
-        ? 'bg-white border-2 border-btnBg-light !leading-4'
+        ? 'border border-btnBg-light/25 bg-white text-btnBg-light'
         : 'bg-btnBg-light text-white',
-    icon ? 'w-full' : 'w-auto',
+    'w-auto',
     icon ? iconStyle : '',
   ].join(' ');
 

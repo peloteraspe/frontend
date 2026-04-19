@@ -16,7 +16,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <section className="w-full max-w-screen-xl mx-auto p-4 md:p-6">
+    <section className="site-shell py-4 md:py-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-mulberry">Administración</h1>
         <Link

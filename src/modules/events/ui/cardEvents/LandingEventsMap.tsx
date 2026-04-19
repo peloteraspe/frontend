@@ -93,7 +93,7 @@ export default function LandingEventsMap({ events }: Props) {
 
   if (!apiKeyConfigured) {
     return (
-      <div className="flex h-[360px] items-center justify-center rounded-2xl border border-red-200 bg-red-50 px-4 text-sm text-red-700">
+      <div className="flex h-[360px] items-center justify-center rounded-[1.5rem] border border-red-200 bg-red-50 px-4 text-sm text-red-700">
         Configura <code>NEXT_PUBLIC_GOOGLE_MAPS_KEY</code> para mostrar el mapa en landing.
       </div>
     );
@@ -101,18 +101,18 @@ export default function LandingEventsMap({ events }: Props) {
 
   if (loadError) {
     return (
-      <div className="flex h-[360px] items-center justify-center rounded-2xl border border-red-200 bg-red-50 px-4 text-sm text-red-700">
+      <div className="flex h-[360px] items-center justify-center rounded-[1.5rem] border border-red-200 bg-red-50 px-4 text-sm text-red-700">
         No se pudo cargar Google Maps.
       </div>
     );
   }
 
   if (!isLoaded) {
-    return <div className="h-[360px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100 md:h-[520px]" />;
+    return <div className="premium-card h-[360px] animate-pulse md:h-[520px]" />;
   }
 
   return (
-    <div className="h-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:h-[520px]">
+    <div className="premium-card h-[360px] overflow-hidden md:h-[520px]">
       <GoogleMap
         mapContainerStyle={MAP_CONTAINER_STYLE}
         center={toLatLngLiteral(center.lat, center.lng)}

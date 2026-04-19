@@ -107,12 +107,12 @@ export default function FeaturedEventsClientEntry({
 
 function FeaturedEventsFallback() {
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
+    <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
       <div className="order-2 space-y-4 xl:order-1">
         {[0, 1, 2].map((index) => (
           <article
             key={index}
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="premium-card px-5 py-5"
           >
             <div className="h-3 w-20 rounded-full bg-slate-100" />
             <div className="mt-4 h-6 w-3/4 rounded-full bg-slate-100" />
@@ -132,29 +132,29 @@ function FeaturedEventsFallback() {
       </div>
 
       <div className="order-1 xl:order-2">
-        <div className="flex h-[360px] flex-col justify-between rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#faf7fd_0%,#ffffff_100%)] p-5 shadow-sm md:h-[520px]">
+        <div className="site-panel-soft flex h-[360px] flex-col justify-between p-5 md:h-[520px]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-mulberry/60">
               Vista interactiva
             </p>
             <h3 className="mt-3 font-eastman-bold text-xl text-slate-900">
-              El mapa y los filtros se activan al llegar a esta sección.
+              Explora fechas desde el mapa y encuentra tu próxima cancha.
             </h3>
             <p className="mt-3 max-w-[18rem] text-sm leading-6 text-slate-500">
-              Priorizamos la primera carga de la home y diferimos esta parte hasta que entre en pantalla.
+              Muy pronto verás la vista completa con mapa, lista y detalle de cada evento.
             </p>
           </div>
 
-          <div className="flex items-center justify-between rounded-2xl bg-white/80 p-4 ring-1 ring-slate-200/80">
+          <div className="premium-card flex items-center justify-between p-4">
             <div>
               <p className="text-sm font-semibold text-slate-900">Explorar eventos</p>
-              <p className="text-xs text-slate-500">Lista completa, mapa y detalle por evento.</p>
+              <p className="text-xs text-slate-500">Lista completa, mapa y detalle por fecha.</p>
             </div>
             <Link
               href="/events"
-              className="inline-flex h-10 items-center rounded-full bg-mulberry px-4 text-sm font-semibold text-white"
+              className="home-button-micro inline-flex h-10 items-center rounded-full bg-mulberry px-4 text-sm font-semibold text-white"
             >
-              Abrir
+              Ver
             </Link>
           </div>
         </div>

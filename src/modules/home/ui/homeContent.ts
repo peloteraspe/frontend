@@ -26,7 +26,7 @@ export const whatIsPeloterasCards: HomeCard[] = [
   {
     title: 'Encuentra dónde jugar',
     description:
-      'Explora pichangas, partidos y encuentros con fecha, hora, lugar, cupos e indicaciones claras en un solo lugar.',
+      'Explora pichangas, partidos y encuentros con día, hora, lugar, cupos e indicaciones claras en un solo lugar.',
   },
   {
     title: 'Organiza con más orden',

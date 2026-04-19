@@ -82,16 +82,16 @@ function AllyCard({
     <Image
       src={logoSrc}
       alt={`Logo de ${name}`}
-      width={180}
-      height={80}
-      className={`h-9 w-auto max-w-[120px] origin-center object-contain ${logoScaleClass} sm:h-10`}
+      width={200}
+      height={96}
+      className={`h-12 w-auto max-w-[140px] origin-center object-contain ${logoScaleClass} sm:h-14`}
     />
   ) : (
-    <span className="text-sm font-semibold text-slate-600">{name}</span>
+    <span className="text-base font-semibold text-slate-700">{name}</span>
   );
 
   const baseClass =
-    'mx-auto inline-flex shrink-0 items-center justify-center bg-transparent px-4 py-3 opacity-40 grayscale no-underline outline-none shadow-none ring-0 transition duration-300 hover:bg-transparent hover:opacity-100 hover:grayscale-0 hover:shadow-none focus:bg-transparent focus:outline-none focus-visible:bg-transparent focus-visible:outline-none focus-visible:ring-0 active:bg-transparent';
+    'mx-auto inline-flex min-h-[100px] w-[calc(100%-0.75rem)] shrink-0 items-center justify-center px-4 py-3 opacity-45 grayscale no-underline outline-none transition duration-300 hover:opacity-100 hover:grayscale-0 focus:outline-none focus-visible:opacity-100';
 
   if (!href) {
     return <div className={baseClass}>{inner}</div>;
