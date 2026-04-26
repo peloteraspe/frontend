@@ -1043,7 +1043,7 @@ export default function SignupClient() {
               disabled={checkingVerification}
               className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
             >
-              {checkingVerification ? 'Verificando...' : 'Ya verifique mi correo'}
+              {checkingVerification ? 'Verificando...' : 'Ya verifiqué mi correo'}
             </button>
 
             <button
