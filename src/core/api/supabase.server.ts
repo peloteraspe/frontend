@@ -36,16 +36,24 @@ export async function getServerSupabase() {
   const cookieStore = await cookies();
   const { supabaseUrl, supabaseAnonKey } = getPublicSupabaseEnv();
 
+  const setCookie = (name: string, value: string, options: CookieOptions) => {
+    try {
+      cookieStore.set({ name, value, ...options });
+    } catch {
+      // Server Components can read cookies but cannot persist refreshed Supabase cookies.
+    }
+  };
+
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value;
       },
       set(name: string, value: string, options: CookieOptions) {
-        cookieStore.set({ name, value, ...options });
+        setCookie(name, value, options);
       },
       remove(name: string, options: CookieOptions) {
-        cookieStore.set({ name, value: '', maxAge: 0, ...options });
+        setCookie(name, '', { ...options, maxAge: 0 });
       },
     },
     cookieOptions: {

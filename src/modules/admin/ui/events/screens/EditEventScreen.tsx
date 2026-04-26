@@ -21,6 +21,10 @@ export default async function EditEventScreen({ id }: { id: string }) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user?.id) {
+    redirect('/');
+  }
+
   const canManageFeatured = isSuperAdmin(user as any);
 
   const event = await getEventById(id);

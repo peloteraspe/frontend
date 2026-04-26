@@ -35,8 +35,14 @@ function toBackendError(
   parsed: { bodyText: string; data: any },
   fallbackMessage: string
 ): BackendErrorWithStatus {
+  const payloadMessageValue = parsed.data?.message;
+  const normalizedPayloadMessage = Array.isArray(payloadMessageValue)
+    ? payloadMessageValue.filter((item) => typeof item === 'string' && item.trim()).join('; ')
+    : typeof payloadMessageValue === 'string'
+      ? payloadMessageValue.trim()
+      : '';
   const payloadMessage =
-    (typeof parsed.data?.message === 'string' && parsed.data.message.trim()) ||
+    normalizedPayloadMessage ||
     (typeof parsed.data?.error === 'string' && parsed.data.error.trim()) ||
     '';
   const rawMessage = payloadMessage || parsed.bodyText || response.statusText || fallbackMessage;

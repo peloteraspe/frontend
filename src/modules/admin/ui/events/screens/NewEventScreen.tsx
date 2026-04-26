@@ -12,6 +12,7 @@ import {
   extractEventDescriptionHtml,
   extractEventDescriptionText,
 } from '@shared/lib/eventDescription';
+import { redirect } from 'next/navigation';
 
 type Props = {
   templateId?: string;
@@ -22,6 +23,10 @@ export default async function NewEventScreen({ templateId }: Props) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user?.id) {
+    redirect('/');
+  }
+
   const canManageFeatured = isSuperAdmin(user as any);
   const normalizedTemplateId = String(templateId || '').trim();
   const [catalogs, featuresRes, paymentMethodsRes] = await Promise.all([
