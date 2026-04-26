@@ -23,6 +23,11 @@ import {
   checkUsernameAvailabilityAction,
   completeOnboardingProfileAction,
 } from '@modules/users/actions/createProfile.actions';
+import {
+  USERNAME_MAX_LENGTH,
+  validateUsername,
+  validateUsernameForForm,
+} from '@modules/users/lib/username';
 import GoogleButton from '@modules/auth/ui/login/google-button';
 
 function getSafeAuthErrorMessage(rawMessage: string) {
@@ -467,16 +472,17 @@ export default function SignupClient() {
 
     setLoading(true);
     try {
-      const normalizedUsername = (username || '').trim();
-      if (normalizedUsername.length < 3) {
+      const usernameValidation = validateUsername(username);
+      if (usernameValidation.ok === false) {
         setStep(1);
         setError('username', {
           type: 'manual',
-          message: 'El nombre de usuario es requerido para continuar.',
+          message: usernameValidation.message,
         });
-        toast.error('Completa tu nombre de usuaria para continuar.');
+        toast.error(usernameValidation.message);
         return;
       }
+      const normalizedUsername = usernameValidation.value;
 
       let usernameCheck:
         | { available: boolean; reason: 'ok' | 'invalid' | 'error'; message?: string }
@@ -508,10 +514,15 @@ export default function SignupClient() {
         } else {
           setError('username', {
             type: 'manual',
-            message: 'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.',
+            message:
+              usernameCheck.message ||
+              'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.',
           });
           setStep(1);
-          toast.error('Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.');
+          toast.error(
+            usernameCheck.message ||
+              'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.'
+          );
           return;
         }
       }
@@ -537,6 +548,16 @@ export default function SignupClient() {
           });
           setStep(1);
           toast.error('Ese nombre de usuario ya está en uso, elige otro.');
+          return;
+        }
+
+        if (onboardingResult.code === 'USERNAME_INVALID') {
+          setError('username', {
+            type: 'manual',
+            message: onboardingResult.message,
+          });
+          setStep(1);
+          toast.error(onboardingResult.message);
           return;
         }
 
@@ -885,20 +906,35 @@ export default function SignupClient() {
               {...register('username', {
                 required: 'Este campo es requerido',
                 minLength: { value: 3, message: 'Mínimo 3 caracteres' },
-                maxLength: { value: 50, message: 'Máximo 50 caracteres' },
+                maxLength: {
+                  value: USERNAME_MAX_LENGTH,
+                  message: `Máximo ${USERNAME_MAX_LENGTH} caracteres`,
+                },
+                validate: validateUsernameForForm,
                 onBlur: async (e) => {
                   const rawValue = String(e?.target?.value ?? '').trim();
-                  if (rawValue.length < 3) return;
+                  const usernameValidation = validateUsername(rawValue);
+                  if (usernameValidation.ok === false) {
+                    setError('username', {
+                      type: 'manual',
+                      message: usernameValidation.message,
+                    });
+                    return;
+                  }
                   setIsCheckingUsername(true);
-                  const result = await checkUsernameAvailabilityAction(rawValue, userId ?? undefined);
+                  const result = await checkUsernameAvailabilityAction(
+                    usernameValidation.value,
+                    userId ?? undefined
+                  );
                   setIsCheckingUsername(false);
                   if (!result.available) {
                     setError('username', {
                       type: 'manual',
                       message:
-                        result.reason === 'error'
+                        result.message ||
+                        (result.reason === 'error'
                           ? 'No se pudo validar el nombre ahora.'
-                          : 'El nombre de usuario ya está en uso.',
+                          : 'El nombre de usuario ya está en uso.'),
                     });
                     return;
                   }
@@ -906,9 +942,11 @@ export default function SignupClient() {
                 },
               })}
               autoComplete="nickname"
+              maxLength={USERNAME_MAX_LENGTH}
               className="h-11"
               errorText={errors.username?.message as string | undefined}
             />
+            <p className="text-xs text-slate-500 -mt-2">Máximo 15 caracteres, sin espacios.</p>
             {isCheckingUsername && (
               <p className="text-xs text-slate-500 -mt-2">Verificando disponibilidad...</p>
             )}
@@ -976,7 +1014,7 @@ export default function SignupClient() {
               disabled={
                 loading ||
                 !isIdentityConfirmed ||
-                (username?.trim().length ?? 0) < 3 ||
+                !validateUsername(username).ok ||
                 !selectedLevel ||
                 selectedPositions.length === 0
               }
@@ -1005,7 +1043,7 @@ export default function SignupClient() {
               disabled={checkingVerification}
               className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
             >
-              {checkingVerification ? 'Verificando...' : 'Ya verifique mi correo'}
+              {checkingVerification ? 'Verificando...' : 'Ya verifiqué mi correo'}
             </button>
 
             <button

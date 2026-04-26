@@ -5,6 +5,10 @@ import { getServerSupabase } from '@core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
 import { normalizePhoneMetadata } from '@shared/lib/phone';
+import {
+  USERNAME_REQUIREMENTS_MESSAGE,
+  validateUsername,
+} from '@modules/users/lib/username';
 
 export type CreateProfilePayload = {
   user: string;
@@ -23,20 +27,33 @@ export type CompleteOnboardingProfileResult =
   | { ok: true }
   | {
       ok: false;
-      code: 'USERNAME_TAKEN' | 'USER_NOT_READY' | 'TRANSIENT' | 'UNKNOWN';
+      code: 'USERNAME_TAKEN' | 'USERNAME_INVALID' | 'USER_NOT_READY' | 'TRANSIENT' | 'UNKNOWN';
       message: string;
     };
 
 export async function createProfileAction(payload: CreateProfilePayload) {
-  return createProfile(payload);
+  const usernameValidation = validateUsername(payload.username);
+  if (usernameValidation.ok === false) {
+    throw new Error(usernameValidation.message);
+  }
+
+  return createProfile({ ...payload, username: usernameValidation.value });
 }
 
 export async function updateProfileAction(userId: string, payload: UpdateProfilePayload) {
-  return updateProfileByUserId(userId, payload);
+  const usernameValidation = validateUsername(payload.username);
+  if (usernameValidation.ok === false) {
+    throw new Error(usernameValidation.message);
+  }
+
+  return updateProfileByUserId(userId, { ...payload, username: usernameValidation.value });
 }
 
 function normalizeErrorMessage(error: unknown) {
-  return String((error as any)?.message || error || '')
+  const maybeError = error as any;
+  return [maybeError?.message, maybeError?.bodyText, typeof error === 'string' ? error : '']
+    .filter(Boolean)
+    .join(' ')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
@@ -62,6 +79,18 @@ function isProfileUsernameConflictError(message: string) {
     message.includes('profile_username_key') ||
     message.includes('duplicate key value violates unique constraint') ||
     (message.includes('unique') && message.includes('username'))
+  );
+}
+
+function isProfileUsernameValidationError(message: string) {
+  return (
+    message.includes('username') &&
+    (message.includes('shorter than or equal to 15') ||
+      message.includes('longer than or equal to 3') ||
+      message.includes('must be shorter') ||
+      message.includes('must be longer') ||
+      message.includes('space') ||
+      message.includes('whitespace'))
   );
 }
 
@@ -376,14 +405,23 @@ export async function completeOnboardingProfileAction(
   payload: CreateProfilePayload
 ): Promise<CompleteOnboardingProfileResult> {
   try {
+    const usernameValidation = validateUsername(payload.username);
+    if (usernameValidation.ok === false) {
+      return {
+        ok: false,
+        code: 'USERNAME_INVALID',
+        message: usernameValidation.message,
+      };
+    }
+
+    const normalizedUsername = usernameValidation.value;
     const profilePayload: UpdateProfilePayload = {
-      username: payload.username.trim(),
+      username: normalizedUsername,
       level_id: payload.level_id as number,
       player_position: payload.player_position,
     };
 
     let usedDirectSupabaseFallback = false;
-    const normalizedUsername = payload.username.trim();
 
     try {
       await updateProfileByUserId(payload.user, profilePayload);
@@ -449,7 +487,7 @@ export async function completeOnboardingProfileAction(
       });
     }
 
-    await syncAuthUserMetadata(payload.user, payload.username);
+    await syncAuthUserMetadata(payload.user, normalizedUsername);
     return { ok: true };
   } catch (error: any) {
     const message = normalizeErrorMessage(error);
@@ -463,6 +501,14 @@ export async function completeOnboardingProfileAction(
         ok: false,
         code: 'USERNAME_TAKEN',
         message: 'El nombre de usuario ya está en uso, elige otro.',
+      };
+    }
+
+    if (isProfileUsernameValidationError(message)) {
+      return {
+        ok: false,
+        code: 'USERNAME_INVALID',
+        message: USERNAME_REQUIREMENTS_MESSAGE,
       };
     }
 
@@ -495,10 +541,15 @@ export async function checkUsernameAvailabilityAction(
   currentUserId?: string
 ) {
   try {
-    const normalizedUsername = String(username ?? '').trim();
-    if (!normalizedUsername || normalizedUsername.length < 3) {
-      return { available: false, reason: 'invalid' as const };
+    const usernameValidation = validateUsername(username);
+    if (usernameValidation.ok === false) {
+      return {
+        available: false,
+        reason: 'invalid' as const,
+        message: usernameValidation.message,
+      };
     }
+    const normalizedUsername = usernameValidation.value;
 
     let matchingUserId: string | null | undefined;
     let lookupError: string | null = null;

@@ -5,6 +5,7 @@ import { backendFetch, backendUrl } from '@core/api/backend';
 import { HTTP_401, HTTP_403, jsonNoStore } from '@core/api/responses';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { getServerSupabase } from '@core/api/supabase.server';
+import { validateUsername } from '@modules/users/lib/username';
 
 async function withTimeout<T = any>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -161,7 +162,11 @@ async function patchProfileFallbackInSupabase(userId: string, rawBody: unknown) 
     player_position?: unknown;
   };
 
-  const username = typeof body.username === 'string' ? body.username.trim() : '';
+  const usernameValidation = validateUsername(body.username);
+  if (usernameValidation.ok === false) {
+    throw new Error(usernameValidation.message);
+  }
+  const username = usernameValidation.value;
   const levelId = Number(body.level_id);
   const normalizedLevelId = Number.isFinite(levelId) ? levelId : null;
   const positionIds = normalizePositionIds(body.player_position);
@@ -290,6 +295,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<Rout
     if (authUserId !== routeUserId) return HTTP_403;
 
     const body = await request.json();
+    const usernameValidation = validateUsername((body as any)?.username);
+    if (usernameValidation.ok === false) {
+      return NextResponse.json({ error: usernameValidation.message }, { status: 400 });
+    }
     const backendBody = stripPhoneFromProfilePayload(body);
 
     try {
@@ -299,7 +308,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<Rout
       });
 
       if (res.ok) {
-        return NextResponse.json(await res.json());
+        const backendProfile = await res.json().catch(() => null);
+        const fallbackUpdatedProfile = await patchProfileFallbackInSupabase(routeUserId, body);
+        return NextResponse.json({
+          ...(backendProfile && typeof backendProfile === 'object' ? backendProfile : {}),
+          ...(fallbackUpdatedProfile && typeof fallbackUpdatedProfile === 'object'
+            ? fallbackUpdatedProfile
+            : {}),
+          username: usernameValidation.value,
+        });
       }
 
       const txt = await res.text().catch(() => '');

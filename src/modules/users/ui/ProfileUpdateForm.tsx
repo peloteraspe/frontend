@@ -15,6 +15,11 @@ import {
   resolveStoredPhone,
   validateInternationalPhone,
 } from '@shared/lib/phone';
+import {
+  USERNAME_MAX_LENGTH,
+  validateUsername,
+  validateUsernameForForm,
+} from '@modules/users/lib/username';
 
 export type OptionSelectNumber = { value: number; label: string };
 
@@ -111,6 +116,16 @@ export default function ProfileUpdateForm({
       return;
     }
 
+    const usernameValidation = validateUsername(data.username);
+    if (usernameValidation.ok === false) {
+      setError('username', {
+        type: 'manual',
+        message: usernameValidation.message,
+      });
+      return;
+    }
+    const normalizedUsername = usernameValidation.value;
+
     const normalizedPhone = phone.trim() ? normalizeInternationalPhone(phone) : '';
     if (phone.trim() && !normalizedPhone) {
       setPhoneError('Ingresa un celular válido.');
@@ -122,7 +137,7 @@ export default function ProfileUpdateForm({
       clearErrors();
       setPhoneError('');
       const updateData: UserProfileUpdate = {
-        username: data.username,
+        username: normalizedUsername,
         level_id: data.level_id as number,
         player_position: data.positions,
         phone: normalizedPhone || null,
@@ -132,7 +147,7 @@ export default function ProfileUpdateForm({
       const currentMetadata = normalizePhoneMetadata(user?.user_metadata);
       const nextMetadata: Record<string, unknown> = {
         ...currentMetadata,
-        username: data.username.trim(),
+        username: normalizedUsername,
         phone: normalizedPhone || null,
       };
 
@@ -141,12 +156,12 @@ export default function ProfileUpdateForm({
       });
 
       if (metadataError) {
-        throw new Error(metadataError.message);
+        console.warn('Could not sync profile username into auth metadata', metadataError.message);
       }
 
       const nextProfileData: UserProfileData = {
         ...(updatedProfile ?? {}),
-        username: data.username.trim(),
+        username: normalizedUsername,
         level_id: data.level_id as number,
         level:
           levelsOptions.find((option) => option.value === data.level_id)?.label ??
@@ -211,15 +226,23 @@ export default function ProfileUpdateForm({
             placeholder="Tu usuario"
             {...register('username', {
               required: 'Este campo es requerido',
-              maxLength: {
-                value: 50,
-                message: 'Máximo 50 caracteres.',
+              minLength: {
+                value: 3,
+                message: 'Mínimo 3 caracteres.',
               },
+              maxLength: {
+                value: USERNAME_MAX_LENGTH,
+                message: `Máximo ${USERNAME_MAX_LENGTH} caracteres.`,
+              },
+              validate: validateUsernameForForm,
             })}
+            maxLength={USERNAME_MAX_LENGTH}
             errorText={errors.username?.message as string | undefined}
             bgColor="bg-white"
           />
-          <p className={helperTextClassName}>Se mostrará en eventos, equipos y entradas.</p>
+          <p className={helperTextClassName}>
+            Se mostrará en eventos, equipos y entradas. Máximo 15 caracteres, sin espacios.
+          </p>
         </div>
 
         <div className="flex h-full flex-col">

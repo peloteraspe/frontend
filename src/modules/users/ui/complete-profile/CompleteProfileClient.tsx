@@ -12,6 +12,11 @@ import { fetchLevelsOptions, fetchPositionsOptions } from '@modules/users/api/lo
 import { createProfile } from '@modules/users/api/profile.server';
 import { checkUsernameAvailabilityAction } from '@modules/users/actions/createProfile.actions';
 import type { ProfileRequestBody } from '@modules/users/model/types';
+import {
+  USERNAME_MAX_LENGTH,
+  validateUsername,
+  validateUsernameForForm,
+} from '@modules/users/lib/username';
 
 type FormValues = {
   username: string;
@@ -73,19 +78,22 @@ export default function CompleteProfileClient({
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
     try {
-      const username = data.username.trim();
+      const usernameValidation = validateUsername(data.username);
       const levelId = toNumber(data.level_id?.value);
 
-      if (!username || username.length < 3) {
-        toast.error('El nombre debe tener al menos 3 caracteres.');
+      if (usernameValidation.ok === false) {
+        toast.error(usernameValidation.message);
         return;
       }
+      const username = usernameValidation.value;
+
       const usernameCheck = await checkUsernameAvailabilityAction(username);
       if (!usernameCheck.available) {
         toast.error(
-          usernameCheck.reason === 'error'
+          usernameCheck.message ||
+            (usernameCheck.reason === 'error'
             ? 'No se pudo verificar el nombre de usuario. Intenta de nuevo.'
-            : 'El nombre de usuario ya está en uso, elige otro.'
+            : 'El nombre de usuario ya está en uso, elige otro.')
         );
         return;
       }
@@ -138,10 +146,16 @@ export default function CompleteProfileClient({
             {...register('username', {
               required: 'Este campo es requerido',
               minLength: { value: 3, message: 'Mínimo 3 caracteres' },
-              maxLength: { value: 50, message: 'Máximo 50 caracteres' },
+              maxLength: {
+                value: USERNAME_MAX_LENGTH,
+                message: `Máximo ${USERNAME_MAX_LENGTH} caracteres`,
+              },
+              validate: validateUsernameForForm,
             })}
+            maxLength={USERNAME_MAX_LENGTH}
             errorText={errors.username?.message as string | undefined}
           />
+          <p className="-mt-2 text-xs text-slate-500">Máximo 15 caracteres, sin espacios.</p>
 
           <label className="w-full">
             <div className="mb-1">
