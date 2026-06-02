@@ -320,18 +320,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<Rout
       }
 
       const txt = await res.text().catch(() => '');
-      if (res.status < 500) {
+      if (res.status === 404) {
+        console.warn('PATCH /api/profile backend returned 404, using Supabase fallback', {
+          routeUserId,
+          status: res.status,
+          body: txt,
+        });
+      } else if (res.status < 500) {
         return NextResponse.json(
           { error: txt || 'Failed to update profile in backend' },
           { status: res.status }
         );
+      } else {
+        console.warn('PATCH /api/profile backend failed, using Supabase fallback', {
+          routeUserId,
+          status: res.status,
+          body: txt,
+        });
       }
-
-      console.warn('PATCH /api/profile backend failed, using Supabase fallback', {
-        routeUserId,
-        status: res.status,
-        body: txt,
-      });
     } catch (backendError) {
       console.warn('PATCH /api/profile backend request failed, using Supabase fallback', {
         routeUserId,
