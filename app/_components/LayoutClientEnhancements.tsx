@@ -12,6 +12,9 @@ type BrowserWindow = Window &
 const EmailVerificationBanner = dynamic(() => import('@app/_components/EmailVerificationBanner'), {
   ssr: false,
 });
+const MissingPhoneBanner = dynamic(() => import('@app/_components/MissingPhoneBanner'), {
+  ssr: false,
+});
 const BottomNavigation = dynamic(() => import('@app/_components/BottomNavigation'), {
   ssr: false,
 });
@@ -79,6 +82,7 @@ export default function LayoutClientEnhancements() {
   return (
     <>
       <EmailVerificationBanner />
+      <MissingPhoneBanner />
       {shouldLoadBottomNavigation ? <BottomNavigation /> : null}
       <ToastViewport />
     </>
