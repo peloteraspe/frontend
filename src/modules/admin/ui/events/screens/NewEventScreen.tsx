@@ -13,6 +13,7 @@ import {
   extractEventDescriptionText,
 } from '@shared/lib/eventDescription';
 import { redirect } from 'next/navigation';
+import { getOrganizerOptionsForEventForm } from '@modules/admin/api/organizers/organizers.service';
 
 type Props = {
   templateId?: string;
@@ -29,7 +30,7 @@ export default async function NewEventScreen({ templateId }: Props) {
 
   const canManageFeatured = isSuperAdmin(user as any);
   const normalizedTemplateId = String(templateId || '').trim();
-  const [catalogs, featuresRes, paymentMethodsRes] = await Promise.all([
+  const [catalogs, featuresRes, paymentMethodsRes, organizerOptions] = await Promise.all([
     getEventCatalogs(),
     supabase.from('features').select('id,name').order('name', { ascending: true }),
     supabase
@@ -38,6 +39,7 @@ export default async function NewEventScreen({ templateId }: Props) {
       .eq('created_by', user?.id || '')
       .order('is_active', { ascending: false })
       .order('created_at', { ascending: false }),
+    getOrganizerOptionsForEventForm(),
   ]);
 
   if (featuresRes.error) {
@@ -94,6 +96,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         levelId: number;
         featureIds: number[];
         paymentMethodIds: number[];
+        organizerId: string | null;
         isPublished: boolean;
         isFieldReservedConfirmed: boolean;
         isFeatured: boolean;
@@ -160,6 +163,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         levelId: Number(templateEvent.level || catalogs.levels[0]?.id || 1),
         featureIds: selectedFeatureIds,
         paymentMethodIds: selectedPaymentMethodIds,
+        organizerId: templateEvent.organizer_id ?? null,
         isPublished: templateEvent.is_published !== false,
         isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
         isFeatured: Boolean(templateEvent.is_featured),
@@ -182,6 +186,7 @@ export default async function NewEventScreen({ templateId }: Props) {
   const initialValues = {
     featureIds: [],
     paymentMethodIds: [],
+    organizerId: null,
     eventTypeId: selectableEventTypes[0]?.id ?? 1,
     levelId: catalogs.levels[0]?.id ?? 1,
     ...templateInitial,
@@ -204,6 +209,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         levels={catalogs.levels}
         features={features}
         paymentMethods={paymentMethods}
+        organizerOptions={organizerOptions}
         initial={initialValues}
         canManageFeatured={canManageFeatured}
         successRedirectTo="/admin/events"

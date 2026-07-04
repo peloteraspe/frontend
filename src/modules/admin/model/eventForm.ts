@@ -19,6 +19,7 @@ export type EventUpsertInput = {
   levelId: number;
   featureIds: number[];
   paymentMethodIds: number[];
+  organizerId: string | null;
   isPublished: boolean;
   isFieldReservedConfirmed: boolean;
   isFeatured: boolean;
@@ -60,6 +61,17 @@ function normalizeDistrict(value: FormDataEntryValue | null) {
   return String(district || '').trim();
 }
 
+function parseNullableUuid(value: FormDataEntryValue | null) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)) {
+    return raw;
+  }
+
+  throw new Error('Organizadora invalida.');
+}
+
 export function parseEventFormData(fd: FormData): EventUpsertInput {
   const rawStartTime = String(fd.get('startTime') || '').trim();
   const rawEndTime = String(fd.get('endTime') || '').trim();
@@ -82,6 +94,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     levelId: parseNumber(fd.get('levelId'), 1),
     featureIds: parseNumberList(fd.getAll('featureIds')),
     paymentMethodIds: parseNumberList(fd.getAll('paymentMethodIds')),
+    organizerId: parseNullableUuid(fd.get('organizerId')),
     isPublished: parseBoolean(fd.get('isPublished')),
     isFieldReservedConfirmed: parseBoolean(fd.get('isFieldReservedConfirmed')),
     isFeatured: parseBoolean(fd.get('isFeatured')),

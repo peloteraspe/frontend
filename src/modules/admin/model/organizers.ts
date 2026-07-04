@@ -38,6 +38,14 @@ export type OrganizerListItem = {
   flags: AdminFeatureFlagsState | null;
 };
 
+export type OrganizerOption = {
+  id: string;
+  displayName: string;
+  status: OrganizerStatus;
+  contactEmail: string | null;
+  zone: string | null;
+};
+
 export type PartnerLeadListItem = {
   id: number;
   displayName: string;
