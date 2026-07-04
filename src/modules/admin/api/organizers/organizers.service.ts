@@ -2,13 +2,14 @@
 
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { getServerSupabase } from '@core/api/supabase.server';
-import { isSuperAdmin } from '@shared/lib/auth/isAdmin';
+import { isAdmin, isSuperAdmin } from '@shared/lib/auth/isAdmin';
 import {
   ADMIN_FEATURE_FLAG_KEYS,
   ORGANIZER_STATUSES,
   type AdminFeatureFlagKey,
   type AdminFeatureFlagsState,
   type OrganizerListItem,
+  type OrganizerOption,
   type OrganizersAdminData,
   type OrganizerStatus,
 } from '@modules/admin/model/organizers';
@@ -231,6 +232,67 @@ export async function getOrganizersAdminData(): Promise<OrganizersAdminData> {
     organizers: organizerItems,
     partnerLeads: leadItems,
   };
+}
+
+export async function getOrganizerOptionsForEventForm(): Promise<OrganizerOption[]> {
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || !isAdmin(user as any)) {
+    throw new Error('No tienes permisos para gestionar eventos.');
+  }
+
+  const admin = getAdminSupabase();
+  const { data, error } = await admin
+    .from('organizers')
+    .select('id,user_id,profile_id,partner_lead_id,status,source,zone,experience_level,internal_notes,created_at,updated_at')
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  const organizers = (data ?? []) as OrganizerRow[];
+  const partnerLeadIds = organizers
+    .map((organizer) => Number(organizer.partner_lead_id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+  const userIds = organizers.map((organizer) => organizer.user_id).filter((id): id is string => Boolean(id));
+
+  const [leadsResult, profilesByUserId] = await Promise.all([
+    partnerLeadIds.length
+      ? admin
+          .from('partner_leads')
+          .select('id,contact_name,contact_email,organization_name,location_label')
+          .in('id', partnerLeadIds)
+      : Promise.resolve({ data: [], error: null }),
+    getProfileByUserIds(userIds),
+  ]);
+
+  if (leadsResult.error) throw new Error(leadsResult.error.message);
+
+  type OrganizerLeadOptionRow = Pick<
+    PartnerLeadRow,
+    'id' | 'contact_name' | 'contact_email' | 'organization_name' | 'location_label'
+  >;
+  const leadsById = new Map<number, OrganizerLeadOptionRow>();
+  ((leadsResult.data ?? []) as OrganizerLeadOptionRow[]).forEach((lead) => {
+    leadsById.set(lead.id, lead);
+  });
+
+  return organizers.map((organizer) => {
+    const lead = organizer.partner_lead_id ? leadsById.get(organizer.partner_lead_id) : null;
+    const profile = organizer.user_id ? profilesByUserId.get(organizer.user_id) : null;
+    const leadName = normalizeText(lead?.organization_name) || normalizeText(lead?.contact_name);
+    const profileName = normalizeText(profile?.username);
+
+    return {
+      id: organizer.id,
+      displayName: leadName || profileName || `Organizadora ${organizer.id.slice(0, 8)}`,
+      status: organizer.status,
+      contactEmail: normalizeText(lead?.contact_email),
+      zone: normalizeText(lead?.location_label) || normalizeText(organizer.zone),
+    };
+  });
 }
 
 export async function createOrganizerFromPartnerLead(leadId: number) {

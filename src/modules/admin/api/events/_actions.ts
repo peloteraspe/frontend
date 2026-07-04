@@ -70,6 +70,7 @@ function toInsertPayload(
     level: input.levelId,
     is_published: input.isPublished,
     is_featured: isFeatured,
+    organizer_id: input.organizerId,
     created_by_id: userId,
     created_by: createdBy,
   };
@@ -100,6 +101,7 @@ function toUpdatePayload(
     level: input.levelId,
     is_published: input.isPublished,
     is_featured: isFeatured,
+    organizer_id: input.organizerId,
   };
 }
 
@@ -167,6 +169,22 @@ async function assertCanManageEvent(
   if (String(event.created_by_id || '') !== String(user.id || '')) {
     throw new Error('No tienes permisos para gestionar este evento.');
   }
+}
+
+async function assertValidOrganizerSelection(
+  supabase: SupabaseClientLike,
+  organizerId: string | null
+) {
+  if (!organizerId) return;
+
+  const { data, error } = await supabase
+    .from('organizers')
+    .select('id')
+    .eq('id', organizerId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('Organizadora no encontrada.');
 }
 
 async function assertEventCanBePublished(
@@ -298,6 +316,7 @@ export async function createEvent(input: EventUpsertInput) {
     ...input,
     paymentMethodIds: paymentMethodSelection.activeOwnedIds,
   });
+  await assertValidOrganizerSelection(adminSupabase, input.organizerId);
 
   const { data: profile, error: profileError } = await adminSupabase
     .from('profile')
@@ -404,6 +423,7 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
   });
 
   await assertCanManageEvent(adminSupabase, id, user);
+  await assertValidOrganizerSelection(adminSupabase, input.organizerId);
   const canManageFeatured = isSuperAdmin(user as any);
   let isFeatured = false;
 
