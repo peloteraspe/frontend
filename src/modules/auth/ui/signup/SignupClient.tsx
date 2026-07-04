@@ -69,7 +69,6 @@ export default function SignupClient() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [signupEmail, setSignupEmail] = useState(prefilledEmail);
   const [emailError, setEmailError] = useState<string | undefined>(undefined);
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [isIdentityConfirmed, setIsIdentityConfirmed] = useState(false);
   const [isGoogleOnboarding, setIsGoogleOnboarding] = useState(false);
   const [hasActiveSession, setHasActiveSession] = useState(false);
@@ -100,7 +99,6 @@ export default function SignupClient() {
   const canSubmitStep1 =
     isValidEmail &&
     !emailError &&
-    !isCheckingEmail &&
     isIdentityConfirmed &&
     (password?.length ?? 0) >= 6;
 
@@ -119,53 +117,6 @@ export default function SignupClient() {
     });
   }, [requestedNextPath, signupEmail]);
 
-  const fetchOnboardingStateByEmail = async (email: string) => {
-    try {
-      const response = await fetch('/api/onboarding/by-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      if (!response.ok) return null;
-
-      return (await response.json()) as {
-        emailConfirmed?: boolean;
-      };
-    } catch {
-      return null;
-    }
-  };
-
-  const checkEmailAvailability = async (email: string) => {
-    try {
-      const response = await fetch('/api/onboarding/by-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      if (response.status === 404) {
-        return { available: true as const, reason: 'ok' as const };
-      }
-
-      if (response.ok) {
-        return { available: false as const, reason: 'already_registered' as const };
-      }
-
-      if (response.status === 503) {
-        const body = (await response.json().catch(() => ({}))) as { code?: string };
-        if (body.code === 'ADMIN_LOOKUP_UNAVAILABLE' || body.code === 'ADMIN_LOOKUP_TIMEOUT') {
-          return { available: true as const, reason: 'lookup_unavailable' as const };
-        }
-      }
-
-      return { available: false as const, reason: 'error' as const };
-    } catch {
-      return { available: false as const, reason: 'error' as const };
-    }
-  };
-
   const validateEmailAvailability = async (rawEmail: string) => {
     const normalizedEmail = rawEmail.trim().toLowerCase();
     if (!normalizedEmail) {
@@ -179,24 +130,8 @@ export default function SignupClient() {
       return { available: false as const, message };
     }
 
-    setIsCheckingEmail(true);
-    const result = await checkEmailAvailability(normalizedEmail);
-    setIsCheckingEmail(false);
-
-    if (result.available) {
-      setEmailError(undefined);
-      return { available: true as const };
-    }
-
-    const message =
-      result.reason === 'already_registered'
-        ? 'Este correo ya está registrado. Inicia sesión o recupera tu contraseña.'
-        : 'No se pudo validar el correo ahora. Intenta de nuevo.';
-
-    setEmailError(message);
-    setValue('username', '');
-    setValue('password', '');
-    return { available: false as const, message };
+    setEmailError(undefined);
+    return { available: true as const };
   };
 
   const readLoginOnboardingState = () => {
@@ -791,10 +726,6 @@ export default function SignupClient() {
               className="h-11"
               errorText={emailError}
             />
-            {isCheckingEmail && (
-              <p className="text-xs text-slate-500 -mt-2">Verificando correo...</p>
-            )}
-
             <Input
               label="Contraseña"
               type="password"
@@ -807,7 +738,7 @@ export default function SignupClient() {
               })}
               autoComplete="new-password"
               className="h-11"
-              disabled={Boolean(emailError) || isCheckingEmail}
+              disabled={Boolean(emailError)}
               errorText={errors.password?.message as string | undefined}
             />
 

@@ -107,6 +107,8 @@ Impacto: expone datos de jugadoras/perfiles y permite confirmar existencia de cu
 
 Fix sugerido: cerrar la ruta a contexto autenticado/admin o reemplazarla por un flujo que no revele existencia ni campos de perfil. Si se necesita para onboarding, devolver respuestas indistinguibles y mover el lookup sensible a un flujo de sesion propia.
 
+Estado KAN-24: corregido. `POST /api/onboarding/by-email` ya no usa service role ni `auth.admin.listUsers`; exige sesion propia, valida que el email solicitado sea el del usuario autenticado y solo devuelve campos minimos de onboarding.
+
 ### B2 - `POST /api/events` crea eventos desde una ruta alterna sin `isAdmin`
 
 Evidencia: `src/modules/events/api/handlers/events.ts` en `POST` exige sesion y rate limit, pero no exige `isAdmin`, no usa `validateEventFormInput`, no valida payment methods propios ni readiness de publicacion. Inserta `event` directamente con el cliente de sesion.
