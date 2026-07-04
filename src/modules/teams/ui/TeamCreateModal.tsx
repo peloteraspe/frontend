@@ -5,7 +5,7 @@ import PlayerSearchInput from './PlayerSearchInput';
 import { createBrowserClient } from '@supabase/ssr'; // si no tienes helper, puedes usar el de supabase-js
 // Si ya tienes un wrapper `utils/supabase/client`, impórtalo de ahí.
 
-type Player = { id: string; name: string; email: string; avatar?: string | null };
+type Player = { id: string; name: string; avatar?: string | null };
 
 interface Props {
   open: boolean;

@@ -88,7 +88,7 @@ No se reviso Supabase real ni se imprimieron valores de entorno.
 | `POST /api/leads/partners` | Escribe leads con contacto | No | Rate limit + validaciones. | Medio por PII publica. |
 | `POST /api/waitlist` | Email publico | No | Validacion email; RLS public insert. | Bajo. |
 | `POST /api/onboarding/by-email` | Lookup user/profile por email | No | Rate limit; service role. | Bloqueante. |
-| `GET /api/players/search` | Busca jugadoras | No | Rate limit; sin sesion. | Bloqueante/medio por email publico. |
+| `GET /api/players/search` | Busca jugadoras | Si | Rate limit; sesion requerida; respuesta minima sin email. | OK tras KAN-25. |
 | `POST /api/organizer/activate` | Auto-activa admin/organizadora | Si | Usuario propio; rate limit; compromisos + telefono. | Medio/alto. |
 | `POST /api/teams` | Crea equipo | Si | Owner = usuario actual. | Bajo para Full Chocolate. |
 | `POST /api/analytics/events` | Escribe analytics | Opcional | Rate limit; RLS public insert. | Bajo/medio si payload recibe PII. |
@@ -124,6 +124,8 @@ Evidencia: `src/modules/teams/api/handlers/players.search.ts` no exige sesion y 
 Impacto: exposicion publica de emails/perfiles de jugadoras por busqueda de nombre. Para Full Chocolate, esto es incompatible con reportes/usuarios/organizadoras si no se define minimizacion de datos.
 
 Fix sugerido: exigir sesion para buscar jugadoras y devolver solo campos estrictamente necesarios; ocultar email salvo contexto admin/autorizado.
+
+Estado KAN-25: corregido. `GET /api/players/search` mantiene rate limit, exige sesion antes de procesar la busqueda y devuelve solo `id`, `name` y `avatar`; el flujo de equipos ya no consume ni renderiza `email` en sugerencias.
 
 ## Hallazgos medios
 
@@ -232,8 +234,8 @@ Es claro y estable para MVP, pero no auditable desde Supabase. Si Full Chocolate
 ## Fixes pequenos recomendados por PR
 
 1. PR KAN-12A: cerrar enumeracion de usuarios.
-   - Proteger o rediseñar `POST /api/onboarding/by-email`.
-   - Exigir sesion en `GET /api/players/search` y remover `email` del payload publico.
+   - `POST /api/onboarding/by-email` cerrado en KAN-24.
+   - `GET /api/players/search` cerrado en KAN-25: sesion requerida y payload sin `email`.
 
 2. PR KAN-12B: alinear creacion alterna de eventos.
    - Exigir `isAdmin` en `POST /api/events` o descontinuar la ruta.
@@ -269,7 +271,7 @@ Es claro y estable para MVP, pero no auditable desde Supabase. Si Full Chocolate
 
 ## Recomendacion de siguiente PR
 
-El siguiente PR deberia cerrar primero los bloqueantes de exposicion/entrypoints alternos: `POST /api/onboarding/by-email`, `GET /api/players/search` y `POST /api/events`. Son cambios pequenos, acotados y reducen riesgo antes de tocar finanzas o reparto.
+El siguiente PR deberia cerrar el bloqueante de entrypoint alterno `POST /api/events`. KAN-24 ya cerro `POST /api/onboarding/by-email` y KAN-25 cerro `GET /api/players/search`.
 
 ## Comentario sugerido para Jira
 
@@ -289,7 +291,7 @@ Riesgos bloqueantes detectados:
 
 - `POST /api/onboarding/by-email` permite lookup de usuarias/perfil por email sin sesion, usando service role.
 - `POST /api/events` es un entrypoint alterno de creacion de eventos sin `isAdmin` ni reglas completas del admin.
-- `GET /api/players/search` parece exponer emails de jugadoras sin sesion.
+- `GET /api/players/search` parecia exponer emails de jugadoras sin sesion; corregido en KAN-25.
 
 Riesgos medios principales:
 
