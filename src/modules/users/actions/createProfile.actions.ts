@@ -77,6 +77,15 @@ function isProfileUserFkError(message: string) {
 function isProfileUsernameConflictError(message: string) {
   return (
     message.includes('profile_username_key') ||
+    message.includes('username already exists') ||
+    message.includes('username already taken') ||
+    message.includes('username is already taken') ||
+    message.includes('nombre de usuario ya esta en uso') ||
+    message.includes('nombre de usuario ya existe') ||
+    (message.includes('username') && message.includes('already exists')) ||
+    (message.includes('username') && message.includes('already registered')) ||
+    (message.includes('username') && message.includes('duplicat')) ||
+    (message.includes('username') && message.includes('unique')) ||
     message.includes('duplicate key value violates unique constraint') ||
     (message.includes('unique') && message.includes('username'))
   );
@@ -448,10 +457,13 @@ export async function completeOnboardingProfileAction(
         }
 
         const shouldUseDirectFallback =
-          isProfileUserFkError(createMessage) ||
-          isUserMissingError(createMessage) ||
-          isTransientProfileBackendError(createMessage) ||
-          isTransientProfileBackendError(message);
+          !isProfileUsernameValidationError(createMessage) &&
+          (isProfileUserFkError(createMessage) ||
+            isUserMissingError(createMessage) ||
+            isTransientProfileBackendError(createMessage) ||
+            isTransientProfileBackendError(message) ||
+            createMessage.includes('http ') ||
+            message.includes('http '));
 
         if (!shouldUseDirectFallback) {
           throw createError;
