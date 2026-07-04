@@ -50,7 +50,9 @@ Se agregan indices para consultas futuras por `user_id`, `partner_lead_id`, `sta
 
 Las tablas nuevas nacen con RLS habilitado y una policy minima para `service_role`.
 
-No se agregan policies para `anon` ni `authenticated` en este ticket porque todavia no hay UI, server actions ni route handlers consumiendo estas tablas. Cuando se implemente el uso funcional, cada endpoint debera documentar sesion, rol, ownership y datos sensibles, siguiendo la regla de `docs/decisions/0002.md`.
+KAN-14 agrega una vista operativa en `/admin/organizers` solo para superadmin. La vista usa server components y server actions que validan sesion superadmin antes de usar `getAdminSupabase()` para leer o escribir `organizers`, `partner_leads` y `admin_feature_flags`.
+
+No se agregan policies para `anon` ni `authenticated` en este flujo porque las tablas nuevas siguen consumiendose solo desde servidor con service role y guard explicito de superadmin. Si alguna lectura o escritura se mueve a cliente autenticado, debera agregarse una policy RLS especifica y documentar sesion, rol, ownership y datos sensibles, siguiendo la regla de `docs/decisions/0002.md`.
 
 ## Consecuencias
 
