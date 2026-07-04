@@ -74,7 +74,7 @@ No se reviso Supabase real ni se imprimieron valores de entorno.
 | `/admin/communications` | Correos globales | Si | Superadmin. | OK. |
 | `/admin/payment-methods` | QR/numeros de pago | Si por layout | API exige admin y filtra `created_by`. | OK. |
 | `/admin/wallet` | Credenciales/config wallet | Si por layout | API exige admin, no superadmin. | Medio: evaluar si debe ser superadmin. |
-| `POST /api/events` | Crea eventos alterno | Si | No exige `isAdmin`; no usa readiness/payment method del admin. | Bloqueante. |
+| `POST /api/events` | Crea eventos alterno | Si | KAN-26: exige `isAdmin`, mantiene rate limit y fuerza `is_published = false`. | Bajo: ruta legacy queda limitada a admins y solo crea borradores. |
 | `POST /api/payments/confirm` | Crea/actualiza `assistants` pending | Si | Solo usuario propio; valida evento/cupo/cupon. | Medio. |
 | `POST /api/tickets/issue` | Emite ticket propio | Si | Valida `assistant.user === user.id`. | OK. |
 | `POST /api/tickets/resolve` | Resuelve QR a ficha admin | Si | `isAdmin` + `assertCanManageEvent`. | OK. |
@@ -116,6 +116,8 @@ Evidencia: `src/modules/events/api/handlers/events.ts` en `POST` exige sesion y 
 Impacto: introduce un entrypoint paralelo al admin. KAN-11 ya habia detectado que varias lecturas tratan `event.is_published !== false` como publicado; si un evento queda con `is_published = null`, podria comportarse como publicado segun rutas existentes. Para Full Chocolate, esto rompe control de organizadoras, costos, utilidad y reparto.
 
 Fix sugerido: deshabilitar o alinear `POST /api/events` con el mismo guard y reglas de `createEvent`; como PR pequeno, exigir `isAdmin` y setear explicitamente `is_published: false` si se mantiene.
+
+Estado KAN-26: corregido. `POST /api/events` mantiene autenticacion y rate limit, ahora exige `isAdmin` antes de crear y fuerza `is_published: false` en el insert para evitar publicaciones por defaults ambiguos. No se cambio `GET /api/events` ni el flujo admin `/admin/events/new`, que sigue usando `createEvent`.
 
 ### B3 - `GET /api/players/search` parece exponer emails de jugadoras sin sesion
 
@@ -265,13 +267,13 @@ Es claro y estable para MVP, pero no auditable desde Supabase. Si Full Chocolate
 - Si `assistants.state` tiene valores historicos fuera de `pending`, `approved`, `rejected`.
 - Si `coupon_redemption.reimbursement_status` ya esta migrado a `not_requested`, `requested`, `sent`, `confirmed`, `canceled` en todos los entornos.
 - Si `users_view` expone emails a `anon` o si RLS/view grants lo limitan en Supabase real.
-- Si `POST /api/events` puede insertar con cliente anon/authenticated en produccion o queda bloqueado por RLS real.
+- Si RLS real de `event` esta alineado con el guard de aplicacion agregado en KAN-26.
 - Si el cron `event-ticket-reminders` esta protegido por secreto en Vercel/Supabase y no es invocable publicamente.
 - Si buckets de QR de payment methods son publicos por requerimiento de producto y no contienen imagenes con datos adicionales.
 
 ## Recomendacion de siguiente PR
 
-El siguiente PR deberia cerrar el bloqueante de entrypoint alterno `POST /api/events`. KAN-24 ya cerro `POST /api/onboarding/by-email` y KAN-25 cerro `GET /api/players/search`.
+Los bloqueantes inmediatos detectados en KAN-12 para `POST /api/onboarding/by-email`, `GET /api/players/search` y `POST /api/events` quedaron cerrados en KAN-24, KAN-25 y KAN-26 respectivamente. El siguiente PR deberia enfocarse en riesgos medios pendientes como wallet superadmin-only, RLS real o cron runtime.
 
 ## Comentario sugerido para Jira
 
@@ -290,7 +292,7 @@ Se agrego `docs/security-admin-api-audit.md` con:
 Riesgos bloqueantes detectados:
 
 - `POST /api/onboarding/by-email` permite lookup de usuarias/perfil por email sin sesion, usando service role.
-- `POST /api/events` es un entrypoint alterno de creacion de eventos sin `isAdmin` ni reglas completas del admin.
+- `POST /api/events` era un entrypoint alterno de creacion de eventos sin `isAdmin` ni reglas completas del admin; corregido en KAN-26 con guard admin y borrador explicito.
 - `GET /api/players/search` parecia exponer emails de jugadoras sin sesion; corregido en KAN-25.
 
 Riesgos medios principales:
