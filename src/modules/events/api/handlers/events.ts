@@ -6,6 +6,7 @@ import {
   rateLimitByIdentifier,
   rateLimitByRequest,
 } from '@core/api/rateLimit';
+import { isAdmin } from '@shared/lib/auth/isAdmin';
 import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
 import { CreateEventPayload, EventEntity } from '@modules/events/model/types';
@@ -235,6 +236,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
     }
 
+    if (!isAdmin(user)) {
+      return NextResponse.json({ error: 'Solo admins pueden crear eventos por esta ruta.' }, { status: 403 });
+    }
+
     const limitedByUser = await rateLimitByIdentifier({
       keyPrefix: 'api_events_post_user',
       identifier: `user:${user.id}`,
@@ -286,6 +291,7 @@ export async function POST(request: Request) {
       level: payload.levelId,
       created_by: createdBy,
       created_by_id: user.id,
+      is_published: false,
     };
 
     let { data, error } = await supabase
