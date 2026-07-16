@@ -6,6 +6,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "next lint || echo 'No ESLint configured'",
+    "test:db": "HOME=/private/tmp supabase test db --local supabase/tests",
     "loadtest:dev": "bash scripts/loadtest-dev.sh"
   },
   "dependencies": {

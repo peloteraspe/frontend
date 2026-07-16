@@ -3,6 +3,7 @@ import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import UserImage from '@src/shared/ui/UserImage';
 import { isAdmin as isAdminUser } from '@shared/lib/auth/isAdmin';
+import TeamCreateModal from '@modules/teams/ui/TeamCreateModal';
 
 type UserLite = {
   id: string;
@@ -21,6 +22,7 @@ interface UserMenuProps {
 
 const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [isTeamCreateOpen, setIsTeamCreateOpen] = React.useState(false);
   const [isSigningOut, setIsSigningOut] = React.useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const userIsAdmin = Boolean(user && isAdminUser(user as any));
@@ -51,13 +53,27 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
     window.location.replace('/auth/logout');
   };
 
+  const openTeamCreate = () => {
+    setIsOpen(false);
+    setIsTeamCreateOpen(true);
+  };
+
   return (
-    <div className="relative z-40" ref={ref}>
-      <div className="flex flex-row items-center gap-3">
-        <div className="flex flex-1 items-center justify-end">
-          <div className="flex items-center gap-5">
-            {user ? (
-              <>
+    <>
+      <div className="relative z-40" ref={ref}>
+        <div className="flex flex-row items-center gap-3">
+          <div className="flex flex-1 items-center justify-end">
+            <div className="flex items-center gap-5">
+              {user ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={openTeamCreate}
+                    className={navLinkClassName}
+                  >
+                    Crear equipo
+                  </button>
+
                 <Link
                   href={createEventHref}
                   className={navLinkClassName}
@@ -112,6 +128,14 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
                       </p>
                     </Link>
                     <hr className="-mx-1 my-1 h-px bg-muted" />
+                    <button
+                      type="button"
+                      onClick={openTeamCreate}
+                      className="w-full px-4 py-2 text-left text-[0.92rem] font-eastman-bold font-bold tracking-[0.015em] text-slate-700 transition hover:bg-neutral-100"
+                    >
+                      Crear equipo
+                    </button>
+                    <hr className="-mx-1 my-1 h-px bg-muted" />
                     <Link
                       href={`/tickets/${user.id}`}
                       onClick={() => setIsOpen(false)}
@@ -130,25 +154,30 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
                     </button>
                   </div>
                 )}
-              </>
-            ) : loading ? (
-              <div className="h-11 w-44 animate-pulse rounded-full bg-slate-100" aria-hidden="true" />
-            ) : (
-              <>
-                <Link href={'/login'} className="hidden sm:inline-flex">
-                  <span className={authLinkClassName}>
-                    Inicia sesión
-                  </span>
-                </Link>
-                <Link href="/signUp" className={authButtonClassName}>
-                  Regístrate
-                </Link>
-              </>
-            )}
+                </>
+              ) : loading ? (
+                <div className="h-11 w-44 animate-pulse rounded-full bg-slate-100" aria-hidden="true" />
+              ) : (
+                <>
+                  <Link href={'/login'} className="hidden sm:inline-flex">
+                    <span className={authLinkClassName}>
+                      Inicia sesión
+                    </span>
+                  </Link>
+                  <Link href="/signUp" className={authButtonClassName}>
+                    Regístrate
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      <TeamCreateModal
+        open={isTeamCreateOpen}
+        onClose={() => setIsTeamCreateOpen(false)}
+      />
+    </>
   );
 };
 

@@ -6,6 +6,7 @@ import { useAuth } from '@core/auth/AuthProvider';
 import { isAdmin as isAdminUser } from '@shared/lib/auth/isAdmin';
 import UserImage from '@shared/ui/UserImage';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import TeamCreateModal from '@modules/teams/ui/TeamCreateModal';
 
 type NavItem = {
   href: string;
@@ -88,6 +89,12 @@ const PROFILE_ITEM: NavItem = {
   authRequired: true,
 };
 
+const CREATE_TEAM_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+    <path d="M5.25 6.375a4.125 4.125 0 118.25 0 4.125 4.125 0 01-8.25 0zM2.25 19.125a7.125 7.125 0 0114.25 0v.003l-.001.119a.75.75 0 01-.363.63 13.067 13.067 0 01-6.761 1.873c-2.472 0-4.786-.684-6.761-1.873a.75.75 0 01-.363-.63l-.001-.122zM18.75 7.5a.75.75 0 01.75.75v2.25h2.25a.75.75 0 010 1.5H19.5v2.25a.75.75 0 01-1.5 0V12h-2.25a.75.75 0 010-1.5H18V8.25a.75.75 0 01.75-.75z" />
+  </svg>
+);
+
 const ACCOUNT_TAP_HIGHLIGHT = 'rgba(84, 8, 111, 0.18)';
 
 export default function BottomNavigation() {
@@ -95,6 +102,7 @@ export default function BottomNavigation() {
   const { user, loading } = useAuth();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isTeamCreateOpen, setIsTeamCreateOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -138,6 +146,11 @@ export default function BottomNavigation() {
     setIsSigningOut(true);
     setMenuOpen(false);
     window.location.replace('/auth/logout');
+  };
+
+  const openTeamCreate = () => {
+    setMenuOpen(false);
+    setIsTeamCreateOpen(true);
   };
 
   const navItems = useMemo<NavItem[]>(() => {
@@ -189,12 +202,13 @@ export default function BottomNavigation() {
   if (shouldHide || loading || !user) return null;
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 pb-safe md:hidden"
-      aria-label="Navegacion principal"
-    >
-      <div className="relative flex h-16 items-stretch">
-        {navItems.map((item) => {
+    <>
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 pb-safe md:hidden"
+        aria-label="Navegacion principal"
+      >
+        <div className="relative flex h-16 items-stretch">
+          {navItems.map((item) => {
           if (item.authRequired && !user && !loading) {
             return (
               <Link
@@ -233,10 +247,32 @@ export default function BottomNavigation() {
               )}
             </Link>
           );
-        })}
+          })}
 
-        {user ? (
-          <div ref={menuRef} className="relative flex h-full flex-1 items-stretch">
+          <button
+            type="button"
+            onClick={openTeamCreate}
+            className={[
+              'relative flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors',
+              isTeamCreateOpen ? 'text-mulberry' : 'text-slate-500 hover:text-slate-700',
+            ].join(' ')}
+            aria-label="Crear equipo"
+          >
+            <span className="flex h-8 w-8 items-center justify-center">
+              <span className={isTeamCreateOpen ? 'scale-110 transition-transform' : ''}>
+                {CREATE_TEAM_ICON}
+              </span>
+            </span>
+            <span className={['text-xs leading-none', isTeamCreateOpen ? 'font-semibold' : 'font-medium'].join(' ')}>
+              Equipo
+            </span>
+            {isTeamCreateOpen && (
+              <span className="absolute bottom-1 h-1 w-1 rounded-full bg-mulberry" aria-hidden="true" />
+            )}
+          </button>
+
+          {user ? (
+            <div ref={menuRef} className="relative flex h-full flex-1 items-stretch">
             <button
               type="button"
               onClick={() => setMenuOpen((current) => !current)}
@@ -313,9 +349,14 @@ export default function BottomNavigation() {
                 )}
               </div>
             ) : null}
-          </div>
-        ) : null}
-      </div>
-    </nav>
+            </div>
+          ) : null}
+        </div>
+      </nav>
+      <TeamCreateModal
+        open={isTeamCreateOpen}
+        onClose={() => setIsTeamCreateOpen(false)}
+      />
+    </>
   );
 }
