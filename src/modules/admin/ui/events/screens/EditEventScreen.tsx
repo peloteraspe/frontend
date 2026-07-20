@@ -15,6 +15,7 @@ import {
   extractEventDescriptionHtml,
   extractEventDescriptionText,
 } from '@shared/lib/eventDescription';
+import { getOrganizerOptionsForEventForm } from '@modules/admin/api/organizers/organizers.service';
 
 export default async function EditEventScreen({ id }: { id: string }) {
   const supabase = await getServerSupabase();
@@ -29,8 +30,15 @@ export default async function EditEventScreen({ id }: { id: string }) {
 
   const event = await getEventById(id);
   if (!event) redirect('/admin/events');
-  const [catalogs, featuresRes, eventFeaturesRes, paymentMethodsRes, eventPaymentMethodsRes, participants] =
-    await Promise.all([
+  const [
+    catalogs,
+    featuresRes,
+    eventFeaturesRes,
+    paymentMethodsRes,
+    eventPaymentMethodsRes,
+    participants,
+    organizerOptions,
+  ] = await Promise.all([
       getEventCatalogs(),
       supabase.from('features').select('id,name').order('name', { ascending: true }),
       supabase.from('eventFeatures').select('feature').eq('event', id),
@@ -42,6 +50,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
         .order('created_at', { ascending: false }),
       supabase.from('eventPaymentMethod').select('paymentMethod').eq('event', id),
       getApprovedParticipantsByEventId(id),
+      getOrganizerOptionsForEventForm(),
     ]);
 
   if (featuresRes.error) throw new Error(featuresRes.error.message);
@@ -147,10 +156,12 @@ export default async function EditEventScreen({ id }: { id: string }) {
           levelId: event.level,
           featureIds: selectedFeatureIds,
           paymentMethodIds: selectedPaymentMethodIds,
+          organizerId: event.organizer_id ?? null,
           isPublished: event.is_published !== false,
           isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
           isFeatured: Boolean(event.is_featured),
         }}
+        organizerOptions={organizerOptions}
         canManageFeatured={canManageFeatured}
         postEditAnnouncement={{
           eventId: id,

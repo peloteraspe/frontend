@@ -38,8 +38,8 @@ export default async function MainSection() {
             </h1>
 
             <p className="mt-5 max-w-[40rem] text-[17px] leading-[1.55] text-slate-600 sm:text-[20px] sm:leading-[1.6]">
-              En Peloteras puedes jugar fútbol, encontrar eventos deportivos, organizar los
-              tuyos, conectar con más mujeres y personas de la diversidad.
+              Explora pichangas y eventos de fútbol para mujeres y disidencias. Revisa fecha,
+              zona, nivel y cupos disponibles para sumarte sin depender de grupos cerrados.
             </p>
 
             <div className="mt-8 flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -63,7 +63,7 @@ export default async function MainSection() {
                 </svg>
               </Link>
               <OrganizerEntryLink className="group home-button-micro premium-outline inline-flex min-h-12 w-full min-w-0 max-w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[15px] font-semibold text-slate-700 hover:border-slate-300 hover:bg-white sm:h-12 sm:w-auto sm:px-7 sm:py-0 sm:text-base">
-                <span className="min-w-0 text-center leading-tight">Quiero organizar una pichanga</span>
+                <span className="min-w-0 text-center leading-tight">Quiero organizar</span>
                 <span
                   className="h-1.5 w-1.5 rounded-full bg-primary transition-transform duration-300 group-hover:scale-125"
                   aria-hidden="true"

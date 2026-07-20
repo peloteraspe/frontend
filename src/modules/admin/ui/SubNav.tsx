@@ -9,6 +9,7 @@ const links = [
   { href: '/admin/events', label: 'Eventos' },
   { href: '/admin/check-ins', label: 'Check-ins', superadminOnly: true },
   { href: '/admin/communications', label: 'Correos', superadminOnly: true },
+  { href: '/admin/organizers', label: 'Organizadoras', superadminOnly: true },
   { href: '/admin/payments', label: 'Pagos' },
   { href: '/admin/payment-methods', label: 'Formas de pago' },
   { href: '/admin/coupons', label: 'Cupones', superadminOnly: true },

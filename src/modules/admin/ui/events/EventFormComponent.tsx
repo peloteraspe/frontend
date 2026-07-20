@@ -45,6 +45,7 @@ import {
   partitionPaymentMethodSelection,
 } from '@shared/lib/paymentMethodSelection';
 import UsersRichTextEditor from '@modules/admin/ui/users/UsersRichTextEditor';
+import type { OrganizerOption } from '@modules/admin/model/organizers';
 
 type SubmitResult = {
   eventId?: string | number;
@@ -80,6 +81,7 @@ type EventCreateDraftSnapshot = {
     isFieldReservedConfirmed: boolean;
     selectedFeatureIds: number[];
     selectedPaymentMethodIds: number[];
+    organizerId: string | null;
   };
 };
 
@@ -102,6 +104,7 @@ type Props = {
     levelId: number;
     featureIds: number[];
     paymentMethodIds: number[];
+    organizerId: string | null;
     isPublished: boolean;
     isFieldReservedConfirmed: boolean;
     isFeatured: boolean;
@@ -110,6 +113,7 @@ type Props = {
   levels: CatalogOption[];
   features?: CatalogOption[];
   paymentMethods?: PaymentMethodOption[];
+  organizerOptions?: OrganizerOption[];
   onSubmit: (form: FormData) => Promise<void | SubmitResult>;
   submitLabel: string;
   canManageFeatured?: boolean;
@@ -329,6 +333,7 @@ const EventForm = ({
   levels,
   features = [],
   paymentMethods = [],
+  organizerOptions = [],
   onSubmit,
   submitLabel,
   canManageFeatured = false,
@@ -413,6 +418,10 @@ const EventForm = ({
         input.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
       )
     );
+  });
+  const [selectedOrganizerId, setSelectedOrganizerId] = useState(() => {
+    const initialId = String(initial?.organizerId || '').trim();
+    return organizerOptions.some((option) => option.id === initialId) ? initialId : '';
   });
   const [paymentMethodCatalog, setPaymentMethodCatalog] = useState<PaymentMethodOption[]>(() =>
     normalizePaymentMethodCatalog(paymentMethods)
@@ -569,6 +578,18 @@ const EventForm = ({
         };
       }),
     [paymentMethodCatalog]
+  );
+  const organizerSelectOptions = useMemo(
+    () =>
+      organizerOptions.map((option) => {
+        const statusText = option.status ? ` · ${option.status}` : '';
+        const zoneText = option.zone ? ` · ${option.zone}` : '';
+        return {
+          value: option.id,
+          label: `${option.displayName}${statusText}${zoneText}`,
+        };
+      }),
+    [organizerOptions]
   );
   const isCreateMode = useMemo(() => submitLabel.trim().toLowerCase() === 'crear', [submitLabel]);
   const activeCreateStep = CREATE_EVENT_STEPS[createStep - 1];
@@ -774,6 +795,7 @@ const EventForm = ({
         isFieldReservedConfirmed,
         selectedFeatureIds,
         selectedPaymentMethodIds,
+        organizerId: selectedOrganizerId || null,
       },
     };
   }
@@ -867,6 +889,7 @@ const EventForm = ({
     setIsFieldReservedConfirmed(Boolean(snapshot.state.isFieldReservedConfirmed));
     setSelectedFeatureIds(snapshot.state.selectedFeatureIds);
     setSelectedPaymentMethodIds(snapshot.state.selectedPaymentMethodIds);
+    setSelectedOrganizerId(snapshot.state.organizerId || '');
   }
 
   function handleResetCreateDraft() {
@@ -1592,6 +1615,7 @@ const EventForm = ({
     selectedEventTypeId,
     selectedFeatureIds,
     selectedLevelId,
+    selectedOrganizerId,
     selectedPaymentMethodIds,
     startTime,
   ]);
@@ -2224,6 +2248,40 @@ const EventForm = ({
                 onMethodsChange={handleInlinePaymentMethodsChange}
                 onMethodSaved={handleInlinePaymentMethodSaved}
               />
+
+              <label className="w-full">
+                <div className="mb-1 text-sm font-semibold text-slate-700">
+                  Organizadora de negocio
+                </div>
+                {organizerSelectOptions.length > 0 ? (
+                  <>
+                    <select
+                      name="organizerId"
+                      value={selectedOrganizerId}
+                      onChange={(event) => setSelectedOrganizerId(event.currentTarget.value)}
+                      className={FLOW_NATIVE_SELECT_CLASS}
+                    >
+                      <option value="">Sin organizadora asociada</option>
+                      {organizerSelectOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Esta relación es interna para administración y no cambia la dueña técnica del
+                      evento.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <input type="hidden" name="organizerId" value="" readOnly />
+                    <div className="rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
+                      No hay organizadoras disponibles para asociar.
+                    </div>
+                  </>
+                )}
+              </label>
 
               <div className="w-full">
                 <div className="mb-1 text-sm font-semibold text-slate-700">Features</div>

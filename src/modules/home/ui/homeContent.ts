@@ -62,27 +62,27 @@ export const adminBenefits: HomeCard[] = [
   {
     title: 'Publica con información completa',
     description:
-      'Agrega fecha, hora, lugar, cupos, precio e indicaciones en un solo flujo para que todo quede claro desde el inicio.',
+      'Agrega fecha, hora, lugar, cupos, precio e indicaciones para que las jugadoras sepan exactamente cómo sumarse.',
   },
   {
     title: 'Llega a más jugadoras interesadas',
     description:
-      'Tu evento vive dentro de una comunidad que ya está buscando dónde jugar, inscribirse y conectar con más fútbol.',
+      'Tu evento aparece en una comunidad que está buscando dónde jugar.',
   },
   {
-    title: 'Gestiona inscripciones con confianza',
+    title: 'Gestiona inscripciones con más orden',
     description:
-      'Haz seguimiento de participantes y organiza cada fecha con más orden y menos fricción operativa.',
+      'Haz seguimiento de participantes y organiza cada fecha con menos fricción.',
   },
   {
     title: 'Valida ingresos con QR',
     description:
-      'Acelera el check-in el día del evento con un sistema pensado para confirmar entradas de forma más rápida.',
+      'Confirma entradas de forma rápida el día del evento.',
   },
   {
     title: 'Reutiliza eventos como plantilla',
     description:
-      'Si organizas seguido, puedes tomar una fecha anterior como base y lanzar nuevas convocatorias sin empezar de cero.',
+      'Si organizas seguido, crea nuevas fechas sin empezar desde cero.',
   },
 ];
 

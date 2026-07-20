@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDebounce } from '../../../shared/lib/hooks/useDebounce';
 
-type Player = { id: string; name: string; email: string; avatar?: string | null };
+type Player = { id: string; name: string; avatar?: string | null };
 
 interface Props {
   onSelect: (player: Player) => void;
@@ -14,7 +14,7 @@ interface Props {
 export default function PlayerSearchInput({
   onSelect,
   selected,
-  placeholder = 'Buscar por nombre o email…',
+  placeholder = 'Buscar por nombre…',
   minChars = 2,
 }: Props) {
   const [q, setQ] = useState('');
@@ -59,7 +59,7 @@ export default function PlayerSearchInput({
         onChange={(e) => setQ(e.target.value)}
         placeholder={placeholder}
         className="peloteras-form-control h-11 px-3"
-        aria-label="Buscar jugadoras por nombre o email"
+        aria-label="Buscar jugadoras por nombre"
       />
 
       {/* suggestions */}
@@ -86,7 +86,6 @@ export default function PlayerSearchInput({
                 />
                 <div className="flex-1">
                   <div className="text-sm font-medium text-stone-800">{p.name}</div>
-                  <div className="text-xs text-stone-500">{p.email}</div>
                 </div>
                 <span className="text-xs text-stone-600">Agregar</span>
               </button>

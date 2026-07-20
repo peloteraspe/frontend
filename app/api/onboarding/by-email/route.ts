@@ -1,53 +1,7 @@
 import { NextResponse } from 'next/server';
 
-import { getAdminSupabase } from '@core/api/supabase.admin';
 import { rateLimitByRequest } from '@core/api/rateLimit';
-
-type AdminAuthUser = {
-  id: string;
-  email?: string | null;
-  email_confirmed_at?: string | null;
-  user_metadata?: Record<string, unknown> | null;
-};
-
-async function findAuthUserByEmail(email: string) {
-  const supabase = getAdminSupabase();
-  const perPage = 200;
-  let page = 1;
-
-  while (page <= 20) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
-    if (error) {
-      return { user: null as AdminAuthUser | null, error };
-    }
-
-    const users = (data?.users ?? []) as AdminAuthUser[];
-    const match = users.find((user) => String(user.email || '').toLowerCase() === email) ?? null;
-    if (match) {
-      return { user: match, error: null as null };
-    }
-
-    if (users.length < perPage) break;
-    page += 1;
-  }
-
-  return { user: null as AdminAuthUser | null, error: null as null };
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error) {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  return Promise.race<T>([
-    promise,
-    new Promise<T>((_, reject) => {
-      timer = setTimeout(() => {
-        if (timer) clearTimeout(timer);
-        reject(timeoutError);
-      }, timeoutMs);
-    }),
-  ]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
-}
+import { getServerSupabase } from '@core/api/supabase.server';
 
 export async function POST(request: Request) {
   const limited = await rateLimitByRequest(request, {
@@ -69,56 +23,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json(
-        {
-          error: 'Onboarding lookup is temporarily unavailable',
-          code: 'ADMIN_LOOKUP_UNAVAILABLE',
-        },
-        { status: 503 }
-      );
+    const supabase = await getServerSupabase();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    let lookupResult:
-      | {
-          user: AdminAuthUser | null;
-          error: any;
-        }
-      | null = null;
-
-    try {
-      lookupResult = await withTimeout(
-        findAuthUserByEmail(email),
-        4000,
-        new Error('Onboarding lookup timeout')
-      );
-    } catch (lookupError: any) {
-      if (lookupError?.message === 'Onboarding lookup timeout') {
-        return NextResponse.json(
-          {
-            error: 'Onboarding lookup timed out',
-            code: 'ADMIN_LOOKUP_TIMEOUT',
-          },
-          { status: 503 }
-        );
-      }
-      throw lookupError;
+    if (String(user.email || '').toLowerCase() !== email) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { user: authUser, error: authError } = lookupResult;
-    if (authError) {
-      return NextResponse.json({ error: authError.message }, { status: 500 });
-    }
-
-    if (!authUser) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const supabase = getAdminSupabase();
+    // KAN-24: this endpoint only returns the caller's own onboarding state.
+    // It must not be used as a public email-existence lookup.
     const { data: profile, error: profileError } = await supabase
       .from('profile')
-      .select('*')
-      .eq('user', authUser.id)
+      .select('username, onboarding_step, is_profile_complete, level_id')
+      .eq('user', user.id)
       .maybeSingle();
 
     if (profileError) {
@@ -126,13 +50,13 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      userId: authUser.id,
-      email: authUser.email,
-      emailConfirmed: Boolean(authUser.email_confirmed_at),
+      userId: user.id,
+      email: user.email,
+      emailConfirmed: Boolean(user.email_confirmed_at),
       username:
         (profile as any)?.username ||
-        authUser.user_metadata?.username ||
-        (authUser.email ? String(authUser.email).split('@')[0] : ''),
+        user.user_metadata?.username ||
+        (user.email ? String(user.email).split('@')[0] : ''),
       onboardingStep: (profile as any)?.onboarding_step ?? null,
       isProfileComplete: (profile as any)?.is_profile_complete ?? null,
       levelId: (profile as any)?.level_id ?? null,
