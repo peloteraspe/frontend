@@ -110,7 +110,6 @@ export default function SignupClient() {
   const [selectedLevel, setSelectedLevel] = useState<string | number | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
   const signupRedirectTo = useMemo(() => {
     return authCallbackUrl({
@@ -911,33 +910,7 @@ export default function SignupClient() {
                   message: `Máximo ${USERNAME_MAX_LENGTH} caracteres`,
                 },
                 validate: validateUsernameForForm,
-                onBlur: async (e) => {
-                  const rawValue = String(e?.target?.value ?? '').trim();
-                  const usernameValidation = validateUsername(rawValue);
-                  if (usernameValidation.ok === false) {
-                    setError('username', {
-                      type: 'manual',
-                      message: usernameValidation.message,
-                    });
-                    return;
-                  }
-                  setIsCheckingUsername(true);
-                  const result = await checkUsernameAvailabilityAction(
-                    usernameValidation.value,
-                    userId ?? undefined
-                  );
-                  setIsCheckingUsername(false);
-                  if (!result.available) {
-                    setError('username', {
-                      type: 'manual',
-                      message:
-                        result.message ||
-                        (result.reason === 'error'
-                          ? 'No se pudo validar el nombre ahora.'
-                          : 'El nombre de usuario ya está en uso.'),
-                    });
-                    return;
-                  }
+                onChange: () => {
                   clearErrors('username');
                 },
               })}
@@ -947,9 +920,6 @@ export default function SignupClient() {
               errorText={errors.username?.message as string | undefined}
             />
             <p className="text-xs text-slate-500 -mt-2">Máximo 15 caracteres, sin espacios.</p>
-            {isCheckingUsername && (
-              <p className="text-xs text-slate-500 -mt-2">Verificando disponibilidad...</p>
-            )}
 
             <label className="w-full">
               <div className="mb-1">
@@ -980,7 +950,7 @@ export default function SignupClient() {
               />
             </label>
 
-            {isGoogleOnboarding && (
+            {!isIdentityConfirmed && (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <label className="flex items-start gap-3">
                   <input
