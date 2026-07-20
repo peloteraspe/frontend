@@ -7,8 +7,9 @@ import HomeReveal from '@modules/home/ui/HomeReveal';
 import HomeHowItWorksSection from '@modules/home/ui/HomeHowItWorksSection';
 import MainSection from '@modules/home/ui/MainSection';
 import { homeAllies } from '@modules/home/ui/homeContent';
+import { SITE_URL } from '@shared/lib/site';
 
-const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://peloteras.com';
+const siteUrl = SITE_URL;
 
 export const metadata: Metadata = {
   title: 'Peloteras | Pichangas, eventos y fútbol femenino en comunidad',

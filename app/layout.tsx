@@ -7,12 +7,9 @@ import AuthProvider from '@core/auth/AuthProvider';
 import LayoutClientEnhancements from '@app/_components/LayoutClientEnhancements';
 import { NavBar } from './_components/NavBar';
 import Footer from '@src/core/ui/Footer';
+import { SITE_URL } from '@shared/lib/site';
 
 const GOOGLE_TAG_MANAGER_ID_PATTERN = /^[A-Za-z0-9-]+$/;
-
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : 'http://localhost:3000';
 
 function resolveGoogleTagManagerId() {
   const rawId =
@@ -57,18 +54,27 @@ function GoogleTagManagerBody({ id }: { id: string }) {
 }
 
 export const metadata: Metadata = {
-  metadataBase: new URL(defaultUrl),
+  metadataBase: new URL(SITE_URL),
   title: 'Peloteras',
   description:
     'Juega, organiza y conecta con más mujeres y personas de la diversidad a través del fútbol.',
-  alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
-    url: defaultUrl,
     title: 'Peloteras',
     description:
       'Juega, organiza y conecta con más mujeres y personas de la diversidad a través del fútbol.',
     siteName: 'Peloteras',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
   },
   twitter: {
     card: 'summary_large_image',
