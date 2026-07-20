@@ -83,7 +83,7 @@ export default function FeaturedEventsClient({ events, previewCount }: Props) {
       {!visibleEvents.length ? (
         <div className="premium-card px-6 py-6 text-sm text-slate-600">
           {timeFilter === 'upcoming'
-            ? 'Aún no hay fechas destacadas próximas.'
+            ? 'Aún no hay fechas destacadas próximas. Explora todos los eventos o vuelve pronto para encontrar nuevas pichangas.'
             : 'Aún no hay fechas destacadas finalizadas.'}
         </div>
       ) : (

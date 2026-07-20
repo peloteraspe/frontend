@@ -52,7 +52,7 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
             Eventos destacados
           </p>
           <h2 className="mt-3 font-eastman-extrabold text-4xl leading-[1.02] text-slate-900 sm:text-5xl lg:text-[3rem]">
-            Partidos y pichangas para volver a la cancha.
+            Pichangas y partidos para volver a la cancha
           </h2>
           <p className="mt-4 text-base leading-8 text-slate-600 sm:text-lg">
             Explora las próximas pichangas en Peloteras y encuentra una oportunidad para jugar,

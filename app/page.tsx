@@ -4,6 +4,7 @@ import CardEventList from '@modules/events/ui/cardEvents/CardEventList';
 import AlliesCarouselEntry from '@modules/home/ui/AlliesCarouselEntry';
 import LandingGrowthBlocks from '@modules/home/ui/LandingGrowthBlocks';
 import HomeReveal from '@modules/home/ui/HomeReveal';
+import HomeHowItWorksSection from '@modules/home/ui/HomeHowItWorksSection';
 import MainSection from '@modules/home/ui/MainSection';
 import { homeAllies } from '@modules/home/ui/homeContent';
 
@@ -85,6 +86,16 @@ export default async function Index() {
       <div className="flex w-full flex-col gap-8 pb-8 sm:gap-10 sm:pb-10 lg:gap-12 lg:pb-12">
         <MainSection />
 
+        <HomeHowItWorksSection />
+
+        <section className="home-scroll-target w-full" id="eventos-destacados">
+          <HomeReveal className="site-shell">
+            <CardEventList />
+          </HomeReveal>
+        </section>
+
+        <LandingGrowthBlocks />
+
         {homeAllies.length > 0 && (
           <section className="home-scroll-target w-full" id="aliadxs">
             <HomeReveal className="site-shell">
@@ -110,14 +121,6 @@ export default async function Index() {
             </HomeReveal>
           </section>
         )}
-
-        <section className="home-scroll-target w-full" id="eventos-destacados">
-          <HomeReveal className="site-shell">
-            <CardEventList />
-          </HomeReveal>
-        </section>
-
-        <LandingGrowthBlocks />
       </div>
     </>
   );

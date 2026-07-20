@@ -18,24 +18,25 @@ export default function LandingGrowthBlocks() {
                 Para jugadoras
               </p>
               <h2 className="mt-3 font-eastman-extrabold text-4xl leading-[1.02] text-slate-900 sm:text-5xl lg:text-[3rem]">
-                Más pichangas para volver a la cancha.
+                Para quienes quieren jugar más seguido
               </h2>
               <p className="mt-4 text-lg leading-8 text-slate-600">
-                Encuentra pichangas con toda la información que necesitas para decidir si te sumas.
-                Sin depender de chats ni grupos de WhatsApp.
+                Encuentra pichangas con la información que necesitas para decidir si te sumas:
+                fecha, sede, horario, costo, cupos e indicaciones. Sin depender solo de chats o
+                invitaciones sueltas.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <Link
-                  href="/signUp?source=home-jugadoras"
+                  href="/events"
                   className="home-button-micro inline-flex h-12 items-center rounded-full bg-mulberry px-6 text-base font-semibold text-white shadow-[0_18px_36px_-28px_rgba(84,8,111,0.9)] hover:bg-[#470760]"
                 >
-                  Crear mi cuenta
+                  Explorar eventos
                 </Link>
                 <Link
-                  href="/events"
+                  href="/signUp?source=home-jugadoras"
                   className="home-button-micro premium-outline inline-flex h-12 items-center rounded-full px-6 text-base font-semibold text-slate-700 hover:bg-white"
                 >
-                  Explorar eventos
+                  Crear mi cuenta
                 </Link>
               </div>
             </div>
@@ -67,11 +68,15 @@ export default function LandingGrowthBlocks() {
           <div className="rounded-[2rem] bg-[#f7f1fb] px-6 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
             <div className="max-w-[34rem]">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-mulberry/75">
-                Para administradoras de eventos
+                Para organizadoras
               </p>
               <h2 className="mt-3 font-eastman-extrabold text-4xl leading-[1.02] text-slate-900 sm:text-5xl lg:text-[3rem]">
-                Las herramientas para organizar fútbol con más orden.
+                Para quienes quieren organizar fútbol
               </h2>
+              <p className="mt-4 max-w-[42rem] text-lg leading-8 text-slate-600">
+                Publica tus pichangas, ordena la información del evento y facilita que más
+                jugadoras encuentren dónde sumarse.
+              </p>
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -92,7 +97,7 @@ export default function LandingGrowthBlocks() {
 
             <div className="mt-7">
               <OrganizerEntryLink className="home-button-micro inline-flex h-12 items-center rounded-full bg-mulberry px-6 text-base font-semibold text-white shadow-[0_18px_36px_-28px_rgba(84,8,111,0.9)] hover:bg-[#470760]">
-                Activar perfil organizadora
+                Quiero organizar
               </OrganizerEntryLink>
             </div>
           </div>
@@ -157,10 +162,11 @@ export default function LandingGrowthBlocks() {
                   Súmate
                 </p>
                 <h2 className="mt-3 font-eastman-extrabold text-4xl leading-[1.02] text-slate-900 sm:text-5xl lg:text-[3rem]">
-                  Haz que tu próximo partido te encuentre en Peloteras.
+                  Encuentra tu próxima pichanga en Peloteras
                 </h2>
                 <p className="mt-4 text-lg leading-8 text-slate-900/80">
-                  Anótate a tu próxima pichanga o abre la tuya para tu comunidad. Las dos cuentan.
+                  Explora eventos disponibles o crea el tuyo para que más jugadoras puedan sumarse.
+                  Más peloteras, más fútbol.
                 </p>
               </div>
 
@@ -171,12 +177,11 @@ export default function LandingGrowthBlocks() {
                 >
                   Ver eventos
                 </Link>
-                <Link
-                  href="/signUp?source=home-final-cta"
+                <OrganizerEntryLink
                   className="home-button-micro inline-flex h-12 items-center justify-center rounded-full border border-slate-900/25 bg-slate-900/[0.10] px-6 text-base font-semibold text-slate-900 hover:bg-slate-900/20"
                 >
-                  Crear mi cuenta
-                </Link>
+                  Quiero organizar
+                </OrganizerEntryLink>
               </div>
             </div>
           </div>
