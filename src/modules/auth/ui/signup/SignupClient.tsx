@@ -12,6 +12,7 @@ import { useAuth } from '@core/auth/AuthProvider';
 
 import { ParagraphM } from '@core/ui/Typography';
 import Input from '@core/ui/Input';
+import BirthDatePicker from '@core/ui/BirthDatePicker';
 import InternationalPhoneField from '@core/ui/InternationalPhoneField';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 
@@ -904,22 +905,16 @@ export default function SignupClient() {
               required
             />
 
-            <Input
+            <BirthDatePicker
               label="Fecha de nacimiento"
-              type="date"
               name="birth_date"
               value={birthDate}
-              min="1900-01-01"
-              max={maxBirthDate}
-              autoComplete="bday"
+              minDate="1900-01-01"
+              maxDate={maxBirthDate}
               required
-              onChange={(event) => {
-                setBirthDate(event.currentTarget.value);
+              onChange={(nextBirthDate) => {
+                setBirthDate(nextBirthDate);
                 if (birthDateError) setBirthDateError('');
-              }}
-              onBlur={() => {
-                const validation = validateBirthDate(birthDate, maxBirthDate);
-                setBirthDateError(validation.ok === true ? '' : validation.message);
               }}
               errorText={birthDateError}
             />
