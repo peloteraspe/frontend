@@ -22,6 +22,10 @@ import {
   shouldBlockCouponReuse,
   type CouponReimbursementStatus,
 } from '@modules/payments/lib/couponReimbursement';
+import {
+  hasCompleteEventProfile,
+  REQUIRED_EVENT_PROFILE_MESSAGE,
+} from '@modules/users/lib/eventProfileRequirements';
 
 function parseEventId(value: unknown) {
   const n = Number(value);
@@ -377,6 +381,13 @@ export async function POST(request: Request) {
 
     if (userError || !user) {
       return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
+    }
+
+    if (!hasCompleteEventProfile(user)) {
+      return NextResponse.json(
+        { error: REQUIRED_EVENT_PROFILE_MESSAGE, code: 'PROFILE_DETAILS_REQUIRED' },
+        { status: 422 }
+      );
     }
 
     const body = await request.json().catch(() => ({}));
