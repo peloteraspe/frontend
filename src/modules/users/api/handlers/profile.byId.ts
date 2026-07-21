@@ -247,6 +247,40 @@ function stripPhoneFromProfilePayload(rawBody: unknown) {
   return rest;
 }
 
+function containsNotFoundStatus(value: unknown, depth = 0): boolean {
+  if (depth > 3 || value == null) return false;
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+
+    try {
+      return containsNotFoundStatus(JSON.parse(trimmed), depth + 1);
+    } catch {
+      return false;
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => containsNotFoundStatus(item, depth + 1));
+  }
+
+  if (typeof value !== 'object') return false;
+
+  const payload = value as Record<string, unknown>;
+  if (Number(payload.statusCode) === 404 || Number(payload.status) === 404) {
+    return true;
+  }
+
+  return ['error', 'message', 'response'].some((key) =>
+    containsNotFoundStatus(payload[key], depth + 1)
+  );
+}
+
+function isBackendNotFound(status: number, bodyText: string): boolean {
+  return status === 404 || containsNotFoundStatus(bodyText);
+}
+
 export async function GET(request: Request, { params }: { params: Promise<RouteParams> }) {
   try {
     const { userId: routeUserId } = await params;
@@ -320,8 +354,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<Rout
       }
 
       const txt = await res.text().catch(() => '');
-      if (res.status === 404) {
-        console.warn('PATCH /api/profile backend returned 404, using Supabase fallback', {
+      if (isBackendNotFound(res.status, txt)) {
+        console.warn('PATCH /api/profile backend could not find user, using Supabase fallback', {
           routeUserId,
           status: res.status,
           body: txt,
