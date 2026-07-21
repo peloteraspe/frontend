@@ -11,8 +11,8 @@ import InternationalPhoneField from '@core/ui/InternationalPhoneField';
 import { normalizePhoneMetadata, validateInternationalPhone } from '@shared/lib/phone';
 import {
   type EventProfileIntent,
+  getLatestAdultBirthDate,
   getMissingEventProfileFields,
-  getTodayDateInputValue,
   validateBirthDate,
 } from '@modules/users/lib/eventProfileRequirements';
 
@@ -59,7 +59,7 @@ export default function EventProfileCompletionGateway({
   const [birthDateError, setBirthDateError] = useState('');
   const [pending, setPending] = useState(false);
   const copy = copyByIntent[intent];
-  const maxBirthDate = useMemo(() => getTodayDateInputValue(), []);
+  const maxBirthDate = useMemo(() => getLatestAdultBirthDate(), []);
   const initiallyMissing = useMemo(
     () =>
       getMissingEventProfileFields({
@@ -196,6 +196,7 @@ export default function EventProfileCompletionGateway({
                 value={birthDate}
                 minDate="1900-01-01"
                 maxDate={maxBirthDate}
+                helperText="Debes tener 18 años o más para continuar."
                 required
                 onChange={(nextBirthDate) => {
                   setBirthDate(nextBirthDate);

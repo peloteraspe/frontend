@@ -17,7 +17,7 @@ import {
   validateInternationalPhone,
 } from '@shared/lib/phone';
 import {
-  getTodayDateInputValue,
+  getLatestAdultBirthDate,
   resolveStoredBirthDate,
   validateBirthDate,
 } from '@modules/users/lib/eventProfileRequirements';
@@ -67,7 +67,7 @@ export default function ProfileUpdateForm({
   const [birthDateError, setBirthDateError] = useState('');
   const initialPhone = resolveStoredPhone(user);
   const initialBirthDate = resolveStoredBirthDate(user);
-  const maxBirthDate = getTodayDateInputValue();
+  const maxBirthDate = getLatestAdultBirthDate();
 
   const {
     register,
@@ -299,6 +299,7 @@ export default function ProfileUpdateForm({
             value={birthDate}
             minDate="1900-01-01"
             maxDate={maxBirthDate}
+            helperText="Debes tener 18 años o más para usar Peloteras."
             required
             onChange={(nextBirthDate) => {
               setBirthDate(nextBirthDate);
