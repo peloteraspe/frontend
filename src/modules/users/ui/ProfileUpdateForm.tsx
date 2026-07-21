@@ -9,6 +9,7 @@ import { UserProfileData, UserProfileUpdate } from '@modules/users/model/types';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import Input from '@core/ui/Input';
+import BirthDatePicker from '@core/ui/BirthDatePicker';
 import {
   normalizeInternationalPhone,
   normalizePhoneMetadata,
@@ -292,25 +293,18 @@ export default function ProfileUpdateForm({
         </div>
 
         <div className="flex h-full flex-col">
-          <Input
+          <BirthDatePicker
             label="Fecha de nacimiento"
-            type="date"
             name="birth_date"
             value={birthDate}
-            min="1900-01-01"
-            max={maxBirthDate}
-            autoComplete="bday"
+            minDate="1900-01-01"
+            maxDate={maxBirthDate}
             required
-            onChange={(event) => {
-              setBirthDate(event.currentTarget.value);
+            onChange={(nextBirthDate) => {
+              setBirthDate(nextBirthDate);
               if (birthDateError) setBirthDateError('');
             }}
-            onBlur={() => {
-              const validation = validateBirthDate(birthDate, maxBirthDate);
-              setBirthDateError(validation.ok === true ? '' : validation.message);
-            }}
             errorText={birthDateError}
-            bgColor="bg-white"
           />
           <p className={helperTextClassName}>
             La usamos para mantener completos tus datos de participación.

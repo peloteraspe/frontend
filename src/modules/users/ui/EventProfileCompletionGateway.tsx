@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 import { getBrowserSupabase } from '@core/api/supabase.browser';
 import { useAuth } from '@core/auth/AuthProvider';
-import Input from '@core/ui/Input';
+import BirthDatePicker from '@core/ui/BirthDatePicker';
 import InternationalPhoneField from '@core/ui/InternationalPhoneField';
 import { normalizePhoneMetadata, validateInternationalPhone } from '@shared/lib/phone';
 import {
@@ -190,22 +190,16 @@ export default function EventProfileCompletionGateway({
             ) : null}
 
             {initiallyMissing.birthDate ? (
-              <Input
+              <BirthDatePicker
                 label="Fecha de nacimiento"
                 name="birth_date"
-                type="date"
                 value={birthDate}
-                min="1900-01-01"
-                max={maxBirthDate}
+                minDate="1900-01-01"
+                maxDate={maxBirthDate}
                 required
-                autoComplete="bday"
-                onChange={(event) => {
-                  setBirthDate(event.currentTarget.value);
+                onChange={(nextBirthDate) => {
+                  setBirthDate(nextBirthDate);
                   if (birthDateError) setBirthDateError('');
-                }}
-                onBlur={() => {
-                  const validation = validateBirthDate(birthDate, maxBirthDate);
-                  setBirthDateError(validation.ok === true ? '' : validation.message);
                 }}
                 errorText={birthDateError}
               />
