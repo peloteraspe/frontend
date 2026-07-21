@@ -17,6 +17,10 @@ import {
 import { normalizePaymentMethodIds } from '@shared/lib/paymentMethodSelection';
 import { ensureGoogleWalletEventClass } from '@modules/tickets/api/services/google-wallet.service';
 import { sanitizeRichTextHtml } from '@shared/lib/richText';
+import {
+  hasCompleteEventProfile,
+  REQUIRED_EVENT_PROFILE_MESSAGE,
+} from '@modules/users/lib/eventProfileRequirements';
 
 type SupabaseClientLike =
   | Awaited<ReturnType<typeof getServerSupabase>>
@@ -302,6 +306,9 @@ async function clearEventRelations(supabase: SupabaseClientLike, eventId: string
 
 export async function createEvent(input: EventUpsertInput) {
   const { adminSupabase, user } = await getAuthenticatedAdminContext('crear');
+  if (!hasCompleteEventProfile(user)) {
+    throw new Error(REQUIRED_EVENT_PROFILE_MESSAGE);
+  }
   const paymentMethodSelection = await resolveOwnedPaymentMethodSelection(
     adminSupabase,
     user.id,

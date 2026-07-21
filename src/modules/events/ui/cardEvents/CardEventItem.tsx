@@ -92,6 +92,8 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
       loginRedirectMessage: 'Redirigiendo al login...',
       requireEmailConfirmed: true,
       emailConfirmationMessage: 'Verifica tu identidad para poder inscribirte a este evento.',
+      requireEventProfile: true,
+      eventProfileIntent: 'join_event',
     });
   }
 

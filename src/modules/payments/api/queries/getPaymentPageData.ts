@@ -3,6 +3,7 @@ import { getApprovedParticipantsCountByEventId } from '@modules/events/api/queri
 import { getViewerRegistrationState } from '@modules/events/api/queries/getViewerApprovedRegistrations';
 import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { getActiveLinkedPaymentMethodIdsForEvent } from '@shared/lib/paymentMethodSelection.server';
+import { hasCompleteEventProfile } from '@modules/users/lib/eventProfileRequirements';
 
 export type PaymentPageData = {
   event: any;
@@ -13,6 +14,8 @@ export type PaymentPageData = {
 export const PAYMENT_METHOD_NOT_CONFIGURED = 'PAYMENT_METHOD_NOT_CONFIGURED';
 export const EVENT_NOT_AVAILABLE = 'EVENT_NOT_AVAILABLE';
 export const EVENT_REGISTRATION_LOCKED = 'EVENT_REGISTRATION_LOCKED';
+export const EVENT_REGISTRATION_AUTH_REQUIRED = 'EVENT_REGISTRATION_AUTH_REQUIRED';
+export const EVENT_PROFILE_DETAILS_REQUIRED = 'EVENT_PROFILE_DETAILS_REQUIRED';
 
 export async function getPaymentPageData(id: string) {
   const supabase = await getServerSupabase();
@@ -35,7 +38,15 @@ export async function getPaymentPageData(id: string) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const viewerRegistrationState = user?.id ? await getViewerRegistrationState(event.id, supabase, user.id) : null;
+  if (!user) {
+    throw new Error(EVENT_REGISTRATION_AUTH_REQUIRED);
+  }
+
+  if (!hasCompleteEventProfile(user)) {
+    throw new Error(EVENT_PROFILE_DETAILS_REQUIRED);
+  }
+
+  const viewerRegistrationState = await getViewerRegistrationState(event.id, supabase, user.id);
   const viewerHasApprovedRegistration = viewerRegistrationState === 'approved';
   const viewerHasPendingRegistration = viewerRegistrationState === 'pending';
 

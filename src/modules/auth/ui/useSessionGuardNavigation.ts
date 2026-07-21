@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import { useAuth } from '@core/auth/AuthProvider';
+import {
+  buildEventProfileCompletionPath,
+  type EventProfileIntent,
+  hasCompleteEventProfile,
+} from '@modules/users/lib/eventProfileRequirements';
 
 type SessionNavigationRequest = {
   destination: string;
@@ -15,6 +20,8 @@ type SessionNavigationRequest = {
   loginRedirectMessage?: string;
   requireEmailConfirmed?: boolean;
   emailConfirmationMessage?: string;
+  requireEventProfile?: boolean;
+  eventProfileIntent?: EventProfileIntent;
 };
 
 const DEFAULT_EMAIL_CONFIRMATION_MESSAGE = 'Verifica tu identidad para poder inscribirte a este evento.';
@@ -45,10 +52,20 @@ export function useSessionGuardNavigation() {
   const [pendingRequest, setPendingRequest] = useState<SessionNavigationRequest | null>(null);
   const [overlayMessage, setOverlayMessage] = useState<string | null>(null);
 
-  function canNavigateAuthenticated(request: SessionNavigationRequest) {
-    if (!request.requireEmailConfirmed || user?.email_confirmed_at) return true;
-    toast.error(request.emailConfirmationMessage || DEFAULT_EMAIL_CONFIRMATION_MESSAGE);
-    return false;
+  function resolveAuthenticatedDestination(request: SessionNavigationRequest) {
+    if (request.requireEmailConfirmed && !user?.email_confirmed_at) {
+      toast.error(request.emailConfirmationMessage || DEFAULT_EMAIL_CONFIRMATION_MESSAGE);
+      return null;
+    }
+
+    if (request.requireEventProfile && !hasCompleteEventProfile(user)) {
+      return buildEventProfileCompletionPath({
+        nextPath: request.destination,
+        intent: request.eventProfileIntent || 'join_event',
+      });
+    }
+
+    return request.destination;
   }
 
   function navigateWithSessionCheck(request: SessionNavigationRequest) {
@@ -61,9 +78,10 @@ export function useSessionGuardNavigation() {
     }
 
     if (user) {
-      if (!canNavigateAuthenticated(request)) return;
+      const destination = resolveAuthenticatedDestination(request);
+      if (!destination) return;
       setOverlayMessage(request.authenticatedMessage);
-      pushOnNextFrame(router, request.destination);
+      pushOnNextFrame(router, destination);
       return;
     }
 
@@ -81,12 +99,13 @@ export function useSessionGuardNavigation() {
     setPendingRequest(null);
 
     if (user) {
-      if (!canNavigateAuthenticated(request)) {
+      const destination = resolveAuthenticatedDestination(request);
+      if (!destination) {
         setOverlayMessage(null);
         return;
       }
       setOverlayMessage(request.authenticatedMessage);
-      pushOnNextFrame(router, request.destination);
+      pushOnNextFrame(router, destination);
       return;
     }
 

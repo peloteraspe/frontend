@@ -361,6 +361,8 @@ export default function EventDetailsClient({ data }: Props) {
       loginRedirectMessage: 'Redirigiendo al login...',
       requireEmailConfirmed: true,
       emailConfirmationMessage: 'Verifica tu identidad para poder inscribirte a este evento.',
+      requireEventProfile: true,
+      eventProfileIntent: 'join_event',
     });
   };
 
