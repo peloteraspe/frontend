@@ -26,10 +26,13 @@ type Props = {
   minDate?: string;
   maxDate: string;
   errorText?: string;
+  helperText?: string;
   required?: boolean;
   disabled?: boolean;
   onChange: (value: string) => void;
 };
+
+type CalendarMenu = 'month' | 'year' | null;
 
 function pad(value: number) {
   return String(value).padStart(2, '0');
@@ -63,7 +66,7 @@ function startOfMonth(date: Date) {
 }
 
 function getDefaultViewDate(maxDate: Date) {
-  return new Date(maxDate.getFullYear() - 25, 0, 1);
+  return new Date(maxDate.getFullYear() - 7, 0, 1);
 }
 
 function clampViewMonth(date: Date, minDate: Date, maxDate: Date) {
@@ -100,6 +103,7 @@ export default function BirthDatePicker({
   minDate = '1900-01-01',
   maxDate,
   errorText,
+  helperText,
   required = false,
   disabled = false,
   onChange,
@@ -107,12 +111,15 @@ export default function BirthDatePicker({
   const generatedId = useId();
   const fieldId = `birth-date-${generatedId.replace(/:/g, '')}`;
   const errorId = `${fieldId}-error`;
+  const helperId = `${fieldId}-helper`;
   const calendarId = `${fieldId}-calendar`;
   const rootRef = useRef<HTMLDivElement>(null);
+  const selectedYearRef = useRef<HTMLButtonElement>(null);
   const minDateValue = useMemo(() => parseIsoDate(minDate) || new Date(1900, 0, 1), [minDate]);
   const maxDateValue = useMemo(() => parseIsoDate(maxDate) || new Date(), [maxDate]);
   const selectedDate = useMemo(() => parseIsoDate(value), [value]);
   const [isOpen, setIsOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<CalendarMenu>(null);
   const [viewMonth, setViewMonth] = useState(() =>
     clampViewMonth(selectedDate || getDefaultViewDate(maxDateValue), minDateValue, maxDateValue)
   );
@@ -127,10 +134,18 @@ export default function BirthDatePicker({
     if (!isOpen) return undefined;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpenMenu(null);
+        setIsOpen(false);
+      }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
+      if (event.key !== 'Escape') return;
+      if (openMenu) {
+        setOpenMenu(null);
+      } else {
+        setIsOpen(false);
+      }
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
@@ -139,7 +154,20 @@ export default function BirthDatePicker({
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, openMenu]);
+
+  useEffect(() => {
+    if (openMenu !== 'year') return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const selectedOption = selectedYearRef.current;
+      const menu = selectedOption?.parentElement;
+      if (selectedOption && menu) {
+        menu.scrollTop =
+          selectedOption.offsetTop - menu.clientHeight / 2 + selectedOption.clientHeight / 2;
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [openMenu]);
 
   const displayValue = formatDisplayDate(value);
   const calendarDays = buildCalendarDays(viewMonth);
@@ -166,7 +194,17 @@ export default function BirthDatePicker({
     const nextValue = toIsoDate(date);
     if (nextValue < minIso || nextValue > maxIso) return;
     onChange(nextValue);
+    setOpenMenu(null);
     setIsOpen(false);
+  }
+
+  function toggleCalendar() {
+    if (isOpen) setOpenMenu(null);
+    setIsOpen((current) => !current);
+  }
+
+  function toggleMenu(menu: Exclude<CalendarMenu, null>) {
+    setOpenMenu((current) => (current === menu ? null : menu));
   }
 
   return (
@@ -186,8 +224,8 @@ export default function BirthDatePicker({
         aria-expanded={isOpen}
         aria-controls={isOpen ? calendarId : undefined}
         aria-invalid={Boolean(errorText) || undefined}
-        aria-describedby={errorText ? errorId : undefined}
-        onClick={() => setIsOpen((current) => !current)}
+        aria-describedby={errorText ? errorId : helperText ? helperId : undefined}
+        onClick={toggleCalendar}
         className={[
           'peloteras-form-control flex h-11 items-center justify-between gap-3 text-left',
           errorText ? 'peloteras-form-control--error' : '',
@@ -213,6 +251,10 @@ export default function BirthDatePicker({
         <span id={errorId} className="mt-1 block text-sm text-error">
           {errorText}
         </span>
+      ) : helperText ? (
+        <span id={helperId} className="mt-1 block text-sm text-slate-500">
+          {helperText}
+        </span>
       ) : null}
 
       {isOpen ? (
@@ -222,12 +264,15 @@ export default function BirthDatePicker({
           aria-label="Seleccionar fecha de nacimiento"
           className="absolute right-0 z-[150] mt-2 w-[calc(100vw-2rem)] max-w-[340px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_24px_60px_-24px_rgba(15,23,42,0.45)]"
         >
-          <div className="flex items-center gap-2">
+          <div className="relative flex items-center gap-2">
             <button
               type="button"
               aria-label="Mes anterior"
               disabled={!canGoPrevious}
-              onClick={() => changeView(previousMonth.getFullYear(), previousMonth.getMonth())}
+              onClick={() => {
+                setOpenMenu(null);
+                changeView(previousMonth.getFullYear(), previousMonth.getMonth());
+              }}
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-mulberry/10 hover:text-mulberry disabled:cursor-not-allowed disabled:opacity-30"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
@@ -235,43 +280,119 @@ export default function BirthDatePicker({
               </svg>
             </button>
 
-            <select
-              aria-label="Mes"
-              value={viewMonth.getMonth()}
-              onChange={(event) => changeView(viewMonth.getFullYear(), Number(event.currentTarget.value))}
-              className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-2 text-sm font-semibold text-slate-800 outline-none focus:border-mulberry focus:ring-2 focus:ring-mulberry/10"
+            <button
+              type="button"
+              aria-label={`Elegir mes, ${MONTH_NAMES[viewMonth.getMonth()]}`}
+              aria-haspopup="listbox"
+              aria-expanded={openMenu === 'month'}
+              onClick={() => toggleMenu('month')}
+              className="flex h-9 min-w-0 flex-1 items-center justify-between gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition hover:border-mulberry/40 focus:border-mulberry focus:ring-2 focus:ring-mulberry/10"
             >
-              {MONTH_NAMES.map((month, index) => (
-                <option key={month} value={index}>
-                  {month}
-                </option>
-              ))}
-            </select>
+              <span className="truncate">{MONTH_NAMES[viewMonth.getMonth()]}</span>
+              <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m6 8 4 4 4-4" />
+              </svg>
+            </button>
 
-            <select
-              aria-label="Año"
-              value={viewMonth.getFullYear()}
-              onChange={(event) => changeView(Number(event.currentTarget.value), viewMonth.getMonth())}
-              className="h-9 w-[88px] rounded-xl border border-slate-200 bg-slate-50 px-2 text-sm font-semibold text-slate-800 outline-none focus:border-mulberry focus:ring-2 focus:ring-mulberry/10"
+            <button
+              type="button"
+              aria-label={`Elegir año, ${viewMonth.getFullYear()}`}
+              aria-haspopup="listbox"
+              aria-expanded={openMenu === 'year'}
+              onClick={() => toggleMenu('year')}
+              className="flex h-9 w-[94px] items-center justify-between gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition hover:border-mulberry/40 focus:border-mulberry focus:ring-2 focus:ring-mulberry/10"
             >
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
+              <span>{viewMonth.getFullYear()}</span>
+              <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m6 8 4 4 4-4" />
+              </svg>
+            </button>
 
             <button
               type="button"
               aria-label="Mes siguiente"
               disabled={!canGoNext}
-              onClick={() => changeView(nextMonth.getFullYear(), nextMonth.getMonth())}
+              onClick={() => {
+                setOpenMenu(null);
+                changeView(nextMonth.getFullYear(), nextMonth.getMonth());
+              }}
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-mulberry/10 hover:text-mulberry disabled:cursor-not-allowed disabled:opacity-30"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
               </svg>
             </button>
+
+            {openMenu === 'month' ? (
+              <div
+                role="listbox"
+                aria-label="Elegir mes"
+                className="absolute left-10 right-10 top-11 z-20 grid grid-cols-3 gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl"
+              >
+                {MONTH_NAMES.map((month, monthIndex) => {
+                  const monthValue = new Date(viewMonth.getFullYear(), monthIndex, 1);
+                  const isDisabled =
+                    monthValue < startOfMonth(minDateValue) ||
+                    monthValue > startOfMonth(maxDateValue);
+                  const isSelected = monthIndex === viewMonth.getMonth();
+                  return (
+                    <button
+                      key={month}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      disabled={isDisabled}
+                      onClick={() => {
+                        changeView(viewMonth.getFullYear(), monthIndex);
+                        setOpenMenu(null);
+                      }}
+                      className={[
+                        'rounded-xl px-2 py-2 text-xs font-semibold transition',
+                        isSelected
+                          ? 'bg-mulberry text-white'
+                          : 'text-slate-700 hover:bg-mulberry/10 hover:text-mulberry',
+                        isDisabled ? 'cursor-not-allowed opacity-25' : '',
+                      ].join(' ')}
+                    >
+                      {month.slice(0, 3)}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {openMenu === 'year' ? (
+              <div
+                role="listbox"
+                aria-label="Elegir año"
+                className="absolute right-10 top-11 z-20 max-h-56 w-[110px] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xl [scrollbar-width:thin]"
+              >
+                {years.map((year) => {
+                  const isSelected = year === viewMonth.getFullYear();
+                  return (
+                    <button
+                      key={year}
+                      ref={isSelected ? selectedYearRef : undefined}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        changeView(year, viewMonth.getMonth());
+                        setOpenMenu(null);
+                      }}
+                      className={[
+                        'mb-1 flex w-full items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition last:mb-0',
+                        isSelected
+                          ? 'bg-mulberry text-white'
+                          : 'text-slate-700 hover:bg-mulberry/10 hover:text-mulberry',
+                      ].join(' ')}
+                    >
+                      {year}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 grid grid-cols-7 gap-1" aria-hidden="true">
@@ -313,7 +434,7 @@ export default function BirthDatePicker({
           </div>
 
           <p className="mt-3 text-center text-xs text-slate-500">
-            Elige el mes y el año, luego selecciona el día.
+            Solo mostramos fechas válidas para mayores de 18 años.
           </p>
         </div>
       ) : null}

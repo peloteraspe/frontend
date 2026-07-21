@@ -2,6 +2,7 @@ import { resolveStoredPhone, validateInternationalPhone } from '@shared/lib/phon
 
 export const REQUIRED_EVENT_PROFILE_MESSAGE =
   'Completa tu celular y fecha de nacimiento para continuar.';
+export const MINIMUM_PELOTERAS_AGE = 18;
 
 export type EventProfileIntent = 'join_event' | 'create_event';
 
@@ -22,7 +23,18 @@ export function getTodayDateInputValue(now = new Date()) {
   return `${now.getFullYear()}-${padDatePart(now.getMonth() + 1)}-${padDatePart(now.getDate())}`;
 }
 
-export function validateBirthDate(value: unknown, today = getTodayDateInputValue()): BirthDateValidationResult {
+export function getLatestAdultBirthDate(now = new Date()) {
+  const year = now.getFullYear() - MINIMUM_PELOTERAS_AGE;
+  const month = now.getMonth();
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+  const day = Math.min(now.getDate(), lastDayOfMonth);
+  return `${year}-${padDatePart(month + 1)}-${padDatePart(day)}`;
+}
+
+export function validateBirthDate(
+  value: unknown,
+  latestAdultBirthDate = getLatestAdultBirthDate()
+): BirthDateValidationResult {
   const normalized = String(value || '').trim();
   if (!normalized) {
     return { ok: false, message: 'Ingresa tu fecha de nacimiento.' };
@@ -46,8 +58,8 @@ export function validateBirthDate(value: unknown, today = getTodayDateInputValue
     return { ok: false, message: 'Ingresa una fecha de nacimiento válida.' };
   }
 
-  if (normalized > today) {
-    return { ok: false, message: 'La fecha de nacimiento no puede estar en el futuro.' };
+  if (normalized > latestAdultBirthDate) {
+    return { ok: false, message: 'Debes tener 18 años o más para continuar.' };
   }
 
   return { ok: true, value: normalized };

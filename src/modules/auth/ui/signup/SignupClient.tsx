@@ -26,7 +26,7 @@ import {
   validateInternationalPhone,
 } from '@shared/lib/phone';
 import {
-  getTodayDateInputValue,
+  getLatestAdultBirthDate,
   resolveStoredBirthDate,
   validateBirthDate,
 } from '@modules/users/lib/eventProfileRequirements';
@@ -121,7 +121,7 @@ export default function SignupClient() {
   const [phoneError, setPhoneError] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [birthDateError, setBirthDateError] = useState('');
-  const maxBirthDate = useMemo(() => getTodayDateInputValue(), []);
+  const maxBirthDate = useMemo(() => getLatestAdultBirthDate(), []);
 
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -911,6 +911,7 @@ export default function SignupClient() {
               value={birthDate}
               minDate="1900-01-01"
               maxDate={maxBirthDate}
+              helperText="Debes tener 18 años o más para crear una cuenta."
               required
               onChange={(nextBirthDate) => {
                 setBirthDate(nextBirthDate);
