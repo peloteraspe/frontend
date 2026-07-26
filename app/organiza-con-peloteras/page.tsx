@@ -5,6 +5,7 @@ import OrganizerSupportFallback from '@modules/home/ui/OrganizerSupportFallback'
 export const metadata: Metadata = {
   title: 'Activa tu perfil organizadora | Peloteras',
   description: 'Activa tu perfil, crea tu primer borrador y publica con Peloteras.',
+  alternates: { canonical: '/organiza-con-peloteras' },
 };
 
 const bullets = [

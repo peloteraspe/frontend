@@ -2,6 +2,8 @@
 import PaymentStepper from '../PaymentStepper/PaymentStepperComponent';
 import {
   EVENT_NOT_AVAILABLE,
+  EVENT_PROFILE_DETAILS_REQUIRED,
+  EVENT_REGISTRATION_AUTH_REQUIRED,
   EVENT_REGISTRATION_LOCKED,
   getPaymentPageData,
   PAYMENT_METHOD_NOT_CONFIGURED,
@@ -10,6 +12,7 @@ import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
+import { buildEventProfileCompletionPath } from '@modules/users/lib/eventProfileRequirements';
 
 export default async function PaymentPage({ id }: { id: string }) {
   let data: Awaited<ReturnType<typeof getPaymentPageData>> | null = null;
@@ -22,6 +25,19 @@ export default async function PaymentPage({ id }: { id: string }) {
   }
 
   if (!data) {
+    if (loadError instanceof Error && loadError.message === EVENT_REGISTRATION_AUTH_REQUIRED) {
+      redirect(`/login?next=${encodeURIComponent(`/payments/${id}`)}`);
+    }
+
+    if (loadError instanceof Error && loadError.message === EVENT_PROFILE_DETAILS_REQUIRED) {
+      redirect(
+        buildEventProfileCompletionPath({
+          nextPath: `/payments/${id}`,
+          intent: 'join_event',
+        })
+      );
+    }
+
     if (loadError instanceof Error && loadError.message === EVENT_REGISTRATION_LOCKED) {
       redirect(`/events/${id}`);
     }

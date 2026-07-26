@@ -1,5 +1,5 @@
-import CustomerSupportPage from '@modules/support/ui/CustomerSupportPage';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <CustomerSupportPage />;
+  redirect('/customer-support');
 }

@@ -14,6 +14,10 @@ import {
 } from '@shared/lib/eventDescription';
 import { redirect } from 'next/navigation';
 import { getOrganizerOptionsForEventForm } from '@modules/admin/api/organizers/organizers.service';
+import {
+  buildEventProfileCompletionPath,
+  hasCompleteEventProfile,
+} from '@modules/users/lib/eventProfileRequirements';
 
 type Props = {
   templateId?: string;
@@ -26,6 +30,18 @@ export default async function NewEventScreen({ templateId }: Props) {
   } = await supabase.auth.getUser();
   if (!user?.id) {
     redirect('/');
+  }
+
+  if (!hasCompleteEventProfile(user)) {
+    const nextPath = templateId
+      ? `/admin/events/new?templateId=${encodeURIComponent(templateId)}`
+      : '/admin/events/new';
+    redirect(
+      buildEventProfileCompletionPath({
+        nextPath,
+        intent: 'create_event',
+      })
+    );
   }
 
   const canManageFeatured = isSuperAdmin(user as any);

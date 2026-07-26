@@ -12,13 +12,24 @@ import { useAuth } from '@core/auth/AuthProvider';
 
 import { ParagraphM } from '@core/ui/Typography';
 import Input from '@core/ui/Input';
+import BirthDatePicker from '@core/ui/BirthDatePicker';
+import InternationalPhoneField from '@core/ui/InternationalPhoneField';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 
 import type { Step, SignupStep1Values } from './signup.types';
 import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
 import { authCallbackUrl, sanitizeNextPath } from '@modules/auth/lib/redirect';
 import { fetchLevelsOptions, fetchPositionsOptions } from '@modules/users/api/lookups.client';
-import { normalizePhoneMetadata } from '@shared/lib/phone';
+import {
+  normalizePhoneMetadata,
+  resolveStoredPhone,
+  validateInternationalPhone,
+} from '@shared/lib/phone';
+import {
+  getLatestAdultBirthDate,
+  resolveStoredBirthDate,
+  validateBirthDate,
+} from '@modules/users/lib/eventProfileRequirements';
 import {
   checkUsernameAvailabilityAction,
   completeOnboardingProfileAction,
@@ -106,6 +117,11 @@ export default function SignupClient() {
   const [levels, setLevels] = useState<OptionSelect[]>([]);
   const [selectedPositions, setSelectedPositions] = useState<(string | number)[]>([]);
   const [selectedLevel, setSelectedLevel] = useState<string | number | null>(null);
+  const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [birthDateError, setBirthDateError] = useState('');
+  const maxBirthDate = useMemo(() => getLatestAdultBirthDate(), []);
 
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -249,6 +265,8 @@ export default function SignupClient() {
         setRequiresEmailVerification(!user.email_confirmed_at);
         setValue('username', initialUsername);
         setIsIdentityConfirmed(isGenderIdentityConfirmed(metadata.gender_identity_confirmed));
+        setPhone(resolveStoredPhone(user));
+        setBirthDate(resolveStoredBirthDate(user));
 
         if (nextStep === null) {
           window.location.href = requestedNextPath || destination;
@@ -404,6 +422,20 @@ export default function SignupClient() {
     if (!selectedLevel) return toast.error('Selecciona un nivel.');
     if (selectedPositions.length === 0) return toast.error('Selecciona al menos una posicion.');
 
+    const phoneValidation = validateInternationalPhone(phone);
+    if (!phoneValidation.isValid) {
+      setPhoneError('Ingresa un celular válido.');
+      toast.error('Ingresa un celular válido.');
+      return;
+    }
+
+    const birthDateValidation = validateBirthDate(birthDate, maxBirthDate);
+    if (birthDateValidation.ok === false) {
+      setBirthDateError(birthDateValidation.message);
+      toast.error(birthDateValidation.message);
+      return;
+    }
+
     setLoading(true);
     try {
       const usernameValidation = validateUsername(username);
@@ -469,6 +501,8 @@ export default function SignupClient() {
         username: normalizedUsername,
         level_id: Number(selectedLevel),
         player_position: positionIds,
+        phone: phoneValidation.e164,
+        birth_date: birthDateValidation.value,
       };
 
       // We create the final profile here. If a draft exists and backend treats it as duplicate,
@@ -518,6 +552,8 @@ export default function SignupClient() {
         const { error: metadataError } = await supabase.auth.updateUser({
           data: {
             ...normalizePhoneMetadata(authenticatedUser.user_metadata),
+            phone: phoneValidation.e164,
+            birth_date: birthDateValidation.value,
             gender_identity_confirmed: true,
           },
         });
@@ -852,6 +888,38 @@ export default function SignupClient() {
             />
             <p className="text-xs text-slate-500 -mt-2">Máximo 15 caracteres, sin espacios.</p>
 
+            <InternationalPhoneField
+              label="Número de celular"
+              name="phone"
+              value={phone}
+              onChange={(nextPhone) => {
+                setPhone(nextPhone);
+                if (phoneError) setPhoneError('');
+              }}
+              onBlur={() => {
+                const validation = validateInternationalPhone(phone);
+                setPhoneError(validation.isValid ? '' : 'Ingresa un celular válido.');
+              }}
+              placeholder="999 999 999"
+              errorText={phoneError}
+              required
+            />
+
+            <BirthDatePicker
+              label="Fecha de nacimiento"
+              name="birth_date"
+              value={birthDate}
+              minDate="1900-01-01"
+              maxDate={maxBirthDate}
+              helperText="Debes tener 18 años o más para crear una cuenta."
+              required
+              onChange={(nextBirthDate) => {
+                setBirthDate(nextBirthDate);
+                if (birthDateError) setBirthDateError('');
+              }}
+              errorText={birthDateError}
+            />
+
             <label className="w-full">
               <div className="mb-1">
                 <ParagraphM fontWeight="semibold">
@@ -916,6 +984,8 @@ export default function SignupClient() {
                 loading ||
                 !isIdentityConfirmed ||
                 !validateUsername(username).ok ||
+                !validateInternationalPhone(phone).isValid ||
+                !validateBirthDate(birthDate, maxBirthDate).ok ||
                 !selectedLevel ||
                 selectedPositions.length === 0
               }

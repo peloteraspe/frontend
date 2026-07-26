@@ -9,12 +9,18 @@ import { UserProfileData, UserProfileUpdate } from '@modules/users/model/types';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import Input from '@core/ui/Input';
+import BirthDatePicker from '@core/ui/BirthDatePicker';
 import {
   normalizeInternationalPhone,
   normalizePhoneMetadata,
   resolveStoredPhone,
   validateInternationalPhone,
 } from '@shared/lib/phone';
+import {
+  getLatestAdultBirthDate,
+  resolveStoredBirthDate,
+  validateBirthDate,
+} from '@modules/users/lib/eventProfileRequirements';
 import {
   USERNAME_MAX_LENGTH,
   validateUsername,
@@ -57,7 +63,11 @@ export default function ProfileUpdateForm({
   const [isLoading, setIsLoading] = useState(false);
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [birthDateError, setBirthDateError] = useState('');
   const initialPhone = resolveStoredPhone(user);
+  const initialBirthDate = resolveStoredBirthDate(user);
+  const maxBirthDate = getLatestAdultBirthDate();
 
   const {
     register,
@@ -93,7 +103,9 @@ export default function ProfileUpdateForm({
   useEffect(() => {
     setPhone(initialPhone);
     setPhoneError('');
-  }, [initialPhone]);
+    setBirthDate(initialBirthDate);
+    setBirthDateError('');
+  }, [initialBirthDate, initialPhone]);
 
   const levelValue = watch('level_id');
   const positionsValue = watch('positions');
@@ -126,9 +138,15 @@ export default function ProfileUpdateForm({
     }
     const normalizedUsername = usernameValidation.value;
 
-    const normalizedPhone = phone.trim() ? normalizeInternationalPhone(phone) : '';
-    if (phone.trim() && !normalizedPhone) {
+    const normalizedPhone = normalizeInternationalPhone(phone);
+    if (!normalizedPhone) {
       setPhoneError('Ingresa un celular válido.');
+      return;
+    }
+
+    const birthDateValidation = validateBirthDate(birthDate, maxBirthDate);
+    if (birthDateValidation.ok === false) {
+      setBirthDateError(birthDateValidation.message);
       return;
     }
 
@@ -136,6 +154,7 @@ export default function ProfileUpdateForm({
     try {
       clearErrors();
       setPhoneError('');
+      setBirthDateError('');
       const updateData: UserProfileUpdate = {
         username: normalizedUsername,
         level_id: data.level_id as number,
@@ -148,7 +167,8 @@ export default function ProfileUpdateForm({
       const nextMetadata: Record<string, unknown> = {
         ...currentMetadata,
         username: normalizedUsername,
-        phone: normalizedPhone || null,
+        phone: normalizedPhone,
+        birth_date: birthDateValidation.value,
       };
 
       const { error: metadataError } = await supabase.auth.updateUser({
@@ -156,7 +176,7 @@ export default function ProfileUpdateForm({
       });
 
       if (metadataError) {
-        console.warn('Could not sync profile username into auth metadata', metadataError.message);
+        throw new Error('No pudimos guardar el celular y la fecha de nacimiento. Intenta nuevamente.');
       }
 
       const nextProfileData: UserProfileData = {
@@ -182,6 +202,7 @@ export default function ProfileUpdateForm({
         positions: [...data.positions],
       });
       setPhone(normalizedPhone || '');
+      setBirthDate(birthDateValidation.value);
       await refreshProfile().catch(() => undefined);
       toast.success('¡Se actualizó tu perfil con éxito!');
     } catch (error: any) {
@@ -248,6 +269,7 @@ export default function ProfileUpdateForm({
         <div className="flex h-full flex-col">
           <InternationalPhoneField
             label="Celular"
+            required
             value={phone}
             onChange={(nextPhone) => {
               setPhone(nextPhone);
@@ -255,7 +277,7 @@ export default function ProfileUpdateForm({
             }}
             onBlur={() => {
               if (!phone.trim()) {
-                setPhoneError('');
+                setPhoneError('Ingresa un celular válido.');
                 return;
               }
 
@@ -267,6 +289,26 @@ export default function ProfileUpdateForm({
           />
           <p className={helperTextClassName}>
             Lo usaremos para prellenar tus flujos y mantener tu contacto actualizado.
+          </p>
+        </div>
+
+        <div className="flex h-full flex-col">
+          <BirthDatePicker
+            label="Fecha de nacimiento"
+            name="birth_date"
+            value={birthDate}
+            minDate="1900-01-01"
+            maxDate={maxBirthDate}
+            helperText="Debes tener 18 años o más para usar Peloteras."
+            required
+            onChange={(nextBirthDate) => {
+              setBirthDate(nextBirthDate);
+              if (birthDateError) setBirthDateError('');
+            }}
+            errorText={birthDateError}
+          />
+          <p className={helperTextClassName}>
+            La usamos para mantener completos tus datos de participación.
           </p>
         </div>
 

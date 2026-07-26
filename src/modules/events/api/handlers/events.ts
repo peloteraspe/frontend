@@ -11,6 +11,10 @@ import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
 import { CreateEventPayload, EventEntity } from '@modules/events/model/types';
 import { getIsoDateInTimeZone, normalizeDateTimeLocalToLima } from '@shared/lib/dateTime';
+import {
+  hasCompleteEventProfile,
+  REQUIRED_EVENT_PROFILE_MESSAGE,
+} from '@modules/users/lib/eventProfileRequirements';
 
 const EVENTS_TIMEOUT_MS = 4500;
 
@@ -238,6 +242,13 @@ export async function POST(request: Request) {
 
     if (!isAdmin(user)) {
       return NextResponse.json({ error: 'Solo admins pueden crear eventos por esta ruta.' }, { status: 403 });
+    }
+
+    if (!hasCompleteEventProfile(user)) {
+      return NextResponse.json(
+        { error: REQUIRED_EVENT_PROFILE_MESSAGE, code: 'PROFILE_DETAILS_REQUIRED' },
+        { status: 422 }
+      );
     }
 
     const limitedByUser = await rateLimitByIdentifier({

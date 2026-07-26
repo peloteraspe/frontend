@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Patrocinios | Peloteras',
   description: 'Escríbenos a contacto@peloteras.com para alianzas y patrocinios con Peloteras.',
+  alternates: { canonical: '/patrocinios' },
 };
 
 const bullets = [
