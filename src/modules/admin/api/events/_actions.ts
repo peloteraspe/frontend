@@ -75,6 +75,14 @@ function toInsertPayload(
     is_published: input.isPublished,
     is_featured: isFeatured,
     organizer_id: input.organizerId,
+    allows_team_registration: input.allowsTeamRegistration,
+    team_registration_min_players: input.allowsTeamRegistration ? input.teamRegistrationMinPlayers : null,
+    team_registration_max_players: input.allowsTeamRegistration ? input.teamRegistrationMaxPlayers : null,
+    team_registration_price_mode: input.allowsTeamRegistration ? input.teamRegistrationPriceMode : 'per_player',
+    team_registration_fixed_price:
+      input.allowsTeamRegistration && input.teamRegistrationPriceMode === 'fixed_team'
+        ? input.teamRegistrationFixedPrice
+        : null,
     created_by_id: userId,
     created_by: createdBy,
   };
@@ -106,6 +114,14 @@ function toUpdatePayload(
     is_published: input.isPublished,
     is_featured: isFeatured,
     organizer_id: input.organizerId,
+    allows_team_registration: input.allowsTeamRegistration,
+    team_registration_min_players: input.allowsTeamRegistration ? input.teamRegistrationMinPlayers : null,
+    team_registration_max_players: input.allowsTeamRegistration ? input.teamRegistrationMaxPlayers : null,
+    team_registration_price_mode: input.allowsTeamRegistration ? input.teamRegistrationPriceMode : 'per_player',
+    team_registration_fixed_price:
+      input.allowsTeamRegistration && input.teamRegistrationPriceMode === 'fixed_team'
+        ? input.teamRegistrationFixedPrice
+        : null,
   };
 }
 

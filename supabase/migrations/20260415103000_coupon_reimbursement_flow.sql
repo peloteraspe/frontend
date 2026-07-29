@@ -18,6 +18,11 @@ SET organizer_confirmed_at = COALESCE(organizer_confirmed_at, reimbursed_at)
 WHERE reimbursement_status = 'deposited'
   AND organizer_confirmed_at IS NULL;
 
+-- Remove the legacy pending/deposited constraint before translating existing
+-- rows to the new requested/confirmed states.
+ALTER TABLE public.coupon_redemption
+  DROP CONSTRAINT IF EXISTS coupon_redemption_reimbursement_status_check;
+
 UPDATE public.coupon_redemption
 SET reimbursement_status = CASE
   WHEN reimbursement_status = 'pending' THEN 'requested'
@@ -28,9 +33,6 @@ WHERE reimbursement_status IN ('pending', 'deposited');
 
 ALTER TABLE public.coupon_redemption
   ALTER COLUMN reimbursement_status SET DEFAULT 'not_requested';
-
-ALTER TABLE public.coupon_redemption
-  DROP CONSTRAINT IF EXISTS coupon_redemption_reimbursement_status_check;
 
 ALTER TABLE public.coupon_redemption
   ADD CONSTRAINT coupon_redemption_reimbursement_status_check

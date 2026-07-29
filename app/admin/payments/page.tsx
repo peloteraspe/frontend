@@ -1,6 +1,6 @@
 import PaymentsAdminPage from '@modules/admin/ui/payments/PaymentsAdminPage';
 
-type PageSearchParams = { state?: string; q?: string };
+type PageSearchParams = { state?: string; q?: string; event?: string };
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

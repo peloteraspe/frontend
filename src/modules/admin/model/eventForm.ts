@@ -23,6 +23,11 @@ export type EventUpsertInput = {
   isPublished: boolean;
   isFieldReservedConfirmed: boolean;
   isFeatured: boolean;
+  allowsTeamRegistration: boolean;
+  teamRegistrationMinPlayers: number | null;
+  teamRegistrationMaxPlayers: number | null;
+  teamRegistrationPriceMode: 'per_player' | 'fixed_team';
+  teamRegistrationFixedPrice: number | null;
 };
 
 function toTimestamp(value: string) {
@@ -35,6 +40,20 @@ function toTimestamp(value: string) {
 function parseNumber(value: FormDataEntryValue | null, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function parseOptionalPositiveNumber(value: FormDataEntryValue | null) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseOptionalNonNegativeNumber(value: FormDataEntryValue | null) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function parseBoolean(value: FormDataEntryValue | null) {
@@ -98,6 +117,14 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     isPublished: parseBoolean(fd.get('isPublished')),
     isFieldReservedConfirmed: parseBoolean(fd.get('isFieldReservedConfirmed')),
     isFeatured: parseBoolean(fd.get('isFeatured')),
+    allowsTeamRegistration: parseBoolean(fd.get('allowsTeamRegistration')),
+    teamRegistrationMinPlayers: parseOptionalPositiveNumber(fd.get('teamRegistrationMinPlayers')),
+    teamRegistrationMaxPlayers: parseOptionalPositiveNumber(fd.get('teamRegistrationMaxPlayers')),
+    teamRegistrationPriceMode:
+      String(fd.get('teamRegistrationPriceMode') || '') === 'fixed_team'
+        ? 'fixed_team'
+        : 'per_player',
+    teamRegistrationFixedPrice: parseOptionalNonNegativeNumber(fd.get('teamRegistrationFixedPrice')),
   };
 }
 
@@ -111,6 +138,23 @@ export function validateEventFormInput(input: EventUpsertInput) {
 
   if (endTimestamp <= startTimestamp) {
     throw new Error('La fecha y hora de fin debe ser posterior al inicio.');
+  }
+
+  if (
+    input.allowsTeamRegistration &&
+    input.teamRegistrationMinPlayers !== null &&
+    input.teamRegistrationMaxPlayers !== null &&
+    input.teamRegistrationMinPlayers > input.teamRegistrationMaxPlayers
+  ) {
+    throw new Error('El mínimo grupal no puede ser mayor que el máximo grupal.');
+  }
+
+  if (
+    input.allowsTeamRegistration &&
+    input.teamRegistrationPriceMode === 'fixed_team' &&
+    input.teamRegistrationFixedPrice === null
+  ) {
+    throw new Error('Ingresa el precio fijo por equipo.');
   }
 
   if (!input.isPublished) return;

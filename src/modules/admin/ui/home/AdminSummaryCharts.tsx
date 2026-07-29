@@ -1,16 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, type ReactNode } from 'react';
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,6 +16,7 @@ import {
 
 type TrendPoint = { label: string; value: number };
 type BreakdownPoint = { name: string; value: number };
+type Tone = 'neutral' | 'positive' | 'warning';
 
 export type AdminSummaryChartsData = {
   events: {
@@ -66,64 +64,41 @@ export type AdminSummaryChartsData = {
   };
 };
 
-const PIE_COLORS = ['#54086F', '#F0815B', '#744D7C', '#A68CB1', '#C9B3D2', '#D7C8DE'];
+const TONE_CLASSES: Record<Tone, string> = {
+  neutral: 'border-slate-200 bg-white',
+  positive: 'border-emerald-200 bg-emerald-50/60',
+  warning: 'border-amber-200 bg-amber-50/70',
+};
+
+const BAR_COLORS = ['bg-mulberry', 'bg-[#F0815B]', 'bg-teal-600', 'bg-[#A68CB1]'];
 
 function hasData(values: Array<{ value: number }>) {
   return values.some((item) => Number(item.value) > 0);
 }
 
 function EmptyState({ label }: { label: string }) {
-  return <p className="text-xs text-slate-500">{label}</p>;
-}
-
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <article className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-      <h4 className="text-sm font-semibold text-slate-800">{title}</h4>
-      <div className="mt-3 h-[220px] w-full sm:h-64">{children}</div>
-    </article>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  tone = 'neutral',
-}: {
-  label: string;
-  value: number;
-  tone?: 'neutral' | 'positive' | 'warning';
-}) {
-  const toneClass =
-    tone === 'positive'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      : tone === 'warning'
-      ? 'bg-amber-50 text-amber-700 border-amber-200'
-      : 'bg-slate-50 text-slate-700 border-slate-200';
-
-  return (
-    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
-      <p className="text-[11px] uppercase tracking-wide">{label}</p>
-      <p className="text-lg font-semibold leading-tight">{value}</p>
+    <div className="flex h-full min-h-28 items-center justify-center rounded-xl bg-slate-50 px-4 text-center">
+      <p className="text-sm text-slate-500">{label}</p>
     </div>
   );
 }
 
-function PieChartBlock({ data }: { data: BreakdownPoint[] }) {
-  if (!hasData(data)) return <EmptyState label="No hay datos suficientes para este gráfico." />;
-
+function ChartCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
-        <Pie data={data} dataKey="value" nameKey="name" innerRadius={52} outerRadius={84} paddingAngle={2}>
-          {data.map((entry, index) => (
-            <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-          ))}
-        </Pie>
-        <Tooltip />
-        <Legend verticalAlign="bottom" height={36} />
-      </PieChart>
-    </ResponsiveContainer>
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      {description ? <p className="mt-1 text-xs text-slate-500">{description}</p> : null}
+      <div className="mt-4 h-[220px] w-full">{children}</div>
+    </article>
   );
 }
 
@@ -132,12 +107,20 @@ function LineChartBlock({ data }: { data: TrendPoint[] }) {
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+      <LineChart data={data} margin={{ top: 8, right: 12, left: -18, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
         <Tooltip />
-        <Line type="monotone" dataKey="value" stroke="#54086F" strokeWidth={3} dot={{ r: 3 }} />
+        <Line
+          type="monotone"
+          dataKey="value"
+          stroke="#54086F"
+          strokeWidth={3}
+          dot={{ r: 3, fill: '#54086F' }}
+          activeDot={{ r: 5 }}
+          isAnimationActive={false}
+        />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -148,182 +131,461 @@ function BarChartBlock({ data }: { data: BreakdownPoint[] }) {
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+      <BarChart data={data} margin={{ top: 8, right: 12, left: -18, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+        <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
         <Tooltip />
-        <Bar dataKey="value" fill="#F0815B" radius={[6, 6, 0, 0]} />
+        <Bar dataKey="value" fill="#F0815B" radius={[6, 6, 0, 0]} isAnimationActive={false} />
       </BarChart>
     </ResponsiveContainer>
   );
 }
 
-function ModuleHeader({
-  title,
+function DashboardKpi({
+  label,
+  value,
+  helper,
   href,
-  subtitle,
+  tone = 'neutral',
 }: {
-  title: string;
+  label: string;
+  value: number;
+  helper: string;
   href: string;
-  subtitle: string;
+  tone?: Tone;
 }) {
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <h3 className="text-lg font-semibold text-mulberry">{title}</h3>
-        <p className="text-sm text-slate-600">{subtitle}</p>
+    <Link
+      href={href}
+      className={`group rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-mulberry/30 hover:shadow-sm ${TONE_CLASSES[tone]}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-slate-600">{label}</p>
+        <span aria-hidden="true" className="text-sm text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-mulberry">
+          →
+        </span>
       </div>
-      <Link
-        href={href}
-        className="inline-flex w-fit rounded-md border border-mulberry px-3 py-1.5 text-xs font-semibold text-mulberry transition-colors hover:bg-mulberry hover:text-white"
-      >
-        Ir al módulo
-      </Link>
+      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{helper}</p>
+    </Link>
+  );
+}
+
+function DistributionList({
+  data,
+  emptyLabel = 'Aún no hay datos para mostrar.',
+}: {
+  data: BreakdownPoint[];
+  emptyLabel?: string;
+}) {
+  const visibleData = data.filter((item) => item.value > 0);
+  const total = visibleData.reduce((sum, item) => sum + item.value, 0);
+
+  if (total === 0) {
+    return <p className="rounded-xl bg-slate-50 px-3 py-4 text-sm text-slate-500">{emptyLabel}</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {visibleData.map((item, index) => {
+        const percentage = Math.round((item.value / total) * 100);
+
+        return (
+          <div key={item.name}>
+            <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+              <span className="truncate font-medium text-slate-600">{item.name}</span>
+              <span className="shrink-0 tabular-nums text-slate-500">
+                {item.value} · {percentage}%
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={`h-full rounded-full ${BAR_COLORS[index % BAR_COLORS.length]}`}
+                style={{ width: `${Math.max(percentage, 3)}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-export default function AdminSummaryCharts({ data }: { data: AdminSummaryChartsData }) {
+function ModuleSummaryCard({
+  title,
+  description,
+  href,
+  stats,
+  distributionTitle,
+  distribution,
+}: {
+  title: string;
+  description: string;
+  href: string;
+  stats: Array<{ label: string; value: number }>;
+  distributionTitle: string;
+  distribution: BreakdownPoint[];
+}) {
   return (
-    <div className="mt-2 space-y-4 sm:space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-5">
-        <ModuleHeader
-          title="Eventos"
-          href="/admin/events"
-          subtitle="Actividad reciente de creación y distribución por nivel de juego."
-        />
-        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <Kpi label="Total eventos" value={data.events.total} />
-          <Kpi label="Próximos" value={data.events.upcoming} tone="positive" />
-          <Kpi label="Finalizados" value={data.events.finished} tone="warning" />
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-slate-950">{title}</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
         </div>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">
-          <ChartCard title="Eventos creados (últimas 8 semanas)">
-            <LineChartBlock data={data.events.trend} />
-          </ChartCard>
-          <ChartCard title="Eventos por nivel">
-            <BarChartBlock data={data.events.levelDistribution} />
-          </ChartCard>
-        </div>
-      </section>
+        <Link href={href} className="shrink-0 text-xs font-semibold text-mulberry hover:underline">
+          Abrir
+        </Link>
+      </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-5">
-        <ModuleHeader
-          title="Pagos"
-          href="/admin/payments"
-          subtitle="Seguimiento de solicitudes y estados de aprobación."
-        />
-        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi label="Solicitudes" value={data.payments.total} />
-          <Kpi label="Pendientes" value={data.payments.pending} tone="warning" />
-          <Kpi label="Aprobados" value={data.payments.approved} tone="positive" />
-          <Kpi label="Rechazados" value={data.payments.rejected} />
-        </div>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">
-          <ChartCard title="Solicitudes por semana (últimas 8)">
-            <LineChartBlock data={data.payments.trend} />
-          </ChartCard>
-          <ChartCard title="Distribución por estado">
-            <PieChartBlock data={data.payments.stateDistribution} />
-          </ChartCard>
-        </div>
-      </section>
+      <div className="my-5 grid grid-cols-2 gap-2">
+        {stats.map((stat) => (
+          <div key={stat.label} className="rounded-xl bg-slate-50 px-3 py-2.5">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{stat.label}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-slate-900">{stat.value}</p>
+          </div>
+        ))}
+      </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-5">
-        <ModuleHeader
-          title="Formas de pago"
-          href="/admin/payment-methods"
-          subtitle="Estado y mix de métodos que tienes configurados."
-        />
-        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <Kpi label="Métodos totales" value={data.paymentMethods.total} />
-          <Kpi label="Activos" value={data.paymentMethods.active} tone="positive" />
-          <Kpi label="Inactivos" value={data.paymentMethods.inactive} />
-        </div>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">
-          <ChartCard title="Distribución por tipo">
-            <PieChartBlock data={data.paymentMethods.typeDistribution} />
-          </ChartCard>
-          <ChartCard title="Estado activo/inactivo">
-            <BarChartBlock data={data.paymentMethods.statusDistribution} />
-          </ChartCard>
-        </div>
-      </section>
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{distributionTitle}</p>
+      <DistributionList data={distribution} />
+    </article>
+  );
+}
 
-      {data.createEventFunnel ? (
-        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-5">
-          <ModuleHeader
-            title="Funnel creación"
-            href="/admin/events/new"
-            subtitle="Seguimiento del journey desde activación hasta borrador y publicación."
-          />
-          <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-            <Kpi label="Entradas al flujo" value={data.createEventFunnel.entryViews} />
-            <Kpi label="Borradores iniciados" value={data.createEventFunnel.draftStarts} />
-            <Kpi label="Borradores creados" value={data.createEventFunnel.draftCreated} tone="positive" />
-            <Kpi label="Intentos de publicar" value={data.createEventFunnel.publishAttempts} />
-            <Kpi label="Publicaciones listas" value={data.createEventFunnel.publishSucceeded} tone="positive" />
+function AttentionItem({
+  title,
+  description,
+  href,
+  tone = 'warning',
+}: {
+  title: string;
+  description: string;
+  href: string;
+  tone?: 'warning' | 'critical';
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 transition hover:border-mulberry/25 hover:shadow-sm"
+    >
+      <span
+        aria-hidden="true"
+        className={`h-2.5 w-2.5 shrink-0 rounded-full ${tone === 'critical' ? 'bg-rose-500' : 'bg-amber-500'}`}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-slate-800">{title}</span>
+        <span className="mt-0.5 block text-xs text-slate-500">{description}</span>
+      </span>
+      <span aria-hidden="true" className="text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-mulberry">
+        →
+      </span>
+    </Link>
+  );
+}
+
+function FunnelAnalytics({ data }: { data: NonNullable<AdminSummaryChartsData['createEventFunnel']> }) {
+  const [expanded, setExpanded] = useState(false);
+  const conversion = data.entryViews > 0 ? Math.round((data.publishSucceeded / data.entryViews) * 100) : 0;
+  const detailedStats = [
+    { label: 'Entradas', value: data.entryViews },
+    { label: 'Activaciones', value: data.activationCompleted },
+    { label: 'Vistas de pagos', value: data.paymentSetupViews },
+    { label: 'Métodos guardados', value: data.paymentMethodSaved },
+    { label: 'Borradores iniciados', value: data.draftStarts },
+    { label: 'Borradores creados', value: data.draftCreated },
+    { label: 'Intentos de publicar', value: data.publishAttempts },
+    { label: 'Bloqueos', value: data.publishBlocked },
+    { label: 'Publicados', value: data.publishSucceeded },
+  ];
+
+  return (
+    <section aria-labelledby="funnel-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 id="funnel-title" className="text-lg font-semibold text-slate-950">
+              Analítica de creación
+            </h2>
+            <span className="rounded-full bg-mulberry/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-mulberry">
+              Superadmin
+            </span>
           </div>
-          <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Activaciones" value={data.createEventFunnel.activationCompleted} />
-            <Kpi label="Vistas de pagos" value={data.createEventFunnel.paymentSetupViews} />
-            <Kpi label="Métodos guardados" value={data.createEventFunnel.paymentMethodSaved} tone="positive" />
-            <Kpi label="Bloqueos al publicar" value={data.createEventFunnel.publishBlocked} tone="warning" />
+          <p className="mt-1 text-sm text-slate-500">Conversión del flujo para crear y publicar un evento.</p>
+        </div>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+          className="inline-flex h-9 w-fit items-center justify-center rounded-full border border-slate-300 px-4 text-xs font-semibold text-slate-700 transition hover:border-mulberry hover:text-mulberry"
+        >
+          {expanded ? 'Ocultar detalle' : 'Ver detalle analítico'}
+        </button>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="rounded-xl bg-slate-50 px-3 py-3">
+          <p className="text-xs text-slate-500">Eventos publicados</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-950">{data.publishSucceeded}</p>
+        </div>
+        <div className="rounded-xl bg-emerald-50 px-3 py-3">
+          <p className="text-xs text-emerald-700">Conversión entrada → publicación</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-800">{conversion}%</p>
+        </div>
+        <div className="rounded-xl bg-amber-50 px-3 py-3">
+          <p className="text-xs text-amber-700">Bloqueos al publicar</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-800">{data.publishBlocked}</p>
+        </div>
+      </div>
+
+      {expanded ? (
+        <div className="mt-5 border-t border-slate-200 pt-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+            {detailedStats.map((stat) => (
+              <div key={stat.label} className="rounded-xl border border-slate-200 px-3 py-2.5">
+                <p className="text-[11px] text-slate-500">{stat.label}</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">{stat.value}</p>
+              </div>
+            ))}
           </div>
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3 xl:gap-4">
-            <ChartCard title="Etapas del funnel">
-              <BarChartBlock data={data.createEventFunnel.funnelStages} />
+
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <ChartCard title="Etapas del flujo">
+              <BarChartBlock data={data.funnelStages} />
             </ChartCard>
-            <ChartCard title="Bloqueos más frecuentes">
-              <PieChartBlock data={data.createEventFunnel.blockerDistribution} />
-            </ChartCard>
-            <ChartCard title="Pasos más visitados del wizard">
-              <BarChartBlock data={data.createEventFunnel.stepViewDistribution} />
+            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <h3 className="text-sm font-semibold text-slate-900">Bloqueos más frecuentes</h3>
+              <div className="mt-5">
+                <DistributionList data={data.blockerDistribution} emptyLabel="No se registraron bloqueos." />
+              </div>
+            </article>
+            <ChartCard title="Pasos más visitados">
+              <BarChartBlock data={data.stepViewDistribution} />
             </ChartCard>
           </div>
-        </section>
+        </div>
       ) : null}
+    </section>
+  );
+}
 
-      {data.users ? (
-        <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-5">
-          <ModuleHeader
-            title="Usuarios"
-            href="/admin/users"
-            subtitle="Crecimiento y nivel de completitud del onboarding."
-          />
-          <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <Kpi label="Perfiles" value={data.users.total} />
-            <Kpi label="Completos" value={data.users.complete} tone="positive" />
-            <Kpi label="Incompletos" value={data.users.incomplete} tone="warning" />
-          </div>
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">
-            <ChartCard title="Nuevos perfiles (últimos 6 meses)">
-              <LineChartBlock data={data.users.trend} />
-            </ChartCard>
-            <ChartCard title="Estado de onboarding">
-              <PieChartBlock data={data.users.completionDistribution} />
-            </ChartCard>
-          </div>
-        </section>
-      ) : null}
+export default function AdminSummaryCharts({ data }: { data: AdminSummaryChartsData }) {
+  const attentionItems: Array<{
+    title: string;
+    description: string;
+    href: string;
+    tone?: 'warning' | 'critical';
+  }> = [];
 
-      <section className="rounded-2xl border border-[#54086F]/15 bg-[linear-gradient(135deg,rgba(84,8,111,0.08),rgba(15,118,110,0.08))] p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-mulberry">Validar QR</h3>
-            <p className="text-sm text-gray-600">
-              Escanea con cámara, revisa la ficha y marca asistencia desde el mismo flujo.
-            </p>
-          </div>
-          <a
+  if (data.payments.pending > 0) {
+    attentionItems.push({
+      title: `${data.payments.pending} ${data.payments.pending === 1 ? 'pago pendiente' : 'pagos pendientes'}`,
+      description: 'Revisa la evidencia y actualiza su estado.',
+      href: '/admin/payments?state=pending',
+    });
+  }
+
+  if (data.paymentMethods.total === 0) {
+    attentionItems.push({
+      title: 'No hay formas de pago configuradas',
+      description: 'Agrega una para poder recibir inscripciones.',
+      href: '/admin/payment-methods',
+      tone: 'critical',
+    });
+  } else if (data.paymentMethods.inactive > 0) {
+    attentionItems.push({
+      title: `${data.paymentMethods.inactive} ${data.paymentMethods.inactive === 1 ? 'forma de pago inactiva' : 'formas de pago inactivas'}`,
+      description: 'Comprueba si deben volver a estar disponibles.',
+      href: '/admin/payment-methods',
+    });
+  }
+
+  if (data.users && data.users.incomplete > 0) {
+    attentionItems.push({
+      title: `${data.users.incomplete} ${data.users.incomplete === 1 ? 'perfil incompleto' : 'perfiles incompletos'}`,
+      description: 'Revisa quiénes aún no terminan su registro.',
+      href: '/admin/users',
+    });
+  }
+
+  const fourthKpi = data.users
+    ? {
+        label: 'Perfiles incompletos',
+        value: data.users.incomplete,
+        helper: 'Aún no terminan su registro',
+        href: '/admin/users',
+        tone: data.users.incomplete > 0 ? ('warning' as const) : ('positive' as const),
+      }
+    : {
+        label: 'Pagos aprobados',
+        value: data.payments.approved,
+        helper: 'Solicitudes confirmadas',
+        href: '/admin/payments?state=approved',
+        tone: 'positive' as const,
+      };
+
+  return (
+    <div className="space-y-7 pb-8 sm:space-y-8">
+      <header className="flex flex-col gap-5 border-b border-slate-200 pb-6 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-mulberry">Panel operativo</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">Resumen</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            Revisa lo que requiere atención y el estado general de tu operación.
+          </p>
+        </div>
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
+          <Link
+            href="/admin/events"
+            className="inline-flex h-10 items-center justify-center rounded-full border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-mulberry hover:text-mulberry"
+          >
+            Ver eventos
+          </Link>
+          <Link
             href="/admin/scan"
             className="inline-flex h-10 items-center justify-center rounded-full bg-mulberry px-4 text-sm font-semibold text-white transition hover:bg-[#6a1286]"
           >
-            Abrir módulo QR
-          </a>
+            Validar QR
+          </Link>
+        </div>
+      </header>
+
+      <section aria-label="Indicadores principales" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <DashboardKpi
+          label="Próximos eventos"
+          value={data.events.upcoming}
+          helper="Listos para gestionar"
+          href="/admin/events?period=upcoming"
+          tone={data.events.upcoming > 0 ? 'positive' : 'neutral'}
+        />
+        <DashboardKpi
+          label="Pagos pendientes"
+          value={data.payments.pending}
+          helper={data.payments.pending > 0 ? 'Requieren revisión' : 'Todo está al día'}
+          href="/admin/payments?state=pending"
+          tone={data.payments.pending > 0 ? 'warning' : 'positive'}
+        />
+        <DashboardKpi
+          label="Formas de pago activas"
+          value={data.paymentMethods.active}
+          helper="Disponibles para cobrar"
+          href="/admin/payment-methods"
+          tone={data.paymentMethods.active > 0 ? 'positive' : 'warning'}
+        />
+        <DashboardKpi {...fourthKpi} />
+      </section>
+
+      <section aria-labelledby="attention-title" className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+        <div className="mb-4">
+          <h2 id="attention-title" className="text-lg font-semibold text-slate-950">
+            Necesita atención
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">Pendientes que puedes resolver ahora.</p>
+        </div>
+
+        {attentionItems.length > 0 ? (
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
+            {attentionItems.map((item) => (
+              <AttentionItem key={item.title} {...item} />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">Todo está bajo control</p>
+              <p className="text-xs text-emerald-700">No encontramos pendientes operativos.</p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby="activity-title">
+        <div className="mb-4">
+          <h2 id="activity-title" className="text-xl font-semibold text-slate-950">
+            Actividad reciente
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">Tendencias para detectar cambios, no solo totales acumulados.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <ChartCard title="Eventos creados" description="Últimas 8 semanas">
+            <LineChartBlock data={data.events.trend} />
+          </ChartCard>
+          <ChartCard title="Solicitudes de pago" description="Últimas 8 semanas">
+            <LineChartBlock data={data.payments.trend} />
+          </ChartCard>
         </div>
       </section>
+
+      <section aria-labelledby="modules-title">
+        <div className="mb-4">
+          <h2 id="modules-title" className="text-xl font-semibold text-slate-950">
+            Estado por módulo
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">Un desglose compacto para entender dónde profundizar.</p>
+        </div>
+
+        <div
+          className={`grid grid-cols-1 gap-4 lg:grid-cols-2 ${
+            data.users ? 'xl:grid-cols-4' : 'xl:grid-cols-3'
+          }`}
+        >
+          <ModuleSummaryCard
+            title="Eventos"
+            description="Programación y distribución por nivel."
+            href="/admin/events"
+            stats={[
+              { label: 'Total', value: data.events.total },
+              { label: 'Próximos', value: data.events.upcoming },
+              { label: 'Finalizados', value: data.events.finished },
+            ]}
+            distributionTitle="Por nivel"
+            distribution={data.events.levelDistribution}
+          />
+          <ModuleSummaryCard
+            title="Pagos"
+            description="Solicitudes y resultado de la revisión."
+            href="/admin/payments"
+            stats={[
+              { label: 'Solicitudes', value: data.payments.total },
+              { label: 'Pendientes', value: data.payments.pending },
+              { label: 'Aprobados', value: data.payments.approved },
+              { label: 'Rechazados', value: data.payments.rejected },
+            ]}
+            distributionTitle="Por estado"
+            distribution={data.payments.stateDistribution}
+          />
+          <ModuleSummaryCard
+            title="Formas de pago"
+            description="Disponibilidad y mix de cobro."
+            href="/admin/payment-methods"
+            stats={[
+              { label: 'Total', value: data.paymentMethods.total },
+              { label: 'Activas', value: data.paymentMethods.active },
+              { label: 'Inactivas', value: data.paymentMethods.inactive },
+            ]}
+            distributionTitle="Por tipo"
+            distribution={data.paymentMethods.typeDistribution}
+          />
+          {data.users ? (
+            <ModuleSummaryCard
+              title="Usuarios"
+              description="Crecimiento y avance del registro."
+              href="/admin/users"
+              stats={[
+                { label: 'Perfiles', value: data.users.total },
+                { label: 'Completos', value: data.users.complete },
+                { label: 'Incompletos', value: data.users.incomplete },
+              ]}
+              distributionTitle="Estado del perfil"
+              distribution={data.users.completionDistribution}
+            />
+          ) : null}
+        </div>
+      </section>
+
+      {data.createEventFunnel ? <FunnelAnalytics data={data.createEventFunnel} /> : null}
     </div>
   );
 }

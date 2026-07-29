@@ -72,10 +72,12 @@ function AllyCard({
   name,
   logoSrc,
   href,
+  isClone,
 }: {
   name: string;
   logoSrc: string | StaticImageData;
   href: string;
+  isClone: boolean;
 }) {
   const logoScaleClass = getLogoScaleClass(logoSrc);
   const inner = logoSrc ? (
@@ -91,14 +93,20 @@ function AllyCard({
   );
 
   const baseClass =
-    'mx-auto inline-flex min-h-[100px] w-[calc(100%-0.75rem)] shrink-0 items-center justify-center px-4 py-3 opacity-45 grayscale no-underline outline-none transition duration-300 hover:opacity-100 hover:grayscale-0 focus:outline-none focus-visible:opacity-100';
+    'mx-auto inline-flex min-h-[100px] w-[calc(100%-0.75rem)] shrink-0 items-center justify-center rounded-2xl px-4 py-3 opacity-45 grayscale no-underline outline-none transition duration-300 hover:bg-white hover:opacity-100 hover:grayscale-0 focus:outline-none focus-visible:bg-white focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-mulberry/30';
 
   if (!href) {
     return <div className={baseClass}>{inner}</div>;
   }
 
   return (
-    <a href={href} target="_blank" rel="noreferrer" className={baseClass}>
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={baseClass}
+      tabIndex={isClone ? -1 : undefined}
+    >
       {inner}
     </a>
   );
@@ -317,8 +325,14 @@ export default function AlliesCarousel({ allies }: { allies: HomeAlly[] }) {
           <div
             key={`${ally.name}-${index}`}
             className="flex w-[42%] flex-none items-center justify-center snap-start sm:w-[26%] md:w-[20%] lg:w-[16%]"
+            aria-hidden={shouldLoop && (index < allies.length || index >= allies.length * 2)}
           >
-            <AllyCard name={ally.name} logoSrc={ally.logoSrc} href={ally.href} />
+            <AllyCard
+              name={ally.name}
+              logoSrc={ally.logoSrc}
+              href={ally.href}
+              isClone={shouldLoop && (index < allies.length || index >= allies.length * 2)}
+            />
           </div>
         ))}
       </div>

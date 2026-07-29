@@ -116,6 +116,11 @@ export default async function NewEventScreen({ templateId }: Props) {
         isPublished: boolean;
         isFieldReservedConfirmed: boolean;
         isFeatured: boolean;
+        allowsTeamRegistration: boolean;
+        teamRegistrationMinPlayers: number | null;
+        teamRegistrationMaxPlayers: number | null;
+        teamRegistrationPriceMode: 'per_player' | 'fixed_team';
+        teamRegistrationFixedPrice: number | null;
       }
     | null = null;
   let templateTitle = '';
@@ -183,6 +188,12 @@ export default async function NewEventScreen({ templateId }: Props) {
         isPublished: templateEvent.is_published !== false,
         isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
         isFeatured: Boolean(templateEvent.is_featured),
+        allowsTeamRegistration: Boolean(templateEvent.allows_team_registration),
+        teamRegistrationMinPlayers: templateEvent.team_registration_min_players ?? null,
+        teamRegistrationMaxPlayers: templateEvent.team_registration_max_players ?? null,
+        teamRegistrationPriceMode:
+          templateEvent.team_registration_price_mode === 'fixed_team' ? 'fixed_team' : 'per_player',
+        teamRegistrationFixedPrice: templateEvent.team_registration_fixed_price ?? null,
       };
     }
   }
@@ -208,6 +219,11 @@ export default async function NewEventScreen({ templateId }: Props) {
     ...templateInitial,
     isPublished: false,
     isFieldReservedConfirmed: false,
+    allowsTeamRegistration: false,
+    teamRegistrationMinPlayers: 2,
+    teamRegistrationMaxPlayers: null,
+    teamRegistrationPriceMode: 'per_player' as const,
+    teamRegistrationFixedPrice: null,
   };
 
   return (

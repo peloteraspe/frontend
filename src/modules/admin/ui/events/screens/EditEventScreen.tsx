@@ -160,6 +160,12 @@ export default async function EditEventScreen({ id }: { id: string }) {
           isPublished: event.is_published !== false,
           isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
           isFeatured: Boolean(event.is_featured),
+          allowsTeamRegistration: Boolean(event.allows_team_registration),
+          teamRegistrationMinPlayers: event.team_registration_min_players ?? null,
+          teamRegistrationMaxPlayers: event.team_registration_max_players ?? null,
+          teamRegistrationPriceMode:
+            event.team_registration_price_mode === 'fixed_team' ? 'fixed_team' : 'per_player',
+          teamRegistrationFixedPrice: event.team_registration_fixed_price ?? null,
         }}
         organizerOptions={organizerOptions}
         canManageFeatured={canManageFeatured}

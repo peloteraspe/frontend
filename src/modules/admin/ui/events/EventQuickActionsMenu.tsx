@@ -110,8 +110,31 @@ export default function EventQuickActionsMenu({
                 width: MENU_WIDTH,
               }}
             >
+              {isPublished ? (
+                <Link
+                  href={`/events/${eventId}`}
+                  role="menuitem"
+                  onClick={() => setIsOpen(false)}
+                  className={MENU_ITEM_CLASS_NAME}
+                >
+                  Ver evento
+                </Link>
+              ) : null}
+
+              <Link
+                href={`/admin/events/${eventId}/participants`}
+                role="menuitem"
+                onClick={() => setIsOpen(false)}
+                className={MENU_ITEM_CLASS_NAME}
+              >
+                Ver inscripciones
+              </Link>
+
+              <div className="my-2 h-px bg-slate-100" />
+
               <Link
                 href={`/admin/events/new?templateId=${encodeURIComponent(eventId)}`}
+                role="menuitem"
                 onClick={() => setIsOpen(false)}
                 className={MENU_ITEM_CLASS_NAME}
               >

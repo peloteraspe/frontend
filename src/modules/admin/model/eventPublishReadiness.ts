@@ -65,7 +65,14 @@ function normalizePaymentMethodCount(input: EventPublishReadinessInput) {
 }
 
 function hasLocationCoordinates(lat: unknown, lng: unknown) {
-  return Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+  if (lat === null || lat === undefined || lng === null || lng === undefined) return false;
+  if (String(lat).trim() === '' || String(lng).trim() === '') return false;
+
+  const parsedLat = Number(lat);
+  const parsedLng = Number(lng);
+  if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) return false;
+
+  return !(parsedLat === 0 && parsedLng === 0);
 }
 
 export function getEventPublishReadiness(

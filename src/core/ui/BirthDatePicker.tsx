@@ -20,6 +20,7 @@ const MONTH_NAMES = [
 const WEEKDAY_NAMES = ['L', 'M', 'X', 'J', 'V', 'S', 'D'] as const;
 
 type Props = {
+  id?: string;
   label?: string;
   name?: string;
   value?: string;
@@ -97,6 +98,7 @@ function buildCalendarDays(viewMonth: Date) {
 }
 
 export default function BirthDatePicker({
+  id,
   label = 'Fecha de nacimiento',
   name = 'birth_date',
   value = '',
@@ -109,7 +111,7 @@ export default function BirthDatePicker({
   onChange,
 }: Props) {
   const generatedId = useId();
-  const fieldId = `birth-date-${generatedId.replace(/:/g, '')}`;
+  const fieldId = id || `birth-date-${generatedId.replace(/:/g, '')}`;
   const errorId = `${fieldId}-error`;
   const helperId = `${fieldId}-helper`;
   const calendarId = `${fieldId}-calendar`;

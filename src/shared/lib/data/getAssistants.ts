@@ -33,6 +33,7 @@ export type AssistantDetails = Assistant & {
 export type AssistantsQuery = {
   search?: string; // matches operationNumber
   eventId?: string | number;
+  eventIds?: Array<string | number>;
   limit?: number;
   offset?: number;
 };
@@ -108,12 +109,23 @@ export async function getAssistantsWithDetails(
   const supabaseDetails = await getServerSupabase();
   const normalizedSearch = String(opts.search || '').trim();
   const normalizedEventId = normalizeId(opts.eventId);
+  const hasEventIdsFilter = Array.isArray(opts.eventIds);
+  const normalizedEventIds = Array.from(
+    new Set((opts.eventIds || []).map(normalizeId).filter((value) => value.length > 0))
+  );
   const hasSearch = normalizedSearch.length > 0;
   const numericSearch = normalizedSearch.replace(/\D+/g, '');
 
+  if (!normalizedEventId && hasEventIdsFilter && normalizedEventIds.length === 0) {
+    return [];
+  }
+
   let query = supabaseDetails.from('assistants').select('*');
+  query = query.is('team_event_registration_id', null);
   if (state) query = query.eq('state', state);
   if (normalizedEventId) query = query.eq('event', normalizedEventId);
+  else if (hasEventIdsFilter) query = query.in('event', normalizedEventIds);
+  query = query.order('created_at', { ascending: false });
   if (!hasSearch && opts.limit) query = query.limit(opts.limit);
   if (!hasSearch && opts.offset) query = query.range(opts.offset, opts.offset + (opts.limit || 10) - 1);
   if (hasSearch) query = query.limit(2000);
@@ -244,14 +256,26 @@ export async function getAssistantsWithDetails(
   });
 }
 
-export async function getAssistantsCounts(opts: { eventId?: string | number } = {}) {
+export async function getAssistantsCounts(
+  opts: { eventId?: string | number; eventIds?: Array<string | number> } = {}
+) {
   const supabaseCounts = await getServerSupabase();
   const normalizedEventId = normalizeId(opts.eventId);
+  const hasEventIdsFilter = Array.isArray(opts.eventIds);
+  const normalizedEventIds = Array.from(
+    new Set((opts.eventIds || []).map(normalizeId).filter((value) => value.length > 0))
+  );
+
+  if (!normalizedEventId && hasEventIdsFilter && normalizedEventIds.length === 0) {
+    return { pending: 0, approved: 0, rejected: 0, all: 0 };
+  }
 
   const countFor = async (state?: Assistant['state']) => {
     let q = supabaseCounts.from('assistants').select('*', { count: 'exact', head: true });
+    q = q.is('team_event_registration_id', null);
     if (state) q = q.eq('state', state);
     if (normalizedEventId) q = q.eq('event', normalizedEventId);
+    else if (hasEventIdsFilter) q = q.in('event', normalizedEventIds);
     const { count, error } = await q;
 
     if (error) {

@@ -23,6 +23,7 @@ import {
 } from '@modules/events/lib/eventJoinState';
 import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
+import { buildPublicPlayerPath } from '@shared/lib/publicProfilePaths';
 import EventShareModal from './EventShareModal';
 import { trackEvent } from '@shared/lib/analytics';
 import {
@@ -119,6 +120,37 @@ function getNameInitials(name: string) {
   return normalized.slice(0, 2).toUpperCase();
 }
 
+type EventAssistant = {
+  id: string;
+  name: string;
+  username: string;
+  initials: string;
+  avatarUrl: string;
+  profileHref: string;
+  teamId: string;
+  teamName: string;
+  positions: string[];
+};
+
+function ParticipantAvatar({ assistant }: { assistant: EventAssistant }) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  return (
+    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#54086F]/15 bg-[#54086F]/10 text-xs font-semibold text-[#54086F]">
+      {assistant.avatarUrl && !imageFailed ? (
+        <img
+          src={assistant.avatarUrl}
+          alt={`Foto de @${assistant.username || assistant.name}`}
+          className="h-full w-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        assistant.initials
+      )}
+    </span>
+  );
+}
+
 export default function EventDetailsClient({ data }: Props) {
   const post = data;
   const { user } = useAuth();
@@ -187,6 +219,23 @@ export default function EventDetailsClient({ data }: Props) {
   const price = toNumber(event?.price, 0);
   const minUsers = toNumber(event?.min_users ?? event?.minUsers, 0);
   const maxUsers = toNumber(event?.max_users ?? event?.maxUsers, 0);
+  const allowsTeamRegistration = Boolean(
+    event?.allows_team_registration ?? event?.allowsTeamRegistration
+  );
+  const teamRegistrationPriceMode = toText(
+    event?.team_registration_price_mode ?? event?.teamRegistrationPriceMode,
+    'per_player'
+  );
+  const teamRegistrationFixedPriceValue =
+    event?.team_registration_fixed_price ?? event?.teamRegistrationFixedPrice;
+  const hasFixedTeamPrice =
+    allowsTeamRegistration &&
+    teamRegistrationPriceMode === 'fixed_team' &&
+    teamRegistrationFixedPriceValue !== null &&
+    teamRegistrationFixedPriceValue !== undefined &&
+    Number.isFinite(Number(teamRegistrationFixedPriceValue)) &&
+    Number(teamRegistrationFixedPriceValue) >= 0;
+  const fixedTeamPrice = hasFixedTeamPrice ? Number(teamRegistrationFixedPriceValue) : 0;
 
   const lat = toNumber(event?.location?.lat, 0);
   const lng = toNumber(event?.location?.lng ?? event?.location?.long, 0);
@@ -204,12 +253,21 @@ export default function EventDetailsClient({ data }: Props) {
       return !state || state === 'approved';
     })
     .map((assistant: any, index: number) => {
-      const name = toText(assistant?.username ?? assistant?.name, `Participante ${index + 1}`);
+      const username = toText(assistant?.username);
+      const name = toText(username || assistant?.name, `Participante ${index + 1}`);
       const id = String(assistant?.id ?? assistant?.user ?? `${name}-${index}`);
       return {
         id,
         name,
+        username,
         initials: getNameInitials(name),
+        avatarUrl: toText(assistant?.avatarUrl ?? assistant?.avatar_url),
+        profileHref: username ? buildPublicPlayerPath(username) : '',
+        teamId: toText(assistant?.teamId ?? assistant?.team_id),
+        teamName: toText(assistant?.teamName),
+        positions: Array.isArray(assistant?.positions)
+          ? assistant.positions.map((position: unknown) => toText(position)).filter(Boolean)
+          : [],
       };
     });
   const approvedCount = toNumber(event?.approvedCount, assistants.length);
@@ -260,10 +318,11 @@ export default function EventDetailsClient({ data }: Props) {
 
   const shareText = useMemo(() => {
     const safeLocation = placeText ? `${placeText} - ${locationText}` : locationText || 'Ubicación por confirmar';
-    return `¿Te sumas a esta pichanga en Peloteras? ${eventTitle} · ${shortDate} · ${safeLocation} · S/ ${price.toFixed(
-      2
-    )}.`;
-  }, [eventTitle, shortDate, placeText, locationText, price]);
+    const priceText = hasFixedTeamPrice
+      ? `S/ ${price.toFixed(2)} por jugadora · S/ ${fixedTeamPrice.toFixed(2)} por equipo`
+      : `S/ ${price.toFixed(2)}`;
+    return `¿Te sumas a esta pichanga en Peloteras? ${eventTitle} · ${shortDate} · ${safeLocation} · ${priceText}.`;
+  }, [eventTitle, fixedTeamPrice, hasFixedTeamPrice, shortDate, placeText, locationText, price]);
 
   const shareLinks = useMemo(() => {
     const refUserId = user?.id ? String(user.id) : null;
@@ -433,15 +492,27 @@ export default function EventDetailsClient({ data }: Props) {
                 </div>
               ) : null}
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div
+              className={`mt-4 grid gap-3 ${hasFixedTeamPrice ? 'sm:grid-cols-2 xl:grid-cols-4' : 'sm:grid-cols-3'}`}
+            >
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Fecha</p>
                 <p className="mt-1 text-sm font-semibold text-slate-800">{shortDate}</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Precio</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">
+                  {hasFixedTeamPrice ? 'Precio por jugadora' : 'Precio'}
+                </p>
                 <p className="mt-1 text-sm font-semibold text-slate-800">S/ {price.toFixed(2)}</p>
               </div>
+              {hasFixedTeamPrice ? (
+                <div className="rounded-xl border border-mulberry/20 bg-mulberry/[0.04] px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-mulberry/70">Precio por equipo</p>
+                  <p className="mt-1 text-sm font-semibold text-mulberry">
+                    S/ {fixedTeamPrice.toFixed(2)}
+                  </p>
+                </div>
+              ) : null}
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Cupos</p>
                 <p className="mt-1 text-sm font-semibold text-slate-800">{occupancyText}</p>
@@ -475,11 +546,17 @@ export default function EventDetailsClient({ data }: Props) {
                 <div className="mb-4 flex flex-wrap items-center gap-2">
                   <h2 className="text-xl font-bold text-slate-900">Alineación</h2>
                   <span
-                    className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
-                    title="Las posiciones son una referencia visual y cambian en cada ingreso al evento."
+                    className="inline-flex items-center rounded-full border border-mulberry/20 bg-mulberry/5 px-2 py-0.5 text-xs font-semibold text-mulberry"
                   >
-                    Distribución referencial
+                    Según posición preferida
                   </span>
+                </div>
+                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                  <p>
+                    Ubicamos a cada jugadora según su posición preferida y mantenemos juntas a las
+                    que se inscribieron como equipo. Si alguna cubre otro rol, la verás con un borde
+                    dorado.
+                  </p>
                 </div>
                 <SoccerField
                   minUsers={minUsers}
@@ -496,17 +573,52 @@ export default function EventDetailsClient({ data }: Props) {
                   content={
                     assistants.length ? (
                       <ul className="grid gap-2 sm:grid-cols-2">
-                        {assistants.map((assistant) => (
-                          <li
-                            key={assistant.id}
-                            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
-                          >
-                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#54086F] text-xs font-semibold text-white">
-                              {assistant.initials}
-                            </span>
-                            <span className="text-sm text-slate-800">{assistant.name}</span>
-                          </li>
-                        ))}
+                        {assistants.map((assistant) => {
+                          const content = (
+                            <>
+                              <ParticipantAvatar assistant={assistant} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium text-slate-800">
+                                  {assistant.username ? `@${assistant.username}` : assistant.name}
+                                </span>
+                                {assistant.teamName ? (
+                                  <span className="block truncate text-xs font-medium text-mulberry">
+                                    {assistant.teamName}
+                                  </span>
+                                ) : null}
+                                <span className="block truncate text-xs text-slate-500">
+                                  {assistant.positions.length
+                                    ? assistant.positions.join(' · ')
+                                    : 'Posición por confirmar'}
+                                </span>
+                              </span>
+                            </>
+                          );
+
+                          return (
+                            <li key={assistant.id}>
+                              {assistant.username ? (
+                                <Link
+                                  href={assistant.profileHref}
+                                  aria-label={`Ver perfil de @${assistant.username}`}
+                                  className="group flex min-h-14 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 transition hover:border-[#54086F]/30 hover:bg-[#54086F]/5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#54086F]/15"
+                                >
+                                  {content}
+                                  <span
+                                    aria-hidden="true"
+                                    className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-[#54086F]"
+                                  >
+                                    →
+                                  </span>
+                                </Link>
+                              ) : (
+                                <div className="flex min-h-14 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                  {content}
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <p className="text-sm text-slate-600">Aún no hay participantes confirmados.</p>
@@ -605,7 +717,16 @@ export default function EventDetailsClient({ data }: Props) {
                     <path d="M15 0H1C.4 0 0 .4 0 1v10c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V1c0-.6-.4-1-1-1Zm-1 10H2V2h12v8Z" />
                     <circle cx="8" cy="6" r="2" />
                   </svg>
-                  <span>S/ {price.toFixed(2)}</span>
+                  <span>
+                    <span className="block">
+                      S/ {price.toFixed(2)}{hasFixedTeamPrice ? ' por jugadora' : ''}
+                    </span>
+                    {hasFixedTeamPrice ? (
+                      <span className="mt-0.5 block font-semibold text-mulberry">
+                        S/ {fixedTeamPrice.toFixed(2)} por equipo
+                      </span>
+                    ) : null}
+                  </span>
                 </li>
               </ul>
 
@@ -652,6 +773,14 @@ export default function EventDetailsClient({ data }: Props) {
                 >
                   {joinLabel}
                 </ButtonWrapper>
+                {allowsTeamRegistration && event?.viewerCanRegisterTeam === true && !isRegistrationClosed && !isSoldOut ? (
+                  <Link
+                    href={`/payments/${event.id}/team`}
+                    className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-mulberry px-4 text-sm font-semibold text-mulberry transition hover:bg-mulberry hover:text-white"
+                  >
+                    Inscribir a mi equipo
+                  </Link>
+                ) : null}
                 <button
                   type="button"
                   onClick={handleOpenShare}

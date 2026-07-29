@@ -23,7 +23,8 @@ type EventPreviewProps = {
   maxUsers?: number;
   eventType?: CatalogOption;
   level?: CatalogOption;
-  isPublished?: boolean;
+  wantsToPublish?: boolean;
+  isReadyToPublish?: boolean;
 };
 
 const PREVIEW_DATE_FORMATTER = new Intl.DateTimeFormat('es-PE', {
@@ -74,9 +75,11 @@ export default function EventPreview({
   maxUsers,
   eventType,
   level,
-  isPublished,
+  wantsToPublish,
+  isReadyToPublish,
 }: EventPreviewProps) {
-  const priceDisplay = price ? `S/ ${price.toFixed(2)}` : 'A definir';
+  const hasDefinedPrice = typeof price === 'number' && Number.isFinite(price);
+  const priceDisplay = hasDefinedPrice ? (price === 0 ? 'Gratis' : `S/ ${price.toFixed(2)}`) : 'A definir';
   const capacityDisplay = maxUsers ? `${minUsers || 0}-${maxUsers} jugadoras` : 'Sin límite';
   const isIncomplete = !title || !startTime || !locationText;
   const startDate = parsePreviewDateTime(startTime);
@@ -98,12 +101,18 @@ export default function EventPreview({
           <span
             className={[
               'inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold',
-              isPublished
+              wantsToPublish && isReadyToPublish
                 ? 'bg-emerald-100 text-emerald-800'
+                : wantsToPublish
+                  ? 'bg-amber-100 text-amber-800'
                 : 'bg-slate-100 text-slate-600',
             ].join(' ')}
           >
-            {isPublished ? 'Publicado' : 'Borrador'}
+            {wantsToPublish
+              ? isReadyToPublish
+                ? 'Lista para publicar'
+                : 'Publicación pendiente'
+              : 'Borrador'}
           </span>
         </div>
 

@@ -1,8 +1,4 @@
 'use client';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-
-import ArrowRight from '@core/assets/images/arrow-right.png';
 import Badge, { StatusBadge } from '@core/ui/Badge';
 import { ButtonWrapper } from '@core/ui/Button';
 import AuthRedirectLoader from '@modules/auth/ui/AuthRedirectLoader';
@@ -28,14 +24,12 @@ function EventCardSameAsLanding({
   isActive,
   onHover,
   onLeave,
-  onOpenEvent,
   onOpenJoinFlow,
 }: {
   event: EventEntity;
   isActive: boolean;
   onHover: () => void;
   onLeave: () => void;
-  onOpenEvent: (eventId: string) => void;
   onOpenJoinFlow: (eventId: string, isVersus: boolean) => void;
 }) {
   const isVersus = isVersusEventTypeName(event.eventTypeName);
@@ -59,33 +53,43 @@ function EventCardSameAsLanding({
   });
 
   return (
-    <div
-      onClick={() => onOpenEvent(event.id)}
-      onMouseEnter={onHover}
-      onMouseLeave={onLeave}
-      className={isActive ? 'rounded-xl ring-2 ring-[#54086F]/40 ring-offset-2 ring-offset-white' : ''}
-    >
+    <div onMouseEnter={onHover} onMouseLeave={onLeave}>
       <CardEvent
+        detailsHref={`/events/${event.id}`}
         typeEvent={event.eventTypeName}
-        levelText={`NIVEL: ${event.levelName.toUpperCase()}`}
+        levelText={`Nivel ${event.levelName}`}
         matchText={event.title}
         dateText={event.dateLabel}
         textLocation={event.locationText}
         compact
+        active={isActive}
         button={
-          <ButtonWrapper
-            icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-            width="fit-content"
-            disabled={isJoinDisabled}
-            className="!h-11 !rounded-full !px-5 !py-0 shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
-            onClick={(e: any) => {
-              e.stopPropagation();
-              if (isJoinDisabled) return;
-              onOpenJoinFlow(event.id, isVersus);
-            }}
-          >
-            {joinLabel}
-          </ButtonWrapper>
+          isJoinDisabled ? (
+            <StatusBadge
+              variant={
+                event.viewerHasApprovedRegistration
+                  ? 'success'
+                  : event.viewerHasPendingRegistration
+                    ? 'warning'
+                    : 'default'
+              }
+              size="md"
+              className="min-h-10 max-w-full justify-center whitespace-nowrap !px-3 text-center !text-xs"
+            >
+              {joinLabel}
+            </StatusBadge>
+          ) : (
+            <ButtonWrapper
+              width="fit-content"
+              className="pointer-events-auto !min-h-10 !rounded-full !px-4 !py-2 text-sm leading-tight shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                e.stopPropagation();
+                onOpenJoinFlow(event.id, isVersus);
+              }}
+            >
+              {joinLabel}
+            </ButtonWrapper>
+          )
         }
         price={formattedPrice(event.price)}
         badge={
@@ -96,20 +100,7 @@ function EventCardSameAsLanding({
               icon={true}
               badgeType="Primary"
             />,
-          ].concat(
-            isPastEvent
-              ? [
-                  <StatusBadge
-                    key={`${event.id}-status`}
-                    variant="warning"
-                    size="sm"
-                    className="whitespace-nowrap"
-                  >
-                    Finalizado
-                  </StatusBadge>,
-                ]
-              : []
-          )
+          ]
         }
       />
     </div>
@@ -124,13 +115,8 @@ export default function EventListPanel({
   isLoading = false,
   emptyMessage = 'No hay eventos en esta zona todavía.',
 }: Props) {
-  const router = useRouter();
   const { navigateWithSessionCheck, isPendingNavigation, pendingNavigationMessage } =
     useSessionGuardNavigation();
-
-  function openEventDetails(eventId: string) {
-    router.push(`/events/${eventId}`);
-  }
 
   function openJoinFlow(eventId: string, isVersus: boolean) {
     navigateWithSessionCheck({
@@ -168,7 +154,6 @@ export default function EventListPanel({
                 isActive={selectedEventId === event.id || hoveredEventId === event.id}
                 onHover={() => onHoverEvent(event.id)}
                 onLeave={() => onHoverEvent(null)}
-                onOpenEvent={openEventDetails}
                 onOpenJoinFlow={openJoinFlow}
               />
             </div>
