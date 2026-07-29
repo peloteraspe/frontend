@@ -108,6 +108,11 @@ type Props = {
     isPublished: boolean;
     isFieldReservedConfirmed: boolean;
     isFeatured: boolean;
+    allowsTeamRegistration: boolean;
+    teamRegistrationMinPlayers: number | null;
+    teamRegistrationMaxPlayers: number | null;
+    teamRegistrationPriceMode: 'per_player' | 'fixed_team';
+    teamRegistrationFixedPrice: number | null;
   }>;
   eventTypes: CatalogOption[];
   levels: CatalogOption[];
@@ -148,7 +153,10 @@ const FLOW_SURFACE_CLASS =
   'rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6';
 const FLOW_PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-slate-50/85';
 const FLOW_FIELD_CLASS = 'peloteras-form-control h-12';
-const FLOW_NATIVE_SELECT_CLASS = 'peloteras-form-control peloteras-form-control--select h-12';
+const TEAM_REGISTRATION_PRICE_OPTIONS = [
+  { value: 'per_player', label: 'Por jugadora' },
+  { value: 'fixed_team', label: 'Fijo por equipo' },
+];
 
 function asFiniteNumber(value: unknown, fallback: number) {
   const parsed = Number(value);
@@ -207,7 +215,10 @@ function formatScheduleDay(date: Date) {
 }
 
 function formatScheduleTime(date: Date) {
-  return formatTimeInTimeZoneWithMeridiem(date, DEFAULT_EVENT_TIMEZONE);
+  return formatTimeInTimeZoneWithMeridiem(date, DEFAULT_EVENT_TIMEZONE)
+    .replace(/^0/, '')
+    .replace('a.m.', 'a. m.')
+    .replace('p.m.', 'p. m.');
 }
 
 function capitalizeFirst(value: string) {
@@ -267,6 +278,10 @@ type PaymentMethodOption = {
   isActive: boolean;
 };
 
+const EMPTY_CATALOG_OPTIONS: CatalogOption[] = [];
+const EMPTY_PAYMENT_METHOD_OPTIONS: PaymentMethodOption[] = [];
+const EMPTY_ORGANIZER_OPTIONS: OrganizerOption[] = [];
+
 function normalizePaymentMethodCatalog(methods: PaymentMethodOption[]) {
   return methods
     .map((method) => ({
@@ -302,8 +317,8 @@ const CREATE_EVENT_STEPS: Array<{
   {
     id: 1,
     label: 'Paso 1',
-    title: 'Base del evento',
-    description: 'Define nombre, horario y cupos.',
+    title: 'Información básica',
+    description: 'Define el partido, su horario y los cupos.',
   },
   {
     id: 2,
@@ -315,13 +330,13 @@ const CREATE_EVENT_STEPS: Array<{
     id: 3,
     label: 'Paso 3',
     title: 'Detalles',
-    description: 'Ajusta precio, nivel, features y cobro.',
+    description: 'Ajusta nivel, servicios incluidos y cobro.',
   },
   {
     id: 4,
     label: 'Paso 4',
     title: 'Final',
-    description: 'Decide si lo publicas hoy o si lo guardas para después.',
+    description: 'Revisa el resultado y decide si lo publicas o lo guardas.',
   },
 ];
 const CREATE_EVENT_DRAFT_STORAGE_PREFIX = 'peloteras:create-event:draft:';
@@ -331,9 +346,9 @@ const EventForm = ({
   initial,
   eventTypes,
   levels,
-  features = [],
-  paymentMethods = [],
-  organizerOptions = [],
+  features = EMPTY_CATALOG_OPTIONS,
+  paymentMethods = EMPTY_PAYMENT_METHOD_OPTIONS,
+  organizerOptions = EMPTY_ORGANIZER_OPTIONS,
   onSubmit,
   submitLabel,
   canManageFeatured = false,
@@ -350,7 +365,9 @@ const EventForm = ({
   const autosaveReadyRef = useRef(false);
   const hasTrackedWizardViewRef = useRef(false);
   const previousTrackedStepRef = useRef<CreateStepId | null>(null);
+  const draftSubmitIntentRef = useRef(false);
   const [pending, setPending] = useState(false);
+  const [pendingMode, setPendingMode] = useState<'publish' | 'draft' | null>(null);
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -360,6 +377,7 @@ const EventForm = ({
     useCreateEventWizardTracking(createdEventId || undefined);
   const { templates: eventTemplates, loading: templatesLoading } = useEventTemplates(undefined);
   const { isLoaded: isGoogleMapsLoaded, loadError: googleMapsLoadError } = useGoogleMapsApi();
+  const [isMapUnavailable, setIsMapUnavailable] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [shareTitle, setShareTitle] = useState('');
   const [eventTitle, setEventTitle] = useState(initial?.title ?? '');
@@ -369,6 +387,9 @@ const EventForm = ({
   const [minUsersValue, setMinUsersValue] = useState(String(initial?.minUsers ?? 10));
   const [maxUsersValue, setMaxUsersValue] = useState(String(initial?.maxUsers ?? 20));
   const [priceValue, setPriceValue] = useState(String(initial?.price ?? 0));
+  const [teamRegistrationPriceMode, setTeamRegistrationPriceMode] = useState<
+    'per_player' | 'fixed_team'
+  >(initial?.teamRegistrationPriceMode === 'fixed_team' ? 'fixed_team' : 'per_player');
   const [selectedEventTypeId, setSelectedEventTypeId] = useState(() => {
     const initialId = Number(initial?.eventTypeId);
     if (eventTypes.some((option) => option.id === initialId)) return String(initialId);
@@ -439,6 +460,7 @@ const EventForm = ({
   const [createStep, setCreateStep] = useState<CreateStepId>(1);
   const [wizardError, setWizardError] = useState('');
   const [autosaveMessage, setAutosaveMessage] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const latRef = useRef(asFiniteNumber(initial?.lat, DEFAULT_LAT));
   const lngRef = useRef(asFiniteNumber(initial?.lng, DEFAULT_LNG));
   const pinSelectedRef = useRef(
@@ -549,6 +571,14 @@ const EventForm = ({
     () => levels.find((option) => String(option.id) === selectedLevelId),
     [levels, selectedLevelId]
   );
+  const eventTypeSelectOptions = useMemo(
+    () => eventTypes.map((option) => ({ value: String(option.id), label: option.name })),
+    [eventTypes]
+  );
+  const levelSelectOptions = useMemo(
+    () => levels.map((option) => ({ value: String(option.id), label: option.name })),
+    [levels]
+  );
 
   const featureOptions = useMemo(
     () => features.map((option) => ({ value: option.id, label: option.name })),
@@ -603,11 +633,13 @@ const EventForm = ({
     return isPublished ? 'Guardar y publicar' : 'Guardar borrador';
   }, [isCreateMode, isPublished]);
   const pendingLabel = useMemo(() => {
+    if (pendingMode === 'draft') return 'Guardando borrador...';
+    if (pendingMode === 'publish') return isCreateMode ? 'Creando evento...' : 'Guardando...';
     if (isCreateMode) {
       return isPublished ? 'Creando evento...' : 'Guardando borrador...';
     }
     return isPublished ? 'Guardando...' : 'Guardando borrador...';
-  }, [isCreateMode, isPublished]);
+  }, [isCreateMode, isPublished, pendingMode]);
   const modalRedirectTo = successRedirectTo || '/admin/events';
   const currentPathWithSearch = useMemo(() => {
     const query = searchParams?.toString() || '';
@@ -646,11 +678,17 @@ const EventForm = ({
     ]
   );
   const publishMissingCount = useMemo(() => publishReadiness.missingIds.length, [publishReadiness]);
+  const createProgressPercent = Math.round((createStep / CREATE_EVENT_STEPS.length) * 100);
   const publishMissingItems = useMemo(
     () => publishReadiness.items.filter((item) => !item.done),
     [publishReadiness]
   );
-  const createProgressPercent = Math.round((createStep / CREATE_EVENT_STEPS.length) * 100);
+  const canUseInteractiveMap = Boolean(
+    googleMapsApiKeyConfigured &&
+      isGoogleMapsLoaded &&
+      !googleMapsLoadError &&
+      !isMapUnavailable
+  );
 
   useEffect(() => {
     setPaymentMethodCatalog(normalizePaymentMethodCatalog(paymentMethods));
@@ -689,6 +727,30 @@ const EventForm = ({
     () => resolveLocationSelectionError({ pinSelected, lat, lng }),
     [googleMapsApiKeyConfigured, lat, lng, pinSelected]
   );
+
+  useEffect(() => {
+    if (googleMapsLoadError || !googleMapsApiKeyConfigured) {
+      setIsMapUnavailable(true);
+    }
+  }, [googleMapsApiKeyConfigured, googleMapsLoadError]);
+
+  useEffect(() => {
+    const input = addressInputRef.current;
+    if (!input || !canUseInteractiveMap || typeof MutationObserver === 'undefined') return;
+
+    const observer = new MutationObserver(() => {
+      if (!input.disabled) return;
+      setIsMapUnavailable(true);
+      setGeoError('El mapa no está disponible. Conservaremos la dirección escrita.');
+    });
+
+    observer.observe(input, {
+      attributes: true,
+      attributeFilter: ['disabled'],
+    });
+
+    return () => observer.disconnect();
+  }, [canUseInteractiveMap]);
 
   useEffect(() => {
     if (!isCreateMode) return;
@@ -743,12 +805,12 @@ const EventForm = ({
   }
 
   function applySuggestedEndTime(durationMinutes: number) {
+    setPreferredDurationMinutes(durationMinutes);
+    setShowExactEndEditor(false);
     if (!startTime) return;
     const nextEndTime = addMinutesToDateTimeLocal(startTime, durationMinutes);
     if (!nextEndTime) return;
-    setPreferredDurationMinutes(durationMinutes);
     setEndTime(nextEndTime);
-    setShowExactEndEditor(false);
   }
 
   function syncScheduleStart(nextDatePart: string, nextTimePart: string) {
@@ -841,7 +903,7 @@ const EventForm = ({
     if (!snapshot) return;
 
     window.localStorage.setItem(storageKey, JSON.stringify(snapshot));
-    setAutosaveMessage('Progreso guardado automáticamente.');
+    setAutosaveMessage('Guardado en este dispositivo.');
   }
 
   function scheduleAutosave() {
@@ -893,10 +955,15 @@ const EventForm = ({
   }
 
   function handleResetCreateDraft() {
+    setShowResetConfirm(true);
+  }
+
+  function confirmResetCreateDraft() {
     trackEvent('create_event_draft_reset', {
       channel: 'web',
       source: 'wizard',
     });
+    setShowResetConfirm(false);
     clearAutosave();
     if (typeof window !== 'undefined') {
       window.location.reload();
@@ -1019,8 +1086,8 @@ const EventForm = ({
   async function geocodeAddressText(rawAddress: string, options?: { preserveInput?: boolean }) {
     clearPendingAddressBlurResolve();
 
-    if (!googleMapsApiKeyConfigured || !isGoogleMapsLoaded || typeof google === 'undefined') {
-      return false;
+    if (!canUseInteractiveMap || typeof google === 'undefined') {
+      return Boolean(String(rawAddress || '').trim());
     }
 
     const nextAddress = String(rawAddress || '').trim();
@@ -1079,7 +1146,7 @@ const EventForm = ({
   }
 
   async function reverseGeocodeDistrict(nextLat: number, nextLng: number) {
-    if (!googleMapsApiKeyConfigured || !isGoogleMapsLoaded || typeof google === 'undefined') return;
+    if (!canUseInteractiveMap || typeof google === 'undefined') return;
 
     try {
       const geocoder = new google.maps.Geocoder();
@@ -1139,6 +1206,7 @@ const EventForm = ({
   async function ensureAddressResolvedIfNeeded() {
     const nextAddress = String(addressInputRef.current?.value || locationText || '').trim();
     if (!nextAddress) return false;
+    if (!canUseInteractiveMap) return true;
     if (!hasPendingAddressResolution(nextAddress)) return true;
     return geocodeAddressText(nextAddress, { preserveInput: true });
   }
@@ -1146,7 +1214,7 @@ const EventForm = ({
   function handleAddressBlur() {
     clearPendingAddressBlurResolve();
 
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !canUseInteractiveMap) return;
 
     addressBlurResolveTimerRef.current = window.setTimeout(() => {
       addressBlurResolveTimerRef.current = null;
@@ -1220,8 +1288,8 @@ const EventForm = ({
     });
   }
 
-  function syncPublishReadinessErrors(readiness = publishReadiness) {
-    if (!isPublished) return '';
+  function syncPublishReadinessErrors(readiness = publishReadiness, publishing = isPublished) {
+    if (!publishing) return '';
 
     if (readiness.missingIds.includes('payment_methods')) {
       setPaymentMethodsError('Selecciona al menos un método de pago activo antes de publicar.');
@@ -1243,7 +1311,7 @@ const EventForm = ({
     });
   }
 
-  function validateCreateStep(step: CreateStepId) {
+  function validateCreateStep(step: CreateStepId, publishing = isPublished) {
     const form = formRef.current;
     if (!form) return '';
 
@@ -1274,26 +1342,72 @@ const EventForm = ({
       const nextLocationError = resolveLocationSelectionError();
 
       if (!nextLocationText) return 'Escribe la cancha o dirección donde jugarán.';
-      if (geoError) return geoError;
-      if (nextLocationError) return nextLocationError;
+      if (geoError && !isMapUnavailable) return geoError;
+      if (nextLocationError && !isMapUnavailable) return nextLocationError;
       if (!Number.isFinite(price) || price < 0) return 'Define un precio válido para el evento.';
       return '';
     }
 
     if (step === 3) {
-      if (isPublished && currentPublishReadiness.missingIds.includes('payment_methods')) {
+      if (publishing && currentPublishReadiness.missingIds.includes('payment_methods')) {
         setPaymentMethodsError('Selecciona al menos un método de pago activo antes de publicar.');
         return 'Agrega un método de pago activo o deja el evento como borrador por ahora.';
       }
       return '';
     }
 
-    if (isPublished && currentPublishReadiness.missingIds.includes('field_reservation')) {
+    if (publishing && currentPublishReadiness.missingIds.includes('field_reservation')) {
       setFieldReservedError('Confirma que la cancha ya está reservada antes de publicar.');
       return 'Antes de publicar debes confirmar que la cancha ya está reservada.';
     }
 
     return '';
+  }
+
+  function focusFirstInvalidField(step: CreateStepId) {
+    const form = formRef.current;
+    if (!form || typeof window === 'undefined') return;
+
+    const fd = new FormData(form);
+    let selector = '';
+
+    if (step === 1) {
+      const minUsers = Number(fd.get('minUsers'));
+      const maxUsers = Number(fd.get('maxUsers'));
+      selector = !String(fd.get('title') || '').trim()
+        ? 'input[name="title"]'
+        : !String(fd.get('description') || '').trim()
+          ? '#event-description'
+          : !startDateValue
+            ? 'input[type="date"]'
+            : !startClockValue
+              ? 'input[type="time"]'
+              : timeError
+                ? 'input[name="endTimeEditor"], input[type="time"]'
+              : !Number.isFinite(minUsers) || minUsers <= 0
+                ? 'input[name="minUsers"]'
+                : !Number.isFinite(maxUsers) || maxUsers <= 0 || maxUsers < minUsers
+                  ? 'input[name="maxUsers"]'
+                  : '';
+    } else if (step === 2) {
+      const price = Number(fd.get('price'));
+      selector = !String(fd.get('locationText') || '').trim() || !pinSelectedRef.current
+        ? 'input[name="locationText"]'
+        : !Number.isFinite(price) || price < 0
+          ? 'input[name="price"]'
+          : '';
+    } else if (step === 3) {
+      selector = '#event-payment-methods input';
+    } else {
+      selector = 'input[name="isFieldReservedConfirmed"]';
+    }
+
+    if (!selector) return;
+    window.requestAnimationFrame(() => {
+      const field = form.querySelector<HTMLElement>(selector);
+      field?.focus({ preventScroll: true });
+      field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
   }
 
   function moveToCreateStep(nextStep: CreateStepId) {
@@ -1319,6 +1433,7 @@ const EventForm = ({
         trackPublishBlocked('step_validation', currentPublishReadiness);
       }
       setWizardError(nextError);
+      focusFirstInvalidField(createStep);
       return;
     }
 
@@ -1340,17 +1455,31 @@ const EventForm = ({
     }
   }
 
+  function handleDraftSaveRequest() {
+    if (pending || !formRef.current) return;
+    draftSubmitIntentRef.current = true;
+    setIsPublished(false);
+    formRef.current.requestSubmit();
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
+    const forceDraft = draftSubmitIntentRef.current;
+    const shouldPublish = forceDraft ? false : isPublished;
+    draftSubmitIntentRef.current = false;
+    if (isCreateMode && createStep < 4 && !forceDraft) {
+      await handleNextCreateStep();
+      return;
+    }
     setPaymentMethodsError('');
     setFieldReservedError('');
-    if (String(locationText || '').trim()) {
+    if (shouldPublish && String(locationText || '').trim()) {
       await ensureAddressResolvedIfNeeded();
     }
     if (isCreateMode) {
       trackEvent(
-        isPublished ? 'create_event_publish_attempted' : 'create_event_draft_save_attempted',
+        shouldPublish ? 'create_event_publish_attempted' : 'create_event_draft_save_attempted',
         {
           channel: 'web',
           step: createStep,
@@ -1359,19 +1488,21 @@ const EventForm = ({
     }
 
     if (isCreateMode) {
-      const stepError = validateCreateStep(createStep);
+      const validationStep = forceDraft ? 1 : createStep;
+      const stepError = validateCreateStep(validationStep, shouldPublish);
       if (stepError) {
         const currentPublishReadiness = formRef.current
           ? resolveCurrentPublishReadiness(new FormData(formRef.current))
           : resolveCurrentPublishReadiness();
         if (
-          isPublished &&
+          shouldPublish &&
           (currentPublishReadiness.missingIds.includes('payment_methods') ||
             currentPublishReadiness.missingIds.includes('field_reservation'))
         ) {
           trackPublishBlocked('step_validation', currentPublishReadiness);
         }
         setWizardError(stepError);
+        focusFirstInvalidField(validationStep);
         return;
       }
     }
@@ -1392,26 +1523,42 @@ const EventForm = ({
       setSubmitStatus('error');
       setSubmitMessage(nextTimeError);
       setWizardError(nextTimeError);
+      if (isCreateMode) {
+        moveToCreateStep(1);
+        focusFirstInvalidField(1);
+      }
       return;
     }
-    const nextLocationError = geoError || resolveLocationSelectionError();
-    if (nextLocationError) {
+    const nextLocationError = (isMapUnavailable ? '' : geoError) || resolveLocationSelectionError();
+    if (shouldPublish && nextLocationError) {
       setSubmitStatus('error');
       setSubmitMessage(nextLocationError);
       setWizardError(nextLocationError);
+      if (isCreateMode) {
+        moveToCreateStep(2);
+        focusFirstInvalidField(2);
+      }
       return;
     }
-    fd.set('lat', String(latRef.current));
-    fd.set('lng', String(lngRef.current));
+    fd.set('isPublished', shouldPublish ? 'true' : 'false');
+    fd.set('lat', pinSelectedRef.current ? String(latRef.current) : '0');
+    fd.set('lng', pinSelectedRef.current ? String(lngRef.current) : '0');
     const submitPublishReadiness = resolveCurrentPublishReadiness(fd);
 
-    if (isPublished && !submitPublishReadiness.isReady) {
+    if (shouldPublish && !submitPublishReadiness.isReady) {
       trackPublishBlocked('submit', submitPublishReadiness);
-      const readinessError = syncPublishReadinessErrors(submitPublishReadiness);
+      const readinessError = syncPublishReadinessErrors(submitPublishReadiness, shouldPublish);
       if (readinessError) {
         setSubmitStatus('error');
         setSubmitMessage(readinessError);
         setWizardError(readinessError);
+      }
+      if (isCreateMode && submitPublishReadiness.missingIds.includes('details')) {
+        moveToCreateStep(1);
+        focusFirstInvalidField(1);
+      } else if (isCreateMode && submitPublishReadiness.missingIds.includes('location')) {
+        moveToCreateStep(2);
+        focusFirstInvalidField(2);
       }
       return;
     }
@@ -1422,10 +1569,11 @@ const EventForm = ({
     setShareUrl('');
     setShareTitle(String(fd.get('title') || 'Evento'));
     setShowPostEditAnnouncementModal(false);
-    if (isCreateMode && isPublished) {
+    if (isCreateMode && shouldPublish) {
       setShowCreateModal(true);
     }
     setPending(true);
+    setPendingMode(shouldPublish ? 'publish' : 'draft');
     const pendingStartedAt = Date.now();
 
     await new Promise<void>((resolve) => {
@@ -1449,7 +1597,7 @@ const EventForm = ({
         ).trim();
         setSubmitStatus('success');
         setCreatedEventId(createdEventId);
-        if (!isPublished) {
+        if (!shouldPublish) {
           clearAutosave();
           trackEvent('create_event_draft_created', {
             channel: 'web',
@@ -1483,9 +1631,9 @@ const EventForm = ({
       } else {
         setSubmitStatus('success');
         setSubmitMessage(
-          isPublished ? 'Evento guardado con éxito.' : 'Borrador guardado con éxito.'
+          shouldPublish ? 'Evento guardado con éxito.' : 'Borrador guardado con éxito.'
         );
-        if (postEditAnnouncement && isPublished) {
+        if (postEditAnnouncement && shouldPublish) {
           setShowPostEditAnnouncementModal(true);
         }
       }
@@ -1499,6 +1647,7 @@ const EventForm = ({
         await new Promise((resolve) => window.setTimeout(resolve, MIN_PENDING_MS - elapsed));
       }
       setPending(false);
+      setPendingMode(null);
     }
   }
 
@@ -1530,6 +1679,15 @@ const EventForm = ({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [showPostEditAnnouncementModal]);
+
+  useEffect(() => {
+    if (!showResetConfirm) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowResetConfirm(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showResetConfirm]);
 
   useEffect(() => {
     if (!isCreateMode || hasTrackedWizardViewRef.current) return;
@@ -1573,7 +1731,7 @@ const EventForm = ({
       }
 
       restoreCreateDraft(parsed);
-      setAutosaveMessage('Recuperamos tu progreso guardado.');
+      setAutosaveMessage('Recuperamos lo guardado en este dispositivo.');
       trackEvent('create_event_draft_restored', {
         channel: 'web',
         restored_step: parsed.step,
@@ -1630,70 +1788,60 @@ const EventForm = ({
           scheduleAutosave();
         }}
         className={
-          isCreateMode ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]' : 'max-w-4xl space-y-5'
+          isCreateMode
+            ? createStep === 4
+              ? 'grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]'
+              : 'grid w-full min-w-0 gap-5'
+            : 'max-w-4xl space-y-5'
         }
         noValidate
       >
         {isCreateMode ? (
-          <div className="xl:col-span-2 rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6">
-            <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-mulberry/75">
-                  Crear evento
+          <div
+            className={[
+              'rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:px-5 sm:py-4',
+              createStep === 4 ? 'xl:col-span-2' : '',
+            ].join(' ')}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-mulberry/75">
+                  Paso {createStep} de {CREATE_EVENT_STEPS.length}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <h3 className="text-2xl font-eastman-extrabold text-slate-900">
-                    {activeCreateStep.title}
-                  </h3>
-                  <span className="inline-flex items-center rounded-full bg-mulberry/10 px-3 py-1 text-xs font-semibold text-mulberry">
-                    Paso {createStep} de {CREATE_EVENT_STEPS.length}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm text-slate-600">{activeCreateStep.description}</p>
+                <h2 className="mt-1 text-xl font-eastman-extrabold text-slate-900">
+                  {activeCreateStep.title}
+                </h2>
+                <p className="mt-1 hidden text-sm text-slate-600 sm:block">
+                  {activeCreateStep.description}
+                </p>
               </div>
-
-              {createStep < 4 ? (
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                {autosaveMessage ? (
+                  <span
+                    title={autosaveMessage}
+                    className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600"
+                  >
+                    <span className="sm:hidden">
+                      {autosaveMessage.startsWith('Guardado') ? 'Guardado' : 'Recuperado'}
+                    </span>
+                    <span className="hidden sm:inline">{autosaveMessage}</span>
+                  </span>
+                ) : null}
                 <button
                   type="button"
-                  onClick={handleNextCreateStep}
-                  className="hidden h-11 items-center justify-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760] lg:inline-flex"
+                  onClick={handleResetCreateDraft}
+                  className="text-xs font-semibold text-mulberry transition hover:underline"
                 >
-                  Continuar
+                  <span className="sm:hidden">Descartar</span>
+                  <span className="hidden sm:inline">Descartar progreso</span>
                 </button>
-              ) : null}
-            </div>
-
-            <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/85 px-4 py-3 lg:min-w-[260px]">
-                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  <span>Progreso</span>
-                  <span>{createProgressPercent}%</span>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className="h-full rounded-full bg-mulberry transition-all duration-300"
-                    style={{ width: `${createProgressPercent}%` }}
-                  />
-                </div>
-                <p className="mt-3 text-xs text-slate-500">
-                  {createStep < 4
-                    ? 'Primero define lo esencial. La publicación queda para el final.'
-                    : isPublished
-                      ? 'Solo publicaremos cuando cobro y reserva estén listos.'
-                      : 'Puedes guardarlo como borrador y volver luego.'}
-                </p>
               </div>
-
-              {autosaveMessage ? (
-                <div className="flex items-center justify-end">
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                    {autosaveMessage}
-                  </span>
-                </div>
-              ) : null}
             </div>
 
-            <div className="mt-5 grid gap-2 md:grid-cols-4">
+            <nav
+              aria-label="Progreso de creación"
+              className="mt-3 hidden grid-cols-4 gap-2 border-t border-slate-100 pt-3 sm:grid"
+            >
               {CREATE_EVENT_STEPS.map((step) => {
                 const isActive = step.id === createStep;
                 const isCompleted = step.id < createStep;
@@ -1701,16 +1849,19 @@ const EventForm = ({
                   <button
                     key={step.id}
                     type="button"
+                    aria-current={isActive ? 'step' : undefined}
+                    aria-label={`${step.title}: ${isCompleted ? 'listo' : isActive ? 'paso actual' : 'pendiente'}`}
+                    disabled={!isCompleted}
                     onClick={() => {
                       if (isCompleted) moveToCreateStep(step.id);
                     }}
                     className={[
-                      'flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition',
+                      'flex min-w-0 items-center justify-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition sm:justify-start sm:px-2',
                       isActive
-                        ? 'border-mulberry/20 bg-mulberry/[0.05]'
+                        ? 'bg-mulberry/[0.06]'
                         : isCompleted
-                          ? 'border-emerald-200 bg-emerald-50/80 hover:border-emerald-300'
-                          : 'border-slate-200 bg-slate-50/85',
+                          ? 'hover:bg-emerald-50/70'
+                          : '',
                       isCompleted
                         ? 'cursor-pointer'
                         : isActive
@@ -1720,48 +1871,40 @@ const EventForm = ({
                   >
                     <span
                       className={[
-                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
                         isActive
                           ? 'bg-mulberry text-white'
                           : isCompleted
                             ? 'bg-emerald-600 text-white'
-                            : 'bg-white text-slate-500 ring-1 ring-slate-200',
+                            : 'bg-slate-100 text-slate-500',
                       ].join(' ')}
                     >
                       {isCompleted ? '✓' : step.id}
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">{step.title}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {isCompleted ? 'Listo' : isActive ? 'Ahora' : 'Luego'}
-                      </p>
-                    </div>
+                    <span className="hidden min-w-0 truncate text-xs font-semibold text-slate-700 sm:block">
+                      {step.title}
+                    </span>
                   </button>
                 );
               })}
-            </div>
+            </nav>
 
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-              <p className="text-sm text-slate-600">
-                {createStep < 4
-                  ? 'Puedes avanzar con calma. El progreso queda guardado mientras completas el flujo.'
-                  : isPublished
-                    ? 'Revisaremos lo que falte antes de dejarlo visible en la plataforma.'
-                    : 'Al guardar como borrador, podrás volver exactamente donde te quedaste.'}
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleResetCreateDraft}
-                  className="text-xs font-semibold text-mulberry transition hover:underline"
-                >
-                  Empezar de nuevo
-                </button>
+            <div className="mt-3 sm:hidden" aria-hidden="true">
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-mulberry transition-[width] duration-300"
+                  style={{ width: `${createProgressPercent}%` }}
+                />
               </div>
             </div>
 
             {wizardError ? (
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div
+                id="create-event-wizard-error"
+                role="alert"
+                aria-live="polite"
+                className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              >
                 {wizardError}
               </div>
             ) : null}
@@ -1775,205 +1918,326 @@ const EventForm = ({
               isCreateMode && createStep !== 1 ? 'hidden' : 'block',
             ].join(' ')}
           >
-            <div className="mb-5">
-              <h3 className="text-lg font-semibold text-slate-900">Base del evento</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Define el plan principal para que las jugadoras entiendan rápido de qué se trata.
-              </p>
-            </div>
-
-            <div className="grid gap-4">
-              <Input
-                label="Título"
-                name="title"
-                required
-                value={eventTitle}
-                onChange={(event) => setEventTitle(event.currentTarget.value)}
-                bgColor="bg-white"
-                tone="soft"
-              />
-
-              <div className="w-full">
-                <div
-                  id="event-description-label"
-                  className="mb-1 text-sm font-semibold text-slate-700"
-                >
-                  Descripción
+            <div className="grid gap-6 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(34rem,0.95fr)]">
+              <div className="min-w-0 space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Sobre el partido</h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Dale un nombre claro y cuenta lo necesario para que las jugadoras sepan qué
+                    esperar.
+                  </p>
                 </div>
-                <UsersRichTextEditor
-                  id="event-description"
-                  textName="description"
-                  htmlName="descriptionHtml"
-                  ariaLabelledBy="event-description-label"
-                  defaultValue={eventDescription}
-                  defaultHtml={eventDescriptionHtml}
-                  resetKey={descriptionEditorResetKey}
-                  onChange={(content) => {
-                    setEventDescription(content.text);
-                    setEventDescriptionHtml(content.html);
-                  }}
+
+                <Input
+                  label="Título"
+                  name="title"
+                  required
+                  placeholder="Ej. Pichanga libre en Miraflores"
+                  value={eventTitle}
+                  onChange={(event) => setEventTitle(event.currentTarget.value)}
+                  aria-describedby={wizardError ? 'create-event-wizard-error' : undefined}
+                  bgColor="bg-white"
+                  tone="soft"
                 />
-                <p className="mt-2 text-xs text-slate-500">
-                  Usa formato enriquecido para destacar detalles, listas y enlaces del evento.
-                </p>
+
+                <div className="w-full">
+                  <div
+                    id="event-description-label"
+                    className="mb-1 text-sm font-semibold text-slate-700"
+                  >
+                    Descripción<span className="text-error"> *</span>
+                  </div>
+                  <UsersRichTextEditor
+                    id="event-description"
+                    textName="description"
+                    htmlName="descriptionHtml"
+                    ariaLabelledBy="event-description-label"
+                    defaultValue={eventDescription}
+                    defaultHtml={eventDescriptionHtml}
+                    resetKey={descriptionEditorResetKey}
+                    compact
+                    required
+                    collapsedToolbar
+                    placeholder="Cuenta la dinámica, qué deben llevar y cualquier indicación importante."
+                    showCharacterCount
+                    helperText="Incluye solo la información que las jugadoras necesitan antes de inscribirse."
+                    onChange={(content) => {
+                      setEventDescription(content.text);
+                      setEventDescriptionHtml(content.html);
+                    }}
+                  />
+                </div>
               </div>
 
-              <div className="pt-2">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0 space-y-5">
+                <div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Horario del partido</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Elige fecha, hora de inicio y duración. El fin se calcula solo y puedes
-                      ajustarlo si hace falta.
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <p className="text-lg font-semibold text-slate-900">Fecha y horario</p>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                        Hora local de Lima
+                      </span>
+                    </div>
+                    <p id="event-schedule-help" className="mt-1 text-sm text-slate-600">
+                      Define cuándo empieza y cuánto durará el partido. Calcularemos la hora de
+                      fin automáticamente.
                     </p>
                   </div>
-                  <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                    Hora Lima
-                  </span>
-                </div>
 
-                <div className="mt-4 grid gap-4 xl:grid-cols-[1fr,1fr,1.1fr]">
-                  <label className="w-full">
-                    <div className="mb-1 text-sm font-semibold text-slate-700">Fecha *</div>
-                    <input
-                      type="date"
-                      value={startDateValue}
-                      onChange={(event) => {
-                        syncScheduleStart(event.currentTarget.value, startClockValue);
-                      }}
-                      className={FLOW_FIELD_CLASS}
-                    />
-                  </label>
+                  <div className={`mt-4 p-4 ${FLOW_PANEL_CLASS}`}>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="w-full">
+                        <div className="mb-1 text-sm font-semibold text-slate-700">
+                          Día del partido <span className="text-error">*</span>
+                        </div>
+                        <input
+                          type="date"
+                          required
+                          min={isCreateMode ? todayInLima : undefined}
+                          aria-describedby="event-schedule-help"
+                          value={startDateValue}
+                          onChange={(event) => {
+                            syncScheduleStart(event.currentTarget.value, startClockValue);
+                          }}
+                          className={FLOW_FIELD_CLASS}
+                        />
+                      </label>
 
-                  <label className="w-full">
-                    <div className="mb-1 text-sm font-semibold text-slate-700">
-                      Hora de inicio *
+                      <label className="w-full">
+                        <div className="mb-1 text-sm font-semibold text-slate-700">
+                          Hora de inicio <span className="text-error">*</span>
+                        </div>
+                        <input
+                          type="time"
+                          required
+                          aria-describedby="event-schedule-help"
+                          value={startClockValue}
+                          onChange={(event) => {
+                            syncScheduleStart(startDateValue, event.currentTarget.value);
+                          }}
+                          className={FLOW_FIELD_CLASS}
+                        />
+                      </label>
                     </div>
-                    <input
-                      type="time"
-                      value={startClockValue}
-                      onChange={(event) => {
-                        syncScheduleStart(startDateValue, event.currentTarget.value);
-                      }}
-                      className={FLOW_FIELD_CLASS}
-                    />
-                  </label>
 
-                  <div className="w-full">
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-slate-700">Duración</span>
+                    <div className="mt-4 border-t border-slate-200 pt-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">
+                          Duración del partido
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Selecciona una opción para calcular la hora de fin.
+                        </p>
+                      </div>
+
+                      <div
+                        role="group"
+                        aria-label="Duración del partido"
+                        className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-slate-200/70 p-1"
+                      >
+                        {QUICK_DURATION_OPTIONS.map((durationOption) => (
+                          <button
+                            key={durationOption}
+                            type="button"
+                            aria-pressed={
+                              preferredDurationMinutes === durationOption && !showExactEndEditor
+                            }
+                            aria-label={`Duración ${formatDurationLabel(durationOption)}`}
+                            onClick={() => applySuggestedEndTime(durationOption)}
+                            className={[
+                              'inline-flex h-10 min-w-0 items-center justify-center rounded-lg px-1.5 text-xs font-semibold transition',
+                              preferredDurationMinutes === durationOption && !showExactEndEditor
+                                ? 'bg-mulberry text-white shadow-sm'
+                                : 'text-slate-600 hover:bg-white/80 hover:text-mulberry',
+                            ].join(' ')}
+                          >
+                            {durationOption % 60 === 0
+                              ? `${durationOption / 60} h`
+                              : `${Math.floor(durationOption / 60)} h ${durationOption % 60}`}
+                          </button>
+                        ))}
+                      </div>
+
                       <button
                         type="button"
+                        aria-expanded={showExactEndEditor}
+                        aria-controls="event-exact-end-editor"
                         onClick={() => setShowExactEndEditor((current) => !current)}
-                        className="text-xs font-semibold text-mulberry transition hover:underline"
+                        className="mt-3 inline-flex text-xs font-semibold text-mulberry transition hover:underline"
                       >
-                        {showExactEndEditor ? 'Ocultar fin exacto' : 'Editar fin exacto'}
+                        {showExactEndEditor
+                          ? 'Ocultar ajuste manual'
+                          : 'Ajustar hora de fin manualmente'}
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {QUICK_DURATION_OPTIONS.map((durationOption) => (
-                        <button
-                          key={durationOption}
-                          type="button"
-                          onClick={() => applySuggestedEndTime(durationOption)}
-                          className={[
-                            'inline-flex rounded-full border px-3 py-2 text-xs font-semibold transition',
-                            preferredDurationMinutes === durationOption && !showExactEndEditor
-                              ? 'border-mulberry bg-mulberry text-white'
-                              : 'border-slate-300 bg-white text-slate-700 hover:border-mulberry hover:text-mulberry',
-                          ].join(' ')}
-                        >
-                          {formatDurationLabel(durationOption)}
-                        </button>
-                      ))}
+                  </div>
+
+                  {schedulePreview.start ? (
+                    <div
+                      aria-live="polite"
+                      className="mt-3 rounded-xl border border-mulberry/15 bg-mulberry/[0.04] px-4 py-3"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-mulberry/75">
+                        Horario calculado
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {schedulePreview.dayLabel} · {schedulePreview.startLabel}
+                        {schedulePreview.hasValidRange ? ` – ${schedulePreview.endLabel}` : ''}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {schedulePreview.hasValidRange
+                          ? `Duración: ${schedulePreview.durationLabel}.`
+                          : 'Todavía falta definir a qué hora termina.'}
+                      </p>
+                      {schedulePreview.spansMultipleDays ? (
+                        <p className="mt-1 text-xs font-medium text-amber-700">
+                          El partido termina al día siguiente.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {showExactEndEditor ? (
+                    <label id="event-exact-end-editor" className="mt-3 block max-w-md">
+                      <div className="mb-1 text-sm font-semibold text-slate-700">
+                        Fecha y hora de fin <span className="text-error">*</span>
+                      </div>
+                      <input
+                        name="endTimeEditor"
+                        type="datetime-local"
+                        required
+                        value={endTime}
+                        onChange={(event) => setEndTime(event.currentTarget.value)}
+                        min={startTime || undefined}
+                        className={[
+                          FLOW_FIELD_CLASS,
+                          timeError ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : '',
+                        ].join(' ')}
+                      />
+                      <p className="mt-2 text-xs text-slate-500">
+                        Este valor reemplaza la duración seleccionada arriba.
+                      </p>
+                      {timeError ? (
+                        <p className="mt-2 text-xs font-medium text-red-600">{timeError}</p>
+                      ) : null}
+                    </label>
+                  ) : null}
+
+                  <input type="hidden" name="startTime" value={startTime} readOnly />
+                  <input type="hidden" name="endTime" value={endTime} readOnly />
+                </div>
+
+                <div className="border-t border-slate-200 pt-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Cupos</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Define cuántas jugadoras necesitas para confirmar y cuántas pueden
+                      inscribirse.
+                    </p>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <Input
+                      label="Mínimo para confirmar"
+                      name="minUsers"
+                      type="number"
+                      min={1}
+                      step={1}
+                      required
+                      value={minUsersValue}
+                      onChange={(event) => setMinUsersValue(event.currentTarget.value)}
+                      bgColor="bg-white"
+                      tone="soft"
+                    />
+
+                    <Input
+                      label="Cupos disponibles"
+                      name="maxUsers"
+                      type="number"
+                      min={1}
+                      step={1}
+                      required
+                      value={maxUsersValue}
+                      onChange={(event) => setMaxUsersValue(event.currentTarget.value)}
+                      bgColor="bg-white"
+                      tone="soft"
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    El mínimo te ayuda a decidir si el partido continúa; los cupos disponibles
+                    marcan el límite de inscripciones.
+                  </p>
+                  <div className="mt-4 rounded-2xl border border-mulberry/15 bg-mulberry/[0.03] p-4">
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        name="allowsTeamRegistration"
+                        defaultChecked={Boolean(initial?.allowsTeamRegistration)}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-mulberry focus:ring-mulberry"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-slate-900">Permitir inscripción por equipo</span>
+                        <span className="mt-1 block text-xs text-slate-600">La capitana elige el plantel y registra un solo número de operación.</span>
+                      </span>
+                    </label>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <Input
+                        label="Mínimo por equipo"
+                        name="teamRegistrationMinPlayers"
+                        type="number"
+                        min={1}
+                        step={1}
+                        defaultValue={initial?.teamRegistrationMinPlayers ?? 2}
+                        bgColor="bg-white"
+                        tone="soft"
+                      />
+                      <Input
+                        label="Máximo por equipo"
+                        name="teamRegistrationMaxPlayers"
+                        type="number"
+                        min={1}
+                        step={1}
+                        defaultValue={initial?.teamRegistrationMaxPlayers ?? initial?.maxUsers ?? 20}
+                        bgColor="bg-white"
+                        tone="soft"
+                      />
+                    </div>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <SelectComponent
+                          labelText="Modalidad de precio grupal"
+                          options={TEAM_REGISTRATION_PRICE_OPTIONS}
+                          value={teamRegistrationPriceMode}
+                          onChange={(value) =>
+                            setTeamRegistrationPriceMode(
+                              value === 'fixed_team' ? 'fixed_team' : 'per_player'
+                            )
+                          }
+                          isSearchable={false}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+                        <input
+                          type="hidden"
+                          name="teamRegistrationPriceMode"
+                          value={teamRegistrationPriceMode}
+                          readOnly
+                        />
+                      </div>
+                      <Input
+                        label="Precio fijo por equipo"
+                        name="teamRegistrationFixedPrice"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        defaultValue={initial?.teamRegistrationFixedPrice ?? ''}
+                        placeholder="Solo para modalidad fija"
+                        bgColor="bg-white"
+                        tone="soft"
+                      />
                     </div>
                   </div>
                 </div>
-
-                <div className={`mt-4 px-4 py-4 ${FLOW_PANEL_CLASS}`}>
-                  {schedulePreview.start ? (
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          Horario calculado
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">
-                          {schedulePreview.dayLabel} · {schedulePreview.startLabel}
-                          {schedulePreview.hasValidRange ? ` - ${schedulePreview.endLabel}` : ''}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {schedulePreview.hasValidRange
-                            ? `Duración estimada: ${schedulePreview.durationLabel}.`
-                            : 'Todavía falta definir a qué hora termina.'}
-                        </p>
-                        {schedulePreview.spansMultipleDays ? (
-                          <p className="mt-1 text-xs font-medium text-amber-700">
-                            El fin cae al día siguiente. Revisa que esa sea la intención.
-                          </p>
-                        ) : null}
-                      </div>
-                      <p className="text-xs text-slate-500">
-                        Recomendación: los partidos abiertos suelen funcionar mejor entre 90 y 120
-                        min.
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-600">
-                      Define fecha y hora de arranque para ver el horario final del partido.
-                    </p>
-                  )}
-                </div>
-
-                {showExactEndEditor ? (
-                  <label className="mt-4 block max-w-md">
-                    <div className="mb-1 text-sm font-semibold text-slate-700">Fin exacto *</div>
-                    <input
-                      name="endTimeEditor"
-                      type="datetime-local"
-                      value={endTime}
-                      onChange={(event) => setEndTime(event.currentTarget.value)}
-                      min={startTime || undefined}
-                      className={[
-                        FLOW_FIELD_CLASS,
-                        timeError ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : '',
-                      ].join(' ')}
-                    />
-                    <p className="mt-2 text-xs text-slate-500">
-                      Úsalo solo si necesitas un cierre distinto al sugerido o un fin al día
-                      siguiente.
-                    </p>
-                    {timeError ? (
-                      <p className="mt-2 text-xs font-medium text-red-600">{timeError}</p>
-                    ) : null}
-                  </label>
-                ) : null}
-
-                <input type="hidden" name="startTime" value={startTime} readOnly />
-                <input type="hidden" name="endTime" value={endTime} readOnly />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <Input
-                  label="Mínimo de jugadoras"
-                  name="minUsers"
-                  type="number"
-                  required
-                  value={minUsersValue}
-                  onChange={(event) => setMinUsersValue(event.currentTarget.value)}
-                  bgColor="bg-white"
-                  tone="soft"
-                />
-
-                <Input
-                  label="Máximo de jugadoras"
-                  name="maxUsers"
-                  type="number"
-                  required
-                  value={maxUsersValue}
-                  onChange={(event) => setMaxUsersValue(event.currentTarget.value)}
-                  bgColor="bg-white"
-                  tone="soft"
-                />
               </div>
             </div>
           </section>
@@ -1995,7 +2259,7 @@ const EventForm = ({
             <div className="grid gap-4">
               <label className="w-full">
                 <div className="mb-1 text-sm font-semibold text-slate-700">Dirección *</div>
-                {googleMapsApiKeyConfigured && isGoogleMapsLoaded ? (
+                {canUseInteractiveMap ? (
                   <Autocomplete
                     onLoad={handleAddressAutocompleteLoad}
                     onPlaceChanged={handleAddressPlaceChanged}
@@ -2035,13 +2299,11 @@ const EventForm = ({
               </label>
 
               <div className="space-y-2">
-                <div className="text-sm font-semibold text-slate-700">Ajustar ubicación *</div>
-                {googleMapsApiKeyConfigured ? (
-                  googleMapsLoadError ? (
-                    <div className="rounded-[20px] bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200/80">
-                      No se pudo cargar Google Maps.
-                    </div>
-                  ) : !isGoogleMapsLoaded ? (
+                <div className="text-sm font-semibold text-slate-700">
+                  Pin exacto <span className="font-normal text-slate-500">(para publicar)</span>
+                </div>
+                {googleMapsApiKeyConfigured && !googleMapsLoadError && !isMapUnavailable ? (
+                  !isGoogleMapsLoaded ? (
                     <div className="h-[300px] animate-pulse rounded-[18px] bg-slate-100 ring-1 ring-slate-200/80" />
                   ) : (
                     <div className="h-[300px] overflow-hidden rounded-[18px] ring-1 ring-slate-200/80">
@@ -2078,15 +2340,25 @@ const EventForm = ({
                     </div>
                   )
                 ) : (
-                  <div className="rounded-[20px] bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200/80">
-                    Falta configurar <code>NEXT_PUBLIC_GOOGLE_MAPS_KEY</code>.
+                  <div className="rounded-[20px] bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200/80">
+                    <p className="font-semibold">El mapa no está disponible ahora.</p>
+                    <p className="mt-1 text-xs leading-5">
+                      Puedes continuar con la dirección escrita y guardar un borrador. Antes de
+                      publicar deberás volver para confirmar el pin.
+                    </p>
                   </div>
                 )}
-                <p className={`text-xs ${locationError ? 'text-red-600' : 'text-slate-500'}`}>
-                  {locationError ||
-                    'Puedes hacer clic o mover el pin para ajustar la ubicación exacta sin cambiar la dirección escrita.'}
+                <p
+                  className={`text-xs ${locationError && !isMapUnavailable ? 'text-red-600' : 'text-slate-500'}`}
+                >
+                  {isMapUnavailable
+                    ? 'La dirección queda guardada aunque el pin esté pendiente.'
+                    : locationError ||
+                      'Puedes hacer clic o mover el pin para ajustar la ubicación exacta sin cambiar la dirección escrita.'}
                 </p>
-                {geoError ? <p className="text-xs text-amber-700">{geoError}</p> : null}
+                {geoError && !isMapUnavailable ? (
+                  <p className="text-xs text-amber-700">{geoError}</p>
+                ) : null}
                 <input type="hidden" name="lat" value={lat} readOnly />
                 <input type="hidden" name="lng" value={lng} readOnly />
                 <input type="hidden" name="district" value={districtText} readOnly />
@@ -2137,42 +2409,46 @@ const EventForm = ({
 
             <div className="grid gap-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <label className="w-full">
-                  <div className="mb-1 text-sm font-semibold text-slate-700">Tipo de evento *</div>
-                  <select
-                    name="eventTypeId"
-                    value={selectedEventTypeId}
-                    onChange={(event) => setSelectedEventTypeId(event.currentTarget.value)}
-                    className={FLOW_NATIVE_SELECT_CLASS}
-                    required
-                  >
-                    {eventTypes.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {eventTypes.length > 1 ? (
+                  <div className="w-full">
+                    <SelectComponent
+                      labelText="Tipo de evento"
+                      required
+                      options={eventTypeSelectOptions}
+                      value={selectedEventTypeId}
+                      onChange={(value) => setSelectedEventTypeId(String(value || ''))}
+                      isSearchable={false}
+                      bgColor="bg-white"
+                      tone="soft"
+                    />
+                    <input type="hidden" name="eventTypeId" value={selectedEventTypeId} readOnly />
+                  </div>
+                ) : (
+                  <div className="w-full">
+                    <div className="mb-1 text-sm font-semibold text-slate-700">Tipo de evento</div>
+                    <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
+                      {selectedEventType?.name || 'Pichanga libre'}
+                    </div>
+                    <input type="hidden" name="eventTypeId" value={selectedEventTypeId} readOnly />
+                  </div>
+                )}
 
-                <label className="w-full">
-                  <div className="mb-1 text-sm font-semibold text-slate-700">Nivel *</div>
-                  <select
-                    name="levelId"
-                    value={selectedLevelId}
-                    onChange={(event) => setSelectedLevelId(event.currentTarget.value)}
-                    className={FLOW_NATIVE_SELECT_CLASS}
+                <div className="w-full">
+                  <SelectComponent
+                    labelText="Nivel"
                     required
-                  >
-                    {levels.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    options={levelSelectOptions}
+                    value={selectedLevelId}
+                    onChange={(value) => setSelectedLevelId(String(value || ''))}
+                    isSearchable={false}
+                    bgColor="bg-white"
+                    tone="soft"
+                  />
+                  <input type="hidden" name="levelId" value={selectedLevelId} readOnly />
+                </div>
               </div>
 
-              <div className="w-full">
+              <div id="event-payment-methods" className="w-full">
                 <div className="mb-1 text-sm font-semibold text-slate-700">
                   Métodos de pago permitidos {isPublished ? '*' : '(opcional por ahora)'}
                 </div>
@@ -2215,9 +2491,9 @@ const EventForm = ({
                 ) : (
                   <p className="mt-1 text-xs text-slate-500">
                     {selectedActivePaymentMethodIds.length > 0
-                      ? `${selectedActivePaymentMethodIds.length} método(s) activo(s) listo(s) para publicar.`
+                      ? `${selectedActivePaymentMethodIds.length} ${selectedActivePaymentMethodIds.length === 1 ? 'método activo listo' : 'métodos activos listos'} para publicar.`
                       : selectedInactivePaymentMethodIds.length > 0
-                        ? `${selectedInactivePaymentMethodIds.length} método(s) seleccionado(s), pero no cuentan para publicar porque están inactivos.`
+                        ? `${selectedInactivePaymentMethodIds.length} ${selectedInactivePaymentMethodIds.length === 1 ? 'método seleccionado está inactivo' : 'métodos seleccionados están inactivos'} y no cuentan para publicar.`
                       : isPublished
                         ? 'Selecciona uno o más métodos activos para publicar este evento.'
                         : 'Puedes agregar métodos de pago después, antes de publicar.'}
@@ -2225,8 +2501,8 @@ const EventForm = ({
                 )}
                 {selectedInactivePaymentMethodIds.length > 0 ? (
                   <p className="mt-1 text-xs text-amber-700">
-                    {selectedInactivePaymentMethodIds.length} método(s) seleccionado(s) están
-                    inactivos. Actívalos o elige otros antes de publicar.
+                    Activa {selectedInactivePaymentMethodIds.length === 1 ? 'ese método' : 'esos métodos'} o
+                    elige otros antes de publicar.
                   </p>
                 ) : null}
                 {paymentMethodsError ? (
@@ -2249,42 +2525,50 @@ const EventForm = ({
                 onMethodSaved={handleInlinePaymentMethodSaved}
               />
 
-              <label className="w-full">
-                <div className="mb-1 text-sm font-semibold text-slate-700">
-                  Organizadora de negocio
+              {canManageFeatured ? (
+                <div className="w-full">
+                  {organizerSelectOptions.length > 0 ? (
+                    <>
+                      <SelectComponent
+                        labelText="Asociación interna de organizadora"
+                        options={[
+                          { value: '', label: 'Sin organizadora asociada' },
+                          ...organizerSelectOptions,
+                        ]}
+                        value={selectedOrganizerId}
+                        onChange={(value) => setSelectedOrganizerId(String(value || ''))}
+                        isSearchable
+                        bgColor="bg-white"
+                        tone="soft"
+                      />
+                      <input
+                        type="hidden"
+                        name="organizerId"
+                        value={selectedOrganizerId}
+                        readOnly
+                      />
+                      <p className="mt-1 text-xs text-slate-500">
+                        Campo administrativo. No cambia quién creó ni gestiona el evento.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <input type="hidden" name="organizerId" value="" readOnly />
+                      <div className="mb-1 text-sm font-semibold text-slate-700">
+                        Asociación interna de organizadora
+                      </div>
+                      <div className="rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
+                        No hay organizadoras disponibles para asociar.
+                      </div>
+                    </>
+                  )}
                 </div>
-                {organizerSelectOptions.length > 0 ? (
-                  <>
-                    <select
-                      name="organizerId"
-                      value={selectedOrganizerId}
-                      onChange={(event) => setSelectedOrganizerId(event.currentTarget.value)}
-                      className={FLOW_NATIVE_SELECT_CLASS}
-                    >
-                      <option value="">Sin organizadora asociada</option>
-                      {organizerSelectOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Esta relación es interna para administración y no cambia la dueña técnica del
-                      evento.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <input type="hidden" name="organizerId" value="" readOnly />
-                    <div className="rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
-                      No hay organizadoras disponibles para asociar.
-                    </div>
-                  </>
-                )}
-              </label>
+              ) : (
+                <input type="hidden" name="organizerId" value="" readOnly />
+              )}
 
               <div className="w-full">
-                <div className="mb-1 text-sm font-semibold text-slate-700">Features</div>
+                <div className="mb-1 text-sm font-semibold text-slate-700">Servicios incluidos</div>
                 <SelectComponent
                   key={`${detailsStepVisibilityKey}-features`}
                   options={featureOptions}
@@ -2305,8 +2589,8 @@ const EventForm = ({
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   {selectedFeatureIds.length > 0
-                    ? `${selectedFeatureIds.length} feature(s) seleccionada(s).`
-                    : 'Selecciona una o más features para el evento.'}
+                    ? `${selectedFeatureIds.length} ${selectedFeatureIds.length === 1 ? 'servicio seleccionado' : 'servicios seleccionados'}.`
+                    : 'Selecciona lo que estará disponible durante el evento.'}
                 </p>
                 {selectedFeatureIds.map((featureId) => (
                   <input
@@ -2342,9 +2626,10 @@ const EventForm = ({
                 readOnly
               />
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div role="group" aria-label="Estado de publicación" className="grid gap-3 md:grid-cols-2">
                 <button
                   type="button"
+                  aria-pressed={isPublished}
                   onClick={() => setIsPublished(true)}
                   className={[
                     'rounded-[16px] px-4 py-4 text-left ring-1 transition',
@@ -2361,6 +2646,7 @@ const EventForm = ({
 
                 <button
                   type="button"
+                  aria-pressed={!isPublished}
                   onClick={() => {
                     setIsPublished(false);
                     setPaymentMethodsError('');
@@ -2407,6 +2693,7 @@ const EventForm = ({
                       name="isFieldReservedConfirmed"
                       value="true"
                       checked={isFieldReservedConfirmed}
+                      aria-describedby={fieldReservedError ? 'field-reserved-error' : undefined}
                       onChange={(event) => {
                         setIsFieldReservedConfirmed(event.currentTarget.checked);
                         if (event.currentTarget.checked) {
@@ -2423,7 +2710,9 @@ const EventForm = ({
                         Este punto solo es obligatorio si hoy vas a publicarlo.
                       </p>
                       {fieldReservedError ? (
-                        <p className="mt-2 text-xs text-red-600">{fieldReservedError}</p>
+                        <p id="field-reserved-error" role="alert" className="mt-2 text-xs text-red-600">
+                          {fieldReservedError}
+                        </p>
                       ) : null}
                     </div>
                   </label>
@@ -2439,19 +2728,36 @@ const EventForm = ({
                               <p className="text-sm font-medium text-slate-800">{item.title}</p>
                               <p className="mt-1 text-xs text-slate-500">{item.description}</p>
                               {!item.done && item.id === 'payment_methods' ? (
-                                <Link
-                                  href={paymentMethodsHref}
+                                <button
+                                  type="button"
                                   onClick={() => {
                                     trackEvent('create_event_payment_setup_clicked', {
                                       channel: 'web',
                                       source: 'wizard_publish_checklist',
                                       step: createStep,
                                     });
+                                    moveToCreateStep(3);
                                   }}
                                   className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
                                 >
-                                  Ir a Formas de pago
-                                </Link>
+                                  Volver a cobro
+                                </button>
+                              ) : !item.done && item.id === 'location' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => moveToCreateStep(2)}
+                                  className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
+                                >
+                                  Volver a ubicación
+                                </button>
+                              ) : !item.done && item.id === 'details' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => moveToCreateStep(1)}
+                                  className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
+                                >
+                                  Volver a datos principales
+                                </button>
                               ) : !item.done && item.id === 'field_reservation' ? (
                                 <p className="mt-2 text-xs font-medium text-slate-600">
                                   Si no quieres confirmarlo hoy, guárdalo para después.
@@ -2510,7 +2816,7 @@ const EventForm = ({
           </section>
         </div>
 
-        {isCreateMode ? (
+        {isCreateMode && createStep === 4 ? (
           <div className="space-y-5 xl:sticky xl:top-6 xl:self-start">
             <EventPreview
               title={eventTitle}
@@ -2521,12 +2827,13 @@ const EventForm = ({
               locationText={locationText || initial?.locationText || ''}
               district={districtText}
               startTime={startTime}
-              price={Number(priceValue) || undefined}
+              price={priceValue.trim() === '' ? undefined : Number(priceValue)}
               minUsers={Number(minUsersValue) || undefined}
               maxUsers={Number(maxUsersValue) || undefined}
               eventType={selectedEventType}
               level={selectedLevel}
-              isPublished={isPublished}
+              wantsToPublish={isPublished}
+              isReadyToPublish={publishReadiness.isReady}
             />
           </div>
         ) : null}
@@ -2534,7 +2841,7 @@ const EventForm = ({
         <div
           className={[
             'flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)]',
-            isCreateMode ? 'xl:col-span-2' : '',
+            isCreateMode && createStep === 4 ? 'xl:col-span-2' : '',
           ].join(' ')}
         >
           <div className="flex flex-wrap items-center gap-3">
@@ -2549,18 +2856,28 @@ const EventForm = ({
             ) : null}
 
             {isCreateMode && createStep < 4 ? (
-              <button
-                type="button"
-                onClick={handleNextCreateStep}
-                className="inline-flex h-11 items-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760]"
-              >
-                Continuar
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleNextCreateStep}
+                  className="inline-flex h-11 items-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760]"
+                >
+                  Continuar
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={handleDraftSaveRequest}
+                  className="inline-flex h-11 items-center rounded-xl border border-slate-300/90 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {pendingMode === 'draft' ? 'Guardando...' : 'Guardar borrador'}
+                </button>
+              </>
             ) : (
               <ButtonWrapper
                 width="fit-content"
                 htmlType="submit"
-                disabled={pending || Boolean(timeError) || Boolean(locationError)}
+                disabled={pending || Boolean(timeError)}
               >
                 {pending ? pendingLabel : resolvedSubmitLabel}
               </ButtonWrapper>
@@ -2570,7 +2887,7 @@ const EventForm = ({
           {isCreateMode ? (
             <p className="text-sm text-slate-500">
               {createStep < 4
-                ? 'Puedes volver atrás cuando quieras antes de publicar.'
+                ? 'Guárdalo en tu cuenta para retomarlo desde cualquier dispositivo.'
                 : isPublished
                   ? publishMissingCount === 0
                     ? 'Si todo está listo, crearás el evento y saldrá público.'
@@ -2586,7 +2903,62 @@ const EventForm = ({
         {!isCreateMode && !pending && submitStatus === 'error' && submitMessage ? (
           <p className="text-sm text-red-600">{submitMessage}</p>
         ) : null}
+        {isCreateMode && !pending && submitStatus !== 'idle' && submitMessage ? (
+          <div
+            role={submitStatus === 'error' ? 'alert' : 'status'}
+            aria-live="polite"
+            className={[
+              'rounded-2xl border px-4 py-3 text-sm font-medium',
+              createStep === 4 ? 'xl:col-span-2' : '',
+              submitStatus === 'error'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+            ].join(' ')}
+          >
+            {submitMessage}
+          </div>
+        ) : null}
       </form>
+
+      {isCreateMode && showResetConfirm ? (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/65 px-4 backdrop-blur-[2px]"
+          onClick={() => setShowResetConfirm(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-create-event-title"
+            aria-describedby="reset-create-event-description"
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_30px_80px_-30px_rgba(15,23,42,0.6)] sm:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="reset-create-event-title" className="text-lg font-semibold text-slate-900">
+              ¿Descartar el progreso?
+            </h3>
+            <p id="reset-create-event-description" className="mt-2 text-sm leading-6 text-slate-600">
+              Se eliminará lo guardado en este dispositivo y el formulario volverá a empezar.
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setShowResetConfirm(false)}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Conservar progreso
+              </button>
+              <button
+                type="button"
+                onClick={confirmResetCreateDraft}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-rose-700 px-5 text-sm font-semibold text-white transition hover:bg-rose-800"
+              >
+                Descartar y empezar de nuevo
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isCreateMode ? (
         <EventShareModal

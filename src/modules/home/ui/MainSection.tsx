@@ -9,7 +9,7 @@ export default async function MainSection() {
 
   return (
     <section className="site-shell home-scroll-target relative mt-3 overflow-x-clip sm:mt-4" id="inicio">
-      <div className="site-panel rounded-[2rem] bg-gradient-to-br from-[#FFF9F6] via-white to-[#F8F0FF] shadow-[0_0_0_1px_rgba(15,23,42,0.06)] px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-14">
+      <div className="site-panel rounded-[2rem] bg-gradient-to-br from-[#FFF9F6] via-white to-[#F8F0FF] shadow-[0_0_0_1px_rgba(15,23,42,0.06)] px-6 py-10 sm:px-8 sm:py-12 lg:px-10">
 
         {/* Ambient glows — anclan los colores de marca al fondo del panel */}
         <div
@@ -23,26 +23,34 @@ export default async function MainSection() {
 
         <div className="relative grid gap-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(320px,0.98fr)] lg:items-center">
           <HomeReveal className="flex min-w-0 flex-col justify-center" eager>
-            <div className="relative w-fit max-w-full pr-2">
-              <div className="origin-left -rotate-[4deg] rounded-md border-[2.5px] border-mulberry px-4 py-2.5 ring-[1.5px] ring-mulberry/20 ring-offset-1 sm:-rotate-[6deg] sm:px-5 sm:py-3">
-                <span className="block font-eastman-extrabold text-[0.82rem] uppercase leading-tight tracking-[0.1em] text-mulberry sm:text-[0.98rem]">
-                  Más jugadoras,
-                  <span className="block">más fútbol</span>
-                </span>
-              </div>
-            </div>
+            <p
+              className="w-fit max-w-full font-eastman-bold leading-tight tracking-[0.01em] text-mulberry"
+              style={{ fontSize: 'clamp(14px, 1.3vw, 16.5px)' }}
+            >
+              <span className="home-marker-sweep italic">Más jugadoras, más fútbol</span>
+            </p>
 
-            <h1 className="mt-4 max-w-[12ch] font-eastman-extrabold text-[clamp(44px,11vw,104px)] leading-[0.95] tracking-[-0.04em] text-slate-900">
+            <h1
+              className="mt-4 max-w-[12ch] font-eastman-extrabold text-slate-900"
+              style={{
+                fontSize: 'clamp(46px, 7.4vw, 84px)',
+                lineHeight: 0.92,
+                letterSpacing: '-0.035em',
+              }}
+            >
               Encuentra tu próxima{' '}
               <span className="text-primary">pichanga</span>
             </h1>
 
-            <p className="mt-5 max-w-[40rem] text-[17px] leading-[1.55] text-slate-600 sm:text-[20px] sm:leading-[1.6]">
-              Explora pichangas y eventos de fútbol para mujeres y disidencias. Revisa fecha,
-              zona, nivel y cupos disponibles para sumarte sin depender de grupos cerrados.
+            <p
+              className="mt-5 max-w-[34rem] text-slate-600"
+              style={{ fontSize: 'clamp(17px, 1.45vw, 18px)', lineHeight: 1.6 }}
+            >
+              Encuentra pichangas y eventos de fútbol para mujeres y disidencias. Revisa zona,
+              nivel y cupos. Súmate sin depender de grupos cerrados.
             </p>
 
-            <div className="mt-8 flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <div className="mt-6 flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Link
                 href="/events"
                 className="group home-button-micro inline-flex min-h-12 w-full min-w-0 max-w-full items-center justify-center gap-2 rounded-full bg-mulberry px-5 py-3 text-[15px] font-semibold text-white hover:bg-[#470760] sm:h-12 sm:w-auto sm:px-7 sm:py-0 sm:text-base"

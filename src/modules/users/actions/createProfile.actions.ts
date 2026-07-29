@@ -125,6 +125,15 @@ function isTransientProfileBackendError(message: string) {
   );
 }
 
+function isProfileBackendUnavailableError(message: string) {
+  return (
+    isTransientProfileBackendError(message) ||
+    message.includes('backend_url is not defined') ||
+    message.includes('failed to parse url') ||
+    message.includes('invalid url')
+  );
+}
+
 function resolveAvatarFromMetadata(metadata: Record<string, unknown>) {
   const candidates = [
     metadata.avatar,
@@ -492,8 +501,8 @@ export async function completeOnboardingProfileAction(
           !isProfileUsernameValidationError(createMessage) &&
           (isProfileUserFkError(createMessage) ||
             isUserMissingError(createMessage) ||
-            isTransientProfileBackendError(createMessage) ||
-            isTransientProfileBackendError(message) ||
+            isProfileBackendUnavailableError(createMessage) ||
+            isProfileBackendUnavailableError(message) ||
             createMessage.includes('http ') ||
             message.includes('http '));
 

@@ -2,13 +2,18 @@ import { getServerSupabase } from '@src/core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import type {
   CreateTeamInvitationInput,
+  CaptainTeamInvitationCard,
   PublicTeamMember,
   PublicTeamProfile,
   TeamInvitationRow,
+  TeamInvitationCard,
   TeamInvitationSummary,
+  TeamInvitationLinkPreview,
+  TeamEventSummary,
   TeamMemberRole,
   TeamRow,
 } from '@modules/teams/model/types';
+import { normalizePublicHandle } from '@shared/lib/publicProfilePaths';
 
 export async function getSupabase() {
   return await getServerSupabase();
@@ -20,7 +25,8 @@ export async function createTeamWithCaptain(
   instagramUsername: string | null,
   tiktokUsername: string | null,
   ownerId: string,
-  idempotencyKey: string | null = null
+  idempotencyKey: string | null = null,
+  maxMembers = 20
 ) {
   const supabase = await getSupabase();
   const { data, error } = await supabase
@@ -30,6 +36,7 @@ export async function createTeamWithCaptain(
       p_instagram_username: instagramUsername,
       p_tiktok_username: tiktokUsername,
       p_idempotency_key: idempotencyKey,
+      p_max_members: maxMembers,
     })
     .single();
 
@@ -51,6 +58,7 @@ export async function createTeamWithCaptain(
           instagramUsername,
           tiktokUsername,
           ownerId,
+          maxMembers,
         });
       }
 
@@ -67,6 +75,7 @@ export async function createTeamWithCaptain(
       instagramUsername,
       tiktokUsername,
       ownerId,
+      maxMembers,
     });
   }
 
@@ -98,6 +107,7 @@ type CreateTeamDirectInput = {
   instagramUsername: string | null;
   tiktokUsername: string | null;
   ownerId: string;
+  maxMembers: number;
 };
 
 const RESERVED_TEAM_SLUGS = new Set([
@@ -164,6 +174,7 @@ async function createTeamWithCaptainDirectly(input: CreateTeamDirectInput) {
       instagram_username: input.instagramUsername,
       tiktok_username: input.tiktokUsername,
       created_by_user_id: input.ownerId,
+      max_members: input.maxMembers,
     })
     .select(
       `
@@ -178,7 +189,8 @@ async function createTeamWithCaptainDirectly(input: CreateTeamDirectInput) {
         created_by_user_id,
         invitation_token,
         is_active,
-        deleted_at
+        deleted_at,
+        max_members
       `
     )
     .single();
@@ -224,8 +236,27 @@ type TeamInvitationWithTeamRow = TeamInvitationRow & {
     | null;
 };
 
-function normalizeSlug(value: string) {
-  return value.trim().toLowerCase();
+type TeamInvitationTokenRow = Omit<TeamInvitationWithTeamRow, 'team'> & {
+  team:
+    | Pick<TeamRow, 'id' | 'name' | 'slug' | 'avatar_url' | 'is_active' | 'deleted_at'>
+    | Pick<TeamRow, 'id' | 'name' | 'slug' | 'avatar_url' | 'is_active' | 'deleted_at'>[]
+    | null;
+};
+
+function resolveAvatarUrl(metadata: Record<string, unknown> | null | undefined) {
+  const candidates = [
+    metadata?.avatar,
+    metadata?.avatar_url,
+    metadata?.picture,
+    metadata?.photoURL,
+    metadata?.profile_image_url,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+
+  return null;
 }
 
 function mapPublicTeam(row: TeamRow): PublicTeamRow {
@@ -239,6 +270,7 @@ function mapPublicTeam(row: TeamRow): PublicTeamRow {
     instagram_username: row.instagram_username,
     tiktok_username: row.tiktok_username,
     is_active: row.is_active,
+    max_members: row.max_members,
   };
 }
 
@@ -253,7 +285,7 @@ function normalizeInvitationSummary(row: TeamInvitationWithTeamRow): TeamInvitat
 export async function getPublicTeamProfileBySlug(
   slug: string
 ): Promise<PublicTeamProfile | null> {
-  const normalizedSlug = normalizeSlug(slug);
+  const normalizedSlug = normalizePublicHandle(slug);
   if (!normalizedSlug) return null;
 
   const supabase = getAdminSupabase();
@@ -272,7 +304,8 @@ export async function getPublicTeamProfileBySlug(
         created_by_user_id,
         invitation_token,
         is_active,
-        deleted_at
+        deleted_at,
+        max_members
       `
     )
     .eq('slug', normalizedSlug)
@@ -296,12 +329,21 @@ export async function getPublicTeamProfileBySlug(
   const members = (memberRows ?? []) as TeamMemberPublicRow[];
   const userIds = members.map((member) => member.user_id).filter(Boolean);
   const profileByUserId = new Map<string, string>();
+  const avatarByUserId = new Map<string, string>();
 
   if (userIds.length > 0) {
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profile')
-      .select('user, username')
-      .in('user', userIds);
+    const [{ data: profiles, error: profilesError }, authProfiles] = await Promise.all([
+      supabase.from('profile').select('user, username').in('user', userIds),
+      Promise.all(
+        userIds.map(async (userId) => {
+          const { data } = await supabase.auth.admin.getUserById(userId);
+          return {
+            userId,
+            avatarUrl: resolveAvatarUrl(data.user?.user_metadata as Record<string, unknown> | null),
+          };
+        })
+      ),
+    ]);
 
     if (profilesError) throw new Error(profilesError.message);
 
@@ -310,12 +352,17 @@ export async function getPublicTeamProfileBySlug(
         profileByUserId.set(profile.user, profile.username);
       }
     });
+
+    authProfiles.forEach(({ userId, avatarUrl }) => {
+      if (avatarUrl) avatarByUserId.set(userId, avatarUrl);
+    });
   }
 
   const publicMembers: PublicTeamMember[] = members
     .map((member) => ({
       id: member.id,
       username: profileByUserId.get(member.user_id) ?? null,
+      avatar_url: avatarByUserId.get(member.user_id) ?? null,
       role: member.role,
       joined_at: member.joined_at,
     }))
@@ -324,10 +371,90 @@ export async function getPublicTeamProfileBySlug(
       return (a.username ?? '').localeCompare(b.username ?? '');
     });
 
+  const { data: registrationRows, error: registrationsError } = await supabase
+    .from('team_event_registration')
+    .select('id,event_id,participant_count')
+    .eq('team_id', team.id)
+    .eq('state', 'approved')
+    .order('created_at', { ascending: false });
+
+  if (registrationsError) throw new Error(registrationsError.message);
+
+  const eventIds = Array.from(
+    new Set((registrationRows ?? []).map((row) => Number(row.event_id)).filter(Number.isFinite))
+  );
+  const eventById = new Map<number, TeamEventSummary['event']>();
+
+  if (eventIds.length > 0) {
+    const { data: eventRows, error: eventsError } = await supabase
+      .from('event')
+      .select('id,title,start_time,end_time,location_text')
+      .in('id', eventIds);
+    if (eventsError) throw new Error(eventsError.message);
+
+    (eventRows ?? []).forEach((event) => {
+      eventById.set(Number(event.id), {
+        id: Number(event.id),
+        title: String(event.title || 'Evento'),
+        startTime: event.start_time ?? null,
+        endTime: event.end_time ?? null,
+        locationText: event.location_text ?? null,
+      });
+    });
+  }
+
+  const teamEvents: TeamEventSummary[] = (registrationRows ?? []).flatMap((registration) => {
+    const event = eventById.get(Number(registration.event_id));
+    if (!event) return [];
+    return [{
+      registrationId: Number(registration.id),
+      state: 'approved' as const,
+      participantCount: Number(registration.participant_count || 0),
+      event,
+    }];
+  });
+
   return {
     team: mapPublicTeam(team as TeamRow),
     members: publicMembers,
+    events: teamEvents,
   };
+}
+
+export async function getViewerActiveTeamRole(
+  teamId: number
+): Promise<TeamMemberRole | null> {
+  const supabase = await getSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('team_member')
+    .select('role')
+    .eq('team_id', teamId)
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return (data?.role as TeamMemberRole | undefined) ?? null;
+}
+
+export async function getViewerFeaturedTeamId(): Promise<number | null> {
+  const supabase = await getSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('profile')
+    .select('featured_team_id')
+    .eq('user', user.id)
+    .limit(1);
+  if (error) throw new Error(error.message);
+  const id = Number(data?.[0]?.featured_team_id);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
 export async function createTeamInvitation(
@@ -357,6 +484,11 @@ export async function listTeamInvitationsForCaptain(
   teamId: number
 ): Promise<TeamInvitationRow[]> {
   const supabase = await getSupabase();
+  const { error: expirationError } = await supabase.rpc('expire_visible_team_invitations', {
+    p_team_id: teamId,
+  });
+  if (expirationError) throw new Error(expirationError.message);
+
   const { data, error } = await supabase
     .from('team_invitation')
     .select(
@@ -368,6 +500,7 @@ export async function listTeamInvitationsForCaptain(
         invitee_email,
         invitee_username,
         delivery_method,
+        source,
         status,
         invitation_token,
         metadata,
@@ -376,18 +509,56 @@ export async function listTeamInvitationsForCaptain(
         expires_at,
         responded_at,
         cancelled_at,
+        email_sent_at,
+        email_delivery_status,
+        provider_message_id,
         accepted_member_id
       `
     )
     .eq('team_id', teamId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   if (error) throw new Error(error.message);
   return (data ?? []) as TeamInvitationRow[];
 }
 
+function maskInvitationEmail(value: string | null) {
+  if (!value) return null;
+  const [localPart, domain] = value.split('@');
+  if (!localPart || !domain) return null;
+  const visible = localPart.slice(0, Math.min(2, localPart.length));
+  return `${visible}${'*'.repeat(Math.max(3, localPart.length - visible.length))}@${domain}`;
+}
+
+export async function listCaptainTeamInvitationCards(
+  teamId: number
+): Promise<CaptainTeamInvitationCard[]> {
+  const invitations = await listTeamInvitationsForCaptain(teamId);
+  return invitations.map((invitation) => ({
+    id: invitation.id,
+    username: invitation.invitee_username,
+    maskedEmail: maskInvitationEmail(invitation.invitee_email),
+    status: invitation.status,
+    emailDeliveryStatus: invitation.email_delivery_status,
+    createdAt: invitation.created_at,
+    respondedAt: invitation.responded_at,
+    cancelledAt: invitation.cancelled_at,
+  }));
+}
+
 export async function listViewerTeamInvitations(): Promise<TeamInvitationSummary[]> {
   const supabase = await getSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { error: expirationError } = await supabase.rpc('expire_visible_team_invitations', {
+    p_team_id: null,
+  });
+  if (expirationError) throw new Error(expirationError.message);
+
   const { data, error } = await supabase
     .from('team_invitation')
     .select(
@@ -399,6 +570,7 @@ export async function listViewerTeamInvitations(): Promise<TeamInvitationSummary
         invitee_email,
         invitee_username,
         delivery_method,
+        source,
         status,
         invitation_token,
         metadata,
@@ -407,6 +579,9 @@ export async function listViewerTeamInvitations(): Promise<TeamInvitationSummary
         expires_at,
         responded_at,
         cancelled_at,
+        email_sent_at,
+        email_delivery_status,
+        provider_message_id,
         accepted_member_id,
         team:team_id (
           id,
@@ -416,10 +591,54 @@ export async function listViewerTeamInvitations(): Promise<TeamInvitationSummary
         )
       `
     )
-    .order('created_at', { ascending: false });
+    // Captains can read their team's invitations through RLS for management,
+    // but this query feeds the invitee's personal Convocatorias inbox.
+    .eq('invitee_user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   if (error) throw new Error(error.message);
   return ((data ?? []) as unknown as TeamInvitationWithTeamRow[]).map(normalizeInvitationSummary);
+}
+
+export async function listViewerTeamInvitationCards(): Promise<TeamInvitationCard[]> {
+  const invitations = await listViewerTeamInvitations();
+  const captainIds = Array.from(
+    new Set(invitations.map((invitation) => invitation.invited_by_user_id))
+  );
+  const supabase = await getSupabase();
+  const captainUsernameById = new Map<string, string>();
+
+  if (captainIds.length > 0) {
+    const { data, error } = await supabase
+      .from('profile')
+      .select('user, username')
+      .in('user', captainIds);
+    if (error) throw new Error(error.message);
+
+    ((data ?? []) as ProfilePublicRow[]).forEach((profile) => {
+      if (profile.user && profile.username) {
+        captainUsernameById.set(profile.user, profile.username);
+      }
+    });
+  }
+
+  return invitations.flatMap((invitation) => {
+    if (!invitation.team) return [];
+    return [
+      {
+        id: invitation.id,
+        status: invitation.status,
+        createdAt: invitation.created_at,
+        updatedAt: invitation.updated_at,
+        expiresAt: invitation.expires_at,
+        respondedAt: invitation.responded_at,
+        captainUsername:
+          captainUsernameById.get(invitation.invited_by_user_id) ?? null,
+        team: invitation.team,
+      },
+    ];
+  });
 }
 
 export async function getTeamInvitationByToken(
@@ -440,6 +659,7 @@ export async function getTeamInvitationByToken(
         invitee_email,
         invitee_username,
         delivery_method,
+        source,
         status,
         invitation_token,
         metadata,
@@ -448,12 +668,17 @@ export async function getTeamInvitationByToken(
         expires_at,
         responded_at,
         cancelled_at,
+        email_sent_at,
+        email_delivery_status,
+        provider_message_id,
         accepted_member_id,
         team:team_id (
           id,
           name,
           slug,
-          avatar_url
+          avatar_url,
+          is_active,
+          deleted_at
         )
       `
     )
@@ -461,7 +686,92 @@ export async function getTeamInvitationByToken(
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  return data
-    ? normalizeInvitationSummary(data as unknown as TeamInvitationWithTeamRow)
-    : null;
+  if (!data) return null;
+  const tokenRow = data as unknown as TeamInvitationTokenRow;
+  const tokenTeam = Array.isArray(tokenRow.team) ? tokenRow.team[0] : tokenRow.team;
+  if (!tokenTeam?.is_active || tokenTeam.deleted_at) return null;
+
+  return normalizeInvitationSummary({
+    ...tokenRow,
+    team: {
+      id: tokenTeam.id,
+      name: tokenTeam.name,
+      slug: tokenTeam.slug,
+      avatar_url: tokenTeam.avatar_url,
+    },
+  });
+}
+
+export async function respondToTeamInvitation(
+  invitationId: number,
+  response: 'accepted' | 'rejected'
+): Promise<TeamInvitationRow> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .rpc('respond_to_team_invitation', {
+      p_invitation_id: invitationId,
+      p_response: response,
+    })
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Team invitation response failed');
+  }
+
+  return data as TeamInvitationRow;
+}
+
+export async function cancelTeamInvitation(
+  invitationId: number
+): Promise<TeamInvitationRow> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .rpc('cancel_team_invitation', {
+      p_invitation_id: invitationId,
+    })
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Team invitation cancellation failed');
+  }
+
+  return data as TeamInvitationRow;
+}
+
+export async function getTeamInvitationLinkPreview(
+  token: string
+): Promise<TeamInvitationLinkPreview | null> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .rpc('get_team_invitation_link_preview', { p_token: token })
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const preview = data as {
+    team_id: number;
+    team_name: string;
+    team_slug: string;
+    team_avatar_url: string | null;
+  };
+  return {
+    teamId: Number(preview.team_id),
+    teamName: preview.team_name,
+    teamSlug: preview.team_slug,
+    teamAvatarUrl: preview.team_avatar_url ?? null,
+  };
+}
+
+export async function resolveTeamLinkInvitation(
+  token: string
+): Promise<TeamInvitationRow> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .rpc('resolve_team_link_invitation', { p_token: token })
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Team invitation link resolution failed');
+  }
+  return data as TeamInvitationRow;
 }

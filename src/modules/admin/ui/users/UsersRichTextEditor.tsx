@@ -14,6 +14,12 @@ type Props = {
   ariaLabelledBy?: string;
   resetKey?: string | number;
   onChange?: (content: SerializedContent) => void;
+  compact?: boolean;
+  helperText?: string;
+  collapsedToolbar?: boolean;
+  placeholder?: string;
+  showCharacterCount?: boolean;
+  required?: boolean;
 };
 
 type SerializedContent = {
@@ -222,6 +228,10 @@ function hasVisibleContent(content: SerializedContent) {
     /<br\s*\/?>/i.test(content.html) ||
     /<img\b/i.test(content.html)
   );
+}
+
+function hasUserEnteredContent(content: SerializedContent) {
+  return Boolean(content.text.replace(/\s+/g, '').trim()) || /<img\b/i.test(content.html);
 }
 
 function serializeInlineNodes(nodes: ChildNode[], options?: { insideLink?: boolean }): SerializedContent {
@@ -477,8 +487,8 @@ function ToolbarButton({
       type="button"
       onMouseDown={(event) => {
         event.preventDefault();
-        onClick();
       }}
+      onClick={onClick}
       className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
     >
       {label}
@@ -496,6 +506,12 @@ export default function UsersRichTextEditor({
   ariaLabelledBy,
   resetKey,
   onChange,
+  compact = false,
+  helperText,
+  collapsedToolbar = false,
+  placeholder,
+  showCharacterCount = false,
+  required = false,
 }: Props) {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const plainInputRef = useRef<HTMLInputElement | null>(null);
@@ -511,6 +527,8 @@ export default function UsersRichTextEditor({
   const [imageAlt, setImageAlt] = useState('');
   const [hasTouchedImageUrl, setHasTouchedImageUrl] = useState(false);
   const [hasAttemptedImageInsert, setHasAttemptedImageInsert] = useState(false);
+  const [isEditorEmpty, setIsEditorEmpty] = useState(() => !normalizeText(defaultValue).trim());
+  const [characterCount, setCharacterCount] = useState(() => normalizeText(defaultValue).length);
 
   const normalizedImageUrl = normalizeImageSrc(imageUrl);
   const normalizedImageAlt = normalizeAltText(imageAlt);
@@ -530,6 +548,8 @@ export default function UsersRichTextEditor({
     const serialized = serializeEditorContent(editorRef.current);
     plainInputRef.current.value = serialized.text;
     htmlInputRef.current.value = serialized.html;
+    setIsEditorEmpty(!hasUserEnteredContent(serialized));
+    setCharacterCount(serialized.text.length);
     onChange?.(serialized);
   };
 
@@ -581,6 +601,7 @@ export default function UsersRichTextEditor({
 
   const runCommand = (command: string) => {
     editorRef.current?.focus();
+    restoreEditorSelection();
     document.execCommand(command, false);
     syncHiddenFields();
   };
@@ -782,61 +803,115 @@ export default function UsersRichTextEditor({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <ToolbarButton label="Negrita" onClick={() => runCommand('bold')} />
-        <ToolbarButton label="Cursiva" onClick={() => runCommand('italic')} />
-        <ToolbarButton label="Subrayado" onClick={() => runCommand('underline')} />
-        <ToolbarButton label="Enlace" onClick={insertLink} />
-        <ToolbarButton label="Imagen" onClick={openImageModal} />
-        <ToolbarButton label="Lista" onClick={() => runCommand('insertUnorderedList')} />
-        <ToolbarButton label="Numerada" onClick={() => runCommand('insertOrderedList')} />
-        <ToolbarButton label="Sangría" onClick={() => runCommand('indent')} />
-        <ToolbarButton label="Quitar sangría" onClick={() => runCommand('outdent')} />
-        <ToolbarButton label="Limpiar formato" onClick={() => runCommand('removeFormat')} />
-      </div>
+      {collapsedToolbar ? (
+        <details className="mb-3">
+          <summary
+            onMouseDown={storeCurrentSelection}
+            className="inline-flex h-9 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Dar formato
+          </summary>
+          <div className="mt-2 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+            <ToolbarButton label="Negrita" onClick={() => runCommand('bold')} />
+            <ToolbarButton label="Cursiva" onClick={() => runCommand('italic')} />
+            <ToolbarButton label="Enlace" onClick={insertLink} />
+            <ToolbarButton label="Lista" onClick={() => runCommand('insertUnorderedList')} />
+            <ToolbarButton label="Numerada" onClick={() => runCommand('insertOrderedList')} />
+          </div>
+        </details>
+      ) : (
+        <div className="mb-3 flex flex-wrap gap-2">
+          <ToolbarButton label="Negrita" onClick={() => runCommand('bold')} />
+          <ToolbarButton label="Enlace" onClick={insertLink} />
+          <ToolbarButton label="Lista" onClick={() => runCommand('insertUnorderedList')} />
+          {compact ? (
+            <details className="group relative">
+              <summary className="inline-flex h-9 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+                Más formato
+              </summary>
+              <div className="absolute left-0 top-11 z-30 flex w-64 flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                <ToolbarButton label="Cursiva" onClick={() => runCommand('italic')} />
+                <ToolbarButton label="Subrayado" onClick={() => runCommand('underline')} />
+                <ToolbarButton label="Imagen" onClick={openImageModal} />
+                <ToolbarButton label="Numerada" onClick={() => runCommand('insertOrderedList')} />
+                <ToolbarButton label="Sangría" onClick={() => runCommand('indent')} />
+                <ToolbarButton label="Quitar sangría" onClick={() => runCommand('outdent')} />
+                <ToolbarButton label="Limpiar formato" onClick={() => runCommand('removeFormat')} />
+              </div>
+            </details>
+          ) : (
+            <>
+              <ToolbarButton label="Cursiva" onClick={() => runCommand('italic')} />
+              <ToolbarButton label="Subrayado" onClick={() => runCommand('underline')} />
+              <ToolbarButton label="Imagen" onClick={openImageModal} />
+              <ToolbarButton label="Numerada" onClick={() => runCommand('insertOrderedList')} />
+              <ToolbarButton label="Sangría" onClick={() => runCommand('indent')} />
+              <ToolbarButton label="Quitar sangría" onClick={() => runCommand('outdent')} />
+              <ToolbarButton label="Limpiar formato" onClick={() => runCommand('removeFormat')} />
+            </>
+          )}
+        </div>
+      )}
 
-      <div
-        id={id}
-        ref={editorRef}
-        role="textbox"
-        aria-multiline="true"
-        aria-label={ariaLabel}
-        aria-labelledby={ariaLabelledBy}
-        contentEditable
-        suppressContentEditableWarning
-        onInput={() => {
-          syncHiddenFields();
-          storeCurrentSelection();
-        }}
-        onMouseUp={storeCurrentSelection}
-        onBlur={syncHiddenFields}
-        onPaste={() => {
-          requestAnimationFrame(() => {
+      <div className="relative">
+        {placeholder && isEditorEmpty ? (
+          <span className="pointer-events-none absolute left-3 top-3 z-10 max-w-[calc(100%-1.5rem)] text-sm text-slate-400">
+            {placeholder}
+          </span>
+        ) : null}
+        <div
+          id={id}
+          ref={editorRef}
+          role="textbox"
+          aria-multiline="true"
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+          aria-placeholder={placeholder}
+          aria-required={required || undefined}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={() => {
             syncHiddenFields();
             storeCurrentSelection();
-          });
-        }}
-        onFocus={storeCurrentSelection}
-        onKeyUp={() => {
-          syncHiddenFields();
-          storeCurrentSelection();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Tab') {
-            event.preventDefault();
-            runCommand(event.shiftKey ? 'outdent' : 'indent');
-          }
-        }}
-        className="peloteras-form-control peloteras-form-control--textarea min-h-[360px]"
-      />
+          }}
+          onMouseUp={storeCurrentSelection}
+          onBlur={syncHiddenFields}
+          onPaste={() => {
+            requestAnimationFrame(() => {
+              syncHiddenFields();
+              storeCurrentSelection();
+            });
+          }}
+          onFocus={storeCurrentSelection}
+          onKeyUp={() => {
+            syncHiddenFields();
+            storeCurrentSelection();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Tab') {
+              event.preventDefault();
+              runCommand(event.shiftKey ? 'outdent' : 'indent');
+            }
+          }}
+          className={[
+            'peloteras-form-control peloteras-form-control--textarea',
+            compact ? 'min-h-[140px] sm:min-h-[160px]' : 'min-h-[360px]',
+          ].join(' ')}
+        />
+      </div>
 
       <input ref={plainInputRef} type="hidden" name={textName} />
       <input ref={htmlInputRef} type="hidden" name={htmlName} />
 
-      <p className="mt-2 text-xs text-slate-500">
-        Puedes pegar contenido con formato desde Docs o Word. Se respetan negritas, listas, enlaces, imágenes por
-        URL y sangrías básicas en el correo.
-      </p>
+      <div className="mt-2 flex items-start justify-between gap-3 text-xs text-slate-500">
+        <p>
+          {helperText ||
+            'Puedes pegar contenido con formato desde Docs o Word. Se respetan negritas, listas, enlaces, imágenes por URL y sangrías básicas en el correo.'}
+        </p>
+        {showCharacterCount ? (
+          <span className="shrink-0 tabular-nums">{characterCount} caracteres</span>
+        ) : null}
+      </div>
 
       {imageModal}
     </div>

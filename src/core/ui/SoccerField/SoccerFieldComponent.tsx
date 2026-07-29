@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
+import Link from 'next/link';
 
 type Position = {
   id: string;
@@ -9,13 +10,60 @@ type Position = {
   x: number; // 0–100
   y: number; // 0–100
   kind: 'field' | 'bench';
+  role?: FieldRole;
+  side?: 'top' | 'bottom';
 };
+
+type FieldRole = 'goalkeeper' | 'defense' | 'midfield' | 'forward';
+type FieldSide = 'top' | 'bottom';
 
 type ParticipantMarker = {
   id: string;
   name: string;
   initials?: string;
+  avatarUrl?: string;
+  profileHref?: string;
+  positions?: string[];
+  teamId?: string;
+  teamName?: string;
 };
+
+type AssignedParticipant = {
+  id: string;
+  name: string;
+  initials: string;
+  avatarUrl: string;
+  profileHref: string;
+  positions: string[];
+  roles: FieldRole[];
+  teamId: string;
+  teamName: string;
+  assignedSide: FieldSide | null;
+  isAdapted: boolean;
+};
+
+type PreparedParticipant = AssignedParticipant & {
+  sourceIndex: number;
+};
+
+function ParticipantFace({ participant }: { participant: AssignedParticipant }) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  if (participant.avatarUrl && !imageFailed) {
+    return (
+      <img
+        src={participant.avatarUrl}
+        alt={`Foto de ${participant.name}`}
+        className="h-full w-full object-cover"
+        onError={() => setImageFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <span className="text-[10px] font-semibold tracking-wide">{participant.initials}</span>
+  );
+}
 
 export type SoccerFieldDynamicProps = {
   minUsers: number;
@@ -49,8 +97,6 @@ export default function SoccerField({
   );
   const fieldSpots = nPerTeam * 2;
   const extras = Math.max(0, rosterTarget - fieldSpots);
-  const [placementSeed] = useState(() => Math.floor(Math.random() * 2147483647));
-
   const fieldPositionsPortrait = useMemo(() => {
     const teamTop = layoutTeam(nPerTeam, 'top');
     const teamBottom = layoutTeam(nPerTeam, 'bottom');
@@ -62,42 +108,268 @@ export default function SoccerField({
     [fieldPositionsPortrait]
   );
 
-  const benchPositions = useMemo<Position[]>(
-    () =>
-      Array.from({ length: extras }, (_, i) => ({
-        id: `bench-${i + 1}`,
-        label: 'Otra jugadora / equipo',
+  const { participantBySpotId, benchPositions } = useMemo(() => {
+    const map = new Map<string, AssignedParticipant>();
+    const createBenchPositions = (count: number): Position[] =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `bench-${index + 1}`,
+        label: 'Suplente / rotación',
         x: 0,
         y: 0,
         kind: 'bench',
-      })),
-    [extras]
-  );
+      }));
 
-  const participantBySpotId = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; initials: string }>();
-    const spots = [...fieldPositionsPortrait, ...benchPositions];
-    if (!spots.length || !participants.length) return map;
-
-    const shuffledSpotIds = seededShuffle(
-      spots.map((spot) => spot.id),
-      placementSeed
-    );
-    const shuffledParticipants = seededShuffle([...participants], placementSeed ^ 0x9e3779b9);
-    const assignments = Math.min(shuffledSpotIds.length, shuffledParticipants.length);
-
-    for (let i = 0; i < assignments; i++) {
-      const rawParticipant = shuffledParticipants[i];
-      const name = String(rawParticipant?.name || '').trim() || 'Participante';
-      map.set(shuffledSpotIds[i], {
-        id: String(rawParticipant?.id || `participant-${i + 1}`),
-        name,
-        initials: toInitials(rawParticipant?.initials || name),
-      });
+    if (!participants.length) {
+      return { participantBySpotId: map, benchPositions: createBenchPositions(extras) };
     }
 
-    return map;
-  }, [benchPositions, fieldPositionsPortrait, participants, placementSeed]);
+    const availableParticipants: PreparedParticipant[] = participants.map(
+      (rawParticipant, index) => {
+        const name = String(rawParticipant?.name || '').trim() || 'Participante';
+        const positions = Array.isArray(rawParticipant?.positions)
+          ? rawParticipant.positions
+              .map((position) => String(position || '').trim())
+              .filter(Boolean)
+          : [];
+        return {
+          id: String(rawParticipant?.id || `participant-${index + 1}`),
+          name,
+          initials: toInitials(rawParticipant?.initials || name),
+          avatarUrl: String(rawParticipant?.avatarUrl || '').trim(),
+          profileHref: String(rawParticipant?.profileHref || '').trim(),
+          positions,
+          roles: getParticipantRoles(positions),
+          teamId: String(rawParticipant?.teamId || '').trim(),
+          teamName: String(rawParticipant?.teamName || '').trim(),
+          assignedSide: null,
+          isAdapted: false,
+          sourceIndex: index,
+        };
+      }
+    );
+    const assignedParticipantIds = new Set<string>();
+    const assignedSpotIds = new Set<string>();
+    const assignedTeamCount = { top: 0, bottom: 0 };
+    const benchAssignments: PreparedParticipant[] = [];
+    const rolePriority: FieldRole[] = ['goalkeeper', 'forward', 'defense', 'midfield'];
+    const spotOrder = new Map(fieldPositionsPortrait.map((spot, index) => [spot.id, index]));
+    const sideOrder: FieldSide[] = ['top', 'bottom'];
+
+    const assignToSpot = (
+      spot: Position,
+      participant: PreparedParticipant,
+      isAdapted: boolean
+    ) => {
+      map.set(spot.id, {
+        ...participant,
+        assignedSide: spot.side ?? participant.assignedSide,
+        isAdapted,
+      });
+      assignedParticipantIds.add(participant.id);
+      assignedSpotIds.add(spot.id);
+      if (spot.side) assignedTeamCount[spot.side] += 1;
+    };
+
+    const queueForBench = (participant: PreparedParticipant, assignedSide: FieldSide | null) => {
+      benchAssignments.push({ ...participant, assignedSide });
+      assignedParticipantIds.add(participant.id);
+    };
+
+    const compareAvailableSpots = (a: Position, b: Position) => {
+      const sideDifference =
+        assignedTeamCount[a.side ?? 'top'] - assignedTeamCount[b.side ?? 'top'];
+      return sideDifference || (spotOrder.get(a.id) ?? 0) - (spotOrder.get(b.id) ?? 0);
+    };
+
+    const assignGroupToSide = (group: PreparedParticipant[], side: FieldSide) => {
+      rolePriority.forEach((role) => {
+        let availableSpots = fieldPositionsPortrait.filter(
+          (spot) => spot.side === side && spot.role === role && !assignedSpotIds.has(spot.id)
+        );
+        let candidate = group
+          .filter(
+            (participant) =>
+              !assignedParticipantIds.has(participant.id) && participant.roles.includes(role)
+          )
+          .sort(comparePositionCandidates)[0];
+
+        while (candidate && availableSpots.length > 0) {
+          const spot = [...availableSpots].sort(
+            (a, b) => (spotOrder.get(a.id) ?? 0) - (spotOrder.get(b.id) ?? 0)
+          )[0];
+          assignToSpot(spot, candidate, false);
+          availableSpots = availableSpots.filter(
+            (availableSpot) => availableSpot.id !== spot.id
+          );
+          candidate = group
+            .filter(
+              (participant) =>
+                !assignedParticipantIds.has(participant.id) && participant.roles.includes(role)
+            )
+            .sort(comparePositionCandidates)[0];
+        }
+      });
+
+      group
+        .filter((participant) => !assignedParticipantIds.has(participant.id))
+        .sort(comparePositionCandidates)
+        .forEach((participant) => {
+          const spot = fieldPositionsPortrait
+            .filter(
+              (fieldSpot) =>
+                fieldSpot.side === side && !assignedSpotIds.has(fieldSpot.id)
+            )
+            .sort((a, b) => {
+              const penaltyDifference =
+                getAdaptationPenalty(participant.roles, a.role) -
+                getAdaptationPenalty(participant.roles, b.role);
+              return (
+                penaltyDifference ||
+                (spotOrder.get(a.id) ?? 0) - (spotOrder.get(b.id) ?? 0)
+              );
+            })[0];
+          if (spot) assignToSpot(spot, participant, true);
+        });
+
+      group
+        .filter((participant) => !assignedParticipantIds.has(participant.id))
+        .sort(comparePositionCandidates)
+        .forEach((participant) => queueForBench(participant, side));
+    };
+
+    const teamGroupsById = new Map<string, PreparedParticipant[]>();
+    availableParticipants.forEach((participant) => {
+      if (!participant.teamId) return;
+      const current = teamGroupsById.get(participant.teamId) ?? [];
+      current.push(participant);
+      teamGroupsById.set(participant.teamId, current);
+    });
+
+    const teamGroups = Array.from(teamGroupsById.values()).sort((a, b) => {
+      if (a.length !== b.length) return b.length - a.length;
+      return (
+        (a[0]?.sourceIndex ?? 0) - (b[0]?.sourceIndex ?? 0) ||
+        String(a[0]?.teamId || '').localeCompare(String(b[0]?.teamId || ''))
+      );
+    });
+
+    teamGroups.forEach((group) => {
+      const remainingSlots = (side: FieldSide) =>
+        fieldPositionsPortrait.filter(
+          (spot) => spot.side === side && !assignedSpotIds.has(spot.id)
+        ).length;
+      const fittingSides = sideOrder.filter((side) => remainingSlots(side) >= group.length);
+      const candidateSides = fittingSides.length > 0 ? fittingSides : sideOrder;
+      const assignedSide = [...candidateSides].sort((a, b) => {
+        if (fittingSides.length === 0) {
+          const remainingDifference = remainingSlots(b) - remainingSlots(a);
+          if (remainingDifference) return remainingDifference;
+        }
+        return (
+          assignedTeamCount[a] - assignedTeamCount[b] ||
+          sideOrder.indexOf(a) - sideOrder.indexOf(b)
+        );
+      })[0];
+      assignGroupToSide(group, assignedSide);
+    });
+
+    const individualParticipants = availableParticipants.filter(
+      (participant) => !participant.teamId
+    );
+
+    rolePriority.forEach((role) => {
+      let availableSpots = fieldPositionsPortrait.filter(
+        (spot) => spot.role === role && !assignedSpotIds.has(spot.id)
+      );
+      let candidate = individualParticipants
+        .filter(
+          (participant) =>
+            !assignedParticipantIds.has(participant.id) && participant.roles.includes(role)
+        )
+        .sort(comparePositionCandidates)[0];
+
+      while (candidate && availableSpots.length > 0) {
+        const spot = [...availableSpots].sort(compareAvailableSpots)[0];
+        assignToSpot(spot, candidate, false);
+        availableSpots = availableSpots.filter((availableSpot) => availableSpot.id !== spot.id);
+        candidate = individualParticipants
+          .filter(
+            (participant) =>
+              !assignedParticipantIds.has(participant.id) && participant.roles.includes(role)
+          )
+          .sort(comparePositionCandidates)[0];
+      }
+    });
+
+    individualParticipants
+      .filter((participant) => !assignedParticipantIds.has(participant.id))
+      .sort(comparePositionCandidates)
+      .forEach((participant) => {
+        const spot = fieldPositionsPortrait
+          .filter((fieldSpot) => !assignedSpotIds.has(fieldSpot.id))
+          .sort((a, b) => {
+            const penaltyDifference =
+              getAdaptationPenalty(participant.roles, a.role) -
+              getAdaptationPenalty(participant.roles, b.role);
+            return penaltyDifference || compareAvailableSpots(a, b);
+          })[0];
+        if (spot) assignToSpot(spot, participant, true);
+      });
+
+    individualParticipants
+      .filter((participant) => !assignedParticipantIds.has(participant.id))
+      .sort(comparePositionCandidates)
+      .forEach((participant) => queueForBench(participant, null));
+
+    const effectiveBenchCount = Math.max(extras, benchAssignments.length);
+    const benchPositions = createBenchPositions(effectiveBenchCount);
+    benchPositions.forEach((spot, index) => {
+      const participant = benchAssignments[index];
+      if (participant) map.set(spot.id, participant);
+    });
+
+    return { participantBySpotId: map, benchPositions };
+  }, [extras, fieldPositionsPortrait, participants]);
+
+  const sideSummaries = useMemo(
+    () =>
+      (['top', 'bottom'] as FieldSide[]).map((side, index) => {
+        const fieldParticipantIds = new Set(
+          fieldPositionsPortrait
+            .filter((spot) => spot.side === side)
+            .map((spot) => participantBySpotId.get(spot.id)?.id)
+            .filter((id): id is string => Boolean(id))
+        );
+        const assignedParticipants = Array.from(participantBySpotId.values()).filter(
+          (participant) => participant.assignedSide === side
+        );
+        const teamNames = Array.from(
+          new Set(
+            assignedParticipants
+              .map((participant) => participant.teamName)
+              .filter((teamName) => teamName.length > 0)
+          )
+        );
+        const fieldCount = fieldParticipantIds.size;
+        const rotationCount = assignedParticipants.filter(
+          (participant) => !fieldParticipantIds.has(participant.id)
+        ).length;
+
+        return {
+          side,
+          label: `Equipo ${index === 0 ? 'A' : 'B'}`,
+          detail:
+            teamNames.length > 0
+              ? teamNames.join(' + ')
+              : fieldCount > 0
+                ? 'Jugadoras individuales'
+                : 'Por completar',
+          fieldCount,
+          rotationCount,
+        };
+      }),
+    [fieldPositionsPortrait, participantBySpotId]
+  );
 
   const portraitLayerRef = useRef<HTMLDivElement | null>(null);
   const landscapeLayerRef = useRef<HTMLDivElement | null>(null);
@@ -196,32 +468,68 @@ export default function SoccerField({
   const Spot = ({ p, isSelected }: { p: Position; isSelected: boolean }) => {
     const participant = participantBySpotId.get(p.id);
     const label = participant?.name || p.label;
+    const markerTitle = `${label} · ${p.label}${participant?.isAdapted ? ' (ubicación adaptada)' : ''}`;
+    const canActivate = interactive || Boolean(participant?.profileHref);
+    const className = [
+      'relative rounded-full select-none overflow-hidden',
+      'flex items-center justify-center focus:outline-none touch-manipulation',
+      participant
+        ? participant.isAdapted
+          ? 'bg-[#5b1c70] border-2 border-amber-400 text-white shadow-md'
+          : 'bg-[#5b1c70] border-2 border-[#8d4aa0] text-white shadow-md'
+        : 'bg-white/80 backdrop-blur-sm border-2 border-gray-400/60 shadow-sm',
+      canActivate
+        ? 'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60'
+        : '',
+      isSelected ? 'border-gray-700 ring-2 ring-gray-500/40' : '',
+      'w-12 h-12 md:w-12 md:h-12',
+      canActivate ? 'active:scale-[0.97] transition-transform' : 'cursor-default',
+    ].join(' ');
+    const content = participant ? <ParticipantFace participant={participant} /> : null;
+    const positionTag = (
+      <span className="pointer-events-none absolute left-1/2 top-[calc(100%-0.15rem)] z-20 -translate-x-1/2 rounded-full border border-slate-600 bg-slate-900 px-2 py-0.5 text-[9px] font-bold leading-none tracking-wide text-white shadow-sm">
+        {getShortRoleLabel(p.role)}
+      </span>
+    );
+
+    if (participant?.profileHref) {
+      return (
+        <div
+          className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+          style={{ left: `${p.x}%`, top: `${p.y}%` }}
+        >
+          <Link
+            href={participant.profileHref}
+            data-spot-id={p.id}
+            aria-label={`Ver perfil de ${label}. ${p.label}${participant.isAdapted ? ', ubicación adaptada' : ''}`}
+            title={markerTitle}
+            className={className}
+          >
+            {content}
+          </Link>
+          {positionTag}
+        </div>
+      );
+    }
 
     return (
-      <button
-        type="button"
-        data-spot-id={p.id}
-        aria-label={label}
-        title={label}
-        className={[
-          'absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full select-none',
-          'flex items-center justify-center focus:outline-none touch-manipulation',
-          participant
-            ? 'bg-[#5b1c70] border-2 border-[#8d4aa0] text-white shadow-md'
-            : 'bg-white/80 backdrop-blur-sm border-2 border-gray-400/60 shadow-sm',
-          interactive
-            ? 'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60'
-            : '',
-          isSelected ? 'border-gray-700 ring-2 ring-gray-500/40' : '',
-          'w-12 h-12 md:w-12 md:h-12',
-          interactive ? 'active:scale-[0.97] transition-transform' : 'cursor-default',
-        ].join(' ')}
+      <div
+        className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
         style={{ left: `${p.x}%`, top: `${p.y}%` }}
-        onClick={(e) => selectByClick(p, e.currentTarget as HTMLElement)}
-        disabled={!interactive}
       >
-        {participant ? <span className="text-[10px] font-semibold tracking-wide">{participant.initials}</span> : null}
-      </button>
+        <button
+          type="button"
+          data-spot-id={p.id}
+          aria-label={markerTitle}
+          title={markerTitle}
+          className={className}
+          onClick={(e) => selectByClick(p, e.currentTarget as HTMLElement)}
+          disabled={!interactive}
+        >
+          {content}
+        </button>
+        {positionTag}
+      </div>
     );
   };
 
@@ -229,6 +537,32 @@ export default function SoccerField({
 
   return (
     <div className="w-full">
+      <div className="mb-2 grid w-full max-w-[960px] grid-cols-2 gap-2">
+        {sideSummaries.map((summary) => (
+          <div
+            key={summary.side}
+            className="min-w-0 rounded-xl border border-purple-200 bg-purple-50/60 px-3 py-2"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-wide text-[#5b1c70]">
+                {summary.label}
+              </span>
+              <span className="shrink-0 text-[10px] font-medium text-slate-500">
+                {summary.fieldCount} en cancha
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-xs font-semibold text-slate-700" title={summary.detail}>
+              {summary.detail}
+            </p>
+            {summary.rotationCount > 0 ? (
+              <p className="mt-0.5 text-[10px] text-slate-500">
+                {summary.rotationCount} en rotación
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
       <div
         className={[
           'relative w-full max-w-[960px]',
@@ -303,42 +637,69 @@ export default function SoccerField({
         <div className="w-full max-w-[960px] mx-auto mt-2 px-2">
           <div
             ref={benchWrapperRef}
-            className="rounded-xl border border-purple-200 bg-white/80 backdrop-blur-sm p-2"
+            className="relative rounded-xl border border-purple-200 bg-white/80 p-2 backdrop-blur-sm"
           >
             <div className="mb-2 w-max mx-auto text-xs px-2 py-1 rounded bg-white/90 border border-purple-200 text-[#5b1c70]">
-              Otras jugadoras / equipos: {benchPositions.length}
+              Cupos de rotación / suplentes: {benchPositions.length}
             </div>
             <div className="flex flex-wrap justify-center gap-2">
-              {benchPositions.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  data-spot-id={p.id}
-                  aria-label={participantBySpotId.get(p.id)?.name || p.label}
-                  title={participantBySpotId.get(p.id)?.name || p.label}
-                  className={[
-                    participantBySpotId.get(p.id)
-                      ? 'rounded-full border-2 border-[#8d4aa0] bg-[#5b1c70] text-white shadow-md'
-                      : 'rounded-full bg-gray-100 border-2 border-gray-400/70 shadow-sm',
-                    'focus:outline-none touch-manipulation',
-                    interactive
-                      ? 'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60'
-                      : '',
-                    selected?.id === p.id ? 'border-gray-700 ring-2 ring-gray-500/40' : '',
-                    interactive
-                      ? 'w-12 h-12 active:scale-[0.97] transition-transform flex items-center justify-center'
-                      : 'w-12 h-12 cursor-default flex items-center justify-center',
-                  ].join(' ')}
-                  onClick={(e) => selectByClick(p, e.currentTarget as HTMLElement)}
-                  disabled={!interactive}
-                >
-                  {participantBySpotId.get(p.id) ? (
-                    <span className="text-[10px] font-semibold tracking-wide">
-                      {participantBySpotId.get(p.id)?.initials}
-                    </span>
-                  ) : null}
-                </button>
-              ))}
+              {benchPositions.map((p) => {
+                const participant = participantBySpotId.get(p.id);
+                const label = participant?.name || p.label;
+                const teamLabel =
+                  participant?.teamName && participant.assignedSide
+                    ? `${getSideLabel(participant.assignedSide)} · ${participant.teamName}`
+                    : '';
+                const canActivate = interactive || Boolean(participant?.profileHref);
+                const className = [
+                  participant
+                    ? 'rounded-full border-2 border-[#8d4aa0] bg-[#5b1c70] text-white shadow-md overflow-hidden'
+                    : 'rounded-full bg-gray-100 border-2 border-gray-400/70 shadow-sm',
+                  'focus:outline-none touch-manipulation w-12 h-12 flex items-center justify-center',
+                  canActivate
+                    ? 'hover:ring-2 hover:ring-gray-400/40 focus-visible:ring-2 focus-visible:ring-gray-500/60 active:scale-[0.97] transition-transform'
+                    : 'cursor-default',
+                  selected?.id === p.id ? 'border-gray-700 ring-2 ring-gray-500/40' : '',
+                ].join(' ');
+                const content = participant ? <ParticipantFace participant={participant} /> : null;
+                const control = participant?.profileHref ? (
+                  <Link
+                    href={participant.profileHref}
+                    data-spot-id={p.id}
+                    aria-label={`Ver perfil de ${label}${teamLabel ? `. ${teamLabel}` : ''}`}
+                    title={`${label}${teamLabel ? ` · ${teamLabel}` : ''}`}
+                    className={className}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    data-spot-id={p.id}
+                    aria-label={`${label}${teamLabel ? `. ${teamLabel}` : ''}`}
+                    title={`${label}${teamLabel ? ` · ${teamLabel}` : ''}`}
+                    className={className}
+                    onClick={(e) => selectByClick(p, e.currentTarget as HTMLElement)}
+                    disabled={!interactive}
+                  >
+                    {content}
+                  </button>
+                );
+
+                return (
+                  <div key={p.id} className="flex max-w-28 flex-col items-center gap-1">
+                    {control}
+                    {teamLabel ? (
+                      <span
+                        className="max-w-28 truncate text-center text-[10px] font-semibold text-[#5b1c70]"
+                        title={teamLabel}
+                      >
+                        {teamLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
 
             <div
@@ -370,17 +731,26 @@ function layoutTeam(n: number, side: 'top' | 'bottom'): Position[] {
   const result: Position[] = [];
   if (n <= 0) return result;
 
-  const yGK = side === 'top' ? 10 : 90;
-  const rowsYTop = [18, 30, 42];
-  const rowsYBot = [82, 70, 58];
+  const yGK = side === 'top' ? 8 : 92;
+  const rowsYTop = [22, 34, 44];
+  const rowsYBot = [78, 66, 56];
   const rowsY = side === 'top' ? rowsYTop : rowsYBot;
 
-  result.push({ id: `${side}-gk`, label: 'Arquera', x: 50, y: yGK, kind: 'field' });
+  result.push({
+    id: `${side}-gk`,
+    label: 'Arquera',
+    x: 50,
+    y: yGK,
+    kind: 'field',
+    role: 'goalkeeper',
+    side,
+  });
   if (n === 1) return result;
 
   const remaining = n - 1;
   const rowsCount = Math.min(3, remaining);
   const perRow = splitEvenly(remaining, rowsCount);
+  const rowRoles = getRowRoles(rowsCount);
   const xRange = { min: 20, max: 80 };
 
   let acc = 0;
@@ -392,10 +762,12 @@ function layoutTeam(n: number, side: 'top' | 'bottom'): Position[] {
       const idx = acc + j + 1;
       result.push({
         id: `${side}-p${idx}`,
-        label: side === 'top' ? 'Jugadora A' : 'Jugadora B',
+        label: getRoleLabel(rowRoles[i]),
         x: xs[j],
         y,
         kind: 'field',
+        role: rowRoles[i],
+        side,
       });
     }
     acc += count;
@@ -429,27 +801,80 @@ function toInitials(value: unknown) {
   return text.slice(0, 2);
 }
 
-function seededShuffle<T>(items: T[], seed: number): T[] {
-  const result = [...items];
-  if (result.length <= 1) return result;
-  const random = mulberry32(seed || 1);
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(random() * (i + 1));
-    const tmp = result[i];
-    result[i] = result[j];
-    result[j] = tmp;
-  }
-  return result;
+function normalizePositionName(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
-function mulberry32(initialSeed: number) {
-  let t = initialSeed >>> 0;
-  return () => {
-    t += 0x6d2b79f5;
-    let n = Math.imul(t ^ (t >>> 15), t | 1);
-    n ^= n + Math.imul(n ^ (n >>> 7), n | 61);
-    return ((n ^ (n >>> 14)) >>> 0) / 4294967296;
-  };
+function getParticipantRoles(positions: string[]): FieldRole[] {
+  const roles = new Set<FieldRole>();
+  positions.forEach((position) => {
+    const normalized = normalizePositionName(position);
+    if (/port|arquer|keeper/.test(normalized)) roles.add('goalkeeper');
+    if (/defen|lateral|central|back/.test(normalized)) roles.add('defense');
+    if (/medio|mid|volant|pivot|pivote|enganche|contencion|interior/.test(normalized)) {
+      roles.add('midfield');
+    }
+    if (/delant|atac|wing|extrem|punta|striker|forward/.test(normalized)) roles.add('forward');
+  });
+  return Array.from(roles);
+}
+
+function comparePositionCandidates(a: PreparedParticipant, b: PreparedParticipant) {
+  if (a.roles.length !== b.roles.length) return a.roles.length - b.roles.length;
+  return a.sourceIndex - b.sourceIndex || a.id.localeCompare(b.id);
+}
+
+function getAdaptationPenalty(roles: FieldRole[], targetRole?: FieldRole) {
+  if (!targetRole || roles.length === 0) return 2;
+  if (roles.includes(targetRole)) return 0;
+  if (targetRole === 'goalkeeper' || roles.includes('goalkeeper')) return 4;
+  const fieldOrder: FieldRole[] = ['defense', 'midfield', 'forward'];
+  const targetIndex = fieldOrder.indexOf(targetRole);
+  return Math.min(...roles.map((role) => Math.abs(fieldOrder.indexOf(role) - targetIndex) + 1));
+}
+
+function getRowRoles(rowsCount: number): FieldRole[] {
+  if (rowsCount <= 1) return ['forward'];
+  if (rowsCount === 2) return ['defense', 'forward'];
+  return ['defense', 'midfield', 'forward'];
+}
+
+function getRoleLabel(role?: FieldRole) {
+  switch (role) {
+    case 'goalkeeper':
+      return 'Arquera';
+    case 'defense':
+      return 'Defensa';
+    case 'midfield':
+      return 'Mediocampo';
+    case 'forward':
+      return 'Delantera';
+    default:
+      return 'Posición';
+  }
+}
+
+function getShortRoleLabel(role?: FieldRole) {
+  switch (role) {
+    case 'goalkeeper':
+      return 'ARQ';
+    case 'defense':
+      return 'DEF';
+    case 'midfield':
+      return 'MED';
+    case 'forward':
+      return 'DEL';
+    default:
+      return 'POS';
+  }
+}
+
+function getSideLabel(side: FieldSide) {
+  return side === 'top' ? 'Equipo A' : 'Equipo B';
 }
 
 function SpinningBall({ color = '#5b1c70' }: { color?: string }) {

@@ -1,7 +1,7 @@
 'use server';
 
 import { ProfileRequestBody, UserProfileUpdate } from '@modules/users/model/types';
-import { backendFetch, isAbortError } from '@core/api/backend';
+import { backendFetch, backendUrl, isAbortError } from '@core/api/backend';
 import { log } from '../../../core/lib/logger';
 
 type BackendErrorWithStatus = Error & {
@@ -56,7 +56,7 @@ function toBackendError(
 
 export async function createProfile(requestBody: ProfileRequestBody) {
   try {
-    const response = await backendFetch(`${process.env.BACKEND_URL}/profile`, {
+    const response = await backendFetch(backendUrl('/profile'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -82,9 +82,8 @@ export async function createProfile(requestBody: ProfileRequestBody) {
 }
 
 export async function getProfile(userId: string) {
-  const url = `${process.env.BACKEND_URL}/profile/${userId}`;
-
   try {
+    const url = backendUrl(`/profile/${userId}`);
     const response = await backendFetch(url, { method: 'GET' }, 5000);
 
     log.apiCall('GET', `/profile/${userId}`, response.status);
@@ -112,8 +111,8 @@ export async function getProfile(userId: string) {
 }
 
 export async function updateProfileByUserId(userId: string, requestBody: UserProfileUpdate) {
-  const url = `${process.env.BACKEND_URL}/profile/${userId}`;
   try {
+    const url = backendUrl(`/profile/${userId}`);
     const response = await backendFetch(url, {
       method: 'PATCH',
       headers: {

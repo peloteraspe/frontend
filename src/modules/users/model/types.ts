@@ -28,3 +28,20 @@ export interface UserProfileData {
   is_profile_complete?: boolean | null;
   player_position?: UserProfilePosition[];
 }
+
+export type PublicPlayerTeam = {
+  id: number;
+  name: string;
+  slug: string;
+  avatar_url: string | null;
+  role: 'captain' | 'player';
+};
+
+export type PublicPlayerProfile = {
+  username: string;
+  avatar_url: string | null;
+  level: string | null;
+  positions: UserProfilePosition[];
+  member_since: string;
+  teams: PublicPlayerTeam[];
+};

@@ -48,9 +48,27 @@ export default function CouponReimbursementRequestButton({ redemptionId }: Props
       type="button"
       onClick={handleRequest}
       disabled={isSubmitting}
-      className="inline-flex min-w-[148px] items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex min-h-10 min-w-[136px] items-center justify-center gap-2 rounded-xl bg-mulberry px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#470760] focus:outline-none focus:ring-2 focus:ring-mulberry/25 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+      aria-label="Solicitar a Peloteras el abono cubierto por el cupón"
     >
-      {isSubmitting ? 'Solicitando...' : 'Solicitar a Peloteras'}
+      {isSubmitting ? (
+        <>
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            className="h-4 w-4 animate-spin"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path className="opacity-25" d="M12 2a10 10 0 1 0 10 10" />
+            <path className="opacity-90" d="M22 12a10 10 0 0 0-10-10" strokeLinecap="round" />
+          </svg>
+          Solicitando...
+        </>
+      ) : (
+        'Solicitar abono'
+      )}
     </button>
   );
 }

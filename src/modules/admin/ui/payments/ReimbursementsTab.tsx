@@ -137,7 +137,7 @@ export default function ReimbursementsTab({ eventId }: { eventId: string }) {
               : filter === 'confirmed'
                 ? 'confirmados'
                 : ''}{' '}
-          para este evento.
+          {eventId ? 'para este evento.' : 'con el filtro actual.'}
         </p>
       ) : (
         <div className="overflow-x-auto">

@@ -100,6 +100,8 @@ export default function SignupClient() {
     formState: { errors },
   } = useForm<SignupStep1Values>({
     defaultValues: { username: '', password: '' },
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   });
 
   const username = watch('username');
@@ -440,7 +442,6 @@ export default function SignupClient() {
     try {
       const usernameValidation = validateUsername(username);
       if (usernameValidation.ok === false) {
-        setStep(1);
         setError('username', {
           type: 'manual',
           message: usernameValidation.message,
@@ -484,7 +485,6 @@ export default function SignupClient() {
               usernameCheck.message ||
               'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.',
           });
-          setStep(1);
           toast.error(
             usernameCheck.message ||
               'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.'
@@ -514,7 +514,6 @@ export default function SignupClient() {
             type: 'manual',
             message: 'El nombre de usuario ya está en uso, elige otro.',
           });
-          setStep(1);
           toast.error('Ese nombre de usuario ya está en uso, elige otro.');
           return;
         }
@@ -524,7 +523,6 @@ export default function SignupClient() {
             type: 'manual',
             message: onboardingResult.message,
           });
-          setStep(1);
           toast.error(onboardingResult.message);
           return;
         }
@@ -593,7 +591,6 @@ export default function SignupClient() {
           type: 'manual',
           message: 'El nombre de usuario ya está en uso, elige otro.',
         });
-        setStep(1);
         toast.error('Ese nombre de usuario ya está en uso, elige otro.');
       } else {
         toast.error('No se pudo crear el perfil.');
@@ -877,13 +874,11 @@ export default function SignupClient() {
                   message: `Máximo ${USERNAME_MAX_LENGTH} caracteres`,
                 },
                 validate: validateUsernameForForm,
-                onChange: () => {
-                  clearErrors('username');
-                },
               })}
               autoComplete="nickname"
               maxLength={USERNAME_MAX_LENGTH}
               className="h-11"
+              aria-invalid={Boolean(errors.username)}
               errorText={errors.username?.message as string | undefined}
             />
             <p className="text-xs text-slate-500 -mt-2">Máximo 15 caracteres, sin espacios.</p>
@@ -949,33 +944,31 @@ export default function SignupClient() {
               />
             </label>
 
-            {!isIdentityConfirmed && (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <label className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="gender_identity_confirmation_step_2"
-                    checked={isIdentityConfirmed}
-                    onChange={() => {
-                      setIsIdentityConfirmed(true);
-                      if (identityError) setIdentityError(undefined);
-                    }}
-                    className="mt-1 h-4 w-4 border-slate-300 text-mulberry focus:ring-mulberry"
-                  />
-                  <span className="text-sm leading-6 text-slate-700">
-                    Confirmo que me identifico como mujer o persona de la diversidad de género.{' '}
-                    <button
-                      type="button"
-                      onClick={() => setIsIdentityModalOpen(true)}
-                      className="font-semibold text-mulberry hover:text-mulberry/80"
-                    >
-                      Más información
-                    </button>
-                  </span>
-                </label>
-                {identityError && <p className="mt-2 text-sm text-red-500">{identityError}</p>}
-              </div>
-            )}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <label className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="gender_identity_confirmation_step_2"
+                  checked={isIdentityConfirmed}
+                  onChange={() => {
+                    setIsIdentityConfirmed(true);
+                    if (identityError) setIdentityError(undefined);
+                  }}
+                  className="mt-1 h-4 w-4 border-slate-300 text-mulberry focus:ring-mulberry"
+                />
+                <span className="text-sm leading-6 text-slate-700">
+                  Confirmo que me identifico como mujer o persona de la diversidad de género.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIsIdentityModalOpen(true)}
+                    className="font-semibold text-mulberry hover:text-mulberry/80"
+                  >
+                    Más información
+                  </button>
+                </span>
+              </label>
+              {identityError && <p className="mt-2 text-sm text-red-500">{identityError}</p>}
+            </div>
 
             <button
               type="submit"
@@ -1033,14 +1026,14 @@ export default function SignupClient() {
                 className="text-sm text-center text-slate-400 font-semibold cursor-not-allowed"
                 aria-disabled="true"
               >
-                Volver a iniciar sesion
+                Volver a iniciar sesión
               </span>
             ) : (
               <Link
                 href={appendNextPath('/login', requestedNextPath)}
                 className="text-sm text-center text-mulberry font-semibold hover:text-mulberry/80"
               >
-                Volver a iniciar sesion
+                Volver a iniciar sesión
               </Link>
             )}
           </div>

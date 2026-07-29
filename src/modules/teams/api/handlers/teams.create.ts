@@ -23,6 +23,7 @@ type CreateTeamPayload = {
   instagramUsername: string | null;
   tiktokUsername: string | null;
   idempotencyKey: string | null;
+  maxMembers: number;
 };
 
 type TeamAvatarUploadResult =
@@ -108,6 +109,11 @@ function normalizeIdempotencyKey(value: unknown) {
   return IDEMPOTENCY_KEY_PATTERN.test(trimmed) ? trimmed : null;
 }
 
+function normalizeMaxMembers(value: unknown) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 100 ? parsed : null;
+}
+
 function isAlreadyExistsError(error: unknown) {
   const maybeError = error as { message?: unknown; statusCode?: unknown };
   const message = typeof maybeError.message === 'string' ? maybeError.message.toLowerCase() : '';
@@ -162,6 +168,14 @@ async function parseCreateTeamPayload(req: Request): Promise<CreateTeamPayload |
   if (contentType.includes('multipart/form-data')) {
     const formData = await req.formData();
     const avatarValue = formData.get('avatar');
+    const maxMembers = normalizeMaxMembers(getStringFormValue(formData, 'maxMembers'));
+
+    if (!maxMembers) {
+      return NextResponse.json(
+        { error: 'El límite del equipo debe estar entre 1 y 100 integrantes.' },
+        { status: 400 }
+      );
+    }
 
     return {
       name: getStringFormValue(formData, 'name')?.trim() || '',
@@ -169,6 +183,7 @@ async function parseCreateTeamPayload(req: Request): Promise<CreateTeamPayload |
       instagramUsername: toOptionalHandle(getStringFormValue(formData, 'instagramUsername')),
       tiktokUsername: toOptionalHandle(getStringFormValue(formData, 'tiktokUsername')),
       idempotencyKey: normalizeIdempotencyKey(getStringFormValue(formData, 'idempotencyKey')),
+      maxMembers,
     };
   }
 
@@ -186,16 +201,25 @@ async function parseCreateTeamPayload(req: Request): Promise<CreateTeamPayload |
     );
   }
 
+  const maxMembers = normalizeMaxMembers(raw.maxMembers);
+  if (!maxMembers) {
+    return NextResponse.json(
+      { error: 'El límite del equipo debe estar entre 1 y 100 integrantes.' },
+      { status: 400 }
+    );
+  }
+
   return {
     name: typeof raw.name === 'string' ? raw.name.trim() : '',
     avatarFile: null,
     instagramUsername: toOptionalHandle(raw.instagramUsername),
     tiktokUsername: toOptionalHandle(raw.tiktokUsername),
     idempotencyKey: normalizeIdempotencyKey(raw.idempotencyKey),
+    maxMembers,
   };
 }
 
-async function uploadTeamAvatar(file: File, ownerId: string): Promise<TeamAvatarUploadResult> {
+export async function uploadTeamAvatar(file: File, ownerId: string): Promise<TeamAvatarUploadResult> {
   const validationError = validateAvatarFile(file);
   if (validationError) {
     return { error: validationError, publicUrl: null, path: null };
@@ -233,7 +257,7 @@ async function uploadTeamAvatar(file: File, ownerId: string): Promise<TeamAvatar
   return { error: null, publicUrl, path };
 }
 
-async function removeUploadedTeamAvatar(path: string | null) {
+export async function removeUploadedTeamAvatar(path: string | null) {
   if (!path) return;
 
   const { error } = await getAdminSupabase().storage.from(TEAM_AVATARS_BUCKET).remove([path]);
@@ -272,14 +296,32 @@ export async function POST(req: Request) {
         payload.instagramUsername,
         payload.tiktokUsername,
         ownerId,
-        payload.idempotencyKey
+        payload.idempotencyKey,
+        payload.maxMembers
       );
 
       if (avatarPath && avatarUrl && team.avatar_url !== avatarUrl) {
         await removeUploadedTeamAvatar(avatarPath);
       }
 
-      return jsonNoStore({ ok: true, team }, 201);
+      return jsonNoStore(
+        {
+          ok: true,
+          team: {
+            id: team.id,
+            created_at: team.created_at,
+            updated_at: team.updated_at,
+            name: team.name,
+            slug: team.slug,
+            avatar_url: team.avatar_url,
+            instagram_username: team.instagram_username,
+            tiktok_username: team.tiktok_username,
+            is_active: team.is_active,
+            max_members: team.max_members,
+          },
+        },
+        201
+      );
     } catch (error) {
       await removeUploadedTeamAvatar(avatarPath);
       throw error;

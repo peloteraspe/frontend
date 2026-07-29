@@ -3,13 +3,18 @@ import { NextResponse } from 'next/server';
 import { HTTP_401, jsonNoStore } from '@core/api/responses';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { getCurrentUserId } from '@core/auth/supabase-user';
-import type { TeamMembershipSummary, TeamMemberRole, TeamMemberStatus, TeamRow } from '@modules/teams/model/types';
+import type {
+  TeamMembershipSummary,
+  TeamMemberRole,
+  TeamMemberStatus,
+  TeamSummaryRow,
+} from '@modules/teams/model/types';
 
 type TeamMemberWithTeam = {
   role: TeamMemberRole;
   status: TeamMemberStatus;
   joined_at: string | null;
-  team: TeamRow | TeamRow[] | null;
+  team: TeamSummaryRow | TeamSummaryRow[] | null;
 };
 
 function isMissingTeamMemberTableError(error: unknown) {
@@ -43,7 +48,8 @@ export async function GET() {
     if (!userId) return HTTP_401;
 
     const supabase = getAdminSupabase();
-    const { data, error } = await supabase
+    const [{ data, error }, { data: profileRows, error: profileError }] = await Promise.all([
+      supabase
       .from('team_member')
       .select(
         `
@@ -59,16 +65,19 @@ export async function GET() {
             avatar_url,
             instagram_username,
             tiktok_username,
-            created_by_user_id,
-            invitation_token,
             is_active,
-            deleted_at
+            deleted_at,
+            max_members
           )
         `
       )
       .eq('user_id', userId)
       .eq('status', 'active')
-      .order('joined_at', { ascending: false });
+      .eq('team.is_active', true)
+      .is('team.deleted_at', null)
+      .order('joined_at', { ascending: false }),
+      supabase.from('profile').select('featured_team_id').eq('user', userId).limit(1),
+    ]);
 
     if (error) {
       if (isMissingTeamMemberTableError(error)) {
@@ -80,9 +89,17 @@ export async function GET() {
       return NextResponse.json({ error: 'No se pudieron cargar tus equipos.' }, { status: 500 });
     }
 
+    if (profileError) {
+      console.error('GET /api/teams featured team failed:', profileError);
+    }
+    const featuredTeamId = Number(profileRows?.[0]?.featured_team_id);
     const memberships = ((data ?? []) as TeamMemberWithTeam[])
       .map(normalizeMembership)
-      .filter(Boolean) as TeamMembershipSummary[];
+      .filter(Boolean)
+      .map((membership) => ({
+        ...membership!,
+        isFeatured: membership!.team.id === featuredTeamId,
+      })) as TeamMembershipSummary[];
 
     return jsonNoStore({ teams: memberships });
   } catch (err) {

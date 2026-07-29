@@ -29,7 +29,7 @@ SELECT set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000201
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
 CREATE TEMP TABLE rpc_first_team AS
-SELECT *
+SELECT id, slug
 FROM public.create_team_with_captain(
   'Fútbol & Amigas',
   NULL,
@@ -73,7 +73,7 @@ SELECT extensions.is(
 );
 
 CREATE TEMP TABLE rpc_retry_team AS
-SELECT *
+SELECT id, slug
 FROM public.create_team_with_captain(
   'Fútbol & Amigas',
   NULL,
@@ -88,9 +88,13 @@ SELECT extensions.is(
   'same idempotency key returns the same team'
 );
 
+-- created_by_user_id is intentionally not exposed to authenticated clients.
+-- Inspect it as the test owner, then restore the client role for the RPC checks.
+RESET ROLE;
+
 SELECT extensions.is(
   (
-    SELECT count(*)::INT
+    SELECT count(id)::INT
     FROM public.team
     WHERE created_by_user_id = '10000000-0000-0000-0000-000000000201'
       AND name = 'Fútbol & Amigas'
@@ -99,8 +103,10 @@ SELECT extensions.is(
   'idempotent retry does not create a duplicate team'
 );
 
+SET LOCAL ROLE authenticated;
+
 CREATE TEMP TABLE rpc_collision_team AS
-SELECT *
+SELECT id, slug
 FROM public.create_team_with_captain(
   'Fútbol & Amigas',
   NULL,
@@ -116,7 +122,7 @@ SELECT extensions.is(
 );
 
 CREATE TEMP TABLE rpc_reserved_team AS
-SELECT *
+SELECT id, slug
 FROM public.create_team_with_captain(
   'Profile',
   NULL,
@@ -133,7 +139,7 @@ SELECT extensions.is(
 
 SELECT extensions.throws_ok(
   $$
-    SELECT *
+    SELECT id
     FROM public.create_team_with_captain('Las', NULL, NULL, NULL, 'bad key')
   $$,
   '23514',
@@ -143,7 +149,7 @@ SELECT extensions.throws_ok(
 
 SELECT extensions.throws_ok(
   $$
-    SELECT *
+    SELECT id
     FROM public.create_team_with_captain('A', NULL, NULL, NULL, 'rpc-test-key-004')
   $$,
   '23514',
@@ -156,7 +162,7 @@ SELECT set_config('request.jwt.claim.role', '', true);
 
 SELECT extensions.throws_ok(
   $$
-    SELECT *
+    SELECT id
     FROM public.create_team_with_captain('No Session', NULL, NULL, NULL, 'rpc-test-key-005')
   $$,
   '28000',

@@ -1,33 +1,20 @@
-import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { getPublicTeamProfileBySlug } from '@modules/teams/api/services/teams.service';
-import TeamPublicProfilePage from '@modules/teams/ui/TeamPublicProfilePage';
+import { buildPublicTeamPath } from '@shared/lib/publicProfilePaths';
 
 type Props = {
   params: Promise<{ teamSlug: string }>;
 };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { teamSlug } = await params;
-  const profile = await getPublicTeamProfileBySlug(teamSlug).catch(() => null);
+export const metadata = {
+  robots: { index: false, follow: true },
+};
 
-  if (!profile) {
-    return {
-      title: 'Equipo no encontrado | Peloteras',
-    };
-  }
-
-  return {
-    title: `${profile.team.name} | Peloteras`,
-    description: `Perfil publico de ${profile.team.name} en Peloteras.`,
-  };
-}
-
-export default async function Page({ params }: Props) {
+export default async function LegacyTeamProfileRoute({ params }: Props) {
   const { teamSlug } = await params;
   const profile = await getPublicTeamProfileBySlug(teamSlug);
 
   if (!profile) notFound();
 
-  return <TeamPublicProfilePage profile={profile} />;
+  permanentRedirect(buildPublicTeamPath(profile.team.slug));
 }

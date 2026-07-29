@@ -248,6 +248,7 @@
   .site-shell {
     padding-inline: var(--page-padding-inline-tablet);
   }
+
 }
 
 @media (min-width: 1024px) {
@@ -281,6 +282,32 @@
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
     filter: blur(0);
+  }
+
+  .home-marker-sweep {
+    position: relative;
+    z-index: 0;
+    display: inline-block;
+    color: white;
+    white-space: nowrap;
+    isolation: isolate;
+  }
+
+  .home-marker-sweep::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: -0.14em -0.24em -0.16em;
+    background: rgb(var(--color-mulberry));
+    transform: scaleX(0);
+    transform-origin: left center;
+    animation: home-marker-sweep 820ms cubic-bezier(0.22, 1, 0.36, 1) 320ms forwards;
+  }
+
+  @keyframes home-marker-sweep {
+    to {
+      transform: scaleX(1);
+    }
   }
 
   .home-button-micro {
@@ -358,6 +385,11 @@
     filter: none !important;
     transition-duration: 1ms !important;
     animation: none !important;
+  }
+
+  .home-marker-sweep::after {
+    transform: scaleX(1);
+    animation: none;
   }
 }
 

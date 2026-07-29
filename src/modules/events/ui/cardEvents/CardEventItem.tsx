@@ -1,13 +1,10 @@
 'use client';
 
-import ArrowRight from '@core/assets/images/arrow-right.png';
 import Badge, { StatusBadge } from '@src/core/ui/Badge';
-import Image from 'next/image';
 import CardEvent from '../CardEvent';
 import { ButtonWrapper } from '@src/core/ui/Button';
 import AuthRedirectLoader from '@modules/auth/ui/AuthRedirectLoader';
 import { useSessionGuardNavigation } from '@modules/auth/ui/useSessionGuardNavigation';
-import { useRouter } from 'next/navigation';
 
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import { isEventSoldOut } from '@modules/events/lib/eventCapacity';
@@ -79,7 +76,6 @@ function getBadges(event: CardEventData) {
 }
 
 const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) => {
-  const router = useRouter();
   const { navigateWithSessionCheck, isPendingNavigation, pendingNavigationMessage } =
     useSessionGuardNavigation();
   const itemContainerClass = variant === 'landing' ? 'w-full max-w-none' : 'max-w-xl';
@@ -124,55 +120,51 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
         });
 
         return (
-          <div
-            key={event.id}
-            onClick={() => router.push(`/events/${event.id}`)}
-            className={itemContainerClass}
-          >
+          <div key={event.id} className={itemContainerClass}>
             <CardEvent
+              detailsHref={`/events/${event.id}`}
               typeEvent={eventTypeName}
-              levelText={`NIVEL: ${getLevelName(event).toUpperCase()}`}
+              levelText={`Nivel ${getLevelName(event)}`}
               matchText={event.title || 'Evento sin título'}
               dateText={getDateLabel(event)}
               textLocation={event.locationText || 'Ubicación por confirmar'}
               button={
-                <ButtonWrapper
-                  icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-                  width="fit-content"
-                  disabled={isJoinDisabled}
-                  className="!h-11 !rounded-full !px-5 !py-0 shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                    e.stopPropagation();
-                    if (isJoinDisabled) return;
-                    openJoinFlow(event.id, isVersus);
-                  }}
-                  children={joinLabel}
-                />
+                isJoinDisabled ? (
+                  <StatusBadge
+                    variant={
+                      event.viewerHasApprovedRegistration
+                        ? 'success'
+                        : event.viewerHasPendingRegistration
+                          ? 'warning'
+                          : 'default'
+                    }
+                    size="md"
+                    className="min-h-10 max-w-full justify-center whitespace-nowrap !px-3 text-center !text-xs"
+                  >
+                    {joinLabel}
+                  </StatusBadge>
+                ) : (
+                  <ButtonWrapper
+                    width="fit-content"
+                    className="pointer-events-auto !min-h-10 !rounded-full !px-4 !py-2 text-sm leading-tight shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
+                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      e.stopPropagation();
+                      openJoinFlow(event.id, isVersus);
+                    }}
+                  >
+                    {joinLabel}
+                  </ButtonWrapper>
+                )
               }
               price={formattedPrice(Number(event.price ?? 0))}
-              badge={badges
-                .map((badge, index) => (
+              badge={badges.map((badge, index) => (
                   <Badge
                     key={index}
                     text={badge.toUpperCase()}
                     icon={true}
                     badgeType="Primary"
                   />
-                ))
-                .concat(
-                  isPastEvent
-                    ? [
-                        <StatusBadge
-                          key={`${event.id}-status`}
-                          variant="warning"
-                          size="sm"
-                          className="whitespace-nowrap"
-                        >
-                          Finalizado
-                        </StatusBadge>,
-                      ]
-                    : []
-                )}
+                ))}
             />
           </div>
         );

@@ -12,13 +12,20 @@ type EventOption = {
 type Props = {
   options: EventOption[];
   selectedEventId: string;
-  state: 'pending' | 'approved' | 'rejected' | 'reimbursements';
+  state: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'reimbursements';
   q: string;
 };
 
 export default function PaymentsEventSelect({ options, selectedEventId, state, q }: Props) {
   const router = useRouter();
   const [menuPortalTarget, setMenuPortalTarget] = useState<HTMLElement | null>(null);
+  const selectOptions = [
+    { value: '', label: 'Todos los eventos' },
+    ...options.map((option) => ({
+      value: option.id,
+      label: option.label,
+    })),
+  ];
 
   useEffect(() => {
     setMenuPortalTarget(document.body);
@@ -37,19 +44,16 @@ export default function PaymentsEventSelect({ options, selectedEventId, state, q
   }
 
   return (
-    <div className="min-w-[280px]">
+    <div className="w-full min-w-0 sm:min-w-[280px]">
       <SelectComponent
-        options={options.map((option) => ({
-          value: option.id,
-          label: option.label,
-        }))}
+        options={selectOptions}
         value={selectedEventId}
         onChange={(value) => handleEventChange(String(value || ''))}
-        isSearchable={false}
+        isSearchable
         className="text-sm"
         selectProps={{
           isDisabled: options.length === 0,
-          placeholder: options.length === 0 ? 'No hay eventos disponibles' : 'Selecciona un evento',
+          placeholder: options.length === 0 ? 'No hay eventos disponibles' : 'Todos los eventos',
           instanceId: 'payments-event-select',
           inputId: 'payments-event-select',
           menuPortalTarget: menuPortalTarget || undefined,
