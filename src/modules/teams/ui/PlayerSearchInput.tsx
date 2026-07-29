@@ -2,16 +2,21 @@
 
 import { CheckIcon, ClockIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import { useEffect, useMemo, useState } from 'react';
-import type { TeamInvitationCandidate } from '@modules/teams/model/types';
+import type {
+  TeamInvitationCandidate,
+  TeamInvitationSelection,
+} from '@modules/teams/model/types';
 import { useDebounce } from '../../../shared/lib/hooks/useDebounce';
 
 interface Props {
   teamId: number;
-  onSelect: (player: TeamInvitationCandidate) => void;
-  selected: TeamInvitationCandidate[];
+  onSelect: (selection: TeamInvitationSelection) => void;
+  selected: TeamInvitationSelection | null;
   placeholder?: string;
   minChars?: number;
 }
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function PlayerSearchInput({
   teamId,
@@ -26,7 +31,19 @@ export default function PlayerSearchInput({
   const [loading, setLoading] = useState(false);
 
   // ids ya elegidos para filtrar resultados
-  const selectedIds = useMemo(() => new Set(selected.map((s) => s.id)), [selected]);
+  const selectedIds = useMemo(
+    () =>
+      new Set(
+        selected?.kind === 'player' ? [selected.candidate.id] : []
+      ),
+    [selected]
+  );
+  const normalizedEmail = q.trim().toLowerCase();
+  const canInviteByEmail =
+    !loading &&
+    results.length === 0 &&
+    normalizedEmail.length <= 254 &&
+    EMAIL_PATTERN.test(normalizedEmail);
 
   useEffect(() => {
     let canceled = false;
@@ -75,9 +92,34 @@ export default function PlayerSearchInput({
       {q.trim().length >= minChars && (
         <div className="mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_32px_-24px_rgba(15,23,42,0.35)]">
           {loading && <div className="p-3 text-sm text-stone-500">Buscando…</div>}
-          {!loading && results.length === 0 && (
+          {!loading && results.length === 0 && !canInviteByEmail && (
             <div className="p-3 text-sm text-stone-500">Sin resultados</div>
           )}
+          {canInviteByEmail ? (
+            <button
+              type="button"
+              onClick={() => {
+                onSelect({ kind: 'email', email: normalizedEmail });
+                setQ('');
+              }}
+              className="group flex min-h-[4.25rem] w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-mulberry/[0.035] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-mulberry/15"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-mulberry/10 bg-mulberry/10 text-mulberry">
+                <UserPlusIcon aria-hidden="true" className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-slate-900">
+                  {normalizedEmail}
+                </span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  Puede crear su cuenta después de recibir el correo
+                </span>
+              </span>
+              <span className="inline-flex shrink-0 items-center rounded-full border border-mulberry/10 bg-mulberry/[0.07] px-2.5 py-1.5 text-xs font-semibold text-mulberry transition group-hover:bg-mulberry group-hover:text-white">
+                Convocar
+              </span>
+            </button>
+          ) : null}
           {!loading &&
             results.map((p) => {
               const canInvite = p.status === 'available';
@@ -94,7 +136,7 @@ export default function PlayerSearchInput({
                 type="button"
                 disabled={!canInvite}
                 onClick={() => {
-                  onSelect(p);
+                  onSelect({ kind: 'player', candidate: p });
                   setQ(''); // limpia el input después de elegir
                 }}
                 className="group flex min-h-[4.25rem] w-full items-center gap-3 border-b border-slate-100 px-3.5 py-2.5 text-left transition last:border-b-0 hover:bg-mulberry/[0.035] focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-mulberry/15 disabled:cursor-not-allowed disabled:bg-slate-50/70"
@@ -140,24 +182,23 @@ export default function PlayerSearchInput({
       )}
 
       {/* chips seleccionados (opcional mostrar aquí) */}
-      {selected.length > 0 && (
+      {selected ? (
         <div className="mt-3" aria-live="polite">
-          {selected.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-center gap-3 rounded-2xl border border-mulberry/15 bg-mulberry/[0.045] px-3.5 py-3"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-mulberry text-white shadow-sm">
-                <CheckIcon aria-hidden="true" className="h-4 w-4 stroke-2" />
+          <div className="flex items-center gap-3 rounded-2xl border border-mulberry/15 bg-mulberry/[0.045] px-3.5 py-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-mulberry text-white shadow-sm">
+              <CheckIcon aria-hidden="true" className="h-4 w-4 stroke-2" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-xs font-medium text-slate-500">Lista para convocar</span>
+              <span className="block truncate text-sm font-semibold text-slate-900">
+                {selected.kind === 'player'
+                  ? `@${selected.candidate.username}`
+                  : selected.email}
               </span>
-              <span className="min-w-0">
-                <span className="block text-xs font-medium text-slate-500">Lista para convocar</span>
-                <span className="block truncate text-sm font-semibold text-slate-900">@{p.username}</span>
-              </span>
-            </div>
-          ))}
+            </span>
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

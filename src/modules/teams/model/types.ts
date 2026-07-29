@@ -94,6 +94,16 @@ export type TeamInvitationCandidate = {
   status: TeamInvitationCandidateStatus;
 };
 
+export type TeamInvitationSelection =
+  | {
+      kind: 'player';
+      candidate: TeamInvitationCandidate;
+    }
+  | {
+      kind: 'email';
+      email: string;
+    };
+
 export type TeamMembershipSummary = {
   role: TeamMemberRole;
   status: TeamMemberStatus;

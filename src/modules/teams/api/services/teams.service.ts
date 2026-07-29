@@ -702,6 +702,26 @@ export async function getTeamInvitationByToken(
   });
 }
 
+export async function claimTeamInvitationByToken(
+  token: string
+): Promise<TeamInvitationRow> {
+  const normalizedToken = token.trim();
+  if (!normalizedToken) throw new Error('Invitation token is required');
+
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .rpc('claim_team_invitation_by_token', {
+      p_token: normalizedToken,
+    })
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Team invitation claim failed');
+  }
+
+  return data as TeamInvitationRow;
+}
+
 export async function respondToTeamInvitation(
   invitationId: number,
   response: 'accepted' | 'rejected'

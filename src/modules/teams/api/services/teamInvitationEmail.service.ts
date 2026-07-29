@@ -43,6 +43,7 @@ function buildHtml(input: {
   teamAvatarUrl: string | null;
   invitationUrl: string;
   expiration: string;
+  requiresAccount: boolean;
 }) {
   const inviteeName = escapeHtml(input.inviteeName);
   const captainName = escapeHtml(input.captainName);
@@ -65,7 +66,7 @@ function buildHtml(input: {
           ${avatar}
           <p style="margin:0 0 10px;font-size:14px;color:#6b7280;">Hola ${inviteeName},</p>
           <h1 style="margin:0 0 18px;font-size:26px;line-height:1.2;color:#280332;">${captainName} te convocó a ${teamName}</h1>
-          <p style="margin:0 auto 26px;max-width:430px;font-size:16px;line-height:1.6;color:#4b5563;">Revisa el perfil del equipo y acepta o rechaza la convocatoria desde tu cuenta de Peloteras.</p>
+          <p style="margin:0 auto 26px;max-width:430px;font-size:16px;line-height:1.6;color:#4b5563;">${input.requiresAccount ? 'Crea tu cuenta de Peloteras con este mismo correo para revisar el equipo y responder la convocatoria.' : 'Revisa el perfil del equipo y acepta o rechaza la convocatoria desde tu cuenta de Peloteras.'}</p>
           <a href="${invitationUrl}" style="display:inline-block;background:#54086f;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 24px;border-radius:12px;">Ver convocatoria</a>
           <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#6b7280;">La convocatoria vence el ${expiration}. Necesitas iniciar sesión en Peloteras para responder.</p>
         </td></tr>
@@ -82,12 +83,15 @@ function buildText(input: {
   teamName: string;
   invitationUrl: string;
   expiration: string;
+  requiresAccount: boolean;
 }) {
   return [
     `Hola ${input.inviteeName},`,
     '',
     `${input.captainName} te convocó a ${input.teamName}.`,
-    'Revisa el equipo y responde la convocatoria desde tu cuenta de Peloteras:',
+    input.requiresAccount
+      ? 'Crea tu cuenta de Peloteras con este mismo correo y responde la convocatoria:'
+      : 'Revisa el equipo y responde la convocatoria desde tu cuenta de Peloteras:',
     input.invitationUrl,
     '',
     `La convocatoria vence el ${input.expiration}.`,
@@ -177,8 +181,16 @@ export async function sendTeamInvitationEmail(
     teamAvatarUrl: team?.avatar_url ?? null,
     invitationUrl,
     expiration,
+    requiresAccount: !invitation.invitee_user_id,
   });
-  const text = buildText({ inviteeName, captainName, teamName, invitationUrl, expiration });
+  const text = buildText({
+    inviteeName,
+    captainName,
+    teamName,
+    invitationUrl,
+    expiration,
+    requiresAccount: !invitation.invitee_user_id,
+  });
   const apiKey = String(process.env.RESEND_API_KEY || '').trim();
   const from = String(process.env.EMAIL_FROM || process.env.RESEND_FROM || '').trim();
 

@@ -1,6 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
 import { getServerSupabase } from '@core/api/supabase.server';
-import { getTeamInvitationByToken } from '@modules/teams/api/services/teams.service';
+import {
+  claimTeamInvitationByToken,
+  getTeamInvitationByToken,
+} from '@modules/teams/api/services/teams.service';
 
 type Props = {
   params: Promise<{ token: string }>;
@@ -20,6 +23,12 @@ export default async function InvitationTokenRoute({ params }: Props) {
     redirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
-  if (invitation.invitee_user_id !== user.id) notFound();
-  redirect(`/convocatorias?invitation=${invitation.id}`);
+  if (invitation.invitee_user_id === user.id) {
+    redirect(`/convocatorias?invitation=${invitation.id}`);
+  }
+
+  const claimedInvitation = await claimTeamInvitationByToken(token).catch(() => null);
+  if (!claimedInvitation || claimedInvitation.invitee_user_id !== user.id) notFound();
+
+  redirect(`/convocatorias?invitation=${claimedInvitation.id}`);
 }
