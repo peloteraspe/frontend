@@ -118,21 +118,21 @@ export default function TeamPublicProfilePage({
 
   return (
     <main className="site-shell w-full py-5 sm:py-8">
-      <section className="overflow-hidden rounded-3xl border border-white/80 bg-white shadow-[0_20px_60px_rgba(84,8,111,0.10)]">
-        <div className="relative h-36 overflow-hidden bg-[linear-gradient(125deg,#54086F_0%,#7B2A91_50%,#F0815B_135%)] sm:h-44">
-          <div aria-hidden="true" className="absolute -left-14 -top-20 h-52 w-52 rounded-full border-[42px] border-white/10" />
-          <div aria-hidden="true" className="absolute -bottom-24 right-28 h-52 w-52 rounded-full bg-white/10 blur-2xl" />
-          <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="bg-[#F8F4FA] px-5 py-5 sm:px-8 sm:py-7">
+          <div className="flex items-center justify-between gap-3">
+            <p className="whitespace-nowrap text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-mulberry/70 sm:text-xs sm:tracking-[0.16em]">
+              Perfil del equipo
+            </p>
             <PublicProfileShareButton
               title={`${team.name} en Peloteras`}
               text={`Conoce el perfil de ${team.name} en Peloteras.`}
+              compactOnMobile
             />
           </div>
-        </div>
 
-        <div className="relative px-5 pb-7 sm:px-8 sm:pb-9">
-          <div className="-mt-14 flex flex-col gap-5 sm:-mt-16 sm:flex-row sm:items-start">
-            <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-3xl border-4 border-white bg-[#F7F1F9] text-3xl font-bold text-mulberry shadow-lg sm:h-32 sm:w-32">
+          <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
+            <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-mulberry/10 bg-white text-3xl font-bold text-mulberry shadow-sm sm:h-32 sm:w-32">
               {team.avatar_url ? (
                 <img src={team.avatar_url} alt={`Foto de ${team.name}`} className="h-full w-full object-cover" />
               ) : (
@@ -140,7 +140,7 @@ export default function TeamPublicProfilePage({
               )}
             </div>
 
-            <div className="min-w-0 flex-1 sm:pt-16">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-mulberry">@{team.slug}</p>
               <h1 className="mt-1 break-words font-eastman-extrabold text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
                 {team.name}
@@ -148,23 +148,22 @@ export default function TeamPublicProfilePage({
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                 Equipo de fútbol en Peloteras. Conoce a sus integrantes y encuentra sus perfiles públicos.
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-mulberry/8 px-3 py-1.5 text-xs font-semibold text-mulberry">
-                  <UserGroupIcon aria-hidden="true" className="h-4 w-4" />
-                  {members.length} {members.length === 1 ? 'jugadora' : 'jugadoras'}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                  <CheckCircleIcon aria-hidden="true" className="h-4 w-4" />
-                  Equipo activo
-                </span>
-              </div>
-              {canManageInvitations ? (
-                <div className="mt-5">
-                  <TeamInvitationManager teamId={team.id} />
-                </div>
-              ) : null}
             </div>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-4 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-mulberry/10 bg-mulberry/[0.05] px-3 py-1.5 text-xs font-semibold text-mulberry">
+              <UserGroupIcon aria-hidden="true" className="h-4 w-4" />
+              {members.length} {members.length === 1 ? 'jugadora' : 'jugadoras'}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+              <CheckCircleIcon aria-hidden="true" className="h-4 w-4" />
+              Equipo activo
+            </span>
+          </div>
+          {canManageInvitations ? <TeamInvitationManager teamId={team.id} /> : null}
         </div>
       </section>
 

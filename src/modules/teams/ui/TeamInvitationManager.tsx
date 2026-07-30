@@ -9,12 +9,13 @@ import {
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { TeamInvitationCandidate } from '@modules/teams/model/types';
+import type { TeamInvitationSelection } from '@modules/teams/model/types';
 import PlayerSearchInput from './PlayerSearchInput';
 
 type CreatedInvitation = {
   id: number;
   username: string | null;
+  email: string | null;
   emailDeliveryStatus: 'sent' | 'failed';
 };
 
@@ -27,7 +28,7 @@ type CreateInvitationResponse = {
 export default function TeamInvitationManager({ teamId }: { teamId: number }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<TeamInvitationCandidate[]>([]);
+  const [selected, setSelected] = useState<TeamInvitationSelection | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CreateInvitationResponse | null>(null);
@@ -35,14 +36,13 @@ export default function TeamInvitationManager({ teamId }: { teamId: number }) {
   function close() {
     if (submitting) return;
     setOpen(false);
-    setSelected([]);
+    setSelected(null);
     setError(null);
     setResult(null);
   }
 
   async function submit() {
-    const candidate = selected[0];
-    if (!candidate || submitting) return;
+    if (!selected || submitting) return;
 
     setSubmitting(true);
     setError(null);
@@ -51,7 +51,11 @@ export default function TeamInvitationManager({ teamId }: { teamId: number }) {
       const response = await fetch(`/api/teams/${teamId}/invitations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ candidateUserId: candidate.id }),
+        body: JSON.stringify(
+          selected.kind === 'player'
+            ? { candidateUserId: selected.candidate.id }
+            : { email: selected.email }
+        ),
       });
       const payload = (await response.json().catch(() => ({}))) as CreateInvitationResponse;
 
@@ -60,7 +64,7 @@ export default function TeamInvitationManager({ teamId }: { teamId: number }) {
       }
 
       setResult(payload);
-      setSelected([]);
+      setSelected(null);
       router.refresh();
     } catch (submitError) {
       setError(
@@ -80,24 +84,20 @@ export default function TeamInvitationManager({ teamId }: { teamId: number }) {
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="group relative inline-flex min-h-[3.25rem] w-full items-center gap-3 overflow-hidden rounded-2xl border border-white/15 bg-[linear-gradient(135deg,#54086F_0%,#76288C_62%,#8B3B8E_100%)] px-3 py-2.5 text-left text-white shadow-[0_14px_30px_-16px_rgba(84,8,111,0.85)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_34px_-16px_rgba(84,8,111,0.95)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-mulberry/20 sm:w-auto sm:min-w-[15rem]"
+        className="group inline-flex min-h-12 w-full items-center gap-3 rounded-xl border border-mulberry bg-mulberry px-4 py-2.5 text-left text-white shadow-sm transition hover:border-[#430659] hover:bg-[#430659] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-mulberry/20 sm:w-auto sm:min-w-[14rem]"
       >
-        <span
-          aria-hidden="true"
-          className="absolute -right-7 -top-10 h-24 w-24 rounded-full bg-primary/25 blur-2xl transition duration-300 group-hover:scale-125"
-        />
-        <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 shadow-inner shadow-white/10">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
           <UserPlusIcon aria-hidden="true" className="h-5 w-5" />
         </span>
-        <span className="relative min-w-0 flex-1">
-          <span aria-hidden="true" className="block text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-white/65">
-            Sumar al plantel
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold leading-tight">Convocar jugadoras</span>
+          <span className="mt-0.5 block text-xs leading-tight text-white/70">
+            Por usuario o correo
           </span>
-          <span className="mt-0.5 block text-sm font-semibold leading-none">Convocar jugadoras</span>
         </span>
         <ArrowRightIcon
           aria-hidden="true"
-          className="relative h-4 w-4 shrink-0 text-white/70 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-white"
+          className="h-4 w-4 shrink-0 text-white/70 transition-transform group-hover:translate-x-0.5 group-hover:text-white"
         />
       </button>
 
@@ -121,7 +121,8 @@ export default function TeamInvitationManager({ teamId }: { teamId: number }) {
                   Convocar jugadora
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Busca una cuenta existente por @username o por su email exacto.
+                  Busca por @username o escribe un email. Si aún no tiene cuenta,
+                  podrá crearla desde la convocatoria.
                 </p>
               </div>
               <button
@@ -138,8 +139,8 @@ export default function TeamInvitationManager({ teamId }: { teamId: number }) {
               <PlayerSearchInput
                 teamId={teamId}
                 selected={selected}
-                onSelect={(candidate) => {
-                  setSelected([candidate]);
+                onSelect={(selection) => {
+                  setSelected(selection);
                   setError(null);
                   setResult(null);
                 }}
@@ -152,7 +153,10 @@ export default function TeamInvitationManager({ teamId }: { teamId: number }) {
                   <CheckCircleIcon aria-hidden="true" className="h-5 w-5 shrink-0" />
                   <div>
                     <p className="font-semibold">
-                      Convocatoria enviada a @{result.invitation.username}
+                      Convocatoria enviada a{' '}
+                      {result.invitation.username
+                        ? `@${result.invitation.username}`
+                        : result.invitation.email}
                     </p>
                     {result.warning ? <p className="mt-1 text-amber-800">{result.warning}</p> : null}
                   </div>
@@ -179,8 +183,8 @@ export default function TeamInvitationManager({ teamId }: { teamId: number }) {
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={!selected[0] || submitting}
-                  className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#54086F_0%,#76288C_100%)] px-5 text-sm font-semibold text-white shadow-[0_12px_24px_-14px_rgba(84,8,111,0.9)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_28px_-14px_rgba(84,8,111,0.95)] active:translate-y-0 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-mulberry/20 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:hover:translate-y-0"
+                  disabled={!selected || submitting}
+                  className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-mulberry bg-mulberry px-5 text-sm font-semibold text-white shadow-sm transition hover:border-[#430659] hover:bg-[#430659] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-mulberry/20 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <PaperAirplaneIcon
                     aria-hidden="true"
