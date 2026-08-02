@@ -64,6 +64,10 @@ function appendNextPath(path: string, nextPath: string | null) {
   return `${path}${separator}next=${encodeURIComponent(nextPath)}`;
 }
 
+function normalizeGoogleUsernameSuggestion(value: string) {
+  return value.replace(/\s+/g, '');
+}
+
 export default function SignupClient() {
   const LOGIN_ONBOARDING_KEY = 'login-onboarding-state';
   const sp = useSearchParams();
@@ -254,11 +258,15 @@ export default function SignupClient() {
                 appMetadata.providers.some((provider) => provider === 'google')
               ? 'google'
               : '';
-        const initialUsername =
+        const suggestedUsername =
           (typeof profile?.username === 'string' && profile.username.trim()) ||
           (typeof metadata.username === 'string' && metadata.username.trim()) ||
           (typeof metadata.full_name === 'string' && metadata.full_name.trim()) ||
           (user.email ? user.email.split('@')[0] : '');
+        const initialUsername =
+          authProvider === 'google'
+            ? normalizeGoogleUsernameSuggestion(suggestedUsername)
+            : suggestedUsername;
 
         setSignupEmail(user.email ?? prefilledEmail);
         setUserId(user.id);
