@@ -190,7 +190,7 @@ export default function BottomNavigation() {
                 key={item.href}
                 href="/login"
                 className="relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors"
-                aria-label={`${item.label} - Inicia sesion`}
+                aria-label={`${item.label} - Inicia sesión`}
               >
                 <span className="flex h-8 w-8 items-center justify-center opacity-50">{item.icon}</span>
                 <span className="text-xs font-medium leading-none">{item.label}</span>

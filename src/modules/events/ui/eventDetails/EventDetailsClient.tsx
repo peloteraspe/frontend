@@ -416,7 +416,7 @@ export default function EventDetailsClient({ data }: Props) {
     navigateWithSessionCheck({
       destination: joinDestination,
       authenticatedMessage: 'Preparando tu inscripción...',
-      loginMessage: 'Inicia sesion para inscribirte al evento',
+      loginMessage: 'Inicia sesión para inscribirte al evento',
       loginRedirectMessage: 'Redirigiendo al login...',
       requireEmailConfirmed: true,
       emailConfirmationMessage: 'Verifica tu identidad para poder inscribirte a este evento.',

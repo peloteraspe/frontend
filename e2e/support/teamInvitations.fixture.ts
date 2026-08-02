@@ -272,7 +272,7 @@ export async function signIn(
   await page.locator('input[name="email"]').fill(user.email);
   await page.locator('input[name="password"]').fill(user.password);
   await expect(page.locator('input[name="email"]')).toHaveValue(user.email);
-  await page.getByRole('button', { name: 'Iniciar sesion', exact: true }).click();
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 45_000 });
 }
 

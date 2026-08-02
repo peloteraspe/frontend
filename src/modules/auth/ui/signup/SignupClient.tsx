@@ -402,7 +402,7 @@ export default function SignupClient() {
       }
 
       toast.error(
-        'Cuenta creada, pero no pudimos continuar. Inicia sesion para completar tu perfil.'
+        'Cuenta creada, pero no pudimos continuar. Inicia sesión para completar tu perfil.'
       );
     } catch (e) {
       toast.error('Error creando la cuenta');
@@ -529,10 +529,10 @@ export default function SignupClient() {
 
         if (onboardingResult.code === 'USER_NOT_READY') {
           toast.error(
-            'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesion.'
+            'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesión.'
           );
           window.location.href = appendNextPath(
-            '/login?message=Completa tu perfil al iniciar sesion',
+            '/login?message=Completa tu perfil al iniciar sesión',
             requestedNextPath
           );
           return;
@@ -578,10 +578,10 @@ export default function SignupClient() {
       const errorMessage = String(err?.message || err || '');
       if (errorMessage.includes('profile_user_fkey')) {
         toast.error(
-          'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesion.'
+          'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesión.'
         );
         window.location.href = appendNextPath(
-          '/login?message=Completa tu perfil al iniciar sesion',
+          '/login?message=Completa tu perfil al iniciar sesión',
           requestedNextPath
         );
         return;
@@ -714,14 +714,14 @@ export default function SignupClient() {
                 className="rounded-xl text-slate-400 text-center py-2 cursor-not-allowed"
                 aria-disabled="true"
               >
-                Iniciar sesion
+                Iniciar sesión
               </span>
             ) : (
               <Link
                 href={appendNextPath('/login', requestedNextPath)}
                 className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
               >
-                Iniciar sesion
+                Iniciar sesión
               </Link>
             )}
             <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
@@ -833,14 +833,14 @@ export default function SignupClient() {
                 className="rounded-xl text-slate-400 text-center py-2 cursor-not-allowed"
                 aria-disabled="true"
               >
-                Iniciar sesion
+                Iniciar sesión
               </span>
             ) : (
               <Link
                 href={appendNextPath('/login', requestedNextPath)}
                 className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
               >
-                Iniciar sesion
+                Iniciar sesión
               </Link>
             )}
             <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
