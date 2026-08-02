@@ -90,7 +90,7 @@ export async function getPaymentPageData(id: string) {
     throw new Error(PAYMENT_METHOD_NOT_CONFIGURED);
   }
 
-  const approvedCount = await getApprovedParticipantsCountByEventId(event.id, supabase);
+  const approvedCount = await getApprovedParticipantsCountByEventId(event.id);
   const enrichedEvent = {
     ...event,
     approvedCount,

@@ -32,6 +32,10 @@ function buildRemoteTestSql(source, filePath) {
   if (!planMatch) throw new Error(`${basename(filePath)} does not declare a pgTAP plan.`);
 
   const expectedTests = Number(planMatch[1]);
+  if (source.includes("'codex.tap_results'")) {
+    return { sql: source, expectedTests };
+  }
+
   const tableSetup = [
     'BEGIN;',
     '',

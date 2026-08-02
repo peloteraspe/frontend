@@ -114,7 +114,8 @@ function normalizeText(value: unknown, fallback = '') {
 }
 
 async function getApprovedAssistantsByEventId(supabase: any, eventId: string) {
-  const { data: assistantsData, error: assistantsError } = await supabase
+  const adminSupabase = getAdminSupabase();
+  const { data: assistantsData, error: assistantsError } = await adminSupabase
     .from('assistants')
     .select('id,user,state,team_id')
     .eq('event', eventId)
@@ -145,7 +146,6 @@ async function getApprovedAssistantsByEventId(supabase: any, eventId: string) {
   const avatarByUserId = new Map<string, string>();
   const teamNameById = new Map<string, string>();
   if (userIds.length) {
-    const adminSupabase = getAdminSupabase();
     const profilesPromise = adminSupabase
       .from('profile')
       .select('id,user,username')
@@ -272,7 +272,6 @@ async function getApprovedAssistantsByEventId(supabase: any, eventId: string) {
     const name = normalizeText(profileName, userId ? `Jugadora ${userId.slice(0, 6)}` : 'Participante');
     return {
       id: String(assistant.id),
-      user: userId,
       state: normalizeText(assistant.state),
       username: profileName || null,
       name,

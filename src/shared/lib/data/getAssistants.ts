@@ -1,4 +1,3 @@
-import { getServerSupabase } from '@src/core/api/supabase.server';
 import { getAdminSupabase } from '@src/core/api/supabase.admin';
 import { log } from '@src/core/lib/logger';
 import {
@@ -89,8 +88,7 @@ function formatEventDateTime(startTime: unknown, endTime: unknown) {
 }
 
 export async function getAssistants(eventId: string) {
-  // Await cookies() to get the actual cookies object
-  const supabase = await getServerSupabase();
+  const supabase = getAdminSupabase();
 
   const { data, error } = await supabase.from('assistants').select('*').eq('event', eventId);
 
@@ -106,7 +104,7 @@ export async function getAssistantsWithDetails(
   state?: Assistant['state'],
   opts: AssistantsQuery = {}
 ): Promise<AssistantDetails[]> {
-  const supabaseDetails = await getServerSupabase();
+  const supabaseDetails = getAdminSupabase();
   const normalizedSearch = String(opts.search || '').trim();
   const normalizedEventId = normalizeId(opts.eventId);
   const hasEventIdsFilter = Array.isArray(opts.eventIds);
@@ -259,7 +257,7 @@ export async function getAssistantsWithDetails(
 export async function getAssistantsCounts(
   opts: { eventId?: string | number; eventIds?: Array<string | number> } = {}
 ) {
-  const supabaseCounts = await getServerSupabase();
+  const supabaseCounts = getAdminSupabase();
   const normalizedEventId = normalizeId(opts.eventId);
   const hasEventIdsFilter = Array.isArray(opts.eventIds);
   const normalizedEventIds = Array.from(

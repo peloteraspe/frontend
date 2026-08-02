@@ -95,6 +95,7 @@ export async function getPublicPlayerProfileByUsername(
     .from('profile')
     .select('id, created_at, user, username, level_id')
     .ilike('username', escapeLikePattern(normalizedUsername))
+    .or('is_profile_complete.eq.true,onboarding_step.gte.2')
     .maybeSingle();
 
   if (profileError) throw new Error(profileError.message);

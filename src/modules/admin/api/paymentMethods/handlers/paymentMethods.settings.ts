@@ -156,11 +156,11 @@ async function requireAdminUser() {
     };
   }
 
-  return { user, supabase };
+  return { user, adminSupabase: getAdminSupabase() };
 }
 
 async function loadPaymentMethods(
-  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  supabase: ReturnType<typeof getAdminSupabase>,
   userId: string
 ) {
   const { data, error } = await supabase
@@ -184,7 +184,7 @@ export async function GET() {
     const auth = await requireAdminUser();
     if ('errorResponse' in auth) return auth.errorResponse;
 
-    const paymentMethods = await loadPaymentMethods(auth.supabase, auth.user.id);
+    const paymentMethods = await loadPaymentMethods(auth.adminSupabase, auth.user.id);
     return NextResponse.json({ ok: true, paymentMethods });
   } catch (error: any) {
     log.error('Error fetching payment methods admin settings', 'ADMIN_PAYMENT_METHODS', error);
@@ -233,7 +233,7 @@ export async function POST(request: Request) {
 
     let currentMethodQr = '';
     if (isEditing) {
-      const { data: currentMethod, error: currentMethodError } = await auth.supabase
+      const { data: currentMethod, error: currentMethodError } = await auth.adminSupabase
         .from('paymentMethod')
         .select('id,QR')
         .eq('id', methodId)
@@ -277,7 +277,7 @@ export async function POST(request: Request) {
     };
 
     if (isEditing) {
-      const { data: updatedMethod, error: updateError } = await auth.supabase
+      const { data: updatedMethod, error: updateError } = await auth.adminSupabase
         .from('paymentMethod')
         .update(payload)
         .eq('id', methodId)
@@ -294,7 +294,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'No puedes editar un método de pago que no es tuyo.' }, { status: 403 });
       }
     } else {
-      const { error: insertError } = await auth.supabase.from('paymentMethod').insert({
+      const { error: insertError } = await auth.adminSupabase.from('paymentMethod').insert({
         ...payload,
         created_by: auth.user.id,
       });
@@ -305,7 +305,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const paymentMethods = await loadPaymentMethods(auth.supabase, auth.user.id);
+    const paymentMethods = await loadPaymentMethods(auth.adminSupabase, auth.user.id);
     return NextResponse.json({
       ok: true,
       mode: isEditing ? 'updated' : 'created',

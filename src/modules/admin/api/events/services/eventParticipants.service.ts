@@ -102,7 +102,7 @@ export async function getApprovedParticipantsCountByEventIds(eventIds: Array<str
   const countByEventId = new Map<string, number>();
   if (!normalizedEventIds.length) return countByEventId;
 
-  const supabase = await getServerSupabase();
+  const supabase = getAdminSupabase();
   const { data, error } = await supabase
     .from('assistants')
     .select('event')
