@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
+import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
 import {
   clientIdentifierFromRequest,
@@ -272,7 +273,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tipo de evento o nivel inválido.' }, { status: 400 });
     }
 
-    const { data: profile } = await supabase
+    const adminSupabase = getAdminSupabase();
+    const { data: profile } = await adminSupabase
       .from('profile')
       .select('username')
       .eq('user', user.id)
@@ -305,7 +307,7 @@ export async function POST(request: Request) {
       is_published: false,
     };
 
-    let { data, error } = await supabase
+    let { data, error } = await adminSupabase
       .from('event')
       .insert({
         ...baseInsertPayload,
@@ -318,7 +320,7 @@ export async function POST(request: Request) {
       log.warn('Event place_text column missing; retrying public create without it', 'EVENT_API', {
         userId: user.id,
       });
-      const retried = await supabase
+      const retried = await adminSupabase
         .from('event')
         .insert({
           ...baseInsertPayload,

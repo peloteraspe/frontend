@@ -42,7 +42,7 @@ export async function getEventsExplorer(): Promise<EventEntity[]> {
   const normalizedEvents = (eventsRes.data ?? []).map((event) => normalizeEvent(event, eventTypeById, levelById));
   const eventIds = normalizedEvents.map((event) => event.id);
   const [approvedCountByEventId, viewerRegistrationStatesByEventId] = await Promise.all([
-    getApprovedParticipantsCountByEventIds(eventIds, supabase),
+    getApprovedParticipantsCountByEventIds(eventIds),
     getViewerRegistrationStatesByEventIds(eventIds, supabase),
   ]);
 
@@ -73,7 +73,7 @@ export async function getEventExplorerById(id: string): Promise<EventEntity | nu
   const levelById = toDictionary(catalogs.levels as IdNameRow[]);
   const event = normalizeEvent(eventRes.data, eventTypeById, levelById);
   const [approvedCount, viewerRegistrationStatesByEventId] = await Promise.all([
-    getApprovedParticipantsCountByEventId(id, supabase),
+    getApprovedParticipantsCountByEventId(id),
     getViewerRegistrationStatesByEventIds([id], supabase),
   ]);
   const viewerRegistrationState = viewerRegistrationStatesByEventId.get(String(id)) ?? null;

@@ -313,7 +313,13 @@ async function saveOnboardingProfileState(
     }
 
     if ((existingRows?.length ?? 0) > 0) {
-      const { error } = await supabase.from('profile').update(payload).eq('user', userId);
+      const ownProfileChanges = {
+        username: payload.username,
+        level_id: payload.level_id,
+        onboarding_step: payload.onboarding_step,
+        is_profile_complete: payload.is_profile_complete,
+      };
+      const { error } = await supabase.from('profile').update(ownProfileChanges).eq('user', userId);
       if (error) throw new Error(error.message);
       return;
     }
@@ -606,51 +612,27 @@ export async function checkUsernameAvailabilityAction(
     let lookupError: string | null = null;
 
     try {
-      const supabase = await getServerSupabase();
-      const { data, error } = await supabase
+      // This server action returns only availability. Use service_role so RLS
+      // does not hide an incomplete profile and incorrectly report a taken
+      // username as available.
+      const adminSupabase = getAdminSupabase();
+      const { data, error } = await adminSupabase
         .from('profile')
         .select('user')
         .eq('username', normalizedUsername)
         .limit(1);
 
-      if (!error) {
-        matchingUserId = data?.[0]?.user ?? null;
-      } else {
+      if (error) {
         lookupError = error.message;
-        log.warn('Username lookup failed via server Supabase client', 'SIGNUP', {
-          username: normalizedUsername,
-          error: error.message,
-        });
+      } else {
+        matchingUserId = data?.[0]?.user ?? null;
       }
     } catch (error: any) {
-      lookupError = String(error?.message || error || 'Unknown server Supabase error');
-      log.warn('Username lookup crashed via server Supabase client', 'SIGNUP', {
+      lookupError = String(error?.message || error || 'Unknown admin Supabase error');
+      log.warn('Username lookup crashed via admin Supabase client', 'SIGNUP', {
         username: normalizedUsername,
         error: lookupError,
       });
-    }
-
-    if (matchingUserId === undefined) {
-      try {
-        const adminSupabase = getAdminSupabase();
-        const { data, error } = await adminSupabase
-          .from('profile')
-          .select('user')
-          .eq('username', normalizedUsername)
-          .limit(1);
-
-        if (error) {
-          lookupError = error.message;
-        } else {
-          matchingUserId = data?.[0]?.user ?? null;
-        }
-      } catch (error: any) {
-        lookupError = String(error?.message || error || 'Unknown admin Supabase error');
-        log.warn('Username lookup crashed via admin Supabase client', 'SIGNUP', {
-          username: normalizedUsername,
-          error: lookupError,
-        });
-      }
     }
 
     if (matchingUserId === undefined) {

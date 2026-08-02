@@ -168,17 +168,18 @@ export async function setAdminRoleByUserId(userId: string, enableAdmin: boolean)
     ...currentAppMetadata,
     is_admin: enableAdmin,
   };
-  const nextUserMetadata: Record<string, any> = {
-    ...currentUserMetadata,
-    is_admin: enableAdmin,
-  };
+  const nextUserMetadata: Record<string, any> = { ...currentUserMetadata };
+
+  // Privileged claims belong exclusively to app_metadata. user_metadata can be
+  // changed by the signed-in user and must never be an authorization source.
+  delete nextUserMetadata.is_admin;
+  delete nextUserMetadata.is_superadmin;
+  delete nextUserMetadata.role;
 
   if (enableAdmin) {
     if (nextAppMetadata.role !== 'superadmin') nextAppMetadata.role = 'admin';
-    if (nextUserMetadata.role !== 'superadmin') nextUserMetadata.role = 'admin';
   } else {
     if (nextAppMetadata.role === 'admin') delete nextAppMetadata.role;
-    if (nextUserMetadata.role === 'admin') delete nextUserMetadata.role;
   }
 
   const { error: updateError } = await adminSupabase.auth.admin.updateUserById(normalizedId, {
@@ -212,6 +213,19 @@ export async function activateOrganizerByUserId(userId: string, input: Organizer
   const currentUserMetadata = normalizePhoneMetadata(targetUser.user_metadata) as Record<string, any>;
   const activatedAt = new Date().toISOString();
   const source = String(input.source || 'self_serve_events').trim() || 'self_serve_events';
+  const profileName = await getProfileNameByUserId(normalizedId);
+
+  if (isAdmin(targetUser as any)) {
+    return {
+      activatedAt:
+        String(currentAppMetadata.organizer_activated_at || '').trim() || activatedAt,
+      alreadyActive: true,
+      contactEmail: String(targetUser.email || '').trim().toLowerCase() || null,
+      contactName: normalizeContactName(targetUser, profileName),
+      phone: normalizedPhone,
+      source,
+    };
+  }
 
   const nextAppMetadata: Record<string, any> = {
     ...currentAppMetadata,
@@ -225,7 +239,6 @@ export async function activateOrganizerByUserId(userId: string, input: Organizer
   };
   const nextUserMetadata: Record<string, any> = {
     ...currentUserMetadata,
-    is_admin: true,
     phone: normalizedPhone,
     organizer_activated_at: activatedAt,
     organizer_activation_source: source,
@@ -234,8 +247,11 @@ export async function activateOrganizerByUserId(userId: string, input: Organizer
     organizer_commitment_report_incidents: true,
   };
 
+  delete nextUserMetadata.is_admin;
+  delete nextUserMetadata.is_superadmin;
+  delete nextUserMetadata.role;
+
   if (nextAppMetadata.role !== 'superadmin') nextAppMetadata.role = 'admin';
-  if (nextUserMetadata.role !== 'superadmin') nextUserMetadata.role = 'admin';
 
   const { error: updateError } = await adminSupabase.auth.admin.updateUserById(normalizedId, {
     app_metadata: nextAppMetadata,
@@ -243,10 +259,9 @@ export async function activateOrganizerByUserId(userId: string, input: Organizer
   });
   if (updateError) throw new Error(updateError.message);
 
-  const profileName = await getProfileNameByUserId(normalizedId);
-
   return {
     activatedAt,
+    alreadyActive: false,
     contactEmail: String(targetUser.email || '').trim().toLowerCase() || null,
     contactName: normalizeContactName(targetUser, profileName),
     phone: normalizedPhone,

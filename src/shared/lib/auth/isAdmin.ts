@@ -24,17 +24,15 @@ function parseEmailList(value: string | undefined) {
 
 function isRole(user: SupabaseUserLite, role: string) {
   if (!user) return false;
-  return Boolean(
-    (user?.app_metadata && user.app_metadata.role === role) ||
-      (user?.user_metadata && user.user_metadata.role === role)
-  );
+  return Boolean(user?.app_metadata && user.app_metadata.role === role);
 }
 
 function isFlagEnabled(user: SupabaseUserLite, flag: string) {
   if (!user) return false;
-  return Boolean(
-    (user?.app_metadata && user.app_metadata[flag]) || (user?.user_metadata && user.user_metadata[flag])
-  );
+  const value = user?.app_metadata?.[flag];
+  if (value === true) return true;
+  if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
+  return false;
 }
 
 function isExplicitFalse(value: unknown) {
@@ -46,8 +44,7 @@ function isExplicitFalse(value: unknown) {
 function hasExplicitAdminRevocation(user: SupabaseUserLite) {
   if (!user) return false;
   const appFlag = user?.app_metadata?.is_admin;
-  const userFlag = user?.user_metadata?.is_admin;
-  const hasFalseFlag = isExplicitFalse(appFlag) || isExplicitFalse(userFlag);
+  const hasFalseFlag = isExplicitFalse(appFlag);
   if (!hasFalseFlag) return false;
 
   if (isRole(user, 'superadmin') || isFlagEnabled(user, 'is_superadmin')) return false;
