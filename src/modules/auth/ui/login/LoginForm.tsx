@@ -111,13 +111,13 @@ export default function LoginForm() {
 
     if (error) toast.error('Error de autenticacion: ' + decodeURIComponent(error));
     if (message === 'session_closed') {
-      toast.success('Sesion cerrada correctamente.');
+      toast.success('Sesión cerrada correctamente.');
     } else if (message === 'link_expired') {
       toast.error('El enlace de correo expiro. Solicita uno nuevo.');
     } else if (message) {
       toast(message);
     }
-    if (signup === 'success') toast.success('Cuenta creada. Ahora inicia sesion.');
+    if (signup === 'success') toast.success('Cuenta creada. Ahora inicia sesión.');
 
     currentUrl.searchParams.delete('error');
     currentUrl.searchParams.delete('message');
@@ -261,7 +261,7 @@ export default function LoginForm() {
         }
 
         const safeMessage = getSafeAuthErrorMessage(String(signInError.message || ''));
-        setAuthError(safeMessage || 'No se pudo iniciar sesion.');
+        setAuthError(safeMessage || 'No se pudo iniciar sesión.');
         return;
       }
 
@@ -296,8 +296,8 @@ export default function LoginForm() {
       toast.success('Bienvenida de vuelta.');
       window.location.assign(finalDestination);
     } catch (err) {
-      setAuthError('Error inesperado al iniciar sesion.');
-      toast.error('Error inesperado al iniciar sesion.');
+      setAuthError('Error inesperado al iniciar sesión.');
+      toast.error('Error inesperado al iniciar sesión.');
       log.error('Login error', 'LOGIN_PAGE', err);
     } finally {
       setIsSubmitting(false);
@@ -320,7 +320,7 @@ export default function LoginForm() {
       <div className="bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-5 md:p-7 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
         <div className="mb-6 grid grid-cols-2 rounded-2xl bg-slate-100 p-1.5 text-sm">
           <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2.5 shadow-sm">
-            Iniciar sesion
+            Iniciar sesión
           </span>
           <Link
             href={signUpHref}
@@ -371,7 +371,7 @@ export default function LoginForm() {
             disabled={isSubmitting || isGoogleLoading}
             className="h-11 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
           >
-            {isSubmitting ? 'Ingresando...' : 'Iniciar sesion'}
+            {isSubmitting ? 'Ingresando...' : 'Iniciar sesión'}
           </button>
 
           <GoogleButton

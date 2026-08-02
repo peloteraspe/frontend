@@ -203,7 +203,7 @@ const PaymentStepper = (props: any) => {
     if (!currentUserId) {
       toast.error('Inicia sesión para completar la inscripción.');
       router.push(
-        `/login?message=Inicia sesion para completar la inscripcion&next=${encodeURIComponent(
+        `/login?message=Inicia sesión para completar la inscripcion&next=${encodeURIComponent(
           `/payments/${post.id}`
         )}`
       );
@@ -271,7 +271,7 @@ const PaymentStepper = (props: any) => {
       });
       toast.error('Inicia sesión para completar la inscripción.');
       router.push(
-        `/login?message=Inicia sesion para completar la inscripcion&next=${encodeURIComponent(
+        `/login?message=Inicia sesión para completar la inscripcion&next=${encodeURIComponent(
           `/payments/${post.id}`
         )}`
       );

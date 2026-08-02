@@ -142,9 +142,9 @@ export default function LogoutPage() {
     <div className="min-h-screen grid place-items-center p-4">
       <div className="text-center flex flex-col items-center">
         <div className="mb-5 animate-spin">
-          <Image src={soccerBall} alt="Cerrando sesion" width={56} height={56} priority />
+          <Image src={soccerBall} alt="Cerrando sesión" width={56} height={56} priority />
         </div>
-        <p className="text-slate-900 font-semibold">Cerrando sesion…</p>
+        <p className="text-slate-900 font-semibold">Cerrando sesión…</p>
         <p className="mt-2 text-sm text-slate-600">Limpiando acceso y datos de autenticacion…</p>
       </div>
     </div>

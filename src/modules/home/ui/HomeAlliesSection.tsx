@@ -28,9 +28,6 @@ export default function HomeAlliesSection({ allies }: { allies: HomeAlly[] }) {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-              <span className="rounded-full bg-primary/10 px-3.5 py-2 text-sm font-semibold text-slate-700">
-                {allies.length} aliadxs y creciendo
-              </span>
               <Link
                 href="/patrocinios"
                 className="group home-button-micro inline-flex min-h-11 items-center gap-2 rounded-full border border-mulberry/20 bg-white px-4 py-2 text-sm font-semibold text-mulberry hover:border-mulberry/40 hover:bg-mulberry/[0.04]"
