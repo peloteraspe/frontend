@@ -2,6 +2,7 @@ import { getServerSupabase } from '@core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { getActiveLinkedPaymentMethodIdsForEvent } from '@shared/lib/paymentMethodSelection.server';
 import { hasCompleteEventProfile } from '@modules/users/lib/eventProfileRequirements';
+import { getActiveTeamRegistrationCountsByEventIds } from '@modules/events/api/queries/getTeamEventRegistrations';
 
 export const TEAM_REGISTRATION_AUTH_REQUIRED = 'TEAM_REGISTRATION_AUTH_REQUIRED';
 export const TEAM_REGISTRATION_PROFILE_REQUIRED = 'TEAM_REGISTRATION_PROFILE_REQUIRED';
@@ -51,6 +52,13 @@ export async function getTeamRegistrationPageData(eventId: string) {
     .eq('status', 'active');
   if (captainError) throw new Error(captainError.message);
 
+  const { count: activeMembershipCount, error: activeMembershipError } = await admin
+    .from('team_member')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('status', 'active');
+  if (activeMembershipError) throw new Error(activeMembershipError.message);
+
   const teams = (captainRows ?? []).flatMap((row: any) => {
     const team = Array.isArray(row.team) ? row.team[0] : row.team;
     if (!team?.is_active || team.deleted_at) return [];
@@ -96,7 +104,11 @@ export async function getTeamRegistrationPageData(eventId: string) {
   const existingRegistrationIdByTeamId = new Map<number, number>();
   (registrationRows ?? []).forEach((row: any) => {
     const teamId = Number(row.team_id);
-    if (!existingStateByTeamId.has(teamId)) {
+    const nextState = row.state as CaptainTeamRegistrationOption['existingState'];
+    const currentState = existingStateByTeamId.get(teamId);
+    const nextIsActive = nextState === 'pending' || nextState === 'approved';
+    const currentIsActive = currentState === 'pending' || currentState === 'approved';
+    if (!currentState || (nextIsActive && !currentIsActive)) {
       existingStateByTeamId.set(teamId, row.state as CaptainTeamRegistrationOption['existingState']);
       existingRegistrationIdByTeamId.set(teamId, Number(row.id));
     }
@@ -125,9 +137,22 @@ export async function getTeamRegistrationPageData(eventId: string) {
     : { data: [], error: null };
   if (paymentError) throw new Error(paymentError.message);
   const byId = new Map((paymentMethods ?? []).map((method: any) => [Number(method.id), method]));
+  const activeTeamRegistrationCountByEventId =
+    await getActiveTeamRegistrationCountsByEventIds([event.id]);
+  const activeTeamRegistrationCount =
+    activeTeamRegistrationCountByEventId.get(String(event.id)) ?? 0;
+  const teamRegistrationMaxTeams = Math.max(2, Number(event.team_registration_max_teams ?? 2));
 
   return {
-    event,
+    event: {
+      ...event,
+      activeTeamRegistrationCount,
+      teamRegistrationMaxTeams,
+      isVersusFull:
+        event.registration_mode === 'team' &&
+        activeTeamRegistrationCount >= teamRegistrationMaxTeams,
+      viewerHasActiveTeam: Number(activeMembershipCount || 0) > 0,
+    },
     teams: teamOptions,
     paymentMethods: paymentMethodIds.map((id) => byId.get(id)).filter(Boolean),
     user,

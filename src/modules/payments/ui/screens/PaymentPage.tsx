@@ -98,7 +98,7 @@ export default async function PaymentPage({ id }: { id: string }) {
   const eventTypeName = String(
     event?.eventTypeName ?? event?.eventType?.name ?? event?.event_type_name ?? ''
   ).trim();
-  const isVersus = isVersusEventTypeName(eventTypeName);
+  const isVersus = event?.registrationMode === 'team' || isVersusEventTypeName(eventTypeName);
   const rawStartTime = event?.start_time ?? event?.startTime ?? null;
   const rawEndTime = event?.end_time ?? event?.endTime ?? null;
   const isRegistrationClosed = hasEventEnded(rawEndTime, undefined, rawStartTime);
@@ -131,7 +131,7 @@ export default async function PaymentPage({ id }: { id: string }) {
   }
 
   if (isVersus) {
-    redirect(`/versus/${id}`);
+    redirect(`/payments/${id}/team`);
   }
 
   return (

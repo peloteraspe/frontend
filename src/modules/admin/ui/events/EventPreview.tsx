@@ -23,6 +23,12 @@ type EventPreviewProps = {
   maxUsers?: number;
   eventType?: CatalogOption;
   level?: CatalogOption;
+  isTeamEvent?: boolean;
+  teamCount?: number;
+  teamPlayers?: number;
+  teamSubstitutes?: number;
+  teamPriceMode?: 'per_player' | 'fixed_team';
+  fixedTeamPrice?: number;
   wantsToPublish?: boolean;
   isReadyToPublish?: boolean;
 };
@@ -75,12 +81,35 @@ export default function EventPreview({
   maxUsers,
   eventType,
   level,
+  isTeamEvent = false,
+  teamCount = 2,
+  teamPlayers = 7,
+  teamSubstitutes = 0,
+  teamPriceMode = 'per_player',
+  fixedTeamPrice,
   wantsToPublish,
   isReadyToPublish,
 }: EventPreviewProps) {
   const hasDefinedPrice = typeof price === 'number' && Number.isFinite(price);
-  const priceDisplay = hasDefinedPrice ? (price === 0 ? 'Gratis' : `S/ ${price.toFixed(2)}`) : 'A definir';
-  const capacityDisplay = maxUsers ? `${minUsers || 0}-${maxUsers} jugadoras` : 'Sin límite';
+  const hasFixedTeamPrice =
+    isTeamEvent &&
+    teamPriceMode === 'fixed_team' &&
+    typeof fixedTeamPrice === 'number' &&
+    Number.isFinite(fixedTeamPrice);
+  const priceDisplay = hasFixedTeamPrice
+    ? fixedTeamPrice === 0
+      ? 'Gratis por equipo'
+      : `S/ ${fixedTeamPrice.toFixed(2)} por equipo`
+    : hasDefinedPrice
+      ? price === 0
+        ? 'Gratis'
+        : `S/ ${price.toFixed(2)}${isTeamEvent ? ' por jugadora' : ''}`
+      : 'A definir';
+  const capacityDisplay = isTeamEvent
+    ? `${teamCount} equipos`
+    : maxUsers
+      ? `${minUsers || 0}-${maxUsers} jugadoras`
+      : 'Sin límite';
   const isIncomplete = !title || !startTime || !locationText;
   const startDate = parsePreviewDateTime(startTime);
   const endDate = parsePreviewDateTime(endTime);
@@ -138,6 +167,37 @@ export default function EventPreview({
       </div>
 
       <div className="space-y-3 px-5 py-5 sm:px-6">
+        {isTeamEvent ? (
+          <div className="rounded-2xl border border-mulberry/15 bg-mulberry/[0.035] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-mulberry/70">
+                  Equipos participantes
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {teamPlayers} titulares
+                  {teamSubstitutes > 0 ? ` + hasta ${teamSubstitutes} suplentes` : ' · sin suplentes'} por equipo
+                </p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-mulberry ring-1 ring-mulberry/15">
+                0/{teamCount} equipos
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {Array.from({ length: Math.min(teamCount, 6) }, (_, index) => (
+                <div key={index} className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-center text-xs font-medium text-slate-500">
+                  Equipo {index + 1}
+                </div>
+              ))}
+              {teamCount > 6 ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs font-semibold text-slate-600">
+                  +{teamCount - 6} lugares
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         {startTime ? (
           <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">

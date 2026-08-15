@@ -1,27 +1,41 @@
 import { getServerSupabase } from '@core/api/supabase.server';
 import { CatalogOption } from '@modules/events/model/types';
 
-const DEFAULT_EVENT_TYPES = ['Pichanga libre', 'Versus de equipos'];
-const DEFAULT_LEVELS = ['Sin Experiencia', 'Intermedio', 'Avanzado'];
+function normalizeCatalogName(value: unknown) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
 
-async function seedIfEmpty(table: 'eventType' | 'level', defaults: string[]) {
+function dedupeCatalogOptions(rows: unknown[] | null): CatalogOption[] {
+  const optionByName = new Map<string, CatalogOption>();
+
+  (rows ?? []).forEach((rawRow) => {
+    const row = rawRow as { id?: unknown; name?: unknown };
+    const id = Number(row.id);
+    const name = String(row.name || '').trim();
+    const normalizedName = normalizeCatalogName(name);
+    if (!Number.isInteger(id) || id <= 0 || !normalizedName) return;
+
+    const current = optionByName.get(normalizedName);
+    if (!current || id < current.id) optionByName.set(normalizedName, { id, name });
+  });
+
+  return Array.from(optionByName.values()).sort((a, b) => a.id - b.id);
+}
+
+async function readCatalog(table: 'eventType' | 'level') {
   const supabase = await getServerSupabase();
-  const { data, error } = await supabase.from(table).select('id,name').order('id', { ascending: true });
-
-  if (error) throw new Error(error.message);
-
-  if ((data ?? []).length > 0) {
-    return data as CatalogOption[];
-  }
-
-  const { data: inserted, error: insertError } = await supabase
+  const { data, error } = await supabase
     .from(table)
-    .insert(defaults.map((name) => ({ name })))
     .select('id,name')
     .order('id', { ascending: true });
 
-  if (insertError) throw new Error(insertError.message);
-  return (inserted ?? []) as CatalogOption[];
+  if (error) throw new Error(error.message);
+  return dedupeCatalogOptions(data ?? []);
 }
 
 export async function getEventCatalogs(): Promise<{
@@ -29,8 +43,8 @@ export async function getEventCatalogs(): Promise<{
   levels: CatalogOption[];
 }> {
   const [eventTypes, levels] = await Promise.all([
-    seedIfEmpty('eventType', DEFAULT_EVENT_TYPES),
-    seedIfEmpty('level', DEFAULT_LEVELS),
+    readCatalog('eventType'),
+    readCatalog('level'),
   ]);
 
   return { eventTypes, levels };

@@ -12,6 +12,7 @@ interface CardEventProps {
   dateText: string;
   textLocation: string;
   price: string;
+  priceCaption?: string;
   badge: React.ReactNode[];
   button: React.ReactNode;
   detailsHref: string;
@@ -26,6 +27,7 @@ const CardEvent: React.FC<CardEventProps> = ({
   dateText,
   textLocation,
   price,
+  priceCaption,
   badge,
   button,
   detailsHref,
@@ -102,9 +104,16 @@ const CardEvent: React.FC<CardEventProps> = ({
 
       <div className="pointer-events-none relative z-20 mt-5 flex items-end justify-between gap-3 border-t border-slate-100 pt-4 sm:mt-0 sm:h-full sm:flex-col sm:items-end sm:border-0 sm:pt-0">
         <div className="flex min-h-10 max-w-full items-start justify-end">{button}</div>
-        <p className="mt-auto whitespace-nowrap text-right font-eastman text-2xl font-bold leading-none text-mulberry sm:text-3xl">
-          {price}
-        </p>
+        <div className="mt-auto text-right">
+          <p className="whitespace-nowrap font-eastman text-2xl font-bold leading-none text-mulberry sm:text-3xl">
+            {price}
+          </p>
+          {priceCaption ? (
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+              {priceCaption}
+            </p>
+          ) : null}
+        </div>
       </div>
     </article>
   );

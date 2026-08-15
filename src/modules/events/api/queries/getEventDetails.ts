@@ -5,6 +5,9 @@ import { log } from '@core/lib/logger';
 import { getViewerRegistrationStatesByEventIds } from '@modules/events/api/queries/getViewerApprovedRegistrations';
 import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
+import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
+import { getEventTeamRegistrations } from '@modules/events/api/queries/getTeamEventRegistrations';
+import { resolveEventRegistrationMode } from '@modules/events/lib/eventTypeRules';
 
 type EventFeatureRow = {
   feature: number | string | null;
@@ -283,26 +286,51 @@ async function getApprovedAssistantsByEventId(supabase: any, eventId: string) {
   });
 }
 
-async function getViewerCanRegisterTeam(supabase: any) {
+async function getViewerTeamContext(supabase: any) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return false;
+  if (!user) {
+    return {
+      canRegisterTeam: false,
+      hasActiveTeam: false,
+      activeTeamIds: [] as number[],
+      captainTeamIds: [] as number[],
+    };
+  }
 
   const { data, error } = await supabase
     .from('team_member')
-    .select('id')
+    .select('team_id,role')
     .eq('user_id', user.id)
-    .eq('role', 'captain')
-    .eq('status', 'active')
-    .limit(1);
+    .eq('status', 'active');
   if (error) {
-    log.database('SELECT captain membership for event CTA', 'team_member', error as any, {
+    log.database('SELECT viewer team memberships for event CTA', 'team_member', error as any, {
       userId: user.id,
     });
-    return false;
+    return {
+      canRegisterTeam: false,
+      hasActiveTeam: false,
+      activeTeamIds: [] as number[],
+      captainTeamIds: [] as number[],
+    };
   }
-  return Boolean(data?.length);
+
+  const memberships = data ?? [];
+  const activeTeamIds = memberships
+    .map((membership: any) => Number(membership.team_id))
+    .filter((teamId: number) => Number.isInteger(teamId) && teamId > 0);
+  const captainTeamIds = memberships
+    .filter((membership: any) => membership.role === 'captain')
+    .map((membership: any) => Number(membership.team_id))
+    .filter((teamId: number) => Number.isInteger(teamId) && teamId > 0);
+
+  return {
+    canRegisterTeam: captainTeamIds.length > 0,
+    hasActiveTeam: memberships.length > 0,
+    activeTeamIds,
+    captainTeamIds,
+  };
 }
 
 export async function getEventDetails(id: string) {
@@ -326,25 +354,69 @@ export async function getEventDetails(id: string) {
     }
 
     const eventId = String(data.id ?? id);
-    const [featuresData, assistants, viewerRegistrationStatesByEventId, viewerCanRegisterTeam] = await Promise.all([
+    const [
+      featuresData,
+      assistants,
+      viewerRegistrationStatesByEventId,
+      viewerTeamContext,
+      teamRegistrations,
+      catalogs,
+    ] = await Promise.all([
       getEventFeaturesByEventId(supabase, eventId),
       getApprovedAssistantsByEventId(supabase, eventId),
       getViewerRegistrationStatesByEventIds([eventId], supabase),
-      getViewerCanRegisterTeam(supabase),
+      getViewerTeamContext(supabase),
+      getEventTeamRegistrations(eventId),
+      getEventCatalogs(),
     ]);
+    const eventTypeName =
+      catalogs.eventTypes.find((eventType) => Number(eventType.id) === Number((data as any).EventType))
+        ?.name ?? 'Partido';
+    const registrationMode = resolveEventRegistrationMode(
+      (data as any).registration_mode,
+      eventTypeName,
+      (data as any).allows_team_registration === true
+    );
+    const isTeamOnly = registrationMode === 'team';
     const approvedCount = assistants.length;
     const maxUsers = Number((data as any)?.max_users ?? 0);
-    const viewerRegistrationState = viewerRegistrationStatesByEventId.get(eventId) ?? null;
+    const viewerTeamRegistration = teamRegistrations.find((registration) =>
+      viewerTeamContext.activeTeamIds.includes(registration.teamId)
+    );
+    const viewerRegistrationState = isTeamOnly
+      ? viewerTeamRegistration?.state ?? null
+      : viewerRegistrationStatesByEventId.get(eventId) ?? null;
+    const activeTeamRegistrationCount = teamRegistrations.length;
+    const teamRegistrationMaxTeams = Math.max(
+      2,
+      Number((data as any).team_registration_max_teams ?? 2)
+    );
+    const approvedTeamRegistrationCount = teamRegistrations.filter(
+      (registration) => registration.state === 'approved'
+    ).length;
+    const pendingTeamRegistrationCount = activeTeamRegistrationCount - approvedTeamRegistrationCount;
     return {
       ...data,
+      eventTypeName,
+      registrationMode,
       featuresData,
       assistants,
+      teamRegistrations,
       approvedCount,
-      placesLeft: getPlacesLeft(maxUsers, approvedCount),
-      isSoldOut: isEventSoldOut(maxUsers, approvedCount),
+      activeTeamRegistrationCount,
+      approvedTeamRegistrationCount,
+      pendingTeamRegistrationCount,
+      teamRegistrationMaxTeams,
+      placesLeft: isTeamOnly
+        ? Math.max(0, teamRegistrationMaxTeams - activeTeamRegistrationCount)
+        : getPlacesLeft(maxUsers, approvedCount),
+      isSoldOut: isTeamOnly
+        ? activeTeamRegistrationCount >= teamRegistrationMaxTeams
+        : isEventSoldOut(maxUsers, approvedCount),
       viewerHasApprovedRegistration: viewerRegistrationState === 'approved',
       viewerHasPendingRegistration: viewerRegistrationState === 'pending',
-      viewerCanRegisterTeam,
+      viewerCanRegisterTeam: viewerTeamContext.canRegisterTeam,
+      viewerHasActiveTeam: viewerTeamContext.hasActiveTeam,
     };
   }
 

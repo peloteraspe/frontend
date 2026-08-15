@@ -17,6 +17,7 @@ export type EventEntity = {
   locationReference?: string;
   location: EventLocation;
   price: number;
+  priceUnit?: 'team' | 'player';
   minUsers: number;
   maxUsers: number;
   eventTypeId: number | null;
@@ -32,6 +33,11 @@ export type EventEntity = {
   isSoldOut?: boolean;
   viewerHasApprovedRegistration?: boolean;
   viewerHasPendingRegistration?: boolean;
+  registrationMode?: 'individual' | 'team' | 'both';
+  activeTeamRegistrationCount?: number;
+  approvedTeamRegistrationCount?: number;
+  pendingTeamRegistrationCount?: number;
+  teamRegistrationMaxTeams?: number;
   distanceKm?: number;
 };
 
@@ -56,4 +62,9 @@ export type CreateEventPayload = {
   lng: number;
   eventTypeId: number;
   levelId: number;
+  teamCount?: number;
+  teamPlayers?: number;
+  teamSubstitutes?: number;
+  teamPriceMode?: 'per_player' | 'fixed_team';
+  fixedTeamPrice?: number | null;
 };

@@ -1,8 +1,8 @@
 'use client';
 
 import { Html } from '@react-three/drei';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { useMemo, useRef, useState } from 'react';
+import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { HeroVerifiedPlayer } from '@modules/home/model/heroVerifiedPlayer';
 
@@ -31,6 +31,72 @@ const PRIMARY_COLOR = '#F0815B';
 const MULBERRY_COLOR = '#54086F';
 const PLUM_COLOR = '#744D7C';
 const AVATAR_OFFSET = 0.1;
+const DRAG_SENSITIVITY = 0.0062;
+const TOUCH_DRAG_SENSITIVITY = 0.0074;
+const ROTATION_DAMPING = 4.8;
+const AUTO_ROTATION_DELAY = 0.9;
+const AUTO_ROTATION_RAMP = 1.15;
+const MIN_ROTATION_X = -0.72;
+const MAX_ROTATION_X = 0.44;
+
+const NETWORK_LINE_VERTEX_SHADER = `
+  varying float vFrontness;
+
+  void main() {
+    vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+    float cameraDepth = -viewPosition.z;
+    vFrontness = 1.0 - smoothstep(7.4, 14.2, cameraDepth);
+    gl_Position = projectionMatrix * viewPosition;
+  }
+`;
+
+const NETWORK_LINE_FRAGMENT_SHADER = `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  varying float vFrontness;
+
+  void main() {
+    float depthAlpha = mix(0.2, 1.0, smoothstep(0.05, 0.92, vFrontness));
+    gl_FragColor = vec4(uColor, uOpacity * depthAlpha);
+  }
+`;
+
+const RIM_VERTEX_SHADER = `
+  varying vec3 vNormal;
+  varying vec3 vViewDirection;
+
+  void main() {
+    vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+    vNormal = normalize(normalMatrix * normal);
+    vViewDirection = normalize(-viewPosition.xyz);
+    gl_Position = projectionMatrix * viewPosition;
+  }
+`;
+
+const RIM_FRAGMENT_SHADER = `
+  varying vec3 vNormal;
+  varying vec3 vViewDirection;
+
+  void main() {
+    float fresnel = pow(1.0 - max(dot(vNormal, vViewDirection), 0.0), 2.35);
+    vec3 peach = vec3(0.941, 0.506, 0.357);
+    vec3 plum = vec3(0.329, 0.031, 0.435);
+    vec3 rimColor = mix(peach, plum, smoothstep(0.35, 1.0, fresnel));
+    gl_FragColor = vec4(rimColor, fresnel * 0.34);
+  }
+`;
+
+type RotationInteraction = {
+  active: boolean;
+  pointerId: number | null;
+  pointerType: string;
+  lastX: number;
+  lastY: number;
+  lastTimestamp: number;
+  velocityX: number;
+  velocityY: number;
+  idleTime: number;
+};
 
 function toTuple(vector: THREE.Vector3): [number, number, number] {
   return [vector.x, vector.y, vector.z];
@@ -234,12 +300,26 @@ function NetworkLines({
   opacity: number;
   scale?: number;
 }) {
+  const uniforms = useMemo(
+    () => ({
+      uColor: { value: new THREE.Color(color) },
+      uOpacity: { value: opacity },
+    }),
+    [color, opacity]
+  );
+
   return (
     <lineSegments scale={scale} renderOrder={1}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <lineBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} />
+      <shaderMaterial
+        transparent
+        depthWrite={false}
+        uniforms={uniforms}
+        vertexShader={NETWORK_LINE_VERTEX_SHADER}
+        fragmentShader={NETWORK_LINE_FRAGMENT_SHADER}
+      />
     </lineSegments>
   );
 }
@@ -284,21 +364,63 @@ function NetworkNodes({
             ) : null}
 
             {player ? (
-              <Html
-                position={avatarOffset.toArray()}
-                center
-                transform
-                sprite
-                distanceFactor={7.8}
-                style={{ pointerEvents: 'none' }}
-              >
-                <AvatarBadge node={node} player={player} highlighted={isActive} />
-              </Html>
+              <DepthAwareAvatar
+                avatarOffset={toTuple(avatarOffset)}
+                node={node}
+                player={player}
+                highlighted={isActive}
+              />
             ) : null}
           </group>
         );
       })}
     </>
+  );
+}
+
+function DepthAwareAvatar({
+  avatarOffset,
+  node,
+  player,
+  highlighted,
+}: {
+  avatarOffset: [number, number, number];
+  node: NodeSpec;
+  player: HeroVerifiedPlayer;
+  highlighted: boolean;
+}) {
+  const anchorRef = useRef<THREE.Group | null>(null);
+  const htmlRef = useRef<HTMLDivElement | null>(null);
+  const worldPositionRef = useRef(new THREE.Vector3());
+  const cameraVectorRef = useRef(new THREE.Vector3());
+
+  useFrame(({ camera }) => {
+    const anchor = anchorRef.current;
+    const html = htmlRef.current;
+    if (!anchor || !html) return;
+
+    const worldPosition = anchor.getWorldPosition(worldPositionRef.current);
+    const cameraVector = cameraVectorRef.current.copy(camera.position).normalize();
+    const frontness = worldPosition.normalize().dot(cameraVector);
+    const visibility = THREE.MathUtils.smoothstep(frontness, -0.18, 0.28);
+    const opacity = THREE.MathUtils.lerp(0.035, 1, visibility);
+
+    html.style.opacity = opacity.toFixed(3);
+  });
+
+  return (
+    <group ref={anchorRef} position={avatarOffset}>
+      <Html
+        ref={htmlRef}
+        center
+        transform
+        sprite
+        distanceFactor={7.8}
+        style={{ pointerEvents: 'none', willChange: 'opacity' }}
+      >
+        <AvatarBadge node={node} player={player} highlighted={highlighted} />
+      </Html>
+    </group>
   );
 }
 
@@ -355,7 +477,19 @@ function AvatarBadge({
 }
 
 function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
-  const groupRef = useRef<THREE.Group | null>(null);
+  const rotationRef = useRef<THREE.Group | null>(null);
+  const ambientMotionRef = useRef<THREE.Group | null>(null);
+  const interactionRef = useRef<RotationInteraction>({
+    active: false,
+    pointerId: null,
+    pointerType: '',
+    lastX: 0,
+    lastY: 0,
+    lastTimestamp: 0,
+    velocityX: 0,
+    velocityY: 0,
+    idleTime: AUTO_ROTATION_DELAY + AUTO_ROTATION_RAMP,
+  });
   const [displaySeed] = useState(() => Math.floor(Math.random() * 0xffffffff));
   const displayPlayers = useMemo(
     () => selectPlayersForDisplay(players, displaySeed),
@@ -381,91 +515,243 @@ function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
     return new Set(NETWORK_DATA.displayNodes.slice(0, 12).map((node) => node.id));
   }, [assignedPlayerByNodeId]);
 
+  const handlePointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+    event.stopPropagation();
+    const interaction = interactionRef.current;
+    interaction.active = true;
+    interaction.pointerId = event.pointerId;
+    interaction.pointerType = event.pointerType;
+    interaction.lastX = event.clientX;
+    interaction.lastY = event.clientY;
+    interaction.lastTimestamp = event.timeStamp;
+    interaction.velocityX = 0;
+    interaction.velocityY = 0;
+    interaction.idleTime = 0;
+
+    const target = event.nativeEvent.target;
+    if (target instanceof Element) {
+      target.setPointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const handlePointerMove = useCallback((event: ThreeEvent<PointerEvent>) => {
+    const interaction = interactionRef.current;
+    const rotation = rotationRef.current;
+
+    if (!interaction.active || interaction.pointerId !== event.pointerId || !rotation) return;
+
+    event.stopPropagation();
+    const deltaX = event.clientX - interaction.lastX;
+    const deltaY = interaction.pointerType === 'touch' ? 0 : event.clientY - interaction.lastY;
+    const elapsedSeconds = Math.max((event.timeStamp - interaction.lastTimestamp) / 1000, 1 / 120);
+    const sensitivity =
+      interaction.pointerType === 'touch' ? TOUCH_DRAG_SENSITIVITY : DRAG_SENSITIVITY;
+    const rotationDeltaX = deltaY * sensitivity;
+    const rotationDeltaY = deltaX * sensitivity;
+
+    rotation.rotation.x = THREE.MathUtils.clamp(
+      rotation.rotation.x + rotationDeltaX,
+      MIN_ROTATION_X,
+      MAX_ROTATION_X
+    );
+    rotation.rotation.y += rotationDeltaY;
+    interaction.velocityX = THREE.MathUtils.lerp(
+      interaction.velocityX,
+      THREE.MathUtils.clamp(rotationDeltaX / elapsedSeconds, -4.5, 4.5),
+      0.46
+    );
+    interaction.velocityY = THREE.MathUtils.lerp(
+      interaction.velocityY,
+      THREE.MathUtils.clamp(rotationDeltaY / elapsedSeconds, -4.5, 4.5),
+      0.46
+    );
+    interaction.lastX = event.clientX;
+    interaction.lastY = event.clientY;
+    interaction.lastTimestamp = event.timeStamp;
+    interaction.idleTime = 0;
+  }, []);
+
+  const handlePointerUp = useCallback((event: ThreeEvent<PointerEvent>) => {
+    const interaction = interactionRef.current;
+    if (!interaction.active || interaction.pointerId !== event.pointerId) return;
+
+    event.stopPropagation();
+    interaction.active = false;
+    interaction.pointerId = null;
+    interaction.idleTime = 0;
+
+    const target = event.nativeEvent.target;
+    if (target instanceof Element && target.hasPointerCapture(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const handlePointerCancel = useCallback((event: ThreeEvent<PointerEvent>) => {
+    const interaction = interactionRef.current;
+    if (!interaction.active || interaction.pointerId !== event.pointerId) return;
+
+    interaction.active = false;
+    interaction.pointerId = null;
+    interaction.velocityX = 0;
+    interaction.velocityY = 0;
+    interaction.idleTime = 0;
+  }, []);
+
   useFrame((state, delta) => {
-    const group = groupRef.current;
-    if (!group) return;
+    const rotation = rotationRef.current;
+    const ambientMotion = ambientMotionRef.current;
+    if (!rotation || !ambientMotion) return;
 
     const elapsed = state.clock.getElapsedTime();
-    group.rotation.y += delta * 0.12;
-    group.rotation.x = THREE.MathUtils.lerp(
-      group.rotation.x,
-      -0.18 + Math.sin(elapsed * 0.38) * 0.05,
+    ambientMotion.rotation.x = THREE.MathUtils.lerp(
+      ambientMotion.rotation.x,
+      Math.sin(elapsed * 0.38) * 0.035,
       0.04
     );
-    group.rotation.z = THREE.MathUtils.lerp(
-      group.rotation.z,
+    ambientMotion.rotation.z = THREE.MathUtils.lerp(
+      ambientMotion.rotation.z,
       Math.sin(elapsed * 0.26) * 0.04,
       0.04
     );
+
+    const interaction = interactionRef.current;
+    if (interaction.active) return;
+
+    interaction.idleTime += delta;
+    rotation.rotation.x = THREE.MathUtils.clamp(
+      rotation.rotation.x + interaction.velocityX * delta,
+      MIN_ROTATION_X,
+      MAX_ROTATION_X
+    );
+    rotation.rotation.y += interaction.velocityY * delta;
+
+    const damping = Math.exp(-ROTATION_DAMPING * delta);
+    interaction.velocityX *= damping;
+    interaction.velocityY *= damping;
+
+    if (Math.abs(interaction.velocityX) < 0.002) interaction.velocityX = 0;
+    if (Math.abs(interaction.velocityY) < 0.002) interaction.velocityY = 0;
+
+    const autoRotationStrength = THREE.MathUtils.smoothstep(
+      interaction.idleTime,
+      AUTO_ROTATION_DELAY,
+      AUTO_ROTATION_DELAY + AUTO_ROTATION_RAMP
+    );
+    rotation.rotation.y += delta * 0.12 * autoRotationStrength;
   });
 
   return (
-    <group ref={groupRef} scale={NETWORK_SCALE}>
-      <mesh>
-        <sphereGeometry args={[3.04, 36, 36]} />
-        <meshPhysicalMaterial
-          color="#FFF4EE"
-          transparent
-          opacity={0.07}
-          roughness={0.18}
-          metalness={0.04}
-          clearcoat={1}
-          clearcoatRoughness={0.38}
-        />
-      </mesh>
+    <group ref={rotationRef} rotation={[-0.18, 0, 0]}>
+      <group ref={ambientMotionRef} scale={NETWORK_SCALE}>
+        <mesh
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          onLostPointerCapture={handlePointerCancel}
+        >
+          <sphereGeometry args={[3.72, 20, 20]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+        </mesh>
 
-      <mesh scale={1.1}>
-        <sphereGeometry args={[3.04, 28, 28]} />
-        <meshBasicMaterial
+        <mesh>
+          <sphereGeometry args={[3.04, 36, 36]} />
+          <meshPhysicalMaterial
+            color="#FFF4EE"
+            transparent
+            opacity={0.115}
+            roughness={0.23}
+            metalness={0.04}
+            clearcoat={1}
+            clearcoatRoughness={0.28}
+            depthWrite={false}
+          />
+        </mesh>
+
+        <mesh scale={1.018} renderOrder={2}>
+          <sphereGeometry args={[3.04, 36, 36]} />
+          <shaderMaterial
+            transparent
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            vertexShader={RIM_VERTEX_SHADER}
+            fragmentShader={RIM_FRAGMENT_SHADER}
+          />
+        </mesh>
+
+        <mesh scale={1.1}>
+          <sphereGeometry args={[3.04, 28, 28]} />
+          <meshBasicMaterial
+            color={PRIMARY_COLOR}
+            transparent
+            opacity={0.06}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+
+        <mesh scale={1.16}>
+          <sphereGeometry args={[3.04, 24, 24]} />
+          <meshBasicMaterial
+            color={PLUM_COLOR}
+            transparent
+            opacity={0.045}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+
+        <mesh>
+          <sphereGeometry args={[1.3, 16, 16]} />
+          <meshBasicMaterial
+            color={PRIMARY_COLOR}
+            transparent
+            opacity={0.08}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+
+        <NetworkLines positions={NETWORK_DATA.outerSegments} color={RIM_COLOR} opacity={0.38} />
+        <NetworkLines
+          positions={NETWORK_DATA.outerSegments}
+          color={CORE_COLOR}
+          opacity={0.12}
+          scale={1.008}
+        />
+        <NetworkLines
+          positions={NETWORK_DATA.innerSegments}
           color={PRIMARY_COLOR}
-          transparent
-          opacity={0.06}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          toneMapped={false}
+          opacity={0.22}
         />
-      </mesh>
-
-      <mesh scale={1.16}>
-        <sphereGeometry args={[3.04, 24, 24]} />
-        <meshBasicMaterial
+        <NetworkLines
+          positions={NETWORK_DATA.innerSegments}
           color={PLUM_COLOR}
-          transparent
-          opacity={0.045}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          toneMapped={false}
+          opacity={0.12}
+          scale={1.012}
         />
-      </mesh>
-
-      <mesh>
-        <sphereGeometry args={[1.3, 16, 16]} />
-        <meshBasicMaterial
-          color={PRIMARY_COLOR}
-          transparent
-          opacity={0.08}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          toneMapped={false}
+        <NetworkLines
+          positions={NETWORK_DATA.bridgeSegments}
+          color={MULBERRY_COLOR}
+          opacity={0.18}
         />
-      </mesh>
 
-      <NetworkLines positions={NETWORK_DATA.outerSegments} color={RIM_COLOR} opacity={0.38} />
-      <NetworkLines positions={NETWORK_DATA.outerSegments} color={CORE_COLOR} opacity={0.12} scale={1.008} />
-      <NetworkLines positions={NETWORK_DATA.innerSegments} color={PRIMARY_COLOR} opacity={0.22} />
-      <NetworkLines positions={NETWORK_DATA.innerSegments} color={PLUM_COLOR} opacity={0.12} scale={1.012} />
-      <NetworkLines positions={NETWORK_DATA.bridgeSegments} color={MULBERRY_COLOR} opacity={0.18} />
-
-      <NetworkNodes
-        nodes={NETWORK_DATA.outerNodes}
-        activeNodeIds={activeNodeIds}
-        assignedPlayerByNodeId={assignedPlayerByNodeId}
-      />
-      <NetworkNodes
-        nodes={NETWORK_DATA.innerNodes}
-        activeNodeIds={activeNodeIds}
-        assignedPlayerByNodeId={assignedPlayerByNodeId}
-      />
+        <NetworkNodes
+          nodes={NETWORK_DATA.outerNodes}
+          activeNodeIds={activeNodeIds}
+          assignedPlayerByNodeId={assignedPlayerByNodeId}
+        />
+        <NetworkNodes
+          nodes={NETWORK_DATA.innerNodes}
+          activeNodeIds={activeNodeIds}
+          assignedPlayerByNodeId={assignedPlayerByNodeId}
+        />
+      </group>
     </group>
   );
 }
@@ -484,8 +770,9 @@ export default function HeroSoccerBall({ players }: HeroSoccerBallProps) {
           camera={{ position: [0, 0, 10.9], fov: 32 }}
           gl={{ alpha: true, antialias: false, powerPreference: 'low-power' }}
           className="h-full w-full"
+          style={{ touchAction: 'pan-y' }}
         >
-          <ambientLight intensity={0.86} />
+          <ambientLight intensity={0.62} />
           <pointLight position={[6.5, 6, 8]} intensity={55} color="#fff7f3" />
           <pointLight position={[-6, -4, -7]} intensity={34} color="#dcb3ea" />
           <pointLight position={[0, 0, 6]} intensity={26} color="#f59e7b" />
