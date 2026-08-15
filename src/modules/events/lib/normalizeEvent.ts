@@ -5,6 +5,7 @@ import {
 } from '@shared/lib/eventDescription';
 import { extractEventPlaceText } from '@shared/lib/eventPlaceText';
 import { getPlacesLeft, isEventSoldOut } from './eventCapacity';
+import { resolveEventRegistrationMode } from './eventTypeRules';
 
 type Dictionary = Record<number, string>;
 const DEFAULT_TIMEZONE = 'America/Lima';
@@ -58,6 +59,20 @@ export function normalizeEvent(raw: any, eventTypeById: Dictionary, levelById: D
   const levelId = raw?.level == null ? null : asNumber(raw.level, 0);
   const maxUsers = asNumber(raw?.max_users, 0);
   const approvedCount = asNumber(raw?.approvedCount, 0);
+  const eventTypeName = eventTypeId ? eventTypeById[eventTypeId] ?? 'Partido' : 'Partido';
+  const registrationMode = resolveEventRegistrationMode(
+    raw?.registration_mode,
+    eventTypeName,
+    raw?.allows_team_registration === true
+  );
+  const fixedTeamPrice = asNumber(raw?.team_registration_fixed_price, Number.NaN);
+  const hasFixedTeamPrice =
+    registrationMode === 'team' &&
+    raw?.team_registration_price_mode === 'fixed_team' &&
+    raw?.team_registration_fixed_price !== null &&
+    raw?.team_registration_fixed_price !== undefined &&
+    Number.isFinite(fixedTeamPrice) &&
+    fixedTeamPrice >= 0;
 
   return {
     id: String(raw?.id ?? ''),
@@ -72,17 +87,20 @@ export function normalizeEvent(raw: any, eventTypeById: Dictionary, levelById: D
     locationReference: extractLocationReference(raw?.description),
     district: asString(raw?.district, ''),
     location,
-    price: asNumber(raw?.price, 0),
+    price: hasFixedTeamPrice ? fixedTeamPrice : asNumber(raw?.price, 0),
+    priceUnit: registrationMode === 'team' && hasFixedTeamPrice ? 'team' : 'player',
     minUsers: asNumber(raw?.min_users, 0),
     maxUsers,
     eventTypeId,
-    eventTypeName: eventTypeId ? eventTypeById[eventTypeId] ?? 'Partido' : 'Partido',
+    eventTypeName,
     levelId,
     levelName: levelId ? levelById[levelId] ?? 'Sin nivel' : 'Sin nivel',
     createdBy: asString(raw?.created_by, 'Peloteras'),
     createdById: raw?.created_by_id ? String(raw.created_by_id) : null,
     isPublished: raw?.is_published !== false,
     isFeatured: raw?.is_featured === true,
+    registrationMode,
+    teamRegistrationMaxTeams: Math.max(2, asNumber(raw?.team_registration_max_teams, 2)),
     approvedCount,
     placesLeft: getPlacesLeft(maxUsers, approvedCount),
     isSoldOut: isEventSoldOut(maxUsers, approvedCount),

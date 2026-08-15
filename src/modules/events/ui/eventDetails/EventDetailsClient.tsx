@@ -17,13 +17,15 @@ import { EVENT_SOLD_OUT_MESSAGE, isEventSoldOut } from '@modules/events/lib/even
 import {
   EVENT_ALREADY_APPROVED_REGISTRATION_MESSAGE,
   EVENT_PENDING_REGISTRATION_MESSAGE,
+  TEAM_ALREADY_APPROVED_REGISTRATION_MESSAGE,
+  TEAM_PENDING_REGISTRATION_MESSAGE,
   getEventJoinLabel,
   getEventJoinRestrictionMessage,
   isEventJoinDisabled,
 } from '@modules/events/lib/eventJoinState';
 import { hasEventEnded } from '@modules/events/lib/eventTiming';
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
-import { buildPublicPlayerPath } from '@shared/lib/publicProfilePaths';
+import { buildPublicPlayerPath, buildPublicTeamPath } from '@shared/lib/publicProfilePaths';
 import EventShareModal from './EventShareModal';
 import { trackEvent } from '@shared/lib/analytics';
 import {
@@ -181,7 +183,7 @@ export default function EventDetailsClient({ data }: Props) {
     event?.eventTypeName ?? event?.eventType?.name ?? post?.eventTypeName ?? post?.eventType?.name,
     'Partido'
   );
-  const isVersus = isVersusEventTypeName(eventTypeName);
+  const isVersus = event?.registrationMode === 'team' || isVersusEventTypeName(eventTypeName);
   const isPublished = event?.is_published !== false;
   const viewerHasApprovedRegistration = Boolean(
     event?.viewerHasApprovedRegistration ?? post?.viewerHasApprovedRegistration
@@ -219,6 +221,24 @@ export default function EventDetailsClient({ data }: Props) {
   const price = toNumber(event?.price, 0);
   const minUsers = toNumber(event?.min_users ?? event?.minUsers, 0);
   const maxUsers = toNumber(event?.max_users ?? event?.maxUsers, 0);
+  const teamRegistrationsSource = Array.isArray(post?.teamRegistrations)
+    ? post.teamRegistrations
+    : Array.isArray(event?.teamRegistrations)
+    ? event.teamRegistrations
+    : [];
+  const activeTeamRegistrationCount = toNumber(
+    event?.activeTeamRegistrationCount ?? post?.activeTeamRegistrationCount,
+    teamRegistrationsSource.length
+  );
+  const teamRegistrationMaxTeams = Math.max(
+    2,
+    toNumber(
+      event?.teamRegistrationMaxTeams ??
+        post?.teamRegistrationMaxTeams ??
+        event?.team_registration_max_teams,
+      2
+    )
+  );
   const allowsTeamRegistration = Boolean(
     event?.allows_team_registration ?? event?.allowsTeamRegistration
   );
@@ -271,7 +291,9 @@ export default function EventDetailsClient({ data }: Props) {
       };
     });
   const approvedCount = toNumber(event?.approvedCount, assistants.length);
-  const isSoldOut = event?.isSoldOut === true || isEventSoldOut(maxUsers, approvedCount);
+  const isSoldOut = isVersus
+    ? activeTeamRegistrationCount >= teamRegistrationMaxTeams
+    : event?.isSoldOut === true || isEventSoldOut(maxUsers, approvedCount);
   const isJoinDisabled = isEventJoinDisabled({
     isPastEvent: isRegistrationClosed,
     isPublished,
@@ -289,15 +311,10 @@ export default function EventDetailsClient({ data }: Props) {
     viewerHasPendingRegistration,
   });
   const joinRestrictionMessage = getEventJoinRestrictionMessage({
+    isVersus,
     viewerHasApprovedRegistration,
     viewerHasPendingRegistration,
   });
-
-  const teamRegistrationsSource = Array.isArray(post?.teamRegistrations)
-    ? post.teamRegistrations
-    : Array.isArray(event?.teamRegistrations)
-    ? event.teamRegistrations
-    : [];
 
   const teamRegistrations = teamRegistrationsSource
     .map((row: any, index: number) => {
@@ -306,12 +323,17 @@ export default function EventDetailsClient({ data }: Props) {
       return {
         id,
         teamName,
+        teamSlug: toText(row?.teamSlug ?? row?.slug),
+        teamAvatarUrl: toText(row?.teamAvatarUrl ?? row?.avatarUrl ?? row?.avatar_url),
+        state: row?.state === 'approved' ? ('approved' as const) : ('pending' as const),
+        participantCount: toNumber(row?.participantCount ?? row?.participant_count, 0),
       };
     })
-    .filter((row: { id: string; teamName: string }) => Boolean(row.id));
+    .filter((row: { id: string; teamName: string }) => Boolean(row.id))
+    .slice(0, teamRegistrationMaxTeams);
 
   const occupancyText = isVersus
-    ? `${teamRegistrations.length} equipos`
+    ? `${activeTeamRegistrationCount}/${teamRegistrationMaxTeams} equipos`
     : maxUsers > 0
     ? `${approvedCount}/${maxUsers}`
     : `${approvedCount}`;
@@ -319,7 +341,7 @@ export default function EventDetailsClient({ data }: Props) {
   const shareText = useMemo(() => {
     const safeLocation = placeText ? `${placeText} - ${locationText}` : locationText || 'Ubicación por confirmar';
     const priceText = hasFixedTeamPrice
-      ? `S/ ${price.toFixed(2)} por jugadora · S/ ${fixedTeamPrice.toFixed(2)} por equipo`
+      ? `S/ ${fixedTeamPrice.toFixed(2)} por equipo`
       : `S/ ${price.toFixed(2)}`;
     return `¿Te sumas a esta pichanga en Peloteras? ${eventTitle} · ${shortDate} · ${safeLocation} · ${priceText}.`;
   }, [eventTitle, fixedTeamPrice, hasFixedTeamPrice, shortDate, placeText, locationText, price]);
@@ -391,7 +413,9 @@ export default function EventDetailsClient({ data }: Props) {
   };
 
   const handleJoinClick = () => {
-    const joinDestination = isVersus ? `/versus/${event.id}` : `/payments/${event.id}`;
+    const joinDestination = isVersus
+      ? `/payments/${event.id}/team`
+      : `/payments/${event.id}`;
 
     if (joinRestrictionMessage) {
       toast(joinRestrictionMessage);
@@ -413,6 +437,16 @@ export default function EventDetailsClient({ data }: Props) {
       return;
     }
 
+    if (isVersus && user && event?.viewerCanRegisterTeam !== true) {
+      if (event?.viewerHasActiveTeam === true) {
+        toast('Solo la capitana puede inscribir al equipo. Coordina con ella para participar.');
+        return;
+      }
+
+      window.location.href = '/profile#crear-equipo';
+      return;
+    }
+
     navigateWithSessionCheck({
       destination: joinDestination,
       authenticatedMessage: 'Preparando tu inscripción...',
@@ -425,13 +459,88 @@ export default function EventDetailsClient({ data }: Props) {
     });
   };
 
+  const resolvedJoinLabel =
+    isVersus && isSoldOut && teamRegistrations.some((team) => team.state === 'pending')
+      ? 'Lugares reservados'
+      : joinLabel;
+  const primaryJoinLabel =
+    viewerHasApprovedRegistration || viewerHasPendingRegistration
+      ? resolvedJoinLabel
+      : isVersus && user && event?.viewerCanRegisterTeam !== true
+      ? event?.viewerHasActiveTeam === true
+        ? 'Coordinar con mi capitana'
+        : 'Crear un equipo'
+      : resolvedJoinLabel;
+
+  const visibleTeamSlotCount = Math.min(
+    teamRegistrationMaxTeams,
+    teamRegistrations.length + Math.min(3, teamRegistrationMaxTeams - teamRegistrations.length)
+  );
+
+  const renderTeamSlot = (slotIndex: number) => {
+    const team = teamRegistrations[slotIndex] ?? null;
+    const isApproved = team?.state === 'approved';
+    return (
+      <div
+        key={team?.id ?? `open-team-slot-${slotIndex}`}
+        className={`flex min-h-44 flex-col items-center justify-center rounded-2xl border px-4 py-5 text-center ${
+          team
+            ? 'border-mulberry/20 bg-mulberry/[0.035]'
+            : 'border-dashed border-slate-300 bg-slate-50'
+        }`}
+      >
+        <span className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-mulberry/15 bg-white text-lg font-bold text-mulberry shadow-sm">
+          {team?.teamAvatarUrl ? (
+            <img
+              src={team.teamAvatarUrl}
+              alt={`Escudo de ${team.teamName}`}
+              className="h-full w-full object-cover"
+            />
+          ) : team ? (
+            getNameInitials(team.teamName)
+          ) : (
+            slotIndex + 1
+          )}
+        </span>
+        {team ? (
+          team.teamSlug ? (
+            <Link
+              href={buildPublicTeamPath(team.teamSlug)}
+              className="mt-3 font-semibold text-slate-950 hover:text-mulberry"
+            >
+              {team.teamName}
+            </Link>
+          ) : (
+            <p className="mt-3 font-semibold text-slate-950">{team.teamName}</p>
+          )
+        ) : (
+          <p className="mt-3 font-semibold text-slate-700">Equipo disponible</p>
+        )}
+        <p className="mt-1 text-xs text-slate-500">
+          {team ? `${team.participantCount} jugadoras` : 'Esperando inscripción'}
+        </p>
+        <span
+          className={`mt-3 rounded-full px-3 py-1 text-xs font-semibold ${
+            !team
+              ? 'bg-white text-slate-600 ring-1 ring-slate-200'
+              : isApproved
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-amber-100 text-amber-800'
+          }`}
+        >
+          {!team ? 'Cupo disponible' : isApproved ? 'Confirmado' : 'Pago en revisión'}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div className="py-6 md:py-10">
       <AuthRedirectLoader visible={isPendingNavigation} message={pendingNavigationMessage} />
       <div className="mb-5">
         <Link
           className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-[#54086F]"
-          href="/"
+          href="/events"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -492,27 +601,19 @@ export default function EventDetailsClient({ data }: Props) {
                 </div>
               ) : null}
             </div>
-            <div
-              className={`mt-4 grid gap-3 ${hasFixedTeamPrice ? 'sm:grid-cols-2 xl:grid-cols-4' : 'sm:grid-cols-3'}`}
-            >
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Fecha</p>
                 <p className="mt-1 text-sm font-semibold text-slate-800">{shortDate}</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs uppercase tracking-wide text-slate-500">
-                  {hasFixedTeamPrice ? 'Precio por jugadora' : 'Precio'}
+                  {hasFixedTeamPrice ? 'Precio por equipo' : isVersus ? 'Precio por jugadora' : 'Precio'}
                 </p>
-                <p className="mt-1 text-sm font-semibold text-slate-800">S/ {price.toFixed(2)}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-800">
+                  S/ {(hasFixedTeamPrice ? fixedTeamPrice : price).toFixed(2)}
+                </p>
               </div>
-              {hasFixedTeamPrice ? (
-                <div className="rounded-xl border border-mulberry/20 bg-mulberry/[0.04] px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-mulberry/70">Precio por equipo</p>
-                  <p className="mt-1 text-sm font-semibold text-mulberry">
-                    S/ {fixedTeamPrice.toFixed(2)}
-                  </p>
-                </div>
-              ) : null}
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Cupos</p>
                 <p className="mt-1 text-sm font-semibold text-slate-800">{occupancyText}</p>
@@ -522,23 +623,49 @@ export default function EventDetailsClient({ data }: Props) {
 
           {isVersus ? (
             <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-              <h3 className="mb-3 text-xl font-bold text-slate-900">
-                Equipos inscritos ({teamRegistrations.length})
-              </h3>
-              {teamRegistrations.length ? (
-                <ul className="grid gap-2 sm:grid-cols-2">
-                  {teamRegistrations.map((team) => (
-                    <li
-                      key={team.id}
-                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800"
-                    >
-                      {team.teamName}
-                    </li>
-                  ))}
-                </ul>
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-mulberry">
+                    {teamRegistrationMaxTeams === 2
+                      ? 'Partido entre equipos'
+                      : 'Evento por equipos'}
+                  </p>
+                  <h3 className="mt-1 text-xl font-bold text-slate-900">
+                    {teamRegistrationMaxTeams === 2 ? 'El enfrentamiento' : 'Equipos participantes'}
+                  </h3>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                  {occupancyText}
+                </span>
+              </div>
+
+              {teamRegistrationMaxTeams === 2 ? (
+                <div className="grid items-stretch gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-4">
+                  {renderTeamSlot(0)}
+                  <div className="flex items-center justify-center">
+                    <span className="inline-flex h-12 min-w-12 items-center justify-center rounded-full bg-mulberry px-3 text-sm font-black tracking-wide text-white shadow-sm">
+                      VS
+                    </span>
+                  </div>
+                  {renderTeamSlot(1)}
+                </div>
               ) : (
-                <p className="text-sm text-slate-600">Aún no hay equipos confirmados.</p>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {Array.from({ length: visibleTeamSlotCount }, (_, slotIndex) =>
+                    renderTeamSlot(slotIndex)
+                  )}
+                </div>
               )}
+
+              <p className="mt-4 text-center text-sm text-slate-600">
+                {activeTeamRegistrationCount === 0
+                  ? `Los ${teamRegistrationMaxTeams} lugares están disponibles.`
+                  : activeTeamRegistrationCount < teamRegistrationMaxTeams
+                    ? `Quedan ${teamRegistrationMaxTeams - activeTeamRegistrationCount} lugares para equipos.`
+                    : teamRegistrations.every((team) => team.state === 'approved')
+                      ? 'Todos los equipos están confirmados.'
+                      : 'Hay pagos en revisión antes de confirmar todos los equipos.'}
+              </p>
             </section>
           ) : (
             <>
@@ -719,13 +846,9 @@ export default function EventDetailsClient({ data }: Props) {
                   </svg>
                   <span>
                     <span className="block">
-                      S/ {price.toFixed(2)}{hasFixedTeamPrice ? ' por jugadora' : ''}
+                      S/ {(hasFixedTeamPrice ? fixedTeamPrice : price).toFixed(2)}
+                      {isVersus ? (hasFixedTeamPrice ? ' por equipo' : ' por jugadora') : ''}
                     </span>
-                    {hasFixedTeamPrice ? (
-                      <span className="mt-0.5 block font-semibold text-mulberry">
-                        S/ {fixedTeamPrice.toFixed(2)} por equipo
-                      </span>
-                    ) : null}
                   </span>
                 </li>
               </ul>
@@ -752,17 +875,23 @@ export default function EventDetailsClient({ data }: Props) {
                 )}
                 {!isRegistrationClosed && isSoldOut && (
                   <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800">
-                    Cupos completos: este evento ya no acepta más inscripciones.
+                    {isVersus
+                      ? 'Inscripciones completas: todos los lugares para equipos están reservados.'
+                      : 'Cupos completos: este evento ya no acepta más inscripciones.'}
                   </p>
                 )}
                 {!isRegistrationClosed && viewerHasApprovedRegistration && (
                   <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-                    {EVENT_ALREADY_APPROVED_REGISTRATION_MESSAGE}
+                    {isVersus
+                      ? TEAM_ALREADY_APPROVED_REGISTRATION_MESSAGE
+                      : EVENT_ALREADY_APPROVED_REGISTRATION_MESSAGE}
                   </p>
                 )}
                 {!isRegistrationClosed && viewerHasPendingRegistration && (
                   <p className="mb-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800">
-                    {EVENT_PENDING_REGISTRATION_MESSAGE}
+                    {isVersus
+                      ? TEAM_PENDING_REGISTRATION_MESSAGE
+                      : EVENT_PENDING_REGISTRATION_MESSAGE}
                   </p>
                 )}
                 <ButtonWrapper
@@ -771,9 +900,9 @@ export default function EventDetailsClient({ data }: Props) {
                   className="!my-0"
                   disabled={isJoinDisabled}
                 >
-                  {joinLabel}
+                  {primaryJoinLabel}
                 </ButtonWrapper>
-                {allowsTeamRegistration && event?.viewerCanRegisterTeam === true && !isRegistrationClosed && !isSoldOut ? (
+                {!isVersus && allowsTeamRegistration && event?.viewerCanRegisterTeam === true && !isRegistrationClosed && !isSoldOut ? (
                   <Link
                     href={`/payments/${event.id}/team`}
                     className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-mulberry px-4 text-sm font-semibold text-mulberry transition hover:bg-mulberry hover:text-white"

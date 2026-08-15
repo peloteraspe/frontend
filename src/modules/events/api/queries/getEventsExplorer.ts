@@ -8,6 +8,10 @@ import { getViewerRegistrationStatesByEventIds } from '@modules/events/api/queri
 import { normalizeEvent } from '@modules/events/lib/normalizeEvent';
 import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { EventEntity } from '@modules/events/model/types';
+import {
+  getTeamRegistrationCountsByEventIds,
+  getViewerTeamRegistrationStatesByEventIds,
+} from '@modules/events/api/queries/getTeamEventRegistrations';
 
 type IdNameRow = {
   id: number;
@@ -41,19 +45,44 @@ export async function getEventsExplorer(): Promise<EventEntity[]> {
   const levelById = toDictionary(catalogs.levels as IdNameRow[]);
   const normalizedEvents = (eventsRes.data ?? []).map((event) => normalizeEvent(event, eventTypeById, levelById));
   const eventIds = normalizedEvents.map((event) => event.id);
-  const [approvedCountByEventId, viewerRegistrationStatesByEventId] = await Promise.all([
+  const [
+    approvedCountByEventId,
+    viewerRegistrationStatesByEventId,
+    teamRegistrationCountsByEventId,
+    viewerTeamRegistrationStatesByEventId,
+  ] = await Promise.all([
     getApprovedParticipantsCountByEventIds(eventIds),
     getViewerRegistrationStatesByEventIds(eventIds, supabase),
+    getTeamRegistrationCountsByEventIds(eventIds),
+    getViewerTeamRegistrationStatesByEventIds(eventIds, supabase),
   ]);
 
   return normalizedEvents.map((event) => {
     const approvedCount = approvedCountByEventId.get(event.id) ?? 0;
-    const viewerRegistrationState = viewerRegistrationStatesByEventId.get(event.id) ?? null;
+    const teamRegistrationCounts = teamRegistrationCountsByEventId.get(event.id) ?? {
+      active: 0,
+      approved: 0,
+      pending: 0,
+    };
+    const activeTeamRegistrationCount = teamRegistrationCounts.active;
+    const teamRegistrationMaxTeams = Math.max(2, event.teamRegistrationMaxTeams ?? 2);
+    const viewerRegistrationState = event.registrationMode === 'team'
+      ? viewerTeamRegistrationStatesByEventId.get(event.id) ?? null
+      : viewerRegistrationStatesByEventId.get(event.id) ?? null;
+    const isTeamOnly = event.registrationMode === 'team';
     return {
       ...event,
       approvedCount,
-      placesLeft: getPlacesLeft(event.maxUsers, approvedCount),
-      isSoldOut: isEventSoldOut(event.maxUsers, approvedCount),
+      activeTeamRegistrationCount,
+      approvedTeamRegistrationCount: teamRegistrationCounts.approved,
+      pendingTeamRegistrationCount: teamRegistrationCounts.pending,
+      teamRegistrationMaxTeams,
+      placesLeft: isTeamOnly
+        ? Math.max(0, teamRegistrationMaxTeams - activeTeamRegistrationCount)
+        : getPlacesLeft(event.maxUsers, approvedCount),
+      isSoldOut: isTeamOnly
+        ? activeTeamRegistrationCount >= teamRegistrationMaxTeams
+        : isEventSoldOut(event.maxUsers, approvedCount),
       viewerHasApprovedRegistration: viewerRegistrationState === 'approved',
       viewerHasPendingRegistration: viewerRegistrationState === 'pending',
     };
@@ -72,17 +101,38 @@ export async function getEventExplorerById(id: string): Promise<EventEntity | nu
   const eventTypeById = toDictionary(catalogs.eventTypes as IdNameRow[]);
   const levelById = toDictionary(catalogs.levels as IdNameRow[]);
   const event = normalizeEvent(eventRes.data, eventTypeById, levelById);
-  const [approvedCount, viewerRegistrationStatesByEventId] = await Promise.all([
+  const [
+    approvedCount,
+    viewerRegistrationStatesByEventId,
+    teamRegistrationCountsByEventId,
+    viewerTeamRegistrationStatesByEventId,
+  ] = await Promise.all([
     getApprovedParticipantsCountByEventId(id),
     getViewerRegistrationStatesByEventIds([id], supabase),
+    getTeamRegistrationCountsByEventIds([id]),
+    getViewerTeamRegistrationStatesByEventIds([id], supabase),
   ]);
-  const viewerRegistrationState = viewerRegistrationStatesByEventId.get(String(id)) ?? null;
+  const teamRegistrationCounts = teamRegistrationCountsByEventId.get(String(id)) ?? {
+    active: 0,
+    approved: 0,
+    pending: 0,
+  };
+  const activeTeamRegistrationCount = teamRegistrationCounts.active;
+  const teamRegistrationMaxTeams = Math.max(2, event.teamRegistrationMaxTeams ?? 2);
+  const viewerRegistrationState = event.registrationMode === 'team'
+    ? viewerTeamRegistrationStatesByEventId.get(String(id)) ?? null
+    : viewerRegistrationStatesByEventId.get(String(id)) ?? null;
+  const isTeamOnly = event.registrationMode === 'team';
 
   return {
     ...event,
     approvedCount,
-    placesLeft: getPlacesLeft(event.maxUsers, approvedCount),
-    isSoldOut: isEventSoldOut(event.maxUsers, approvedCount),
+    activeTeamRegistrationCount,
+    approvedTeamRegistrationCount: teamRegistrationCounts.approved,
+    pendingTeamRegistrationCount: teamRegistrationCounts.pending,
+    teamRegistrationMaxTeams,
+    placesLeft: isTeamOnly ? Math.max(0, teamRegistrationMaxTeams - activeTeamRegistrationCount) : getPlacesLeft(event.maxUsers, approvedCount),
+    isSoldOut: isTeamOnly ? activeTeamRegistrationCount >= teamRegistrationMaxTeams : isEventSoldOut(event.maxUsers, approvedCount),
     viewerHasApprovedRegistration: viewerRegistrationState === 'approved',
     viewerHasPendingRegistration: viewerRegistrationState === 'pending',
   };

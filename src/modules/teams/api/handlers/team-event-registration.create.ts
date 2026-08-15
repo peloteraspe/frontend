@@ -20,6 +20,7 @@ function errorMessage(error: unknown) {
     ['TEAM_ALREADY_REGISTERED', 'Este equipo ya tiene una inscripción activa en el evento.'],
     ['MEMBER_ALREADY_REGISTERED', 'Una de las jugadoras ya está inscrita en este evento.'],
     ['EVENT_SOLD_OUT', 'No quedan cupos suficientes para todo el equipo.'],
+    ['VERSUS_TEAM_SLOTS_FULL', 'Este evento ya tiene todos sus lugares para equipos reservados.'],
     ['TEAM_REGISTRATION_NOT_FOUND', 'No encontramos la inscripción grupal.'],
     ['TEAM_REGISTRATION_NOT_CANCELLABLE', 'La inscripción ya no se puede cancelar.'],
     ['EVENT_ALREADY_STARTED', 'El evento ya inició y la inscripción no se puede cancelar.'],

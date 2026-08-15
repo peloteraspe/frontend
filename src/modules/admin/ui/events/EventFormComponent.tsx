@@ -13,6 +13,7 @@ import { trackEvent } from '@shared/lib/analytics';
 import EventShareModal, { EventShareModalStatus } from '@modules/admin/ui/events/EventShareModal';
 import EventAnnouncementForm from '@modules/admin/ui/events/EventAnnouncementForm';
 import InlinePaymentMethodSetup, {
+  getPaymentMethodDisplayName,
   type InlinePaymentMethodSummary,
 } from '@modules/admin/ui/paymentMethods/InlinePaymentMethodSetup';
 import { useGoogleMapsApi } from '@core/ui/Map/useGoogleMapsApi';
@@ -46,6 +47,7 @@ import {
 } from '@shared/lib/paymentMethodSelection';
 import UsersRichTextEditor from '@modules/admin/ui/users/UsersRichTextEditor';
 import type { OrganizerOption } from '@modules/admin/model/organizers';
+import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 
 type SubmitResult = {
   eventId?: string | number;
@@ -67,6 +69,11 @@ type EventCreateDraftSnapshot = {
     eventTypeId: string;
     levelId: string;
     isFeatured: boolean;
+    teamCount?: string;
+    teamPlayers?: string;
+    teamSubstitutes?: string;
+    teamRegistrationPriceMode?: 'per_player' | 'fixed_team';
+    teamFixedPrice?: string;
   };
   state: {
     startTime: string;
@@ -109,6 +116,7 @@ type Props = {
     isFieldReservedConfirmed: boolean;
     isFeatured: boolean;
     allowsTeamRegistration: boolean;
+    teamRegistrationMaxTeams: number | null;
     teamRegistrationMinPlayers: number | null;
     teamRegistrationMaxPlayers: number | null;
     teamRegistrationPriceMode: 'per_player' | 'fixed_team';
@@ -153,11 +161,6 @@ const FLOW_SURFACE_CLASS =
   'rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6';
 const FLOW_PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-slate-50/85';
 const FLOW_FIELD_CLASS = 'peloteras-form-control h-12';
-const TEAM_REGISTRATION_PRICE_OPTIONS = [
-  { value: 'per_player', label: 'Por jugadora' },
-  { value: 'fixed_team', label: 'Fijo por equipo' },
-];
-
 function asFiniteNumber(value: unknown, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -317,26 +320,26 @@ const CREATE_EVENT_STEPS: Array<{
   {
     id: 1,
     label: 'Paso 1',
-    title: 'Información básica',
-    description: 'Define el partido, su horario y los cupos.',
+    title: 'Formato y partido',
+    description: 'Elige cómo se inscriben y define los datos principales.',
   },
   {
     id: 2,
     label: 'Paso 2',
     title: 'Ubicación',
-    description: 'Elige cancha, pin y precio.',
+    description: 'Elige la cancha y confirma el punto exacto.',
   },
   {
     id: 3,
     label: 'Paso 3',
-    title: 'Detalles',
-    description: 'Ajusta nivel, servicios incluidos y cobro.',
+    title: 'Inscripción y cobro',
+    description: 'Configura el precio, el pago y los detalles adicionales.',
   },
   {
     id: 4,
     label: 'Paso 4',
-    title: 'Final',
-    description: 'Revisa el resultado y decide si lo publicas o lo guardas.',
+    title: 'Revisar',
+    description: 'Comprueba cómo quedará y decide si lo publicas o lo guardas.',
   },
 ];
 const CREATE_EVENT_DRAFT_STORAGE_PREFIX = 'peloteras:create-event:draft:';
@@ -390,10 +393,24 @@ const EventForm = ({
   const [teamRegistrationPriceMode, setTeamRegistrationPriceMode] = useState<
     'per_player' | 'fixed_team'
   >(initial?.teamRegistrationPriceMode === 'fixed_team' ? 'fixed_team' : 'per_player');
+  const [teamFixedPriceValue, setTeamFixedPriceValue] = useState(
+    String(initial?.teamRegistrationFixedPrice ?? '')
+  );
+  const [teamCountValue, setTeamCountValue] = useState(
+    String(Math.max(2, Number(initial?.teamRegistrationMaxTeams ?? 2)))
+  );
+  const [teamPlayersValue, setTeamPlayersValue] = useState(
+    String(Math.max(1, Number(initial?.teamRegistrationMinPlayers ?? 7)))
+  );
+  const [teamSubstitutesValue, setTeamSubstitutesValue] = useState(() => {
+    const minimum = Math.max(1, Number(initial?.teamRegistrationMinPlayers ?? 7));
+    const maximum = Math.max(minimum, Number(initial?.teamRegistrationMaxPlayers ?? minimum));
+    return String(maximum - minimum);
+  });
   const [selectedEventTypeId, setSelectedEventTypeId] = useState(() => {
     const initialId = Number(initial?.eventTypeId);
     if (eventTypes.some((option) => option.id === initialId)) return String(initialId);
-    return String(eventTypes[0]?.id ?? 1);
+    return submitLabel.trim().toLowerCase() === 'crear' ? '' : String(eventTypes[0]?.id ?? 1);
   });
   const [selectedLevelId, setSelectedLevelId] = useState(() => {
     const initialId = Number(initial?.levelId);
@@ -554,26 +571,55 @@ const EventForm = ({
   );
 
   const smartSuggestions = useMemo(() => {
+    const suggestionEventType = eventTypes.find(
+      (option) => String(option.id) === selectedEventTypeId
+    );
+    const isTeamFormat = isVersusEventTypeName(suggestionEventType?.name);
+    const suggestedTeamCount = Math.max(2, Number(teamCountValue) || 2);
+    const suggestedRosterSize =
+      Math.max(1, Number(teamPlayersValue) || 1) +
+      Math.max(0, Number(teamSubstitutesValue) || 0);
+    const suggestedPrice =
+      isTeamFormat && teamRegistrationPriceMode === 'fixed_team'
+        ? Number(teamFixedPriceValue)
+        : Number(priceValue);
+
     return getSuggestionsForEvent({
       district: districtText,
       startTime,
-      price: Number(priceValue) || undefined,
-      maxUsers: Number(maxUsersValue) || undefined,
+      price: suggestedPrice || undefined,
+      maxUsers: isTeamFormat
+        ? suggestedTeamCount * suggestedRosterSize
+        : Number(maxUsersValue) || undefined,
       title: eventTitle || undefined,
     });
-  }, [districtText, eventTitle, maxUsersValue, priceValue, startTime]);
+  }, [
+    districtText,
+    eventTitle,
+    eventTypes,
+    maxUsersValue,
+    priceValue,
+    selectedEventTypeId,
+    startTime,
+    teamCountValue,
+    teamFixedPriceValue,
+    teamPlayersValue,
+    teamRegistrationPriceMode,
+    teamSubstitutesValue,
+  ]);
 
   const selectedEventType = useMemo(
     () => eventTypes.find((option) => String(option.id) === selectedEventTypeId),
     [eventTypes, selectedEventTypeId]
   );
+  const isVersusSelected = isVersusEventTypeName(selectedEventType?.name);
+  const teamCount = Math.max(2, Number(teamCountValue) || 2);
+  const teamPlayers = Math.max(1, Number(teamPlayersValue) || 1);
+  const teamSubstitutes = Math.max(0, Number(teamSubstitutesValue) || 0);
+  const teamRosterMax = teamPlayers + teamSubstitutes;
   const selectedLevel = useMemo(
     () => levels.find((option) => String(option.id) === selectedLevelId),
     [levels, selectedLevelId]
-  );
-  const eventTypeSelectOptions = useMemo(
-    () => eventTypes.map((option) => ({ value: String(option.id), label: option.name })),
-    [eventTypes]
   );
   const levelSelectOptions = useMemo(
     () => levels.map((option) => ({ value: String(option.id), label: option.name })),
@@ -598,13 +644,11 @@ const EventForm = ({
   const paymentMethodOptions = useMemo(
     () =>
       paymentMethodCatalog.map((option) => {
-        const methodType =
-          option.type === 'yape_plin' ? 'Yape/Plin' : option.type === 'plin' ? 'Plin' : 'Yape';
         const numberText = option.number ? ` · ${option.number}` : '';
         const stateText = option.isActive ? '' : ' (Inactivo)';
         return {
           value: option.id,
-          label: `${option.name} · ${methodType}${numberText}${stateText}`,
+          label: `${getPaymentMethodDisplayName(option)}${numberText}${stateText}`,
         };
       }),
     [paymentMethodCatalog]
@@ -705,8 +749,12 @@ const EventForm = ({
 
   useEffect(() => {
     if (eventTypes.some((option) => String(option.id) === selectedEventTypeId)) return;
+    if (isCreateMode) {
+      setSelectedEventTypeId('');
+      return;
+    }
     setSelectedEventTypeId(String(eventTypes[0]?.id ?? 1));
-  }, [eventTypes, selectedEventTypeId]);
+  }, [eventTypes, isCreateMode, selectedEventTypeId]);
 
   useEffect(() => {
     if (levels.some((option) => String(option.id) === selectedLevelId)) return;
@@ -843,6 +891,11 @@ const EventForm = ({
         eventTypeId: selectedEventTypeId,
         levelId: selectedLevelId,
         isFeatured: isFeaturedValue,
+        teamCount: teamCountValue,
+        teamPlayers: teamPlayersValue,
+        teamSubstitutes: teamSubstitutesValue,
+        teamRegistrationPriceMode,
+        teamFixedPrice: teamFixedPriceValue,
       },
       state: {
         startTime,
@@ -931,6 +984,11 @@ const EventForm = ({
     setSelectedEventTypeId(snapshot.fields.eventTypeId);
     setSelectedLevelId(snapshot.fields.levelId);
     setIsFeaturedValue(snapshot.fields.isFeatured);
+    setTeamCountValue(snapshot.fields.teamCount || '2');
+    setTeamPlayersValue(snapshot.fields.teamPlayers || '7');
+    setTeamSubstitutesValue(snapshot.fields.teamSubstitutes || '0');
+    setTeamRegistrationPriceMode(snapshot.fields.teamRegistrationPriceMode || 'fixed_team');
+    setTeamFixedPriceValue(snapshot.fields.teamFixedPrice || '');
     setStartTime(snapshot.state.startTime);
     setEndTime(snapshot.state.endTime);
     setPlaceText(snapshot.state.placeText);
@@ -1324,10 +1382,24 @@ const EventForm = ({
       const minUsers = Number(fd.get('minUsers'));
       const maxUsers = Number(fd.get('maxUsers'));
 
+      if (!String(fd.get('eventTypeId') || '').trim())
+        return 'Primero elige qué tipo de partido quieres organizar.';
       if (!title) return 'Agrega un título para que tu evento sea fácil de reconocer.';
       if (!description) return 'Incluye una descripción corta para explicar el plan.';
       if (!startTime || !endTime) return 'Define la fecha y hora de inicio y fin.';
       if (timeError) return timeError;
+      if (isVersusSelected) {
+        const maxTeams = Number(fd.get('teamRegistrationMaxTeams'));
+        const minPlayers = Number(fd.get('teamRegistrationMinPlayers'));
+        const maxPlayers = Number(fd.get('teamRegistrationMaxPlayers'));
+        if (!Number.isInteger(maxTeams) || maxTeams < 2 || maxTeams > 64)
+          return 'Define una cantidad de equipos entre 2 y 64.';
+        if (!Number.isInteger(minPlayers) || minPlayers < 1 || minPlayers > 30)
+          return 'Define entre 1 y 30 jugadoras en cancha por equipo.';
+        if (!Number.isInteger(maxPlayers) || maxPlayers < minPlayers || maxPlayers > 60)
+          return 'Revisa la cantidad máxima del plantel por equipo.';
+        return '';
+      }
       if (!Number.isFinite(minUsers) || minUsers <= 0)
         return 'Ingresa un mínimo de jugadoras válido.';
       if (!Number.isFinite(maxUsers) || maxUsers <= 0)
@@ -1338,17 +1410,26 @@ const EventForm = ({
 
     if (step === 2) {
       const nextLocationText = String(fd.get('locationText') || '').trim();
-      const price = Number(fd.get('price'));
       const nextLocationError = resolveLocationSelectionError();
 
       if (!nextLocationText) return 'Escribe la cancha o dirección donde jugarán.';
       if (geoError && !isMapUnavailable) return geoError;
       if (nextLocationError && !isMapUnavailable) return nextLocationError;
-      if (!Number.isFinite(price) || price < 0) return 'Define un precio válido para el evento.';
       return '';
     }
 
     if (step === 3) {
+      const price = Number(fd.get('price'));
+      const fixedTeamPriceRaw = String(fd.get('teamRegistrationFixedPrice') || '').trim();
+      const fixedTeamPrice = Number(fixedTeamPriceRaw);
+      if (!Number.isFinite(price) || price < 0) return 'Define un precio válido para el evento.';
+      if (
+        isVersusSelected &&
+        teamRegistrationPriceMode === 'fixed_team' &&
+        (!fixedTeamPriceRaw || !Number.isFinite(fixedTeamPrice) || fixedTeamPrice < 0)
+      ) {
+        return 'Define un precio válido por equipo.';
+      }
       if (publishing && currentPublishReadiness.missingIds.includes('payment_methods')) {
         setPaymentMethodsError('Selecciona al menos un método de pago activo antes de publicar.');
         return 'Agrega un método de pago activo o deja el evento como borrador por ahora.';
@@ -1374,7 +1455,9 @@ const EventForm = ({
     if (step === 1) {
       const minUsers = Number(fd.get('minUsers'));
       const maxUsers = Number(fd.get('maxUsers'));
-      selector = !String(fd.get('title') || '').trim()
+      selector = !String(fd.get('eventTypeId') || '').trim()
+        ? '[data-event-type-card]'
+        : !String(fd.get('title') || '').trim()
         ? 'input[name="title"]'
         : !String(fd.get('description') || '').trim()
           ? '#event-description'
@@ -1384,20 +1467,34 @@ const EventForm = ({
               ? 'input[type="time"]'
               : timeError
                 ? 'input[name="endTimeEditor"], input[type="time"]'
+              : isVersusSelected && (
+                  Number(fd.get('teamRegistrationMaxTeams')) < 2 ||
+                  Number(fd.get('teamRegistrationMaxTeams')) > 64
+                )
+                ? 'input[name="teamRegistrationMaxTeams"]'
+                : isVersusSelected && (
+                    Number(fd.get('teamRegistrationMinPlayers')) < 1 ||
+                    Number(fd.get('teamRegistrationMinPlayers')) > 30
+                  )
+                  ? 'input[name="teamRegistrationMinPlayers"]'
               : !Number.isFinite(minUsers) || minUsers <= 0
                 ? 'input[name="minUsers"]'
                 : !Number.isFinite(maxUsers) || maxUsers <= 0 || maxUsers < minUsers
                   ? 'input[name="maxUsers"]'
                   : '';
     } else if (step === 2) {
-      const price = Number(fd.get('price'));
       selector = !String(fd.get('locationText') || '').trim() || !pinSelectedRef.current
         ? 'input[name="locationText"]'
+        : '';
+    } else if (step === 3) {
+      const fixedTeamPriceRaw = String(fd.get('teamRegistrationFixedPrice') || '').trim();
+      const fixedTeamPrice = Number(fixedTeamPriceRaw);
+      const price = Number(fd.get('price'));
+      selector = isVersusSelected && teamRegistrationPriceMode === 'fixed_team' && (!fixedTeamPriceRaw || fixedTeamPrice < 0)
+        ? 'input[name="teamRegistrationFixedPrice"]'
         : !Number.isFinite(price) || price < 0
           ? 'input[name="price"]'
-          : '';
-    } else if (step === 3) {
-      selector = '#event-payment-methods input';
+          : '#event-payment-methods input';
     } else {
       selector = 'input[name="isFieldReservedConfirmed"]';
     }
@@ -1776,6 +1873,11 @@ const EventForm = ({
     selectedOrganizerId,
     selectedPaymentMethodIds,
     startTime,
+    teamCountValue,
+    teamFixedPriceValue,
+    teamPlayersValue,
+    teamRegistrationPriceMode,
+    teamSubstitutesValue,
   ]);
 
   return (
@@ -1918,6 +2020,83 @@ const EventForm = ({
               isCreateMode && createStep !== 1 ? 'hidden' : 'block',
             ].join(' ')}
           >
+            <div className="mb-6">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-mulberry">
+                  Primero el formato
+                </p>
+                <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                  ¿Qué quieres organizar?
+                </h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Esta decisión define quién se inscribe, cómo se cuentan los cupos y cómo se cobra.
+                </p>
+              </div>
+
+              <div role="radiogroup" aria-label="Tipo de partido" className="mt-4 grid gap-3 md:grid-cols-2">
+                {eventTypes.map((eventType) => {
+                  const isSelected = String(eventType.id) === selectedEventTypeId;
+                  const isTeamFormat = isVersusEventTypeName(eventType.name);
+                  return (
+                    <button
+                      key={eventType.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      data-event-type-card
+                      onClick={() => {
+                        setSelectedEventTypeId(String(eventType.id));
+                        if (isTeamFormat && isCreateMode) {
+                          setTeamRegistrationPriceMode('fixed_team');
+                        }
+                      }}
+                      className={[
+                        'rounded-2xl border px-5 py-4 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-mulberry/15',
+                        isSelected
+                          ? 'border-mulberry bg-mulberry/[0.055] shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-mulberry/30 hover:bg-slate-50',
+                      ].join(' ')}
+                    >
+                      <span className="flex items-start justify-between gap-4">
+                        <span>
+                          <span className="block text-base font-semibold text-slate-950">
+                            {eventType.name}
+                          </span>
+                          <span className="mt-1 block text-sm leading-6 text-slate-600">
+                            {isTeamFormat
+                              ? 'Se inscriben 2 o más equipos. Cada capitana registra y paga por su plantel.'
+                              : 'Las jugadoras se inscriben individualmente hasta completar los cupos.'}
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className={[
+                            'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
+                            isSelected ? 'border-mulberry bg-mulberry text-white' : 'border-slate-300 bg-white',
+                          ].join(' ')}
+                        >
+                          {isSelected ? '✓' : ''}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <input type="hidden" name="eventTypeId" value={selectedEventTypeId} readOnly />
+
+              {selectedEventType ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700 ring-1 ring-slate-200/80">
+                  <span className="font-semibold text-mulberry">{selectedEventType.name}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    {isVersusSelected
+                      ? `${teamCount} equipos · inscripción gestionada por capitanas`
+                      : 'inscripción individual'}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
             <div className="grid gap-6 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(34rem,0.95fr)]">
               <div className="min-w-0 space-y-4">
                 <div>
@@ -2129,114 +2308,141 @@ const EventForm = ({
 
                 <div className="border-t border-slate-200 pt-4">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Cupos</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {isVersusSelected ? 'Equipos y planteles' : 'Cupos'}
+                    </p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Define cuántas jugadoras necesitas para confirmar y cuántas pueden
-                      inscribirse.
+                      {isVersusSelected
+                        ? 'Define cuántos equipos pueden participar y el tamaño de cada plantel.'
+                        : 'Define cuántas jugadoras necesitas para confirmar y cuántas pueden inscribirse.'}
                     </p>
                   </div>
 
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Mínimo para confirmar"
-                      name="minUsers"
-                      type="number"
-                      min={1}
-                      step={1}
-                      required
-                      value={minUsersValue}
-                      onChange={(event) => setMinUsersValue(event.currentTarget.value)}
-                      bgColor="bg-white"
-                      tone="soft"
-                    />
-
-                    <Input
-                      label="Cupos disponibles"
-                      name="maxUsers"
-                      type="number"
-                      min={1}
-                      step={1}
-                      required
-                      value={maxUsersValue}
-                      onChange={(event) => setMaxUsersValue(event.currentTarget.value)}
-                      bgColor="bg-white"
-                      tone="soft"
-                    />
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">
-                    El mínimo te ayuda a decidir si el partido continúa; los cupos disponibles
-                    marcan el límite de inscripciones.
-                  </p>
-                  <div className="mt-4 rounded-2xl border border-mulberry/15 bg-mulberry/[0.03] p-4">
-                    <label className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        name="allowsTeamRegistration"
-                        defaultChecked={Boolean(initial?.allowsTeamRegistration)}
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-mulberry focus:ring-mulberry"
-                      />
-                      <span>
-                        <span className="block text-sm font-semibold text-slate-900">Permitir inscripción por equipo</span>
-                        <span className="mt-1 block text-xs text-slate-600">La capitana elige el plantel y registra un solo número de operación.</span>
-                      </span>
-                    </label>
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <Input
-                        label="Mínimo por equipo"
-                        name="teamRegistrationMinPlayers"
-                        type="number"
-                        min={1}
-                        step={1}
-                        defaultValue={initial?.teamRegistrationMinPlayers ?? 2}
-                        bgColor="bg-white"
-                        tone="soft"
-                      />
-                      <Input
-                        label="Máximo por equipo"
-                        name="teamRegistrationMaxPlayers"
-                        type="number"
-                        min={1}
-                        step={1}
-                        defaultValue={initial?.teamRegistrationMaxPlayers ?? initial?.maxUsers ?? 20}
-                        bgColor="bg-white"
-                        tone="soft"
-                      />
+                  {!selectedEventType ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                      Elige primero el formato del evento para configurar sus cupos.
                     </div>
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  ) : isVersusSelected ? (
+                    <div className="mt-4 space-y-4 rounded-2xl border border-mulberry/15 bg-mulberry/[0.035] p-4">
+                      <Input
+                        label="Cantidad de equipos"
+                        name="teamRegistrationMaxTeams"
+                        type="number"
+                        min={2}
+                        max={64}
+                        step={1}
+                        required
+                        value={teamCountValue}
+                        onChange={(event) => setTeamCountValue(event.currentTarget.value)}
+                        bgColor="bg-white"
+                        tone="soft"
+                      />
+                      <p className="-mt-2 text-xs text-slate-500">
+                        Mínimo 2. Cada equipo ocupa un lugar y se inscribe mediante su capitana.
+                      </p>
+
                       <div>
-                        <SelectComponent
-                          labelText="Modalidad de precio grupal"
-                          options={TEAM_REGISTRATION_PRICE_OPTIONS}
-                          value={teamRegistrationPriceMode}
-                          onChange={(value) =>
-                            setTeamRegistrationPriceMode(
-                              value === 'fixed_team' ? 'fixed_team' : 'per_player'
-                            )
-                          }
-                          isSearchable={false}
+                        <p className="text-sm font-semibold text-slate-700">Formato por equipo</p>
+                        <div role="group" aria-label="Jugadoras en cancha por equipo" className="mt-2 grid grid-cols-5 gap-2">
+                          {[5, 6, 7, 8, 11].map((players) => (
+                            <button
+                              key={players}
+                              type="button"
+                              aria-pressed={teamPlayers === players}
+                              onClick={() => setTeamPlayersValue(String(players))}
+                              className={[
+                                'h-10 rounded-xl border text-xs font-semibold transition',
+                                teamPlayers === players
+                                  ? 'border-mulberry bg-mulberry text-white'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:border-mulberry/35',
+                              ].join(' ')}
+                            >
+                              {players} vs {players}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <Input
+                          label="Jugadoras en cancha por equipo"
+                          name="teamRegistrationMinPlayers"
+                          type="number"
+                          min={1}
+                          max={30}
+                          step={1}
+                          required
+                          value={teamPlayersValue}
+                          onChange={(event) => setTeamPlayersValue(event.currentTarget.value)}
                           bgColor="bg-white"
                           tone="soft"
                         />
-                        <input
-                          type="hidden"
-                          name="teamRegistrationPriceMode"
-                          value={teamRegistrationPriceMode}
-                          readOnly
+                        <Input
+                          label="Suplentes permitidas por equipo"
+                          name="teamSubstitutes"
+                          type="number"
+                          min={0}
+                          max={30}
+                          step={1}
+                          required
+                          value={teamSubstitutesValue}
+                          onChange={(event) => setTeamSubstitutesValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
                         />
                       </div>
-                      <Input
-                        label="Precio fijo por equipo"
-                        name="teamRegistrationFixedPrice"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        defaultValue={initial?.teamRegistrationFixedPrice ?? ''}
-                        placeholder="Solo para modalidad fija"
-                        bgColor="bg-white"
-                        tone="soft"
-                      />
+
+                      <div className="rounded-xl border border-mulberry/15 bg-white px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-mulberry/70">
+                          Resumen del formato
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {teamCount} equipos · {teamPlayers} titulares
+                          {teamSubstitutes > 0 ? ` + hasta ${teamSubstitutes} suplentes` : ' · sin suplentes'} por equipo
+                        </p>
+                      </div>
+
+                      <input type="hidden" name="allowsTeamRegistration" value="true" readOnly />
+                      <input type="hidden" name="teamRegistrationMaxPlayers" value={teamRosterMax} readOnly />
+                      <input type="hidden" name="minUsers" value={teamPlayers * 2} readOnly />
+                      <input type="hidden" name="maxUsers" value={teamRosterMax * teamCount} readOnly />
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <Input
+                          label="Mínimo para confirmar"
+                          name="minUsers"
+                          type="number"
+                          min={1}
+                          step={1}
+                          required
+                          value={minUsersValue}
+                          onChange={(event) => setMinUsersValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+
+                        <Input
+                          label="Cupos disponibles"
+                          name="maxUsers"
+                          type="number"
+                          min={1}
+                          step={1}
+                          required
+                          value={maxUsersValue}
+                          onChange={(event) => setMaxUsersValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">
+                        El mínimo te ayuda a decidir si el partido continúa; los cupos disponibles
+                        marcan el límite de inscripciones.
+                      </p>
+                      <input type="hidden" name="allowsTeamRegistration" value="false" readOnly />
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -2249,7 +2455,7 @@ const EventForm = ({
             ].join(' ')}
           >
             <div className="mb-5">
-              <h3 className="text-lg font-semibold text-slate-900">Ubicación y precio</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Ubicación</h3>
               <p className="mt-1 text-sm text-slate-600">
                 Guarda el nombre del lugar si te sirve como referencia y usa la dirección para
                 ubicar el evento en el mapa.
@@ -2378,19 +2584,6 @@ const EventForm = ({
                 />
               </label>
 
-              <div className="max-w-sm">
-                <Input
-                  label="Precio (S/.)"
-                  name="price"
-                  type="number"
-                  step="0.01"
-                  required
-                  value={priceValue}
-                  onChange={(event) => setPriceValue(event.currentTarget.value)}
-                  bgColor="bg-white"
-                  tone="soft"
-                />
-              </div>
             </div>
           </section>
 
@@ -2401,38 +2594,14 @@ const EventForm = ({
             ].join(' ')}
           >
             <div className="mb-5">
-              <h3 className="text-lg font-semibold text-slate-900">Detalles y cobro</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Inscripción y cobro</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Aquí defines el contexto del partido y cómo recibirás los pagos.
+                Define cuánto se pagará, cómo recibirás el dinero y los detalles adicionales.
               </p>
             </div>
 
             <div className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                {eventTypes.length > 1 ? (
-                  <div className="w-full">
-                    <SelectComponent
-                      labelText="Tipo de evento"
-                      required
-                      options={eventTypeSelectOptions}
-                      value={selectedEventTypeId}
-                      onChange={(value) => setSelectedEventTypeId(String(value || ''))}
-                      isSearchable={false}
-                      bgColor="bg-white"
-                      tone="soft"
-                    />
-                    <input type="hidden" name="eventTypeId" value={selectedEventTypeId} readOnly />
-                  </div>
-                ) : (
-                  <div className="w-full">
-                    <div className="mb-1 text-sm font-semibold text-slate-700">Tipo de evento</div>
-                    <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
-                      {selectedEventType?.name || 'Pichanga libre'}
-                    </div>
-                    <input type="hidden" name="eventTypeId" value={selectedEventTypeId} readOnly />
-                  </div>
-                )}
-
+              <div className="max-w-md">
                 <div className="w-full">
                   <SelectComponent
                     labelText="Nivel"
@@ -2448,9 +2617,132 @@ const EventForm = ({
                 </div>
               </div>
 
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {isVersusSelected ? '¿Cómo definirás el precio?' : 'Precio de inscripción'}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {isVersusSelected
+                      ? 'La capitana realiza un solo pago por todo el plantel.'
+                      : 'Cada jugadora paga este monto al inscribirse.'}
+                  </p>
+                </div>
+
+                {isVersusSelected ? (
+                  <>
+                    <div role="radiogroup" aria-label="Forma de calcular el precio" className="mt-4 grid gap-3 md:grid-cols-2">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={teamRegistrationPriceMode === 'fixed_team'}
+                        onClick={() => setTeamRegistrationPriceMode('fixed_team')}
+                        className={[
+                          'rounded-2xl border px-4 py-4 text-left transition',
+                          teamRegistrationPriceMode === 'fixed_team'
+                            ? 'border-mulberry bg-white ring-2 ring-mulberry/10'
+                            : 'border-slate-200 bg-white hover:border-mulberry/30',
+                        ].join(' ')}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          Precio por equipo
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                            Recomendado
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-600">
+                          Cada capitana paga el mismo monto, sin importar cuántas suplentes lleve.
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={teamRegistrationPriceMode === 'per_player'}
+                        onClick={() => setTeamRegistrationPriceMode('per_player')}
+                        className={[
+                          'rounded-2xl border px-4 py-4 text-left transition',
+                          teamRegistrationPriceMode === 'per_player'
+                            ? 'border-mulberry bg-white ring-2 ring-mulberry/10'
+                            : 'border-slate-200 bg-white hover:border-mulberry/30',
+                        ].join(' ')}
+                      >
+                        <span className="block text-sm font-semibold text-slate-900">
+                          Precio según el plantel
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-600">
+                          El total se calcula según las jugadoras que la capitana inscriba.
+                        </span>
+                      </button>
+                    </div>
+
+                    <input
+                      type="hidden"
+                      name="teamRegistrationPriceMode"
+                      value={teamRegistrationPriceMode}
+                      readOnly
+                    />
+                    {teamRegistrationPriceMode === 'fixed_team' ? (
+                      <div className="mt-4 max-w-sm">
+                        <Input
+                          label="Precio por equipo (S/.)"
+                          name="teamRegistrationFixedPrice"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          required
+                          value={teamFixedPriceValue}
+                          onChange={(event) => setTeamFixedPriceValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+                        <input type="hidden" name="price" value="0" readOnly />
+                        <p className="mt-2 text-xs text-slate-500">
+                          Cada uno de los {teamCount} equipos pagará este monto.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-4 max-w-sm">
+                        <Input
+                          label="Precio por jugadora (S/.)"
+                          name="price"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          required
+                          value={priceValue}
+                          onChange={(event) => setPriceValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">
+                          Ejemplo: {teamPlayers} jugadoras × S/ {Number(priceValue || 0).toFixed(2)} = S/{' '}
+                          {(teamPlayers * Number(priceValue || 0)).toFixed(2)} por equipo.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="mt-4 max-w-sm">
+                    <Input
+                      label="Precio por jugadora (S/.)"
+                      name="price"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      required
+                      value={priceValue}
+                      onChange={(event) => setPriceValue(event.currentTarget.value)}
+                      bgColor="bg-white"
+                      tone="soft"
+                    />
+                    <input type="hidden" name="teamRegistrationPriceMode" value="per_player" readOnly />
+                  </div>
+                )}
+              </div>
+
               <div id="event-payment-methods" className="w-full">
                 <div className="mb-1 text-sm font-semibold text-slate-700">
-                  Métodos de pago permitidos {isPublished ? '*' : '(opcional por ahora)'}
+                  Métodos de pago para este evento {isPublished ? '*' : '(opcional por ahora)'}
                 </div>
                 <SelectComponent
                   key={`${detailsStepVisibilityKey}-payment-methods`}
@@ -2491,7 +2783,7 @@ const EventForm = ({
                 ) : (
                   <p className="mt-1 text-xs text-slate-500">
                     {selectedActivePaymentMethodIds.length > 0
-                      ? `${selectedActivePaymentMethodIds.length} ${selectedActivePaymentMethodIds.length === 1 ? 'método activo listo' : 'métodos activos listos'} para publicar.`
+                      ? `${selectedActivePaymentMethodIds.length} ${selectedActivePaymentMethodIds.length === 1 ? 'método seleccionado' : 'métodos seleccionados'} para recibir pagos.`
                       : selectedInactivePaymentMethodIds.length > 0
                         ? `${selectedInactivePaymentMethodIds.length} ${selectedInactivePaymentMethodIds.length === 1 ? 'método seleccionado está inactivo' : 'métodos seleccionados están inactivos'} y no cuentan para publicar.`
                       : isPublished
@@ -2612,7 +2904,7 @@ const EventForm = ({
             ].join(' ')}
           >
             <div className="mb-5">
-              <h3 className="text-lg font-semibold text-slate-900">Final</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Revisar y publicar</h3>
               <p className="mt-1 text-sm text-slate-600">
                 Decide si quieres publicarlo hoy o si prefieres dejarlo para después.
               </p>
@@ -2832,6 +3124,14 @@ const EventForm = ({
               maxUsers={Number(maxUsersValue) || undefined}
               eventType={selectedEventType}
               level={selectedLevel}
+              isTeamEvent={isVersusSelected}
+              teamCount={teamCount}
+              teamPlayers={teamPlayers}
+              teamSubstitutes={teamSubstitutes}
+              teamPriceMode={teamRegistrationPriceMode}
+              fixedTeamPrice={
+                teamFixedPriceValue.trim() === '' ? undefined : Number(teamFixedPriceValue)
+              }
               wantsToPublish={isPublished}
               isReadyToPublish={publishReadiness.isReady}
             />

@@ -4,6 +4,8 @@ import { getViewerRegistrationState } from '@modules/events/api/queries/getViewe
 import { getPlacesLeft, isEventSoldOut } from '@modules/events/lib/eventCapacity';
 import { getActiveLinkedPaymentMethodIdsForEvent } from '@shared/lib/paymentMethodSelection.server';
 import { hasCompleteEventProfile } from '@modules/users/lib/eventProfileRequirements';
+import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
+import { resolveEventRegistrationMode } from '@modules/events/lib/eventTypeRules';
 
 export type PaymentPageData = {
   event: any;
@@ -91,8 +93,19 @@ export async function getPaymentPageData(id: string) {
   }
 
   const approvedCount = await getApprovedParticipantsCountByEventId(event.id);
+  const catalogs = await getEventCatalogs();
+  const eventTypeName =
+    catalogs.eventTypes.find((eventType) => Number(eventType.id) === Number(event.EventType))?.name ??
+    'Partido';
+  const registrationMode = resolveEventRegistrationMode(
+    event.registration_mode,
+    eventTypeName,
+    event.allows_team_registration === true
+  );
   const enrichedEvent = {
     ...event,
+    eventTypeName,
+    registrationMode,
     approvedCount,
     placesLeft: getPlacesLeft(event.max_users, approvedCount),
     isSoldOut: isEventSoldOut(event.max_users, approvedCount),

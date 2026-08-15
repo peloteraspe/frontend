@@ -26,6 +26,7 @@ type CardEventData = {
   endTime?: string | null;
   locationText?: string;
   price?: number;
+  priceUnit?: 'team' | 'player';
   placesLeft?: number;
   approvedCount?: number;
   minUsers?: number;
@@ -34,6 +35,8 @@ type CardEventData = {
   isPublished?: boolean;
   viewerHasApprovedRegistration?: boolean;
   viewerHasPendingRegistration?: boolean;
+  pendingTeamRegistrationCount?: number;
+  registrationMode?: 'individual' | 'team' | 'both';
   level?: {
     name?: string;
   };
@@ -82,7 +85,7 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
 
   function openJoinFlow(eventId: string | number, isVersus: boolean) {
     navigateWithSessionCheck({
-      destination: isVersus ? `/versus/${eventId}` : `/payments/${eventId}`,
+      destination: isVersus ? `/payments/${eventId}/team` : `/payments/${eventId}`,
       authenticatedMessage: 'Preparando tu inscripción...',
       loginMessage: 'Inicia sesión para inscribirte al evento',
       loginRedirectMessage: 'Redirigiendo al login...',
@@ -99,7 +102,8 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
       {cardEvents?.map((event) => {
         const eventTypeName = getEventTypeName(event);
         const badges = getBadges(event);
-        const isVersus = isVersusEventTypeName(eventTypeName);
+        const isVersus =
+          event.registrationMode === 'team' || isVersusEventTypeName(eventTypeName);
         const isSoldOut = getIsSoldOut(event);
         const isPastEvent = hasEventEnded(event.endTime, undefined, event.startTime);
         const isJoinDisabled = isEventJoinDisabled({
@@ -118,6 +122,10 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
           viewerHasApprovedRegistration: event.viewerHasApprovedRegistration,
           viewerHasPendingRegistration: event.viewerHasPendingRegistration,
         });
+        const resolvedJoinLabel =
+          isVersus && isSoldOut && Number(event.pendingTeamRegistrationCount || 0) > 0
+            ? 'Lugares reservados'
+            : joinLabel;
 
         return (
           <div key={event.id} className={itemContainerClass}>
@@ -141,7 +149,7 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
                     size="md"
                     className="min-h-10 max-w-full justify-center whitespace-nowrap !px-3 text-center !text-xs"
                   >
-                    {joinLabel}
+                    {resolvedJoinLabel}
                   </StatusBadge>
                 ) : (
                   <ButtonWrapper
@@ -152,11 +160,12 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
                       openJoinFlow(event.id, isVersus);
                     }}
                   >
-                    {joinLabel}
+                    {resolvedJoinLabel}
                   </ButtonWrapper>
                 )
               }
               price={formattedPrice(Number(event.price ?? 0))}
+              priceCaption={event.priceUnit === 'team' ? 'Por equipo' : 'Por jugadora'}
               badge={badges.map((badge, index) => (
                   <Badge
                     key={index}

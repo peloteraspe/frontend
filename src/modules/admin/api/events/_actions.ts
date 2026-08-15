@@ -21,6 +21,10 @@ import {
   hasCompleteEventProfile,
   REQUIRED_EVENT_PROFILE_MESSAGE,
 } from '@modules/users/lib/eventProfileRequirements';
+import {
+  type EventRegistrationMode,
+  isVersusEventTypeName,
+} from '@modules/events/lib/eventTypeRules';
 
 type SupabaseClientLike =
   | Awaited<ReturnType<typeof getServerSupabase>>
@@ -28,6 +32,11 @@ type SupabaseClientLike =
 
 type EventPayloadOptions = {
   includePlaceTextColumn?: boolean;
+  includeTeamModeColumns?: boolean;
+};
+
+type ResolvedEventUpsertInput = EventUpsertInput & {
+  registrationMode: EventRegistrationMode;
 };
 
 function buildEventDescription(input: EventUpsertInput, options: EventPayloadOptions = {}) {
@@ -48,13 +57,14 @@ function buildEventDescription(input: EventUpsertInput, options: EventPayloadOpt
 }
 
 function toInsertPayload(
-  input: EventUpsertInput,
+  input: ResolvedEventUpsertInput,
   userId: string,
   createdBy: string,
   isFeatured: boolean,
   options: EventPayloadOptions = {}
 ) {
   const includePlaceTextColumn = options.includePlaceTextColumn !== false;
+  const includeTeamModeColumns = options.includeTeamModeColumns !== false;
   return {
     title: input.title,
     description: buildEventDescription(input, options),
@@ -75,6 +85,14 @@ function toInsertPayload(
     is_published: input.isPublished,
     is_featured: isFeatured,
     organizer_id: input.organizerId,
+    ...(includeTeamModeColumns
+      ? {
+          registration_mode: input.registrationMode,
+          team_registration_max_teams: input.allowsTeamRegistration
+            ? input.teamRegistrationMaxTeams
+            : null,
+        }
+      : {}),
     allows_team_registration: input.allowsTeamRegistration,
     team_registration_min_players: input.allowsTeamRegistration ? input.teamRegistrationMinPlayers : null,
     team_registration_max_players: input.allowsTeamRegistration ? input.teamRegistrationMaxPlayers : null,
@@ -89,11 +107,12 @@ function toInsertPayload(
 }
 
 function toUpdatePayload(
-  input: EventUpsertInput,
+  input: ResolvedEventUpsertInput,
   isFeatured: boolean,
   options: EventPayloadOptions = {}
 ) {
   const includePlaceTextColumn = options.includePlaceTextColumn !== false;
+  const includeTeamModeColumns = options.includeTeamModeColumns !== false;
   return {
     title: input.title,
     description: buildEventDescription(input, options),
@@ -114,6 +133,14 @@ function toUpdatePayload(
     is_published: input.isPublished,
     is_featured: isFeatured,
     organizer_id: input.organizerId,
+    ...(includeTeamModeColumns
+      ? {
+          registration_mode: input.registrationMode,
+          team_registration_max_teams: input.allowsTeamRegistration
+            ? input.teamRegistrationMaxTeams
+            : null,
+        }
+      : {}),
     allows_team_registration: input.allowsTeamRegistration,
     team_registration_min_players: input.allowsTeamRegistration ? input.teamRegistrationMinPlayers : null,
     team_registration_max_players: input.allowsTeamRegistration ? input.teamRegistrationMaxPlayers : null,
@@ -147,6 +174,28 @@ function getErrorMessage(error: unknown, fallback: string) {
 function isMissingPlaceTextColumnError(error: unknown) {
   const message = getErrorMessage(error, '');
   return /place_text/i.test(message) && /(schema cache|column|could not find|does not exist)/i.test(message);
+}
+
+function isMissingTeamModeColumnError(error: unknown) {
+  const message = getErrorMessage(error, '');
+  return (
+    /(registration_mode|team_registration_max_teams)/i.test(message) &&
+    /(schema cache|column|could not find|does not exist)/i.test(message)
+  );
+}
+
+function getEventMutationErrorMessage(error: unknown, fallback: string) {
+  const message = getErrorMessage(error, fallback);
+  if (message.includes('VERSUS_HAS_INDIVIDUAL_REGISTRATIONS')) {
+    return 'No puedes convertir este evento en Versus porque ya tiene inscripciones individuales activas.';
+  }
+  if (message.includes('VERSUS_HAS_TOO_MANY_TEAMS')) {
+    return 'La cantidad de equipos configurada es menor que las inscripciones activas del evento.';
+  }
+  if (isMissingTeamModeColumnError(error)) {
+    return 'La base de datos aún no tiene habilitado el nuevo formato Versus. Aplica las migraciones pendientes e inténtalo nuevamente.';
+  }
+  return message;
 }
 
 async function getAuthenticatedAdminContext(action: string) {
@@ -205,6 +254,50 @@ async function assertValidOrganizerSelection(
 
   if (error) throw new Error(error.message);
   if (!data) throw new Error('Organizadora no encontrada.');
+}
+
+async function resolveEventRegistrationConfiguration(
+  supabase: SupabaseClientLike,
+  input: EventUpsertInput
+): Promise<ResolvedEventUpsertInput> {
+  const { data: eventType, error } = await supabase
+    .from('eventType')
+    .select('name')
+    .eq('id', input.eventTypeId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!eventType) throw new Error('Tipo de evento no encontrado.');
+
+  const isVersus = isVersusEventTypeName(eventType.name);
+  const allowsTeamRegistration = isVersus || input.allowsTeamRegistration;
+  const teamRegistrationMaxTeams = allowsTeamRegistration
+    ? Math.max(2, input.teamRegistrationMaxTeams ?? 2)
+    : null;
+  const teamRegistrationMinPlayers = allowsTeamRegistration
+    ? input.teamRegistrationMinPlayers ?? 2
+    : null;
+  const teamRegistrationMaxPlayers = allowsTeamRegistration
+    ? input.teamRegistrationMaxPlayers ?? (isVersus ? 10 : input.maxUsers)
+    : null;
+  const registrationMode: EventRegistrationMode = isVersus
+    ? 'team'
+    : allowsTeamRegistration
+      ? 'both'
+      : 'individual';
+
+  return {
+    ...input,
+    registrationMode,
+    allowsTeamRegistration,
+    teamRegistrationMaxTeams,
+    teamRegistrationMinPlayers,
+    teamRegistrationMaxPlayers,
+    minUsers: isVersus ? teamRegistrationMinPlayers * 2 : input.minUsers,
+    maxUsers: isVersus
+      ? teamRegistrationMaxPlayers * teamRegistrationMaxTeams
+      : input.maxUsers,
+  };
 }
 
 async function assertEventCanBePublished(
@@ -335,8 +428,9 @@ export async function createEvent(input: EventUpsertInput) {
     throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
   }
 
+  const resolvedInput = await resolveEventRegistrationConfiguration(adminSupabase, input);
   validateEventFormInput({
-    ...input,
+    ...resolvedInput,
     paymentMethodIds: paymentMethodSelection.activeOwnedIds,
   });
   await assertValidOrganizerSelection(adminSupabase, input.organizerId);
@@ -354,26 +448,54 @@ export async function createEvent(input: EventUpsertInput) {
   let createdEventId: string | number | null = null;
 
   try {
-    let { data: createdEvent, error } = await adminSupabase
-      .from('event')
-      .insert(toInsertPayload(input, user.id, createdBy, isFeatured))
-      .select('id')
-      .single();
+    let includePlaceTextColumn = true;
+    let includeTeamModeColumns = true;
+    let createdEvent: { id: string | number } | null = null;
+    let error: unknown = null;
 
-    if (error && isMissingPlaceTextColumnError(error)) {
-      log.warn('Event place_text column missing; retrying create without it', 'ADMIN_EVENTS', {
-        userId: user.id,
-      });
-      const retried = await adminSupabase
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const result = await adminSupabase
         .from('event')
-        .insert(toInsertPayload(input, user.id, createdBy, isFeatured, { includePlaceTextColumn: false }))
+        .insert(
+          toInsertPayload(resolvedInput, user.id, createdBy, isFeatured, {
+            includePlaceTextColumn,
+            includeTeamModeColumns,
+          })
+        )
         .select('id')
         .single();
-      createdEvent = retried.data;
-      error = retried.error;
+
+      createdEvent = result.data as { id: string | number } | null;
+      error = result.error;
+      if (!error) break;
+
+      if (includePlaceTextColumn && isMissingPlaceTextColumnError(error)) {
+        includePlaceTextColumn = false;
+        log.warn('Event place_text column missing; retrying create without it', 'ADMIN_EVENTS', {
+          userId: user.id,
+        });
+        continue;
+      }
+
+      if (includeTeamModeColumns && isMissingTeamModeColumnError(error)) {
+        if (resolvedInput.registrationMode === 'team') {
+          throw new Error(
+            'La base de datos aún no tiene habilitado el nuevo formato Versus. Aplica las migraciones pendientes e inténtalo nuevamente.'
+          );
+        }
+        includeTeamModeColumns = false;
+        log.warn(
+          'Event team-mode columns missing; retrying individual event with legacy schema',
+          'ADMIN_EVENTS',
+          { userId: user.id }
+        );
+        continue;
+      }
+
+      break;
     }
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
     if (!createdEvent?.id) throw new Error('No se pudo obtener el id del evento creado.');
 
     createdEventId = createdEvent.id;
@@ -416,7 +538,7 @@ export async function createEvent(input: EventUpsertInput) {
       paymentMethodIds: input.paymentMethodIds,
       featureIds: input.featureIds,
     });
-    throw new Error(getErrorMessage(error, 'No se pudo crear el evento.'));
+    throw new Error(getEventMutationErrorMessage(error, 'No se pudo crear el evento.'));
   }
 
   revalidatePath('/admin/events');
@@ -440,8 +562,9 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
     throw new Error('Solo puedes usar formas de pago creadas por tu cuenta.');
   }
 
+  const resolvedInput = await resolveEventRegistrationConfiguration(adminSupabase, input);
   validateEventFormInput({
-    ...input,
+    ...resolvedInput,
     paymentMethodIds: paymentMethodSelection.activeOwnedIds,
   });
 
@@ -463,24 +586,52 @@ export async function updateEvent(id: string, input: EventUpsertInput) {
     isFeatured = Boolean(existingEvent?.is_featured);
   }
 
-  let { error } = await adminSupabase
-    .from('event')
-    .update(toUpdatePayload(input, isFeatured))
-    .eq('id', id);
+  let includePlaceTextColumn = true;
+  let includeTeamModeColumns = true;
+  let error: unknown = null;
 
-  if (error && isMissingPlaceTextColumnError(error)) {
-    log.warn('Event place_text column missing; retrying update without it', 'ADMIN_EVENTS', {
-      eventId: id,
-      userId: user.id,
-    });
-    const retried = await adminSupabase
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await adminSupabase
       .from('event')
-      .update(toUpdatePayload(input, isFeatured, { includePlaceTextColumn: false }))
+      .update(
+        toUpdatePayload(resolvedInput, isFeatured, {
+          includePlaceTextColumn,
+          includeTeamModeColumns,
+        })
+      )
       .eq('id', id);
-    error = retried.error;
+
+    error = result.error;
+    if (!error) break;
+
+    if (includePlaceTextColumn && isMissingPlaceTextColumnError(error)) {
+      includePlaceTextColumn = false;
+      log.warn('Event place_text column missing; retrying update without it', 'ADMIN_EVENTS', {
+        eventId: id,
+        userId: user.id,
+      });
+      continue;
+    }
+
+    if (includeTeamModeColumns && isMissingTeamModeColumnError(error)) {
+      if (resolvedInput.registrationMode === 'team') {
+        throw new Error(
+          'La base de datos aún no tiene habilitado el nuevo formato Versus. Aplica las migraciones pendientes e inténtalo nuevamente.'
+        );
+      }
+      includeTeamModeColumns = false;
+      log.warn(
+        'Event team-mode columns missing; retrying individual event update with legacy schema',
+        'ADMIN_EVENTS',
+        { eventId: id, userId: user.id }
+      );
+      continue;
+    }
+
+    break;
   }
 
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(getEventMutationErrorMessage(error, 'No se pudo guardar el evento.'));
 
   await syncEventFeatures(adminSupabase, id, input.featureIds);
   await syncEventPaymentMethods(adminSupabase, id, paymentMethodSelection.ownedIds);

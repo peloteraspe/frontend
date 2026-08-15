@@ -161,6 +161,7 @@ export default async function EditEventScreen({ id }: { id: string }) {
           isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
           isFeatured: Boolean(event.is_featured),
           allowsTeamRegistration: Boolean(event.allows_team_registration),
+          teamRegistrationMaxTeams: event.team_registration_max_teams ?? null,
           teamRegistrationMinPlayers: event.team_registration_min_players ?? null,
           teamRegistrationMaxPlayers: event.team_registration_max_players ?? null,
           teamRegistrationPriceMode:

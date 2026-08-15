@@ -32,7 +32,7 @@ function EventCardSameAsLanding({
   onLeave: () => void;
   onOpenJoinFlow: (eventId: string, isVersus: boolean) => void;
 }) {
-  const isVersus = isVersusEventTypeName(event.eventTypeName);
+  const isVersus = event.registrationMode === 'team' || isVersusEventTypeName(event.eventTypeName);
   const isSoldOut = event.isSoldOut === true;
   const isPastEvent = hasEventEnded(event.endTime, undefined, event.startTime);
   const isJoinDisabled = isEventJoinDisabled({
@@ -51,6 +51,10 @@ function EventCardSameAsLanding({
     viewerHasApprovedRegistration: event.viewerHasApprovedRegistration,
     viewerHasPendingRegistration: event.viewerHasPendingRegistration,
   });
+  const resolvedJoinLabel =
+    isVersus && isSoldOut && Number(event.pendingTeamRegistrationCount || 0) > 0
+      ? 'Lugares reservados'
+      : joinLabel;
 
   return (
     <div onMouseEnter={onHover} onMouseLeave={onLeave}>
@@ -76,7 +80,7 @@ function EventCardSameAsLanding({
               size="md"
               className="min-h-10 max-w-full justify-center whitespace-nowrap !px-3 text-center !text-xs"
             >
-              {joinLabel}
+              {resolvedJoinLabel}
             </StatusBadge>
           ) : (
             <ButtonWrapper
@@ -87,11 +91,12 @@ function EventCardSameAsLanding({
                 onOpenJoinFlow(event.id, isVersus);
               }}
             >
-              {joinLabel}
+              {resolvedJoinLabel}
             </ButtonWrapper>
           )
         }
         price={formattedPrice(event.price)}
+        priceCaption={event.priceUnit === 'team' ? 'Por equipo' : 'Por jugadora'}
         badge={
           [
             <Badge
@@ -120,7 +125,7 @@ export default function EventListPanel({
 
   function openJoinFlow(eventId: string, isVersus: boolean) {
     navigateWithSessionCheck({
-      destination: isVersus ? `/versus/${eventId}` : `/payments/${eventId}`,
+      destination: isVersus ? `/payments/${eventId}/team` : `/payments/${eventId}`,
       authenticatedMessage: 'Preparando tu inscripción...',
       loginMessage: 'Inicia sesión para inscribirte al evento',
       loginRedirectMessage: 'Redirigiendo al login...',

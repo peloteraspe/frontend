@@ -87,11 +87,7 @@ export default async function NewEventScreen({ templateId }: Props) {
     }))
     .filter((method) => Number.isInteger(method.id) && method.id > 0);
 
-  const eventTypes =
-    catalogs.eventTypes.filter((option) => option.name.trim().toLowerCase() === 'pichanga libre') ||
-    [];
-  const selectableEventTypes =
-    eventTypes.length > 0 ? eventTypes : catalogs.eventTypes.length > 0 ? [catalogs.eventTypes[0]] : [];
+  const selectableEventTypes = catalogs.eventTypes;
 
   let templateInitial:
     | {
@@ -117,6 +113,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         isFieldReservedConfirmed: boolean;
         isFeatured: boolean;
         allowsTeamRegistration: boolean;
+        teamRegistrationMaxTeams: number | null;
         teamRegistrationMinPlayers: number | null;
         teamRegistrationMaxPlayers: number | null;
         teamRegistrationPriceMode: 'per_player' | 'fixed_team';
@@ -189,6 +186,7 @@ export default async function NewEventScreen({ templateId }: Props) {
         isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
         isFeatured: Boolean(templateEvent.is_featured),
         allowsTeamRegistration: Boolean(templateEvent.allows_team_registration),
+        teamRegistrationMaxTeams: templateEvent.team_registration_max_teams ?? null,
         teamRegistrationMinPlayers: templateEvent.team_registration_min_players ?? null,
         teamRegistrationMaxPlayers: templateEvent.team_registration_max_players ?? null,
         teamRegistrationPriceMode:
@@ -214,16 +212,17 @@ export default async function NewEventScreen({ templateId }: Props) {
     featureIds: [],
     paymentMethodIds: [],
     organizerId: null,
-    eventTypeId: selectableEventTypes[0]?.id ?? 1,
+    eventTypeId: 0,
     levelId: catalogs.levels[0]?.id ?? 1,
+    allowsTeamRegistration: false,
+    teamRegistrationMaxTeams: 2,
+    teamRegistrationMinPlayers: 7,
+    teamRegistrationMaxPlayers: null,
+    teamRegistrationPriceMode: 'fixed_team' as const,
+    teamRegistrationFixedPrice: null,
     ...templateInitial,
     isPublished: false,
     isFieldReservedConfirmed: false,
-    allowsTeamRegistration: false,
-    teamRegistrationMinPlayers: 2,
-    teamRegistrationMaxPlayers: null,
-    teamRegistrationPriceMode: 'per_player' as const,
-    teamRegistrationFixedPrice: null,
   };
 
   return (

@@ -41,6 +41,10 @@ export default function TeamEventRegistrationForm({ event, teams, paymentMethods
   const minPlayers = Number(event?.team_registration_min_players || 2);
   const maxPlayers = Number(event?.team_registration_max_players || event?.max_users || 999);
   const activeRegistration = selectedTeam?.existingState === 'pending' || selectedTeam?.existingState === 'approved';
+  const isVersus = event?.registration_mode === 'team';
+  const activeTeamRegistrationCount = Number(event?.activeTeamRegistrationCount || 0);
+  const teamRegistrationMaxTeams = Math.max(2, Number(event?.teamRegistrationMaxTeams || event?.team_registration_max_teams || 2));
+  const isVersusFull = isVersus && activeTeamRegistrationCount >= teamRegistrationMaxTeams;
   const missingPlayers = Math.max(0, minPlayers - selectedUsers.length);
   const hasTooFewPlayers = Boolean(selectedTeam && !activeRegistration && missingPlayers > 0);
   const selectedPaymentMethod = paymentMethods.find((method) => Number(method.id) === selectedPaymentMethodId) ?? paymentMethods[0];
@@ -125,7 +129,16 @@ export default function TeamEventRegistrationForm({ event, teams, paymentMethods
     <form onSubmit={submit} className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-5">
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-mulberry">Inscripción por equipo</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-mulberry">
+              {isVersus ? 'Versus de equipos' : 'Inscripción por equipo'}
+            </p>
+            {isVersus ? (
+              <span className="rounded-full bg-mulberry/10 px-3 py-1 text-xs font-semibold text-mulberry">
+                {Math.min(activeTeamRegistrationCount, teamRegistrationMaxTeams)}/{teamRegistrationMaxTeams} equipos
+              </span>
+            ) : null}
+          </div>
           <h1 className="mt-1 text-2xl font-bold text-slate-950">{event.title}</h1>
           <label className="mt-5 grid gap-1 text-sm font-semibold text-slate-700">
             Equipo
@@ -136,8 +149,12 @@ export default function TeamEventRegistrationForm({ event, teams, paymentMethods
 
           {!selectedTeam ? (
             <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              Debes ser capitana de un equipo activo para usar la inscripción grupal.
-              <Link href="/profile#crear-equipo" className="ml-1 font-semibold underline">Crear equipo</Link>
+              {event?.viewerHasActiveTeam
+                ? 'Solo la capitana puede inscribir al equipo. Coordina con ella para participar.'
+                : 'Debes ser capitana de un equipo activo para usar la inscripción grupal.'}
+              {!event?.viewerHasActiveTeam ? (
+                <Link href="/profile#crear-equipo" className="ml-1 font-semibold underline">Crear equipo</Link>
+              ) : null}
             </div>
           ) : activeRegistration ? (
             <div className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
@@ -151,6 +168,11 @@ export default function TeamEventRegistrationForm({ event, teams, paymentMethods
               >
                 {cancelling ? 'Cancelando…' : 'Cancelar inscripción completa'}
               </button>
+            </div>
+          ) : isVersusFull ? (
+            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              Este evento ya tiene todos sus lugares para equipos reservados. Si una inscripción es rechazada o
+              cancelada, el cupo volverá a estar disponible.
             </div>
           ) : (
             <>
@@ -176,7 +198,7 @@ export default function TeamEventRegistrationForm({ event, teams, paymentMethods
           )}
         </section>
 
-        {selectedTeam && !activeRegistration ? (
+        {selectedTeam && !activeRegistration && !isVersusFull ? (
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <h2 className="text-lg font-semibold text-slate-950">Pago</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -227,7 +249,7 @@ export default function TeamEventRegistrationForm({ event, teams, paymentMethods
           </p>
         ) : null}
         {error ? <p role="alert" className="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
-        <button type="submit" aria-describedby={hasTooFewPlayers ? 'team-minimum-feedback' : undefined} disabled={!selectedTeam || activeRegistration || submitting || hasTooFewPlayers || selectedUsers.length > maxPlayers || !/^[0-9]{8}$/.test(operationNumber) || paymentMethods.length === 0} className="mt-5 h-11 w-full rounded-xl bg-mulberry px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45">
+        <button type="submit" aria-describedby={hasTooFewPlayers ? 'team-minimum-feedback' : undefined} disabled={!selectedTeam || activeRegistration || isVersusFull || submitting || hasTooFewPlayers || selectedUsers.length > maxPlayers || !/^[0-9]{8}$/.test(operationNumber) || paymentMethods.length === 0} className="mt-5 h-11 w-full rounded-xl bg-mulberry px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45">
           {submitting ? 'Registrando…' : 'Enviar pago del equipo'}
         </button>
         <p className="mt-3 text-xs leading-5 text-slate-500">La inscripción completa queda pendiente hasta que administración revise la operación.</p>

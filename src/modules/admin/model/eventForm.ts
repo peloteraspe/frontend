@@ -24,6 +24,7 @@ export type EventUpsertInput = {
   isFieldReservedConfirmed: boolean;
   isFeatured: boolean;
   allowsTeamRegistration: boolean;
+  teamRegistrationMaxTeams: number | null;
   teamRegistrationMinPlayers: number | null;
   teamRegistrationMaxPlayers: number | null;
   teamRegistrationPriceMode: 'per_player' | 'fixed_team';
@@ -118,6 +119,7 @@ export function parseEventFormData(fd: FormData): EventUpsertInput {
     isFieldReservedConfirmed: parseBoolean(fd.get('isFieldReservedConfirmed')),
     isFeatured: parseBoolean(fd.get('isFeatured')),
     allowsTeamRegistration: parseBoolean(fd.get('allowsTeamRegistration')),
+    teamRegistrationMaxTeams: parseOptionalPositiveNumber(fd.get('teamRegistrationMaxTeams')),
     teamRegistrationMinPlayers: parseOptionalPositiveNumber(fd.get('teamRegistrationMinPlayers')),
     teamRegistrationMaxPlayers: parseOptionalPositiveNumber(fd.get('teamRegistrationMaxPlayers')),
     teamRegistrationPriceMode:
@@ -138,6 +140,30 @@ export function validateEventFormInput(input: EventUpsertInput) {
 
   if (endTimestamp <= startTimestamp) {
     throw new Error('La fecha y hora de fin debe ser posterior al inicio.');
+  }
+
+  if (
+    input.allowsTeamRegistration &&
+    input.teamRegistrationMaxTeams !== null &&
+    (input.teamRegistrationMaxTeams < 2 || input.teamRegistrationMaxTeams > 64)
+  ) {
+    throw new Error('La cantidad de equipos debe estar entre 2 y 64.');
+  }
+
+  if (
+    input.allowsTeamRegistration &&
+    input.teamRegistrationMinPlayers !== null &&
+    (input.teamRegistrationMinPlayers < 1 || input.teamRegistrationMinPlayers > 30)
+  ) {
+    throw new Error('Las jugadoras en cancha por equipo deben estar entre 1 y 30.');
+  }
+
+  if (
+    input.allowsTeamRegistration &&
+    input.teamRegistrationMaxPlayers !== null &&
+    (input.teamRegistrationMaxPlayers < 1 || input.teamRegistrationMaxPlayers > 60)
+  ) {
+    throw new Error('El plantel máximo por equipo debe estar entre 1 y 60.');
   }
 
   if (
