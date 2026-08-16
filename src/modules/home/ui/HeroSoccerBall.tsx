@@ -2,12 +2,16 @@
 
 import { Html } from '@react-three/drei';
 import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
 import type { HeroVerifiedPlayer } from '@modules/home/model/heroVerifiedPlayer';
+import HeroPlayerHoverCard from '@modules/home/ui/HeroPlayerHoverCard';
+import { buildPublicPlayerPath } from '@shared/lib/publicProfilePaths';
 
 type HeroSoccerBallProps = {
   players: HeroVerifiedPlayer[];
+  onReady?: () => void;
 };
 
 type NodeKind = 'outer' | 'inner';
@@ -21,9 +25,9 @@ type NodeSpec = {
 
 const NETWORK_SCALE = 0.72;
 const OUTER_RADIUS = 3.34;
-const OUTER_NODE_COUNT = 72;
-const INNER_NODE_COUNT = 28;
-const DISPLAY_NODE_COUNT = 24;
+const OUTER_NODE_COUNT = 52;
+const INNER_NODE_COUNT = 18;
+const DISPLAY_NODE_COUNT = 18;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const RIM_COLOR = '#F9BDAF';
 const CORE_COLOR = '#FFF7F2';
@@ -56,7 +60,7 @@ const NETWORK_LINE_FRAGMENT_SHADER = `
   varying float vFrontness;
 
   void main() {
-    float depthAlpha = mix(0.2, 1.0, smoothstep(0.05, 0.92, vFrontness));
+    float depthAlpha = mix(0.12, 1.0, smoothstep(0.05, 0.92, vFrontness));
     gl_FragColor = vec4(uColor, uOpacity * depthAlpha);
   }
 `;
@@ -82,7 +86,7 @@ const RIM_FRAGMENT_SHADER = `
     vec3 peach = vec3(0.941, 0.506, 0.357);
     vec3 plum = vec3(0.329, 0.031, 0.435);
     vec3 rimColor = mix(peach, plum, smoothstep(0.35, 1.0, fresnel));
-    gl_FragColor = vec4(rimColor, fresnel * 0.34);
+    gl_FragColor = vec4(rimColor, fresnel * 0.13);
   }
 `;
 
@@ -181,7 +185,7 @@ function createOuterNodes() {
       id: `outer-${index}`,
       kind: 'outer' as const,
       position: toTuple(position),
-      size: index % 6 === 0 ? 0.06 : 0.048,
+      size: index % 6 === 0 ? 0.046 : 0.034,
     };
   });
 }
@@ -207,7 +211,7 @@ function createInnerNodes() {
       id: `inner-${index}`,
       kind: 'inner' as const,
       position: toTuple(position),
-      size: index % 5 === 0 ? 0.05 : 0.038,
+      size: index % 5 === 0 ? 0.04 : 0.03,
     };
   });
 }
@@ -252,7 +256,7 @@ function buildBridgeSegments(innerNodes: NodeSpec[], outerNodes: NodeSpec[]) {
   const positions: number[] = [];
 
   innerNodes.forEach((innerNode, index) => {
-    if (index % 2 !== 0) return;
+    if (index % 4 !== 0) return;
 
     const nearestOuterNode = outerNodes
       .map((outerNode) => ({
@@ -260,10 +264,10 @@ function buildBridgeSegments(innerNodes: NodeSpec[], outerNodes: NodeSpec[]) {
         distance: distanceBetween(innerNode, outerNode),
       }))
       .sort((left, right) => left.distance - right.distance)
-      .slice(0, 2);
+      .slice(0, 1);
 
-    nearestOuterNode.forEach(({ outerNode, distance }, bridgeIndex) => {
-      if (distance > 2.2 && bridgeIndex > 0) return;
+    nearestOuterNode.forEach(({ outerNode, distance }) => {
+      if (distance > 2.35) return;
       positions.push(...innerNode.position, ...outerNode.position);
     });
   });
@@ -283,8 +287,8 @@ const NETWORK_DATA = (() => {
     outerNodes,
     innerNodes,
     displayNodes,
-    outerSegments: buildSegments(outerNodes, 4, 1.62, 0.44),
-    innerSegments: buildSegments(innerNodes, 4, 1.95, 0.4),
+    outerSegments: buildSegments(outerNodes, 2, 1.9, 0.55),
+    innerSegments: buildSegments(innerNodes, 2, 2.2, 0.55),
     bridgeSegments: buildBridgeSegments(innerNodes, outerNodes),
   };
 })();
@@ -324,14 +328,30 @@ function NetworkLines({
   );
 }
 
+function SceneReady({ onReady }: { onReady?: () => void }) {
+  const hasReportedReady = useRef(false);
+  const renderedFrameCount = useRef(0);
+
+  useFrame(() => {
+    renderedFrameCount.current += 1;
+    if (hasReportedReady.current || renderedFrameCount.current < 2) return;
+    hasReportedReady.current = true;
+    onReady?.();
+  });
+
+  return null;
+}
+
 function NetworkNodes({
   nodes,
   activeNodeIds,
   assignedPlayerByNodeId,
+  htmlPortalRef,
 }: {
   nodes: NodeSpec[];
   activeNodeIds: Set<string>;
   assignedPlayerByNodeId: Map<string, HeroVerifiedPlayer>;
+  htmlPortalRef: RefObject<HTMLElement>;
 }) {
   return (
     <>
@@ -340,10 +360,8 @@ function NetworkNodes({
         const isActive = activeNodeIds.has(node.id);
         const player = assignedPlayerByNodeId.get(node.id) ?? null;
         const coreColor = isOuter ? CORE_COLOR : isActive ? PRIMARY_COLOR : RIM_COLOR;
-        const haloColor = isOuter ? (isActive ? PRIMARY_COLOR : RIM_COLOR) : isActive ? PRIMARY_COLOR : PLUM_COLOR;
-        const haloOpacity = player ? (isActive ? 0.48 : 0.34) : isActive ? 0.42 : isOuter ? 0.24 : 0.16;
-        const haloScale = player ? (isActive ? 2.7 : 2.2) : isActive ? 2.4 : isOuter ? 1.8 : 1.55;
-        const emissiveIntensity = isActive ? 1.4 : isOuter ? 0.78 : 0.52;
+        const haloColor = isActive ? PRIMARY_COLOR : isOuter ? RIM_COLOR : PLUM_COLOR;
+        const emissiveIntensity = isActive ? 0.9 : isOuter ? 0.48 : 0.34;
         const avatarOffset = new THREE.Vector3(...node.position)
           .normalize()
           .multiplyScalar(AVATAR_OFFSET);
@@ -369,6 +387,7 @@ function NetworkNodes({
                 node={node}
                 player={player}
                 highlighted={isActive}
+                htmlPortalRef={htmlPortalRef}
               />
             ) : null}
           </group>
@@ -383,11 +402,13 @@ function DepthAwareAvatar({
   node,
   player,
   highlighted,
+  htmlPortalRef,
 }: {
   avatarOffset: [number, number, number];
   node: NodeSpec;
   player: HeroVerifiedPlayer;
   highlighted: boolean;
+  htmlPortalRef: RefObject<HTMLElement>;
 }) {
   const anchorRef = useRef<THREE.Group | null>(null);
   const htmlRef = useRef<HTMLDivElement | null>(null);
@@ -413,10 +434,9 @@ function DepthAwareAvatar({
       <Html
         ref={htmlRef}
         center
-        transform
-        sprite
-        distanceFactor={7.8}
-        style={{ pointerEvents: 'none', willChange: 'opacity' }}
+        portal={htmlPortalRef}
+        zIndexRange={[100, 0]}
+        style={{ pointerEvents: 'auto', willChange: 'opacity' }}
       >
         <AvatarBadge node={node} player={player} highlighted={highlighted} />
       </Html>
@@ -435,13 +455,13 @@ function AvatarBadge({
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const isOuter = node.kind === 'outer';
-  const size = isOuter ? 22 : 19;
+  const size = isOuter ? 30 : 26;
   const ringColor = MULBERRY_COLOR;
-  const glowColor = highlighted ? 'rgba(84,8,111,0.34)' : 'rgba(84,8,111,0.28)';
+  const glowColor = highlighted ? 'rgba(84,8,111,0.22)' : 'rgba(84,8,111,0.14)';
 
-  return (
+  const avatar = (
     <div
-      className="pointer-events-none flex items-center justify-center overflow-hidden rounded-full"
+      className="flex items-center justify-center overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-110 group-focus-visible:scale-110"
       style={{
         width: size,
         height: size,
@@ -450,15 +470,14 @@ function AvatarBadge({
           player.avatarUrl && !imageFailed
             ? 'rgba(255,255,255,0.94)'
             : 'radial-gradient(circle at 30% 30%, rgba(255,247,242,0.98), rgba(249,189,175,0.92) 52%, rgba(116,77,124,0.88) 100%)',
-        boxShadow: `0 0 0 1.5px ${ringColor}, 0 0 18px ${glowColor}`,
+        boxShadow: `0 0 0 1px ${ringColor}, 0 6px 16px -8px ${glowColor}`,
         backdropFilter: 'blur(8px)',
       }}
-      title={player.name}
     >
       {player.avatarUrl && !imageFailed ? (
         <img
           src={player.avatarUrl}
-          alt={player.name}
+          alt=""
           className="h-full w-full object-cover"
           loading="lazy"
           referrerPolicy="no-referrer"
@@ -474,9 +493,36 @@ function AvatarBadge({
       )}
     </div>
   );
+
+  if (!player.profileHandle) {
+    return (
+      <span
+        className="group cursor-ball relative block rounded-full"
+        role="img"
+        aria-label={player.name}
+      >
+        {avatar}
+        <HeroPlayerHoverCard player={player} />
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      href={buildPublicPlayerPath(player.profileHandle)}
+      aria-label={`Ver perfil de @${player.profileHandle}`}
+      className="group cursor-ball-action relative block rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
+      {avatar}
+      <HeroPlayerHoverCard player={player} />
+    </Link>
+  );
 }
 
-function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
+function SoccerBallNetwork({
+  players,
+  htmlPortalRef,
+}: Pick<HeroSoccerBallProps, 'players'> & { htmlPortalRef: RefObject<HTMLElement> }) {
   const rotationRef = useRef<THREE.Group | null>(null);
   const ambientMotionRef = useRef<THREE.Group | null>(null);
   const interactionRef = useRef<RotationInteraction>({
@@ -659,13 +705,13 @@ function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
         <mesh>
           <sphereGeometry args={[3.04, 36, 36]} />
           <meshPhysicalMaterial
-            color="#FFF4EE"
+            color="#FFF9F6"
             transparent
-            opacity={0.115}
-            roughness={0.23}
+            opacity={0.035}
+            roughness={0.42}
             metalness={0.04}
-            clearcoat={1}
-            clearcoatRoughness={0.28}
+            clearcoat={0.4}
+            clearcoatRoughness={0.5}
             depthWrite={false}
           />
         </mesh>
@@ -681,89 +727,46 @@ function SoccerBallNetwork({ players }: HeroSoccerBallProps) {
           />
         </mesh>
 
-        <mesh scale={1.1}>
-          <sphereGeometry args={[3.04, 28, 28]} />
-          <meshBasicMaterial
-            color={PRIMARY_COLOR}
-            transparent
-            opacity={0.06}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
-
-        <mesh scale={1.16}>
-          <sphereGeometry args={[3.04, 24, 24]} />
-          <meshBasicMaterial
-            color={PLUM_COLOR}
-            transparent
-            opacity={0.045}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
-
-        <mesh>
-          <sphereGeometry args={[1.3, 16, 16]} />
-          <meshBasicMaterial
-            color={PRIMARY_COLOR}
-            transparent
-            opacity={0.08}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
-
-        <NetworkLines positions={NETWORK_DATA.outerSegments} color={RIM_COLOR} opacity={0.38} />
-        <NetworkLines
-          positions={NETWORK_DATA.outerSegments}
-          color={CORE_COLOR}
-          opacity={0.12}
-          scale={1.008}
-        />
-        <NetworkLines
-          positions={NETWORK_DATA.innerSegments}
-          color={PRIMARY_COLOR}
-          opacity={0.22}
-        />
+        <NetworkLines positions={NETWORK_DATA.outerSegments} color={RIM_COLOR} opacity={0.22} />
         <NetworkLines
           positions={NETWORK_DATA.innerSegments}
           color={PLUM_COLOR}
-          opacity={0.12}
-          scale={1.012}
+          opacity={0.1}
         />
         <NetworkLines
           positions={NETWORK_DATA.bridgeSegments}
-          color={MULBERRY_COLOR}
-          opacity={0.18}
+          color={PRIMARY_COLOR}
+          opacity={0.1}
         />
 
         <NetworkNodes
           nodes={NETWORK_DATA.outerNodes}
           activeNodeIds={activeNodeIds}
           assignedPlayerByNodeId={assignedPlayerByNodeId}
+          htmlPortalRef={htmlPortalRef}
         />
         <NetworkNodes
           nodes={NETWORK_DATA.innerNodes}
           activeNodeIds={activeNodeIds}
           assignedPlayerByNodeId={assignedPlayerByNodeId}
+          htmlPortalRef={htmlPortalRef}
         />
       </group>
     </group>
   );
 }
 
-export default function HeroSoccerBall({ players }: HeroSoccerBallProps) {
+export default function HeroSoccerBall({ players, onReady }: HeroSoccerBallProps) {
+  const htmlPortalRef = useRef<HTMLDivElement>(null);
+
   return (
     <div className="relative flex min-h-[330px] w-full items-center justify-center sm:min-h-[400px] lg:min-h-[480px]">
-      <div className="pointer-events-none absolute inset-[10%] rounded-full bg-[radial-gradient(circle_at_center,rgba(39,16,51,0.9),rgba(84,8,111,0.78)_38%,rgba(116,77,124,0.32)_58%,rgba(255,255,255,0)_78%)] blur-2xl" />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[18rem] w-[18rem] -translate-x-[58%] -translate-y-[54%] rounded-full bg-primary/16 blur-3xl sm:h-[21rem] sm:w-[21rem]" />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[17rem] w-[17rem] translate-x-[10%] -translate-y-[42%] rounded-full bg-mulberry/16 blur-3xl sm:h-[20rem] sm:w-[20rem]" />
+      <div className="pointer-events-none absolute inset-[19%] rounded-full bg-[radial-gradient(circle_at_center,rgba(240,129,91,0.1),rgba(84,8,111,0.05)_54%,rgba(255,255,255,0)_76%)] blur-2xl" />
 
-      <div className="relative z-[1] aspect-square w-full max-w-[23rem] sm:max-w-[27rem] lg:max-w-[30rem]">
+      <div
+        ref={htmlPortalRef}
+        className="relative z-[1] aspect-square w-full max-w-[23rem] overflow-visible sm:max-w-[27rem] lg:max-w-[30rem]"
+      >
         <Canvas
           dpr={[1, 1.35]}
           performance={{ min: 0.7 }}
@@ -772,12 +775,13 @@ export default function HeroSoccerBall({ players }: HeroSoccerBallProps) {
           className="h-full w-full"
           style={{ touchAction: 'pan-y' }}
         >
+          <SceneReady onReady={onReady} />
           <ambientLight intensity={0.62} />
           <pointLight position={[6.5, 6, 8]} intensity={55} color="#fff7f3" />
           <pointLight position={[-6, -4, -7]} intensity={34} color="#dcb3ea" />
           <pointLight position={[0, 0, 6]} intensity={26} color="#f59e7b" />
           <directionalLight position={[0, 5, 4]} intensity={1.45} color="#ffffff" />
-          <SoccerBallNetwork players={players} />
+          <SoccerBallNetwork players={players} htmlPortalRef={htmlPortalRef} />
         </Canvas>
       </div>
     </div>

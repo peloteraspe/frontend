@@ -76,19 +76,32 @@ export default function NavBarAuthControls() {
 
       <div className="md:hidden">
         {user ? (
-          <Link href="/profile" aria-label="Mi perfil">
-            <UserImage
-              src={user.avatar_url}
-              name={user.username || user.email || 'Usuario'}
-            />
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/events" className="text-sm font-semibold text-mulberry">
+              Pichangas
+            </Link>
+            <Link href="/profile" aria-label="Mi perfil">
+              <UserImage
+                src={user.avatar_url}
+                name={user.username || user.email || 'Usuario'}
+              />
+            </Link>
+          </div>
         ) : !loading ? (
-          <Link
-            href="/signUp"
-            className="home-button-micro inline-flex h-11 items-center justify-center rounded-full bg-mulberry px-5 text-[0.92rem] font-eastman-bold font-bold tracking-[0.015em] text-white shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)] hover:bg-[#470760] whitespace-nowrap"
-          >
-            Regístrate
-          </Link>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/events" className="text-sm font-semibold text-mulberry">
+              Pichangas
+            </Link>
+            <Link href="/login" className="hidden text-sm font-semibold text-slate-700 min-[390px]:inline">
+              Ingresar
+            </Link>
+            <Link
+              href="/signUp"
+              className="home-button-micro inline-flex h-10 items-center justify-center rounded-xl bg-mulberry px-3.5 text-sm font-eastman-bold font-bold text-white hover:bg-[#470760] whitespace-nowrap"
+            >
+              Regístrate
+            </Link>
+          </div>
         ) : null}
       </div>
     </>

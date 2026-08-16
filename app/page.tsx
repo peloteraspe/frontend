@@ -86,8 +86,6 @@ export default async function Index() {
       <div className="flex w-full flex-col gap-8 pb-8 sm:gap-10 sm:pb-10 lg:gap-12 lg:pb-12">
         <MainSection />
 
-        <HomeAlliesSection allies={homeAllies} />
-
         <section className="home-scroll-target w-full" id="eventos-destacados">
           <HomeReveal className="site-shell">
             <CardEventList previewCount={3} />
@@ -97,6 +95,8 @@ export default async function Index() {
         <HomeHowItWorksSection />
 
         <LandingGrowthBlocks />
+
+        <HomeAlliesSection allies={homeAllies} />
       </div>
     </>
   );

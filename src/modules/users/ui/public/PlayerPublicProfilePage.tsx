@@ -66,8 +66,7 @@ export default function PlayerPublicProfilePage({ profile }: { profile: PublicPl
               )}
             </div>
 
-            <div className="min-w-0 flex-1 sm:pt-16">
-              <p className="text-sm font-semibold text-mulberry">Perfil de jugadora</p>
+            <div className="min-w-0 flex-1 sm:pt-20">
               <h1 className="mt-1 break-words font-eastman-extrabold text-[clamp(1.65rem,7vw,2.25rem)] font-extrabold tracking-[-0.035em] text-slate-950 sm:text-4xl">
                 @{profile.username}
               </h1>

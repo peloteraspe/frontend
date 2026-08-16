@@ -3,4 +3,5 @@ export type HeroVerifiedPlayer = {
   name: string;
   avatarUrl: string | null;
   initials: string;
+  profileHandle: string | null;
 };

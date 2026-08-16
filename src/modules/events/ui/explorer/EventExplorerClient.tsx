@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@core/auth/AuthProvider';
-import { ArrowPathIcon, MapPinIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import {
+  AdjustmentsHorizontalIcon,
+  ArrowPathIcon,
+  ChevronDownIcon,
+  MapPinIcon,
+  MagnifyingGlassIcon,
+} from '@heroicons/react/24/outline';
 import Input from '@core/ui/Input';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 import { hasEventEnded } from '@modules/events/lib/eventTiming';
@@ -44,6 +50,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('upcoming');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [loading, setLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>({
@@ -56,16 +63,15 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
     userLng: null,
   });
 
-  const hasActiveFilters = useMemo(() => {
-    return Boolean(
-      filters.q ||
-        filters.date ||
-        filters.eventTypeId ||
-        filters.levelId ||
-        filters.distanceKm ||
-        (filters.userLat && filters.userLng)
-    );
-  }, [filters]);
+  const activeFilterCount = [
+    filters.q,
+    filters.date,
+    filters.eventTypeId,
+    filters.levelId,
+    filters.distanceKm,
+    filters.userLat != null && filters.userLng != null,
+  ].filter(Boolean).length;
+  const hasActiveFilters = activeFilterCount > 0;
 
   const eventTypeOptions = useMemo<OptionSelect[]>(
     () =>
@@ -222,12 +228,14 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
 
   return (
     <section className="site-shell site-section-compact">
-      <div className="site-panel-soft px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+      <div className="px-0 py-2 sm:py-4">
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-eastman-extrabold text-slate-900">Eventos en mapa</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Explora partidos, revisa detalle sin salir del mapa y crea eventos con ubicación exacta.
+            <h1 className="text-3xl font-eastman-extrabold text-slate-900 sm:text-4xl">
+              Encuentra dónde jugar
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 sm:text-base">
+              Busca una pichanga por fecha, zona o nivel y revisa todo antes de sumarte.
             </p>
           </div>
 
@@ -235,7 +243,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
             type="button"
             onClick={openCreateEventFlow}
             disabled={authLoading}
-            className="home-button-micro inline-flex h-11 items-center justify-center rounded-full bg-[#54086F] px-5 text-sm font-semibold text-white"
+            className="home-button-micro premium-outline inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-semibold text-mulberry hover:border-mulberry"
           >
             Crear evento
           </button>
@@ -272,26 +280,47 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           </div>
         </div>
 
-        <div className="premium-card mb-5 p-4 sm:p-5">
+        <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-bold text-slate-900">Filtrar eventos</p>
               <p className="mt-0.5 text-xs text-slate-500">Encuentra una fecha por nombre, tipo, nivel o zona.</p>
             </div>
-            {hasActiveFilters && (
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={clearFilters}
-                className="home-button-micro inline-flex h-9 w-fit items-center gap-2 rounded-full px-3 text-sm font-semibold text-mulberry hover:bg-mulberry/5"
+                onClick={() => setShowAdvancedFilters((current) => !current)}
+                aria-expanded={showAdvancedFilters}
+                aria-controls="event-advanced-filters"
+                className="home-button-micro inline-flex h-10 items-center gap-2 rounded-xl border border-slate-300 px-3.5 text-sm font-semibold text-slate-700 hover:border-mulberry/40"
               >
-                <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
-                Limpiar filtros
+                <AdjustmentsHorizontalIcon className="h-4 w-4" aria-hidden="true" />
+                Más filtros
+                {activeFilterCount > 0 ? (
+                  <span className="rounded-full bg-mulberry px-2 py-0.5 text-xs text-white">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+                <ChevronDownIcon
+                  className={`h-4 w-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
+                />
               </button>
-            )}
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="home-button-micro inline-flex h-10 w-fit items-center gap-2 rounded-xl px-3 text-sm font-semibold text-mulberry hover:bg-mulberry/5"
+                >
+                  <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
+                  Limpiar
+                </button>
+              ) : null}
+            </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-12">
-            <div className="sm:col-span-2 xl:col-span-4">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.35fr)]">
+            <div>
               <p className="mb-1.5 text-xs font-semibold text-slate-600">Buscar</p>
               <Input
                 value={filters.q}
@@ -303,7 +332,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
               />
             </div>
 
-            <div className="xl:col-span-2">
+            <div>
               <p className="mb-1.5 text-xs font-semibold text-slate-600">Fecha</p>
               <Input
                 type="date"
@@ -314,86 +343,90 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
               />
             </div>
 
-            <div className="xl:col-span-2">
-              <p className="mb-1.5 text-xs font-semibold text-slate-600">Tipo de evento</p>
-              <SelectComponent
-                options={eventTypeOptions}
-                value={filters.eventTypeId}
-                onChange={(value) => setFilters((prev) => ({ ...prev, eventTypeId: Number(value) || 0 }))}
-                isSearchable={false}
-                className="text-sm"
-                selectProps={{
-                  instanceId: 'event-map-type-filter',
-                  inputId: 'event-map-type-filter',
-                  placeholder: 'Todos',
-                  'aria-label': 'Filtrar por tipo de evento',
-                }}
-              />
-            </div>
-
-            <div className="xl:col-span-2">
-              <p className="mb-1.5 text-xs font-semibold text-slate-600">Nivel</p>
-              <SelectComponent
-                options={levelOptions}
-                value={filters.levelId}
-                onChange={(value) => setFilters((prev) => ({ ...prev, levelId: Number(value) || 0 }))}
-                isSearchable={false}
-                className="text-sm"
-                selectProps={{
-                  instanceId: 'event-map-level-filter',
-                  inputId: 'event-map-level-filter',
-                  placeholder: 'Todos',
-                  'aria-label': 'Filtrar por nivel',
-                }}
-              />
-            </div>
-
-            <div className="xl:col-span-2">
-              <p className="mb-1.5 text-xs font-semibold text-slate-600">Distancia máxima</p>
-              <Input
-                type="number"
-                min={0}
-                placeholder="Ej. 10 km"
-                value={filters.distanceKm || ''}
-                onChange={(event) =>
-                  setFilters((prev) => ({ ...prev, distanceKm: Number(event.target.value) || 0 }))
-                }
-                className="h-11"
-                aria-label="Distancia máxima en kilómetros"
-              />
-            </div>
           </div>
 
-          <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-2 text-sm text-slate-600">
-              <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-mulberry" aria-hidden="true" />
-              <span>Define un punto de referencia para aplicar la distancia.</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-              <button
-                type="button"
-                onClick={useMyLocation}
-                className="home-button-micro premium-outline inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full px-4 text-sm font-medium text-slate-700"
-              >
-                Mi ubicación
-              </button>
+          {showAdvancedFilters ? (
+            <div id="event-advanced-filters" className="mt-5 border-t border-slate-200 pt-5">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold text-slate-600">Tipo de evento</p>
+                  <SelectComponent
+                    options={eventTypeOptions}
+                    value={filters.eventTypeId}
+                    onChange={(value) => setFilters((prev) => ({ ...prev, eventTypeId: Number(value) || 0 }))}
+                    isSearchable={false}
+                    className="text-sm"
+                    selectProps={{
+                      instanceId: 'event-map-type-filter',
+                      inputId: 'event-map-type-filter',
+                      placeholder: 'Todos',
+                      'aria-label': 'Filtrar por tipo de evento',
+                    }}
+                  />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold text-slate-600">Nivel</p>
+                  <SelectComponent
+                    options={levelOptions}
+                    value={filters.levelId}
+                    onChange={(value) => setFilters((prev) => ({ ...prev, levelId: Number(value) || 0 }))}
+                    isSearchable={false}
+                    className="text-sm"
+                    selectProps={{
+                      instanceId: 'event-map-level-filter',
+                      inputId: 'event-map-level-filter',
+                      placeholder: 'Todos',
+                      'aria-label': 'Filtrar por nivel',
+                    }}
+                  />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold text-slate-600">Distancia máxima</p>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Ej. 10 km"
+                    value={filters.distanceKm || ''}
+                    onChange={(event) =>
+                      setFilters((prev) => ({ ...prev, distanceKm: Number(event.target.value) || 0 }))
+                    }
+                    className="h-11"
+                    aria-label="Distancia máxima en kilómetros"
+                  />
+                </div>
+              </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    userLat: LIMA_DEFAULT.lat,
-                    userLng: LIMA_DEFAULT.lng,
-                    distanceKm: prev.distanceKm || 10,
-                  }))
-                }
-                className="home-button-micro premium-outline inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full px-4 text-sm font-medium text-slate-700"
-              >
-                Centro de Lima
-              </button>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-2 text-sm text-slate-600">
+                  <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-mulberry" aria-hidden="true" />
+                  <span>Define un punto de referencia para aplicar la distancia.</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                  <button
+                    type="button"
+                    onClick={useMyLocation}
+                    className="home-button-micro premium-outline inline-flex h-10 items-center justify-center whitespace-nowrap rounded-xl px-4 text-sm font-medium text-slate-700"
+                  >
+                    Mi ubicación
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        userLat: LIMA_DEFAULT.lat,
+                        userLng: LIMA_DEFAULT.lng,
+                        distanceKm: prev.distanceKm || 10,
+                      }))
+                    }
+                    className="home-button-micro premium-outline inline-flex h-10 items-center justify-center whitespace-nowrap rounded-xl px-4 text-sm font-medium text-slate-700"
+                  >
+                    Centro de Lima
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -404,7 +437,8 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
           {geoError && <p className="text-sm text-red-600">{geoError}</p>}
         </div>
 
-        <div className="mb-4 xl:hidden">
+        {visibleEvents.length > 0 ? (
+          <div className="mb-4 xl:hidden">
           <div className="premium-tab-group" role="tablist" aria-label="Cambiar vista">
             <button
               type="button"
@@ -433,9 +467,16 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
               Mapa
             </button>
           </div>
-        </div>
+          </div>
+        ) : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div
+          className={
+            visibleEvents.length > 0
+              ? 'grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]'
+              : ''
+          }
+        >
           <div className={['order-2 xl:order-1', mobileView === 'map' ? 'hidden xl:block' : 'block'].join(' ')}>
             <EventListPanel
               events={visibleEvents}
@@ -445,26 +486,50 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
               isLoading={loading}
               emptyMessage={
                 timeFilter === 'upcoming'
-                  ? 'No hay eventos próximos con estos filtros.'
+                  ? 'No encontramos próximas pichangas con estos filtros.'
                   : 'No hay eventos finalizados con estos filtros.'
+              }
+              emptyAction={
+                <>
+                  {timeFilter === 'upcoming' && pastEvents.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setTimeFilter('past')}
+                      className="home-button-micro inline-flex h-11 items-center rounded-xl bg-mulberry px-4 text-sm font-semibold text-white"
+                    >
+                      Ver eventos pasados
+                    </button>
+                  ) : null}
+                  {hasActiveFilters ? (
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="home-button-micro premium-outline inline-flex h-11 items-center rounded-xl px-4 text-sm font-semibold text-slate-700"
+                    >
+                      Limpiar filtros
+                    </button>
+                  ) : null}
+                </>
               }
             />
           </div>
 
-          <div
-            className={[
-              'order-1 xl:order-2 xl:sticky xl:top-24',
-              mobileView === 'list' ? 'hidden xl:block' : 'block',
-            ].join(' ')}
-          >
-            <EventsMap
-              events={visibleEvents}
-              selectedEventId={selectedEventId}
-              hoveredEventId={hoveredEventId}
-              onSelectEvent={(id) => setSelectedEventId(id)}
-              className="xl:h-[calc(100vh-140px)]"
-            />
-          </div>
+          {visibleEvents.length > 0 ? (
+            <div
+              className={[
+                'order-1 xl:order-2 xl:sticky xl:top-20',
+                mobileView === 'list' ? 'hidden xl:block' : 'block',
+              ].join(' ')}
+            >
+              <EventsMap
+                events={visibleEvents}
+                selectedEventId={selectedEventId}
+                hoveredEventId={hoveredEventId}
+                onSelectEvent={(id) => setSelectedEventId(id)}
+                className="xl:h-[calc(100vh-110px)]"
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

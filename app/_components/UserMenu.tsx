@@ -144,6 +144,9 @@ const UserMenu: React.FC<UserMenuProps> = ({ user = null, loading = false }) => 
                 <div className="h-11 w-44 animate-pulse rounded-full bg-slate-100" aria-hidden="true" />
               ) : (
                 <>
+                  <Link href="/events" className={authLinkClassName}>
+                    Pichangas
+                  </Link>
                   <Link href="/login" className="hidden sm:inline-flex">
                     <span className={authLinkClassName}>Inicia sesión</span>
                   </Link>
