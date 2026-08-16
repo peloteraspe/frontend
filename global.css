@@ -383,10 +383,6 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
-/* opcional: afina tamaños del input interno */
-.rs__value-container {
-  padding: 0 0.25rem !important;
-}
 .rs__multi-value {
   margin: 2px !important;
 }
@@ -421,21 +417,6 @@ input[type='number'] {
   line-height: 24px !important;
   display: flex;
   align-items: center;
-}
-
-/* Chips multi un poco más compactos */
-.rs__value-container {
-  padding: 0 0.25rem !important;
-}
-.rs__multi-value {
-  margin: 2px !important;
-}
-
-.rs__input input {
-  caret-color: #5b1c70 !important;
-}
-.rs--no-caret .rs__input input {
-  caret-color: transparent !important;
 }
 
 .rs__single-value,

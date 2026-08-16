@@ -6,6 +6,7 @@ import { useAuth } from '@core/auth/AuthProvider';
 import {
   AdjustmentsHorizontalIcon,
   ArrowPathIcon,
+  CalendarDaysIcon,
   ChevronDownIcon,
   MapPinIcon,
   MagnifyingGlassIcon,
@@ -38,7 +39,20 @@ type Filters = {
 };
 
 const LIMA_DEFAULT = { lat: -12.0464, lng: -77.0428 };
+const FILTER_DATE_FORMATTER = new Intl.DateTimeFormat('es-PE', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
 type TimeFilter = 'upcoming' | 'past';
+
+function formatFilterDate(value: string) {
+  if (!value) return 'Cualquier fecha';
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return 'Cualquier fecha';
+  return FILTER_DATE_FORMATTER.format(date);
+}
 
 export default function EventExplorerClient({ initialEvents, initialCatalogs }: Props) {
   const router = useRouter();
@@ -334,13 +348,28 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
 
             <div>
               <p className="mb-1.5 text-xs font-semibold text-slate-600">Fecha</p>
-              <Input
-                type="date"
-                value={filters.date}
-                onChange={(event) => setFilters((prev) => ({ ...prev, date: event.target.value }))}
-                className="h-11"
-                aria-label="Filtrar por fecha"
-              />
+              <div className="peloteras-form-control group relative flex h-11 items-center gap-3 px-4 focus-within:border-mulberry focus-within:ring-4 focus-within:ring-mulberry/10">
+                <span
+                  className={[
+                    'min-w-0 flex-1 truncate text-sm',
+                    filters.date ? 'font-medium text-slate-900' : 'text-slate-400',
+                  ].join(' ')}
+                  aria-hidden="true"
+                >
+                  {formatFilterDate(filters.date)}
+                </span>
+                <CalendarDaysIcon
+                  className="h-5 w-5 shrink-0 text-mulberry transition-transform group-hover:scale-105"
+                  aria-hidden="true"
+                />
+                <input
+                  type="date"
+                  value={filters.date}
+                  onChange={(event) => setFilters((prev) => ({ ...prev, date: event.target.value }))}
+                  className="absolute inset-0 h-full w-full cursor-pointer rounded-xl opacity-0"
+                  aria-label="Filtrar por fecha"
+                />
+              </div>
             </div>
 
           </div>

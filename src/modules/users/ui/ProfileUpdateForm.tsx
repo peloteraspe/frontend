@@ -229,10 +229,11 @@ export default function ProfileUpdateForm({
         username: normalizedUsername,
         level_id: data.level_id as number,
         player_position: data.positions,
-        phone: normalizedPhone || null,
       };
 
-      const updatedProfile = await updateProfile(userId, updateData);
+      // El celular y la fecha de nacimiento viven en Auth metadata. Si solo cambian
+      // esos campos, no debemos llamar al backend de perfil con el UUID de Auth.
+      const updatedProfile = isDirty ? await updateProfile(userId, updateData) : null;
       const currentMetadata = normalizePhoneMetadata(user?.user_metadata);
       const nextMetadata: Record<string, unknown> = {
         ...currentMetadata,
@@ -288,11 +289,11 @@ export default function ProfileUpdateForm({
 
   return (
     <form
-      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+      className="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm"
       onSubmit={handleSubmit(submit, handleInvalid)}
       noValidate
     >
-      <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
+      <div className="rounded-t-2xl border-b border-slate-100 px-5 py-5 sm:px-6">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mulberry/10 text-mulberry">
             <IdentificationIcon aria-hidden="true" className="h-5 w-5" />
@@ -471,7 +472,7 @@ export default function ProfileUpdateForm({
         </div>
       )}
 
-      <div className="flex flex-col gap-4 border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-4 rounded-b-2xl border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className="flex items-center gap-2 text-slate-700">
             <LockClosedIcon aria-hidden="true" className="h-4 w-4 text-mulberry" />

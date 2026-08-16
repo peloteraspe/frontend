@@ -7,7 +7,6 @@ import {
 import Link from 'next/link';
 import type { PublicPlayerProfile, PublicPlayerTeam } from '@modules/users/model/types';
 import { buildPublicTeamPath } from '@shared/lib/publicProfilePaths';
-import PublicProfileShareButton from '@shared/ui/PublicProfileShareButton';
 
 function getInitials(name: string) {
   return String(name || 'PL').slice(0, 2).toUpperCase();
@@ -48,12 +47,6 @@ export default function PlayerPublicProfilePage({ profile }: { profile: PublicPl
         <div className="relative h-36 overflow-hidden bg-[linear-gradient(125deg,#F0815B_-10%,#B347B1_52%,#54086F_115%)] sm:h-44">
           <div aria-hidden="true" className="absolute -left-10 -top-20 h-52 w-52 rounded-full bg-white/10 blur-xl" />
           <div aria-hidden="true" className="absolute -bottom-20 right-20 h-56 w-56 rounded-full border-[42px] border-white/10" />
-          <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
-            <PublicProfileShareButton
-              title={`@${profile.username} en Peloteras`}
-              text={`Conoce el perfil de @${profile.username} en Peloteras.`}
-            />
-          </div>
         </div>
 
         <div className="relative px-5 pb-7 sm:px-8 sm:pb-9">

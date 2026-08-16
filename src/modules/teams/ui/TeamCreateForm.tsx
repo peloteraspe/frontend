@@ -5,13 +5,12 @@ import { ArrowLeftIcon, CameraIcon, XMarkIcon } from '@heroicons/react/24/outlin
 import { useRouter } from 'next/navigation';
 import type { TeamSummaryRow } from '@modules/teams/model/types';
 import { trackEvent } from '@shared/lib/analytics';
+import { normalizeTeamSocialHandle } from '@modules/teams/lib/socialHandle';
 
 const MAX_TEAM_NAME_LENGTH = 80;
-const MAX_SOCIAL_HANDLE_LENGTH = 30;
 const MAX_AVATAR_BYTES = 300 * 1024;
 const ALLOWED_AVATAR_TYPES = new Set(['image/jpeg', 'image/png']);
 const ALLOWED_AVATAR_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
-const SOCIAL_HANDLE_PATTERN = /^[a-zA-Z0-9._]+$/;
 
 type FieldErrors = Partial<{
   name: string;
@@ -44,52 +43,6 @@ function validateAvatar(file: File | null) {
   }
 
   return null;
-}
-
-function normalizeSocialHandle(value: string, network: 'instagram' | 'tiktok') {
-  const trimmed = value.trim();
-  if (!trimmed) return { value: null, error: null };
-
-  let candidate = trimmed.replace(/^@+/, '');
-
-  if (/^https?:\/\//i.test(candidate) || candidate.includes('/')) {
-    try {
-      const url = new URL(/^https?:\/\//i.test(candidate) ? candidate : `https://${candidate}`);
-      const hostname = url.hostname.replace(/^www\./, '').toLowerCase();
-      const allowedHosts =
-        network === 'instagram'
-          ? new Set(['instagram.com'])
-          : new Set(['tiktok.com', 'vm.tiktok.com']);
-
-      if (!allowedHosts.has(hostname)) {
-        return {
-          value: null,
-          error:
-            network === 'instagram'
-              ? 'Ingresa un usuario o URL válida de Instagram.'
-              : 'Ingresa un usuario o URL válida de TikTok.',
-        };
-      }
-
-      const firstSegment = url.pathname.split('/').filter(Boolean)[0] || '';
-      candidate = firstSegment.replace(/^@+/, '');
-    } catch {
-      return { value: null, error: 'Revisa el formato de la red social.' };
-    }
-  }
-
-  if (
-    !candidate ||
-    candidate.length > MAX_SOCIAL_HANDLE_LENGTH ||
-    !SOCIAL_HANDLE_PATTERN.test(candidate)
-  ) {
-    return {
-      value: null,
-      error: `Usa solo letras, números, punto o guion bajo, hasta ${MAX_SOCIAL_HANDLE_LENGTH} caracteres.`,
-    };
-  }
-
-  return { value: candidate, error: null };
 }
 
 export default function TeamCreateForm({ onCancel, onCreated }: Props) {
@@ -130,11 +83,11 @@ export default function TeamCreateForm({ onCancel, onCreated }: Props) {
     const avatarError = validateAvatar(file);
     if (avatarError) nextErrors.avatar = avatarError;
 
-    const normalizedInstagram = normalizeSocialHandle(instagramUsername, 'instagram');
-    const normalizedTiktok = normalizeSocialHandle(tiktokUsername, 'tiktok');
+    const normalizedInstagram = normalizeTeamSocialHandle(instagramUsername);
+    const normalizedTiktok = normalizeTeamSocialHandle(tiktokUsername);
     const normalizedMaxMembers = Number(maxMembers);
-    if (normalizedInstagram.error) nextErrors.instagramUsername = normalizedInstagram.error;
-    if (normalizedTiktok.error) nextErrors.tiktokUsername = normalizedTiktok.error;
+    if (!normalizedInstagram.ok) nextErrors.instagramUsername = normalizedInstagram.error;
+    if (!normalizedTiktok.ok) nextErrors.tiktokUsername = normalizedTiktok.error;
     if (!Number.isInteger(normalizedMaxMembers) || normalizedMaxMembers < 1 || normalizedMaxMembers > 100) {
       nextErrors.maxMembers = 'El límite debe estar entre 1 y 100 integrantes.';
     }
@@ -145,8 +98,8 @@ export default function TeamCreateForm({ onCancel, onCreated }: Props) {
 
     return {
       name,
-      instagramUsername: normalizedInstagram.value,
-      tiktokUsername: normalizedTiktok.value,
+      instagramUsername: normalizedInstagram.ok ? normalizedInstagram.value : null,
+      tiktokUsername: normalizedTiktok.ok ? normalizedTiktok.value : null,
       maxMembers: normalizedMaxMembers,
     };
   }
@@ -410,7 +363,7 @@ export default function TeamCreateForm({ onCancel, onCreated }: Props) {
               </span>
             </div>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              Puedes escribir solo el usuario o pegar el enlace completo del perfil.
+              Escribe el usuario como @micuenta o micuenta.
             </p>
           </div>
 
@@ -419,10 +372,7 @@ export default function TeamCreateForm({ onCancel, onCreated }: Props) {
               <label htmlFor="team-instagram" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Instagram
               </label>
-              <div className="relative">
-                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-slate-400">
-                  @
-                </span>
+              <div>
                 <input
                   id="team-instagram"
                   value={instagramUsername}
@@ -433,8 +383,8 @@ export default function TeamCreateForm({ onCancel, onCreated }: Props) {
                       instagramUsername: undefined,
                     }));
                   }}
-                  className="peloteras-form-control h-11 pl-8 pr-3"
-                  placeholder="laspanteras"
+                  className="peloteras-form-control h-11 px-3"
+                  placeholder="@micuenta o micuenta"
                   aria-invalid={Boolean(errors.instagramUsername)}
                   aria-describedby={errors.instagramUsername ? 'team-instagram-error' : undefined}
                 />
@@ -450,10 +400,7 @@ export default function TeamCreateForm({ onCancel, onCreated }: Props) {
               <label htmlFor="team-tiktok" className="mb-1.5 block text-sm font-medium text-slate-700">
                 TikTok
               </label>
-              <div className="relative">
-                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-slate-400">
-                  @
-                </span>
+              <div>
                 <input
                   id="team-tiktok"
                   value={tiktokUsername}
@@ -461,8 +408,8 @@ export default function TeamCreateForm({ onCancel, onCreated }: Props) {
                     setTiktokUsername(event.target.value);
                     setErrors((currentErrors) => ({ ...currentErrors, tiktokUsername: undefined }));
                   }}
-                  className="peloteras-form-control h-11 pl-8 pr-3"
-                  placeholder="laspanteras"
+                  className="peloteras-form-control h-11 px-3"
+                  placeholder="@micuenta o micuenta"
                   aria-invalid={Boolean(errors.tiktokUsername)}
                   aria-describedby={errors.tiktokUsername ? 'team-tiktok-error' : undefined}
                 />
