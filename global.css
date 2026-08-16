@@ -2,6 +2,30 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
+@keyframes navigation-progress {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  55%,
+  100% {
+    transform: translateX(310%);
+  }
+}
+
+.navigation-progress-indicator {
+  width: 34%;
+  animation: navigation-progress 1.05s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation-progress-indicator {
+    width: 100%;
+    animation: none;
+    opacity: 0.65;
+  }
+}
+
 /* ============================================
    SISTEMA DE DISENO - PELOTERAS
    ============================================ */
