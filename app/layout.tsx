@@ -103,7 +103,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body
         className="h-full w-full"
         style={{
-          backgroundColor: '#FAF9FB',
+          backgroundColor: '#FFFFFF',
         }}
         suppressHydrationWarning
       >

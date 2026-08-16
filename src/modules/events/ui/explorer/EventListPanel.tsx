@@ -1,4 +1,5 @@
 'use client';
+import type { ReactNode } from 'react';
 import Badge, { StatusBadge } from '@core/ui/Badge';
 import { ButtonWrapper } from '@core/ui/Button';
 import AuthRedirectLoader from '@modules/auth/ui/AuthRedirectLoader';
@@ -17,6 +18,7 @@ type Props = {
   onHoverEvent: (id: string | null) => void;
   isLoading?: boolean;
   emptyMessage?: string;
+  emptyAction?: ReactNode;
 };
 
 function EventCardSameAsLanding({
@@ -119,6 +121,7 @@ export default function EventListPanel({
   onHoverEvent,
   isLoading = false,
   emptyMessage = 'No hay eventos en esta zona todavía.',
+  emptyAction,
 }: Props) {
   const { navigateWithSessionCheck, isPendingNavigation, pendingNavigationMessage } =
     useSessionGuardNavigation();
@@ -138,8 +141,12 @@ export default function EventListPanel({
 
   if (!events.length) {
     return (
-      <div className="premium-card h-[60vh] border-dashed p-6 text-center text-sm text-slate-600 md:h-[76vh]">
-        {emptyMessage}
+      <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center md:min-h-[340px]">
+        <p className="max-w-md text-base font-semibold text-slate-800">{emptyMessage}</p>
+        <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+          Prueba otra fecha o revisa la actividad anterior de la comunidad.
+        </p>
+        {emptyAction ? <div className="mt-5 flex flex-wrap justify-center gap-3">{emptyAction}</div> : null}
       </div>
     );
   }

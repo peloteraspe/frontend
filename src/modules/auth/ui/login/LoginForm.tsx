@@ -307,9 +307,9 @@ export default function LoginForm() {
   const signUpHref = appendNextPath('/signUp', requestedNextPath);
 
   return (
-    <div className="w-full max-w-[560px] mx-auto px-4 pt-8 pb-12 md:pt-12">
-      <div className="text-center mb-8">
-        <h1 className="mt-4 font-eastman-extrabold text-4xl md:text-5xl leading-tight text-slate-900">
+    <div className="mx-auto w-full max-w-[560px] px-4 pb-12 pt-8 md:pt-12">
+      <div className="mb-6 text-center">
+        <h1 className="mt-4 font-eastman-extrabold text-3xl leading-tight text-slate-900 md:text-4xl">
           Bienvenida
         </h1>
         <p className="mt-3 text-slate-600 text-base">
@@ -317,22 +317,10 @@ export default function LoginForm() {
         </p>
       </div>
 
-      <div className="bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-5 md:p-7 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
-        <div className="mb-6 grid grid-cols-2 rounded-2xl bg-slate-100 p-1.5 text-sm">
-          <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2.5 shadow-sm">
-            Iniciar sesión
-          </span>
-          <Link
-            href={signUpHref}
-            className="rounded-xl text-slate-600 text-center py-2.5 hover:text-slate-900 transition-colors"
-          >
-            Crear cuenta
-          </Link>
-        </div>
-
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-7">
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
           <Input
-            label="Correo electronico"
+            label="Correo electrónico"
             type="email"
             placeholder="pelotera@gmail.com"
             autoComplete="email"
@@ -341,7 +329,7 @@ export default function LoginForm() {
               required: 'Este campo es requerido',
               pattern: {
                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                message: 'Correo invalido',
+                message: 'Correo inválido',
               },
             })}
             errorText={errors.email?.message}
@@ -355,7 +343,7 @@ export default function LoginForm() {
             required
             {...register('password', {
               required: 'Este campo es requerido',
-              minLength: { value: 6, message: 'Minimo 6 caracteres' },
+              minLength: { value: 6, message: 'Mínimo 6 caracteres' },
             })}
             errorText={errors.password?.message}
           />
@@ -369,7 +357,7 @@ export default function LoginForm() {
           <button
             type="submit"
             disabled={isSubmitting || isGoogleLoading}
-            className="h-11 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
+            className="h-11 w-full rounded-xl bg-mulberry font-semibold text-white disabled:opacity-60"
           >
             {isSubmitting ? 'Ingresando...' : 'Iniciar sesión'}
           </button>
@@ -382,13 +370,19 @@ export default function LoginForm() {
           />
         </form>
 
-        <div className="mt-5 flex items-center justify-start gap-2 text-sm">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm">
           <Link
             href="/auth/forgot-password"
             className="font-medium text-mulberry hover:text-mulberry/80 transition-colors"
           >
             ¿Olvidaste tu contraseña?
           </Link>
+          <span className="text-slate-500">
+            ¿Aún no tienes cuenta?{' '}
+            <Link href={signUpHref} className="font-semibold text-mulberry hover:text-mulberry/80">
+              Regístrate
+            </Link>
+          </span>
         </div>
       </div>
     </div>

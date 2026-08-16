@@ -706,53 +706,47 @@ export default function SignupClient() {
   }, [step, requiresEmailVerification]);
 
   return (
-    <div className="w-full max-w-[560px] mx-auto px-4 pt-4 pb-8 md:pt-6">
-      <div className="text-center mb-4">
+    <div className="mx-auto w-full max-w-[560px] px-4 pb-8 pt-4 md:pt-6">
+      <div className="mb-5 text-center">
         <h1 className="mt-3 font-eastman-extrabold text-3xl md:text-4xl leading-tight text-slate-900">
           Crea tu cuenta
         </h1>
         <p className="mt-2 text-slate-600 text-sm">Completa tus datos y empieza a jugar.</p>
       </div>
 
-      {step === 1 ? (
-        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
-          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm">
-            {hasActiveSession ? (
-              <span
-                className="rounded-xl text-slate-400 text-center py-2 cursor-not-allowed"
-                aria-disabled="true"
-              >
-                Iniciar sesión
-              </span>
-            ) : (
-              <Link
-                href={appendNextPath('/login', requestedNextPath)}
-                className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
-              >
-                Iniciar sesión
-              </Link>
-            )}
-            <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
-              Crear cuenta
-            </span>
-          </div>
+      <div className="mb-4" aria-label={`Paso ${step} de 3`}>
+        <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500">
+          <span>Paso {step} de 3</span>
+          <span>{step === 1 ? 'Acceso' : step === 2 ? 'Tu perfil' : 'Verificación'}</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2" aria-hidden="true">
+          {[1, 2, 3].map((progressStep) => (
+            <span
+              key={progressStep}
+              className={`h-1.5 rounded-full ${progressStep <= step ? 'bg-mulberry' : 'bg-slate-200'}`}
+            />
+          ))}
+        </div>
+      </div>
 
-          <p className="text-slate-600 text-sm mb-4">
-            Completa tus datos por primera vez para que tengas una experiencia personalizada
+      {step === 1 ? (
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+          <p className="mb-4 text-sm leading-6 text-slate-600">
+            Usa un correo al que tengas acceso. Te enviaremos la verificación de tu cuenta.
           </p>
 
           <form
             onSubmit={handleSubmit(handleStep1)}
             className="flex flex-col gap-3"
-            autoComplete="off"
+            autoComplete="on"
             noValidate
           >
             <Input
-              label="Correo electronico"
+              label="Correo electrónico"
               type="email"
               required
               name="email"
-              autoComplete="off"
+              autoComplete="email"
               inputMode="email"
               placeholder="pelotera@gmail.com"
               value={signupEmail}
@@ -782,14 +776,14 @@ export default function SignupClient() {
               errorText={errors.password?.message as string | undefined}
             />
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <label className="flex items-start gap-3">
                 <input
-                  type="radio"
+                  type="checkbox"
                   name="gender_identity_confirmation"
                   checked={isIdentityConfirmed}
-                  onChange={() => {
-                    setIsIdentityConfirmed(true);
+                  onChange={(event) => {
+                    setIsIdentityConfirmed(event.target.checked);
                     if (identityError) setIdentityError(undefined);
                   }}
                   className="mt-1 h-4 w-4 border-slate-300 text-mulberry focus:ring-mulberry"
@@ -810,7 +804,7 @@ export default function SignupClient() {
 
             <button
               type="submit"
-              className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
+              className="h-11 w-full rounded-xl bg-mulberry font-semibold text-white disabled:opacity-60"
               disabled={loading || isGoogleLoading || !canSubmitStep1}
             >
               {loading ? 'Creando...' : 'Continuar'}
@@ -821,7 +815,7 @@ export default function SignupClient() {
                 <span className="w-full border-t border-gray-300" />
               </div>
               <div className="relative flex justify-center text-xs uppercase tracking-wide">
-                <span className="bg-white px-3 text-gray-500">o continua con</span>
+                <span className="bg-white px-3 text-gray-500">o continúa con</span>
               </div>
             </div>
 
@@ -834,30 +828,9 @@ export default function SignupClient() {
           </form>
         </div>
       ) : step === 2 ? (
-        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
-          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm">
-            {hasActiveSession ? (
-              <span
-                className="rounded-xl text-slate-400 text-center py-2 cursor-not-allowed"
-                aria-disabled="true"
-              >
-                Iniciar sesión
-              </span>
-            ) : (
-              <Link
-                href={appendNextPath('/login', requestedNextPath)}
-                className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
-              >
-                Iniciar sesión
-              </Link>
-            )}
-            <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
-              Crear cuenta
-            </span>
-          </div>
-
-          <p className="text-slate-600 text-sm mb-4">
-            Completa tus datos por primera vez para que tengas una experiencia personalizada
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+          <p className="mb-4 text-sm leading-6 text-slate-600">
+            Estos datos nos ayudan a mostrarte eventos que encajen mejor contigo.
           </p>
 
           <form
@@ -952,14 +925,14 @@ export default function SignupClient() {
               />
             </label>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <label className="flex items-start gap-3">
                 <input
-                  type="radio"
+                  type="checkbox"
                   name="gender_identity_confirmation_step_2"
                   checked={isIdentityConfirmed}
-                  onChange={() => {
-                    setIsIdentityConfirmed(true);
+                  onChange={(event) => {
+                    setIsIdentityConfirmed(event.target.checked);
                     if (identityError) setIdentityError(undefined);
                   }}
                   className="mt-1 h-4 w-4 border-slate-300 text-mulberry focus:ring-mulberry"
@@ -980,7 +953,7 @@ export default function SignupClient() {
 
             <button
               type="submit"
-              className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
+              className="h-11 w-full rounded-xl bg-mulberry font-semibold text-white disabled:opacity-60"
               disabled={
                 loading ||
                 !isIdentityConfirmed ||
@@ -996,14 +969,14 @@ export default function SignupClient() {
           </form>
         </div>
       ) : (
-        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
           <h2 className="text-xl md:text-2xl font-eastman-extrabold text-slate-900">
             Revisa tu correo para verificar tu cuenta
           </h2>
 
           <p className="text-slate-700 mt-3 text-sm md:text-base">
             Te enviamos un enlace a <strong>{signupEmail}</strong>. Cuando verifiques, te
-            redirigiremos automaticamente para continuar.
+            redirigiremos automáticamente para continuar.
           </p>
 
           <div className="mt-5 flex flex-col gap-3">
@@ -1051,17 +1024,23 @@ export default function SignupClient() {
       {isIdentityModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
           <div
-            className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-slate-950/55"
             onClick={() => setIsIdentityModalOpen(false)}
           />
-          <div className="relative z-[81] w-full max-w-lg rounded-[28px] bg-white p-6 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.45)]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Información sobre la comunidad Peloteras"
+            className="relative z-[81] w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+          >
             <div className="flex items-start justify-end">
               <button
                 type="button"
                 onClick={() => setIsIdentityModalOpen(false)}
-                className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-500 hover:text-slate-900"
+                aria-label="Cerrar información"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg text-slate-500 hover:text-slate-900"
               >
-                X
+                ×
               </button>
             </div>
 

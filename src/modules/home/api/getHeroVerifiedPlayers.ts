@@ -21,6 +21,8 @@ type AuthUserLite = {
 type ProfileRow = {
   user: string | null;
   username: string | null;
+  onboarding_step: number | null;
+  is_profile_complete: boolean | null;
 };
 
 const HERO_PLAYER_CACHE_SECONDS = 30 * 60;
@@ -145,7 +147,7 @@ async function loadHeroVerifiedPlayers(): Promise<HeroCommunitySnapshot> {
 
   const { data: profileData, error: profileError } = await adminSupabase
     .from('profile')
-    .select('user,username')
+    .select('user,username,onboarding_step,is_profile_complete')
     .in('user', verifiedUserIds as any);
 
   if (profileError) {
@@ -155,11 +157,16 @@ async function loadHeroVerifiedPlayers(): Promise<HeroCommunitySnapshot> {
   }
 
   const profileNameByUserId = new Map<string, string>();
+  const publicProfileHandleByUserId = new Map<string, string>();
   ((profileData ?? []) as ProfileRow[]).forEach((profile) => {
     const userId = normalizeText(profile.user);
     const username = normalizeText(profile.username);
     if (userId && username) {
       profileNameByUserId.set(userId, username);
+
+      if (profile.is_profile_complete === true || Number(profile.onboarding_step || 0) >= 2) {
+        publicProfileHandleByUserId.set(userId, username);
+      }
     }
   });
 
@@ -176,6 +183,7 @@ async function loadHeroVerifiedPlayers(): Promise<HeroCommunitySnapshot> {
         name,
         avatarUrl: resolveAvatarUrl(user.user_metadata),
         initials: toInitials(name),
+        profileHandle: publicProfileHandleByUserId.get(userId) || null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
@@ -186,7 +194,7 @@ async function loadHeroVerifiedPlayers(): Promise<HeroCommunitySnapshot> {
   };
 }
 
-const getHeroVerifiedPlayersCached = unstable_cache(loadHeroVerifiedPlayers, ['home-hero-verified-players'], {
+const getHeroVerifiedPlayersCached = unstable_cache(loadHeroVerifiedPlayers, ['home-hero-verified-players-v2'], {
   revalidate: HERO_PLAYER_CACHE_SECONDS,
 });
 
