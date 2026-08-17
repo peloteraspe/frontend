@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Autocomplete, GoogleMap, MarkerF } from '@react-google-maps/api';
 import Input from '@src/core/ui/Input';
+import DatePicker from '@core/ui/DatePicker';
 import { ButtonWrapper } from '@src/core/ui/Button';
 import SelectComponent from '@core/ui/SelectComponent';
 import { CatalogOption } from '@modules/events/model/types';
@@ -1462,7 +1463,7 @@ const EventForm = ({
         : !String(fd.get('description') || '').trim()
           ? '#event-description'
           : !startDateValue
-            ? 'input[type="date"]'
+            ? '#event-start-date'
             : !startClockValue
               ? 'input[type="time"]'
               : timeError
@@ -2165,22 +2166,24 @@ const EventForm = ({
 
                   <div className={`mt-4 p-4 ${FLOW_PANEL_CLASS}`}>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <label className="w-full">
-                        <div className="mb-1 text-sm font-semibold text-slate-700">
-                          Día del partido <span className="text-error">*</span>
-                        </div>
-                        <input
-                          type="date"
-                          required
-                          min={isCreateMode ? todayInLima : undefined}
-                          aria-describedby="event-schedule-help"
-                          value={startDateValue}
-                          onChange={(event) => {
-                            syncScheduleStart(event.currentTarget.value, startClockValue);
-                          }}
-                          className={FLOW_FIELD_CLASS}
-                        />
-                      </label>
+                      <DatePicker
+                        id="event-start-date"
+                        name={null}
+                        label="Día del partido"
+                        value={startDateValue}
+                        minDate={isCreateMode ? todayInLima : '1900-01-01'}
+                        maxDate="2100-12-31"
+                        defaultViewDate={startDateValue || todayInLima}
+                        placeholder="Selecciona el día"
+                        dialogLabel="Seleccionar día del partido"
+                        footerText={null}
+                        controlClassName="h-12 bg-white"
+                        ariaDescribedBy="event-schedule-help"
+                        required
+                        onChange={(nextDate) => {
+                          syncScheduleStart(nextDate, startClockValue);
+                        }}
+                      />
 
                       <label className="w-full">
                         <div className="mb-1 text-sm font-semibold text-slate-700">
