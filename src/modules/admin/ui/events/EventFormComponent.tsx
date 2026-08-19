@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Autocomplete, GoogleMap, MarkerF } from '@react-google-maps/api';
 import Input from '@src/core/ui/Input';
+import DatePicker from '@core/ui/DatePicker';
 import { ButtonWrapper } from '@src/core/ui/Button';
 import SelectComponent from '@core/ui/SelectComponent';
 import { CatalogOption } from '@modules/events/model/types';
@@ -13,6 +14,7 @@ import { trackEvent } from '@shared/lib/analytics';
 import EventShareModal, { EventShareModalStatus } from '@modules/admin/ui/events/EventShareModal';
 import EventAnnouncementForm from '@modules/admin/ui/events/EventAnnouncementForm';
 import InlinePaymentMethodSetup, {
+  getPaymentMethodDisplayName,
   type InlinePaymentMethodSummary,
 } from '@modules/admin/ui/paymentMethods/InlinePaymentMethodSetup';
 import { useGoogleMapsApi } from '@core/ui/Map/useGoogleMapsApi';
@@ -46,6 +48,7 @@ import {
 } from '@shared/lib/paymentMethodSelection';
 import UsersRichTextEditor from '@modules/admin/ui/users/UsersRichTextEditor';
 import type { OrganizerOption } from '@modules/admin/model/organizers';
+import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 
 type SubmitResult = {
   eventId?: string | number;
@@ -67,6 +70,11 @@ type EventCreateDraftSnapshot = {
     eventTypeId: string;
     levelId: string;
     isFeatured: boolean;
+    teamCount?: string;
+    teamPlayers?: string;
+    teamSubstitutes?: string;
+    teamRegistrationPriceMode?: 'per_player' | 'fixed_team';
+    teamFixedPrice?: string;
   };
   state: {
     startTime: string;
@@ -108,6 +116,12 @@ type Props = {
     isPublished: boolean;
     isFieldReservedConfirmed: boolean;
     isFeatured: boolean;
+    allowsTeamRegistration: boolean;
+    teamRegistrationMaxTeams: number | null;
+    teamRegistrationMinPlayers: number | null;
+    teamRegistrationMaxPlayers: number | null;
+    teamRegistrationPriceMode: 'per_player' | 'fixed_team';
+    teamRegistrationFixedPrice: number | null;
   }>;
   eventTypes: CatalogOption[];
   levels: CatalogOption[];
@@ -148,8 +162,6 @@ const FLOW_SURFACE_CLASS =
   'rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6';
 const FLOW_PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-slate-50/85';
 const FLOW_FIELD_CLASS = 'peloteras-form-control h-12';
-const FLOW_NATIVE_SELECT_CLASS = 'peloteras-form-control peloteras-form-control--select h-12';
-
 function asFiniteNumber(value: unknown, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -207,7 +219,10 @@ function formatScheduleDay(date: Date) {
 }
 
 function formatScheduleTime(date: Date) {
-  return formatTimeInTimeZoneWithMeridiem(date, DEFAULT_EVENT_TIMEZONE);
+  return formatTimeInTimeZoneWithMeridiem(date, DEFAULT_EVENT_TIMEZONE)
+    .replace(/^0/, '')
+    .replace('a.m.', 'a. m.')
+    .replace('p.m.', 'p. m.');
 }
 
 function capitalizeFirst(value: string) {
@@ -267,6 +282,10 @@ type PaymentMethodOption = {
   isActive: boolean;
 };
 
+const EMPTY_CATALOG_OPTIONS: CatalogOption[] = [];
+const EMPTY_PAYMENT_METHOD_OPTIONS: PaymentMethodOption[] = [];
+const EMPTY_ORGANIZER_OPTIONS: OrganizerOption[] = [];
+
 function normalizePaymentMethodCatalog(methods: PaymentMethodOption[]) {
   return methods
     .map((method) => ({
@@ -302,26 +321,26 @@ const CREATE_EVENT_STEPS: Array<{
   {
     id: 1,
     label: 'Paso 1',
-    title: 'Base del evento',
-    description: 'Define nombre, horario y cupos.',
+    title: 'Formato y partido',
+    description: 'Elige cómo se inscriben y define los datos principales.',
   },
   {
     id: 2,
     label: 'Paso 2',
     title: 'Ubicación',
-    description: 'Elige cancha, pin y precio.',
+    description: 'Elige la cancha y confirma el punto exacto.',
   },
   {
     id: 3,
     label: 'Paso 3',
-    title: 'Detalles',
-    description: 'Ajusta precio, nivel, features y cobro.',
+    title: 'Inscripción y cobro',
+    description: 'Configura el precio, el pago y los detalles adicionales.',
   },
   {
     id: 4,
     label: 'Paso 4',
-    title: 'Final',
-    description: 'Decide si lo publicas hoy o si lo guardas para después.',
+    title: 'Revisar',
+    description: 'Comprueba cómo quedará y decide si lo publicas o lo guardas.',
   },
 ];
 const CREATE_EVENT_DRAFT_STORAGE_PREFIX = 'peloteras:create-event:draft:';
@@ -331,9 +350,9 @@ const EventForm = ({
   initial,
   eventTypes,
   levels,
-  features = [],
-  paymentMethods = [],
-  organizerOptions = [],
+  features = EMPTY_CATALOG_OPTIONS,
+  paymentMethods = EMPTY_PAYMENT_METHOD_OPTIONS,
+  organizerOptions = EMPTY_ORGANIZER_OPTIONS,
   onSubmit,
   submitLabel,
   canManageFeatured = false,
@@ -350,7 +369,9 @@ const EventForm = ({
   const autosaveReadyRef = useRef(false);
   const hasTrackedWizardViewRef = useRef(false);
   const previousTrackedStepRef = useRef<CreateStepId | null>(null);
+  const draftSubmitIntentRef = useRef(false);
   const [pending, setPending] = useState(false);
+  const [pendingMode, setPendingMode] = useState<'publish' | 'draft' | null>(null);
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -360,6 +381,7 @@ const EventForm = ({
     useCreateEventWizardTracking(createdEventId || undefined);
   const { templates: eventTemplates, loading: templatesLoading } = useEventTemplates(undefined);
   const { isLoaded: isGoogleMapsLoaded, loadError: googleMapsLoadError } = useGoogleMapsApi();
+  const [isMapUnavailable, setIsMapUnavailable] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [shareTitle, setShareTitle] = useState('');
   const [eventTitle, setEventTitle] = useState(initial?.title ?? '');
@@ -369,10 +391,27 @@ const EventForm = ({
   const [minUsersValue, setMinUsersValue] = useState(String(initial?.minUsers ?? 10));
   const [maxUsersValue, setMaxUsersValue] = useState(String(initial?.maxUsers ?? 20));
   const [priceValue, setPriceValue] = useState(String(initial?.price ?? 0));
+  const [teamRegistrationPriceMode, setTeamRegistrationPriceMode] = useState<
+    'per_player' | 'fixed_team'
+  >(initial?.teamRegistrationPriceMode === 'fixed_team' ? 'fixed_team' : 'per_player');
+  const [teamFixedPriceValue, setTeamFixedPriceValue] = useState(
+    String(initial?.teamRegistrationFixedPrice ?? '')
+  );
+  const [teamCountValue, setTeamCountValue] = useState(
+    String(Math.max(2, Number(initial?.teamRegistrationMaxTeams ?? 2)))
+  );
+  const [teamPlayersValue, setTeamPlayersValue] = useState(
+    String(Math.max(1, Number(initial?.teamRegistrationMinPlayers ?? 7)))
+  );
+  const [teamSubstitutesValue, setTeamSubstitutesValue] = useState(() => {
+    const minimum = Math.max(1, Number(initial?.teamRegistrationMinPlayers ?? 7));
+    const maximum = Math.max(minimum, Number(initial?.teamRegistrationMaxPlayers ?? minimum));
+    return String(maximum - minimum);
+  });
   const [selectedEventTypeId, setSelectedEventTypeId] = useState(() => {
     const initialId = Number(initial?.eventTypeId);
     if (eventTypes.some((option) => option.id === initialId)) return String(initialId);
-    return String(eventTypes[0]?.id ?? 1);
+    return submitLabel.trim().toLowerCase() === 'crear' ? '' : String(eventTypes[0]?.id ?? 1);
   });
   const [selectedLevelId, setSelectedLevelId] = useState(() => {
     const initialId = Number(initial?.levelId);
@@ -439,6 +478,7 @@ const EventForm = ({
   const [createStep, setCreateStep] = useState<CreateStepId>(1);
   const [wizardError, setWizardError] = useState('');
   const [autosaveMessage, setAutosaveMessage] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const latRef = useRef(asFiniteNumber(initial?.lat, DEFAULT_LAT));
   const lngRef = useRef(asFiniteNumber(initial?.lng, DEFAULT_LNG));
   const pinSelectedRef = useRef(
@@ -532,22 +572,59 @@ const EventForm = ({
   );
 
   const smartSuggestions = useMemo(() => {
+    const suggestionEventType = eventTypes.find(
+      (option) => String(option.id) === selectedEventTypeId
+    );
+    const isTeamFormat = isVersusEventTypeName(suggestionEventType?.name);
+    const suggestedTeamCount = Math.max(2, Number(teamCountValue) || 2);
+    const suggestedRosterSize =
+      Math.max(1, Number(teamPlayersValue) || 1) +
+      Math.max(0, Number(teamSubstitutesValue) || 0);
+    const suggestedPrice =
+      isTeamFormat && teamRegistrationPriceMode === 'fixed_team'
+        ? Number(teamFixedPriceValue)
+        : Number(priceValue);
+
     return getSuggestionsForEvent({
       district: districtText,
       startTime,
-      price: Number(priceValue) || undefined,
-      maxUsers: Number(maxUsersValue) || undefined,
+      price: suggestedPrice || undefined,
+      maxUsers: isTeamFormat
+        ? suggestedTeamCount * suggestedRosterSize
+        : Number(maxUsersValue) || undefined,
       title: eventTitle || undefined,
     });
-  }, [districtText, eventTitle, maxUsersValue, priceValue, startTime]);
+  }, [
+    districtText,
+    eventTitle,
+    eventTypes,
+    maxUsersValue,
+    priceValue,
+    selectedEventTypeId,
+    startTime,
+    teamCountValue,
+    teamFixedPriceValue,
+    teamPlayersValue,
+    teamRegistrationPriceMode,
+    teamSubstitutesValue,
+  ]);
 
   const selectedEventType = useMemo(
     () => eventTypes.find((option) => String(option.id) === selectedEventTypeId),
     [eventTypes, selectedEventTypeId]
   );
+  const isVersusSelected = isVersusEventTypeName(selectedEventType?.name);
+  const teamCount = Math.max(2, Number(teamCountValue) || 2);
+  const teamPlayers = Math.max(1, Number(teamPlayersValue) || 1);
+  const teamSubstitutes = Math.max(0, Number(teamSubstitutesValue) || 0);
+  const teamRosterMax = teamPlayers + teamSubstitutes;
   const selectedLevel = useMemo(
     () => levels.find((option) => String(option.id) === selectedLevelId),
     [levels, selectedLevelId]
+  );
+  const levelSelectOptions = useMemo(
+    () => levels.map((option) => ({ value: String(option.id), label: option.name })),
+    [levels]
   );
 
   const featureOptions = useMemo(
@@ -568,13 +645,11 @@ const EventForm = ({
   const paymentMethodOptions = useMemo(
     () =>
       paymentMethodCatalog.map((option) => {
-        const methodType =
-          option.type === 'yape_plin' ? 'Yape/Plin' : option.type === 'plin' ? 'Plin' : 'Yape';
         const numberText = option.number ? ` · ${option.number}` : '';
         const stateText = option.isActive ? '' : ' (Inactivo)';
         return {
           value: option.id,
-          label: `${option.name} · ${methodType}${numberText}${stateText}`,
+          label: `${getPaymentMethodDisplayName(option)}${numberText}${stateText}`,
         };
       }),
     [paymentMethodCatalog]
@@ -603,11 +678,13 @@ const EventForm = ({
     return isPublished ? 'Guardar y publicar' : 'Guardar borrador';
   }, [isCreateMode, isPublished]);
   const pendingLabel = useMemo(() => {
+    if (pendingMode === 'draft') return 'Guardando borrador...';
+    if (pendingMode === 'publish') return isCreateMode ? 'Creando evento...' : 'Guardando...';
     if (isCreateMode) {
       return isPublished ? 'Creando evento...' : 'Guardando borrador...';
     }
     return isPublished ? 'Guardando...' : 'Guardando borrador...';
-  }, [isCreateMode, isPublished]);
+  }, [isCreateMode, isPublished, pendingMode]);
   const modalRedirectTo = successRedirectTo || '/admin/events';
   const currentPathWithSearch = useMemo(() => {
     const query = searchParams?.toString() || '';
@@ -646,11 +723,17 @@ const EventForm = ({
     ]
   );
   const publishMissingCount = useMemo(() => publishReadiness.missingIds.length, [publishReadiness]);
+  const createProgressPercent = Math.round((createStep / CREATE_EVENT_STEPS.length) * 100);
   const publishMissingItems = useMemo(
     () => publishReadiness.items.filter((item) => !item.done),
     [publishReadiness]
   );
-  const createProgressPercent = Math.round((createStep / CREATE_EVENT_STEPS.length) * 100);
+  const canUseInteractiveMap = Boolean(
+    googleMapsApiKeyConfigured &&
+      isGoogleMapsLoaded &&
+      !googleMapsLoadError &&
+      !isMapUnavailable
+  );
 
   useEffect(() => {
     setPaymentMethodCatalog(normalizePaymentMethodCatalog(paymentMethods));
@@ -667,8 +750,12 @@ const EventForm = ({
 
   useEffect(() => {
     if (eventTypes.some((option) => String(option.id) === selectedEventTypeId)) return;
+    if (isCreateMode) {
+      setSelectedEventTypeId('');
+      return;
+    }
     setSelectedEventTypeId(String(eventTypes[0]?.id ?? 1));
-  }, [eventTypes, selectedEventTypeId]);
+  }, [eventTypes, isCreateMode, selectedEventTypeId]);
 
   useEffect(() => {
     if (levels.some((option) => String(option.id) === selectedLevelId)) return;
@@ -689,6 +776,30 @@ const EventForm = ({
     () => resolveLocationSelectionError({ pinSelected, lat, lng }),
     [googleMapsApiKeyConfigured, lat, lng, pinSelected]
   );
+
+  useEffect(() => {
+    if (googleMapsLoadError || !googleMapsApiKeyConfigured) {
+      setIsMapUnavailable(true);
+    }
+  }, [googleMapsApiKeyConfigured, googleMapsLoadError]);
+
+  useEffect(() => {
+    const input = addressInputRef.current;
+    if (!input || !canUseInteractiveMap || typeof MutationObserver === 'undefined') return;
+
+    const observer = new MutationObserver(() => {
+      if (!input.disabled) return;
+      setIsMapUnavailable(true);
+      setGeoError('El mapa no está disponible. Conservaremos la dirección escrita.');
+    });
+
+    observer.observe(input, {
+      attributes: true,
+      attributeFilter: ['disabled'],
+    });
+
+    return () => observer.disconnect();
+  }, [canUseInteractiveMap]);
 
   useEffect(() => {
     if (!isCreateMode) return;
@@ -743,12 +854,12 @@ const EventForm = ({
   }
 
   function applySuggestedEndTime(durationMinutes: number) {
+    setPreferredDurationMinutes(durationMinutes);
+    setShowExactEndEditor(false);
     if (!startTime) return;
     const nextEndTime = addMinutesToDateTimeLocal(startTime, durationMinutes);
     if (!nextEndTime) return;
-    setPreferredDurationMinutes(durationMinutes);
     setEndTime(nextEndTime);
-    setShowExactEndEditor(false);
   }
 
   function syncScheduleStart(nextDatePart: string, nextTimePart: string) {
@@ -781,6 +892,11 @@ const EventForm = ({
         eventTypeId: selectedEventTypeId,
         levelId: selectedLevelId,
         isFeatured: isFeaturedValue,
+        teamCount: teamCountValue,
+        teamPlayers: teamPlayersValue,
+        teamSubstitutes: teamSubstitutesValue,
+        teamRegistrationPriceMode,
+        teamFixedPrice: teamFixedPriceValue,
       },
       state: {
         startTime,
@@ -841,7 +957,7 @@ const EventForm = ({
     if (!snapshot) return;
 
     window.localStorage.setItem(storageKey, JSON.stringify(snapshot));
-    setAutosaveMessage('Progreso guardado automáticamente.');
+    setAutosaveMessage('Guardado en este dispositivo.');
   }
 
   function scheduleAutosave() {
@@ -869,6 +985,11 @@ const EventForm = ({
     setSelectedEventTypeId(snapshot.fields.eventTypeId);
     setSelectedLevelId(snapshot.fields.levelId);
     setIsFeaturedValue(snapshot.fields.isFeatured);
+    setTeamCountValue(snapshot.fields.teamCount || '2');
+    setTeamPlayersValue(snapshot.fields.teamPlayers || '7');
+    setTeamSubstitutesValue(snapshot.fields.teamSubstitutes || '0');
+    setTeamRegistrationPriceMode(snapshot.fields.teamRegistrationPriceMode || 'fixed_team');
+    setTeamFixedPriceValue(snapshot.fields.teamFixedPrice || '');
     setStartTime(snapshot.state.startTime);
     setEndTime(snapshot.state.endTime);
     setPlaceText(snapshot.state.placeText);
@@ -893,10 +1014,15 @@ const EventForm = ({
   }
 
   function handleResetCreateDraft() {
+    setShowResetConfirm(true);
+  }
+
+  function confirmResetCreateDraft() {
     trackEvent('create_event_draft_reset', {
       channel: 'web',
       source: 'wizard',
     });
+    setShowResetConfirm(false);
     clearAutosave();
     if (typeof window !== 'undefined') {
       window.location.reload();
@@ -1019,8 +1145,8 @@ const EventForm = ({
   async function geocodeAddressText(rawAddress: string, options?: { preserveInput?: boolean }) {
     clearPendingAddressBlurResolve();
 
-    if (!googleMapsApiKeyConfigured || !isGoogleMapsLoaded || typeof google === 'undefined') {
-      return false;
+    if (!canUseInteractiveMap || typeof google === 'undefined') {
+      return Boolean(String(rawAddress || '').trim());
     }
 
     const nextAddress = String(rawAddress || '').trim();
@@ -1079,7 +1205,7 @@ const EventForm = ({
   }
 
   async function reverseGeocodeDistrict(nextLat: number, nextLng: number) {
-    if (!googleMapsApiKeyConfigured || !isGoogleMapsLoaded || typeof google === 'undefined') return;
+    if (!canUseInteractiveMap || typeof google === 'undefined') return;
 
     try {
       const geocoder = new google.maps.Geocoder();
@@ -1139,6 +1265,7 @@ const EventForm = ({
   async function ensureAddressResolvedIfNeeded() {
     const nextAddress = String(addressInputRef.current?.value || locationText || '').trim();
     if (!nextAddress) return false;
+    if (!canUseInteractiveMap) return true;
     if (!hasPendingAddressResolution(nextAddress)) return true;
     return geocodeAddressText(nextAddress, { preserveInput: true });
   }
@@ -1146,7 +1273,7 @@ const EventForm = ({
   function handleAddressBlur() {
     clearPendingAddressBlurResolve();
 
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !canUseInteractiveMap) return;
 
     addressBlurResolveTimerRef.current = window.setTimeout(() => {
       addressBlurResolveTimerRef.current = null;
@@ -1220,8 +1347,8 @@ const EventForm = ({
     });
   }
 
-  function syncPublishReadinessErrors(readiness = publishReadiness) {
-    if (!isPublished) return '';
+  function syncPublishReadinessErrors(readiness = publishReadiness, publishing = isPublished) {
+    if (!publishing) return '';
 
     if (readiness.missingIds.includes('payment_methods')) {
       setPaymentMethodsError('Selecciona al menos un método de pago activo antes de publicar.');
@@ -1243,7 +1370,7 @@ const EventForm = ({
     });
   }
 
-  function validateCreateStep(step: CreateStepId) {
+  function validateCreateStep(step: CreateStepId, publishing = isPublished) {
     const form = formRef.current;
     if (!form) return '';
 
@@ -1256,10 +1383,24 @@ const EventForm = ({
       const minUsers = Number(fd.get('minUsers'));
       const maxUsers = Number(fd.get('maxUsers'));
 
+      if (!String(fd.get('eventTypeId') || '').trim())
+        return 'Primero elige qué tipo de partido quieres organizar.';
       if (!title) return 'Agrega un título para que tu evento sea fácil de reconocer.';
       if (!description) return 'Incluye una descripción corta para explicar el plan.';
       if (!startTime || !endTime) return 'Define la fecha y hora de inicio y fin.';
       if (timeError) return timeError;
+      if (isVersusSelected) {
+        const maxTeams = Number(fd.get('teamRegistrationMaxTeams'));
+        const minPlayers = Number(fd.get('teamRegistrationMinPlayers'));
+        const maxPlayers = Number(fd.get('teamRegistrationMaxPlayers'));
+        if (!Number.isInteger(maxTeams) || maxTeams < 2 || maxTeams > 64)
+          return 'Define una cantidad de equipos entre 2 y 64.';
+        if (!Number.isInteger(minPlayers) || minPlayers < 1 || minPlayers > 30)
+          return 'Define entre 1 y 30 jugadoras en cancha por equipo.';
+        if (!Number.isInteger(maxPlayers) || maxPlayers < minPlayers || maxPlayers > 60)
+          return 'Revisa la cantidad máxima del plantel por equipo.';
+        return '';
+      }
       if (!Number.isFinite(minUsers) || minUsers <= 0)
         return 'Ingresa un mínimo de jugadoras válido.';
       if (!Number.isFinite(maxUsers) || maxUsers <= 0)
@@ -1270,30 +1411,101 @@ const EventForm = ({
 
     if (step === 2) {
       const nextLocationText = String(fd.get('locationText') || '').trim();
-      const price = Number(fd.get('price'));
       const nextLocationError = resolveLocationSelectionError();
 
       if (!nextLocationText) return 'Escribe la cancha o dirección donde jugarán.';
-      if (geoError) return geoError;
-      if (nextLocationError) return nextLocationError;
-      if (!Number.isFinite(price) || price < 0) return 'Define un precio válido para el evento.';
+      if (geoError && !isMapUnavailable) return geoError;
+      if (nextLocationError && !isMapUnavailable) return nextLocationError;
       return '';
     }
 
     if (step === 3) {
-      if (isPublished && currentPublishReadiness.missingIds.includes('payment_methods')) {
+      const price = Number(fd.get('price'));
+      const fixedTeamPriceRaw = String(fd.get('teamRegistrationFixedPrice') || '').trim();
+      const fixedTeamPrice = Number(fixedTeamPriceRaw);
+      if (!Number.isFinite(price) || price < 0) return 'Define un precio válido para el evento.';
+      if (
+        isVersusSelected &&
+        teamRegistrationPriceMode === 'fixed_team' &&
+        (!fixedTeamPriceRaw || !Number.isFinite(fixedTeamPrice) || fixedTeamPrice < 0)
+      ) {
+        return 'Define un precio válido por equipo.';
+      }
+      if (publishing && currentPublishReadiness.missingIds.includes('payment_methods')) {
         setPaymentMethodsError('Selecciona al menos un método de pago activo antes de publicar.');
         return 'Agrega un método de pago activo o deja el evento como borrador por ahora.';
       }
       return '';
     }
 
-    if (isPublished && currentPublishReadiness.missingIds.includes('field_reservation')) {
+    if (publishing && currentPublishReadiness.missingIds.includes('field_reservation')) {
       setFieldReservedError('Confirma que la cancha ya está reservada antes de publicar.');
       return 'Antes de publicar debes confirmar que la cancha ya está reservada.';
     }
 
     return '';
+  }
+
+  function focusFirstInvalidField(step: CreateStepId) {
+    const form = formRef.current;
+    if (!form || typeof window === 'undefined') return;
+
+    const fd = new FormData(form);
+    let selector = '';
+
+    if (step === 1) {
+      const minUsers = Number(fd.get('minUsers'));
+      const maxUsers = Number(fd.get('maxUsers'));
+      selector = !String(fd.get('eventTypeId') || '').trim()
+        ? '[data-event-type-card]'
+        : !String(fd.get('title') || '').trim()
+        ? 'input[name="title"]'
+        : !String(fd.get('description') || '').trim()
+          ? '#event-description'
+          : !startDateValue
+            ? '#event-start-date'
+            : !startClockValue
+              ? 'input[type="time"]'
+              : timeError
+                ? 'input[name="endTimeEditor"], input[type="time"]'
+              : isVersusSelected && (
+                  Number(fd.get('teamRegistrationMaxTeams')) < 2 ||
+                  Number(fd.get('teamRegistrationMaxTeams')) > 64
+                )
+                ? 'input[name="teamRegistrationMaxTeams"]'
+                : isVersusSelected && (
+                    Number(fd.get('teamRegistrationMinPlayers')) < 1 ||
+                    Number(fd.get('teamRegistrationMinPlayers')) > 30
+                  )
+                  ? 'input[name="teamRegistrationMinPlayers"]'
+              : !Number.isFinite(minUsers) || minUsers <= 0
+                ? 'input[name="minUsers"]'
+                : !Number.isFinite(maxUsers) || maxUsers <= 0 || maxUsers < minUsers
+                  ? 'input[name="maxUsers"]'
+                  : '';
+    } else if (step === 2) {
+      selector = !String(fd.get('locationText') || '').trim() || !pinSelectedRef.current
+        ? 'input[name="locationText"]'
+        : '';
+    } else if (step === 3) {
+      const fixedTeamPriceRaw = String(fd.get('teamRegistrationFixedPrice') || '').trim();
+      const fixedTeamPrice = Number(fixedTeamPriceRaw);
+      const price = Number(fd.get('price'));
+      selector = isVersusSelected && teamRegistrationPriceMode === 'fixed_team' && (!fixedTeamPriceRaw || fixedTeamPrice < 0)
+        ? 'input[name="teamRegistrationFixedPrice"]'
+        : !Number.isFinite(price) || price < 0
+          ? 'input[name="price"]'
+          : '#event-payment-methods input';
+    } else {
+      selector = 'input[name="isFieldReservedConfirmed"]';
+    }
+
+    if (!selector) return;
+    window.requestAnimationFrame(() => {
+      const field = form.querySelector<HTMLElement>(selector);
+      field?.focus({ preventScroll: true });
+      field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
   }
 
   function moveToCreateStep(nextStep: CreateStepId) {
@@ -1319,6 +1531,7 @@ const EventForm = ({
         trackPublishBlocked('step_validation', currentPublishReadiness);
       }
       setWizardError(nextError);
+      focusFirstInvalidField(createStep);
       return;
     }
 
@@ -1340,17 +1553,31 @@ const EventForm = ({
     }
   }
 
+  function handleDraftSaveRequest() {
+    if (pending || !formRef.current) return;
+    draftSubmitIntentRef.current = true;
+    setIsPublished(false);
+    formRef.current.requestSubmit();
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
+    const forceDraft = draftSubmitIntentRef.current;
+    const shouldPublish = forceDraft ? false : isPublished;
+    draftSubmitIntentRef.current = false;
+    if (isCreateMode && createStep < 4 && !forceDraft) {
+      await handleNextCreateStep();
+      return;
+    }
     setPaymentMethodsError('');
     setFieldReservedError('');
-    if (String(locationText || '').trim()) {
+    if (shouldPublish && String(locationText || '').trim()) {
       await ensureAddressResolvedIfNeeded();
     }
     if (isCreateMode) {
       trackEvent(
-        isPublished ? 'create_event_publish_attempted' : 'create_event_draft_save_attempted',
+        shouldPublish ? 'create_event_publish_attempted' : 'create_event_draft_save_attempted',
         {
           channel: 'web',
           step: createStep,
@@ -1359,19 +1586,21 @@ const EventForm = ({
     }
 
     if (isCreateMode) {
-      const stepError = validateCreateStep(createStep);
+      const validationStep = forceDraft ? 1 : createStep;
+      const stepError = validateCreateStep(validationStep, shouldPublish);
       if (stepError) {
         const currentPublishReadiness = formRef.current
           ? resolveCurrentPublishReadiness(new FormData(formRef.current))
           : resolveCurrentPublishReadiness();
         if (
-          isPublished &&
+          shouldPublish &&
           (currentPublishReadiness.missingIds.includes('payment_methods') ||
             currentPublishReadiness.missingIds.includes('field_reservation'))
         ) {
           trackPublishBlocked('step_validation', currentPublishReadiness);
         }
         setWizardError(stepError);
+        focusFirstInvalidField(validationStep);
         return;
       }
     }
@@ -1392,26 +1621,42 @@ const EventForm = ({
       setSubmitStatus('error');
       setSubmitMessage(nextTimeError);
       setWizardError(nextTimeError);
+      if (isCreateMode) {
+        moveToCreateStep(1);
+        focusFirstInvalidField(1);
+      }
       return;
     }
-    const nextLocationError = geoError || resolveLocationSelectionError();
-    if (nextLocationError) {
+    const nextLocationError = (isMapUnavailable ? '' : geoError) || resolveLocationSelectionError();
+    if (shouldPublish && nextLocationError) {
       setSubmitStatus('error');
       setSubmitMessage(nextLocationError);
       setWizardError(nextLocationError);
+      if (isCreateMode) {
+        moveToCreateStep(2);
+        focusFirstInvalidField(2);
+      }
       return;
     }
-    fd.set('lat', String(latRef.current));
-    fd.set('lng', String(lngRef.current));
+    fd.set('isPublished', shouldPublish ? 'true' : 'false');
+    fd.set('lat', pinSelectedRef.current ? String(latRef.current) : '0');
+    fd.set('lng', pinSelectedRef.current ? String(lngRef.current) : '0');
     const submitPublishReadiness = resolveCurrentPublishReadiness(fd);
 
-    if (isPublished && !submitPublishReadiness.isReady) {
+    if (shouldPublish && !submitPublishReadiness.isReady) {
       trackPublishBlocked('submit', submitPublishReadiness);
-      const readinessError = syncPublishReadinessErrors(submitPublishReadiness);
+      const readinessError = syncPublishReadinessErrors(submitPublishReadiness, shouldPublish);
       if (readinessError) {
         setSubmitStatus('error');
         setSubmitMessage(readinessError);
         setWizardError(readinessError);
+      }
+      if (isCreateMode && submitPublishReadiness.missingIds.includes('details')) {
+        moveToCreateStep(1);
+        focusFirstInvalidField(1);
+      } else if (isCreateMode && submitPublishReadiness.missingIds.includes('location')) {
+        moveToCreateStep(2);
+        focusFirstInvalidField(2);
       }
       return;
     }
@@ -1422,10 +1667,11 @@ const EventForm = ({
     setShareUrl('');
     setShareTitle(String(fd.get('title') || 'Evento'));
     setShowPostEditAnnouncementModal(false);
-    if (isCreateMode && isPublished) {
+    if (isCreateMode && shouldPublish) {
       setShowCreateModal(true);
     }
     setPending(true);
+    setPendingMode(shouldPublish ? 'publish' : 'draft');
     const pendingStartedAt = Date.now();
 
     await new Promise<void>((resolve) => {
@@ -1449,7 +1695,7 @@ const EventForm = ({
         ).trim();
         setSubmitStatus('success');
         setCreatedEventId(createdEventId);
-        if (!isPublished) {
+        if (!shouldPublish) {
           clearAutosave();
           trackEvent('create_event_draft_created', {
             channel: 'web',
@@ -1483,9 +1729,9 @@ const EventForm = ({
       } else {
         setSubmitStatus('success');
         setSubmitMessage(
-          isPublished ? 'Evento guardado con éxito.' : 'Borrador guardado con éxito.'
+          shouldPublish ? 'Evento guardado con éxito.' : 'Borrador guardado con éxito.'
         );
-        if (postEditAnnouncement && isPublished) {
+        if (postEditAnnouncement && shouldPublish) {
           setShowPostEditAnnouncementModal(true);
         }
       }
@@ -1499,6 +1745,7 @@ const EventForm = ({
         await new Promise((resolve) => window.setTimeout(resolve, MIN_PENDING_MS - elapsed));
       }
       setPending(false);
+      setPendingMode(null);
     }
   }
 
@@ -1530,6 +1777,15 @@ const EventForm = ({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [showPostEditAnnouncementModal]);
+
+  useEffect(() => {
+    if (!showResetConfirm) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowResetConfirm(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showResetConfirm]);
 
   useEffect(() => {
     if (!isCreateMode || hasTrackedWizardViewRef.current) return;
@@ -1573,7 +1829,7 @@ const EventForm = ({
       }
 
       restoreCreateDraft(parsed);
-      setAutosaveMessage('Recuperamos tu progreso guardado.');
+      setAutosaveMessage('Recuperamos lo guardado en este dispositivo.');
       trackEvent('create_event_draft_restored', {
         channel: 'web',
         restored_step: parsed.step,
@@ -1618,6 +1874,11 @@ const EventForm = ({
     selectedOrganizerId,
     selectedPaymentMethodIds,
     startTime,
+    teamCountValue,
+    teamFixedPriceValue,
+    teamPlayersValue,
+    teamRegistrationPriceMode,
+    teamSubstitutesValue,
   ]);
 
   return (
@@ -1630,70 +1891,60 @@ const EventForm = ({
           scheduleAutosave();
         }}
         className={
-          isCreateMode ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]' : 'max-w-4xl space-y-5'
+          isCreateMode
+            ? createStep === 4
+              ? 'grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]'
+              : 'grid w-full min-w-0 gap-5'
+            : 'max-w-4xl space-y-5'
         }
         noValidate
       >
         {isCreateMode ? (
-          <div className="xl:col-span-2 rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:p-6">
-            <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-mulberry/75">
-                  Crear evento
+          <div
+            className={[
+              'rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)] sm:px-5 sm:py-4',
+              createStep === 4 ? 'xl:col-span-2' : '',
+            ].join(' ')}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-mulberry/75">
+                  Paso {createStep} de {CREATE_EVENT_STEPS.length}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <h3 className="text-2xl font-eastman-extrabold text-slate-900">
-                    {activeCreateStep.title}
-                  </h3>
-                  <span className="inline-flex items-center rounded-full bg-mulberry/10 px-3 py-1 text-xs font-semibold text-mulberry">
-                    Paso {createStep} de {CREATE_EVENT_STEPS.length}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm text-slate-600">{activeCreateStep.description}</p>
+                <h2 className="mt-1 text-xl font-eastman-extrabold text-slate-900">
+                  {activeCreateStep.title}
+                </h2>
+                <p className="mt-1 hidden text-sm text-slate-600 sm:block">
+                  {activeCreateStep.description}
+                </p>
               </div>
-
-              {createStep < 4 ? (
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                {autosaveMessage ? (
+                  <span
+                    title={autosaveMessage}
+                    className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600"
+                  >
+                    <span className="sm:hidden">
+                      {autosaveMessage.startsWith('Guardado') ? 'Guardado' : 'Recuperado'}
+                    </span>
+                    <span className="hidden sm:inline">{autosaveMessage}</span>
+                  </span>
+                ) : null}
                 <button
                   type="button"
-                  onClick={handleNextCreateStep}
-                  className="hidden h-11 items-center justify-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760] lg:inline-flex"
+                  onClick={handleResetCreateDraft}
+                  className="text-xs font-semibold text-mulberry transition hover:underline"
                 >
-                  Continuar
+                  <span className="sm:hidden">Descartar</span>
+                  <span className="hidden sm:inline">Descartar progreso</span>
                 </button>
-              ) : null}
-            </div>
-
-            <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/85 px-4 py-3 lg:min-w-[260px]">
-                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  <span>Progreso</span>
-                  <span>{createProgressPercent}%</span>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className="h-full rounded-full bg-mulberry transition-all duration-300"
-                    style={{ width: `${createProgressPercent}%` }}
-                  />
-                </div>
-                <p className="mt-3 text-xs text-slate-500">
-                  {createStep < 4
-                    ? 'Primero define lo esencial. La publicación queda para el final.'
-                    : isPublished
-                      ? 'Solo publicaremos cuando cobro y reserva estén listos.'
-                      : 'Puedes guardarlo como borrador y volver luego.'}
-                </p>
               </div>
-
-              {autosaveMessage ? (
-                <div className="flex items-center justify-end">
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                    {autosaveMessage}
-                  </span>
-                </div>
-              ) : null}
             </div>
 
-            <div className="mt-5 grid gap-2 md:grid-cols-4">
+            <nav
+              aria-label="Progreso de creación"
+              className="mt-3 hidden grid-cols-4 gap-2 border-t border-slate-100 pt-3 sm:grid"
+            >
               {CREATE_EVENT_STEPS.map((step) => {
                 const isActive = step.id === createStep;
                 const isCompleted = step.id < createStep;
@@ -1701,16 +1952,19 @@ const EventForm = ({
                   <button
                     key={step.id}
                     type="button"
+                    aria-current={isActive ? 'step' : undefined}
+                    aria-label={`${step.title}: ${isCompleted ? 'listo' : isActive ? 'paso actual' : 'pendiente'}`}
+                    disabled={!isCompleted}
                     onClick={() => {
                       if (isCompleted) moveToCreateStep(step.id);
                     }}
                     className={[
-                      'flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition',
+                      'flex min-w-0 items-center justify-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition sm:justify-start sm:px-2',
                       isActive
-                        ? 'border-mulberry/20 bg-mulberry/[0.05]'
+                        ? 'bg-mulberry/[0.06]'
                         : isCompleted
-                          ? 'border-emerald-200 bg-emerald-50/80 hover:border-emerald-300'
-                          : 'border-slate-200 bg-slate-50/85',
+                          ? 'hover:bg-emerald-50/70'
+                          : '',
                       isCompleted
                         ? 'cursor-pointer'
                         : isActive
@@ -1720,48 +1974,40 @@ const EventForm = ({
                   >
                     <span
                       className={[
-                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
                         isActive
                           ? 'bg-mulberry text-white'
                           : isCompleted
                             ? 'bg-emerald-600 text-white'
-                            : 'bg-white text-slate-500 ring-1 ring-slate-200',
+                            : 'bg-slate-100 text-slate-500',
                       ].join(' ')}
                     >
                       {isCompleted ? '✓' : step.id}
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">{step.title}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {isCompleted ? 'Listo' : isActive ? 'Ahora' : 'Luego'}
-                      </p>
-                    </div>
+                    <span className="hidden min-w-0 truncate text-xs font-semibold text-slate-700 sm:block">
+                      {step.title}
+                    </span>
                   </button>
                 );
               })}
-            </div>
+            </nav>
 
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-              <p className="text-sm text-slate-600">
-                {createStep < 4
-                  ? 'Puedes avanzar con calma. El progreso queda guardado mientras completas el flujo.'
-                  : isPublished
-                    ? 'Revisaremos lo que falte antes de dejarlo visible en la plataforma.'
-                    : 'Al guardar como borrador, podrás volver exactamente donde te quedaste.'}
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleResetCreateDraft}
-                  className="text-xs font-semibold text-mulberry transition hover:underline"
-                >
-                  Empezar de nuevo
-                </button>
+            <div className="mt-3 sm:hidden" aria-hidden="true">
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-mulberry transition-[width] duration-300"
+                  style={{ width: `${createProgressPercent}%` }}
+                />
               </div>
             </div>
 
             {wizardError ? (
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div
+                id="create-event-wizard-error"
+                role="alert"
+                aria-live="polite"
+                className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              >
                 {wizardError}
               </div>
             ) : null}
@@ -1775,205 +2021,432 @@ const EventForm = ({
               isCreateMode && createStep !== 1 ? 'hidden' : 'block',
             ].join(' ')}
           >
-            <div className="mb-5">
-              <h3 className="text-lg font-semibold text-slate-900">Base del evento</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Define el plan principal para que las jugadoras entiendan rápido de qué se trata.
-              </p>
-            </div>
-
-            <div className="grid gap-4">
-              <Input
-                label="Título"
-                name="title"
-                required
-                value={eventTitle}
-                onChange={(event) => setEventTitle(event.currentTarget.value)}
-                bgColor="bg-white"
-                tone="soft"
-              />
-
-              <div className="w-full">
-                <div
-                  id="event-description-label"
-                  className="mb-1 text-sm font-semibold text-slate-700"
-                >
-                  Descripción
-                </div>
-                <UsersRichTextEditor
-                  id="event-description"
-                  textName="description"
-                  htmlName="descriptionHtml"
-                  ariaLabelledBy="event-description-label"
-                  defaultValue={eventDescription}
-                  defaultHtml={eventDescriptionHtml}
-                  resetKey={descriptionEditorResetKey}
-                  onChange={(content) => {
-                    setEventDescription(content.text);
-                    setEventDescriptionHtml(content.html);
-                  }}
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Usa formato enriquecido para destacar detalles, listas y enlaces del evento.
+            <div className="mb-6">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-mulberry">
+                  Primero el formato
+                </p>
+                <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                  ¿Qué quieres organizar?
+                </h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Esta decisión define quién se inscribe, cómo se cuentan los cupos y cómo se cobra.
                 </p>
               </div>
 
-              <div className="pt-2">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">Horario del partido</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Elige fecha, hora de inicio y duración. El fin se calcula solo y puedes
-                      ajustarlo si hace falta.
-                    </p>
-                  </div>
-                  <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                    Hora Lima
-                  </span>
-                </div>
-
-                <div className="mt-4 grid gap-4 xl:grid-cols-[1fr,1fr,1.1fr]">
-                  <label className="w-full">
-                    <div className="mb-1 text-sm font-semibold text-slate-700">Fecha *</div>
-                    <input
-                      type="date"
-                      value={startDateValue}
-                      onChange={(event) => {
-                        syncScheduleStart(event.currentTarget.value, startClockValue);
+              <div role="radiogroup" aria-label="Tipo de partido" className="mt-4 grid gap-3 md:grid-cols-2">
+                {eventTypes.map((eventType) => {
+                  const isSelected = String(eventType.id) === selectedEventTypeId;
+                  const isTeamFormat = isVersusEventTypeName(eventType.name);
+                  return (
+                    <button
+                      key={eventType.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      data-event-type-card
+                      onClick={() => {
+                        setSelectedEventTypeId(String(eventType.id));
+                        if (isTeamFormat && isCreateMode) {
+                          setTeamRegistrationPriceMode('fixed_team');
+                        }
                       }}
-                      className={FLOW_FIELD_CLASS}
-                    />
-                  </label>
-
-                  <label className="w-full">
-                    <div className="mb-1 text-sm font-semibold text-slate-700">
-                      Hora de inicio *
-                    </div>
-                    <input
-                      type="time"
-                      value={startClockValue}
-                      onChange={(event) => {
-                        syncScheduleStart(startDateValue, event.currentTarget.value);
-                      }}
-                      className={FLOW_FIELD_CLASS}
-                    />
-                  </label>
-
-                  <div className="w-full">
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-slate-700">Duración</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowExactEndEditor((current) => !current)}
-                        className="text-xs font-semibold text-mulberry transition hover:underline"
-                      >
-                        {showExactEndEditor ? 'Ocultar fin exacto' : 'Editar fin exacto'}
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {QUICK_DURATION_OPTIONS.map((durationOption) => (
-                        <button
-                          key={durationOption}
-                          type="button"
-                          onClick={() => applySuggestedEndTime(durationOption)}
+                      className={[
+                        'rounded-2xl border px-5 py-4 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-mulberry/15',
+                        isSelected
+                          ? 'border-mulberry bg-mulberry/[0.055] shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-mulberry/30 hover:bg-slate-50',
+                      ].join(' ')}
+                    >
+                      <span className="flex items-start justify-between gap-4">
+                        <span>
+                          <span className="block text-base font-semibold text-slate-950">
+                            {eventType.name}
+                          </span>
+                          <span className="mt-1 block text-sm leading-6 text-slate-600">
+                            {isTeamFormat
+                              ? 'Se inscriben 2 o más equipos. Cada capitana registra y paga por su plantel.'
+                              : 'Las jugadoras se inscriben individualmente hasta completar los cupos.'}
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
                           className={[
-                            'inline-flex rounded-full border px-3 py-2 text-xs font-semibold transition',
-                            preferredDurationMinutes === durationOption && !showExactEndEditor
-                              ? 'border-mulberry bg-mulberry text-white'
-                              : 'border-slate-300 bg-white text-slate-700 hover:border-mulberry hover:text-mulberry',
+                            'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
+                            isSelected ? 'border-mulberry bg-mulberry text-white' : 'border-slate-300 bg-white',
                           ].join(' ')}
                         >
-                          {formatDurationLabel(durationOption)}
-                        </button>
-                      ))}
-                    </div>
+                          {isSelected ? '✓' : ''}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <input type="hidden" name="eventTypeId" value={selectedEventTypeId} readOnly />
+
+              {selectedEventType ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700 ring-1 ring-slate-200/80">
+                  <span className="font-semibold text-mulberry">{selectedEventType.name}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    {isVersusSelected
+                      ? `${teamCount} equipos · inscripción gestionada por capitanas`
+                      : 'inscripción individual'}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="grid gap-6 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(34rem,0.95fr)]">
+              <div className="min-w-0 space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Sobre el partido</h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Dale un nombre claro y cuenta lo necesario para que las jugadoras sepan qué
+                    esperar.
+                  </p>
+                </div>
+
+                <Input
+                  label="Título"
+                  name="title"
+                  required
+                  placeholder="Ej. Pichanga libre en Miraflores"
+                  value={eventTitle}
+                  onChange={(event) => setEventTitle(event.currentTarget.value)}
+                  aria-describedby={wizardError ? 'create-event-wizard-error' : undefined}
+                  bgColor="bg-white"
+                  tone="soft"
+                />
+
+                <div className="w-full">
+                  <div
+                    id="event-description-label"
+                    className="mb-1 text-sm font-semibold text-slate-700"
+                  >
+                    Descripción<span className="text-error"> *</span>
                   </div>
+                  <UsersRichTextEditor
+                    id="event-description"
+                    textName="description"
+                    htmlName="descriptionHtml"
+                    ariaLabelledBy="event-description-label"
+                    defaultValue={eventDescription}
+                    defaultHtml={eventDescriptionHtml}
+                    resetKey={descriptionEditorResetKey}
+                    compact
+                    required
+                    collapsedToolbar
+                    placeholder="Cuenta la dinámica, qué deben llevar y cualquier indicación importante."
+                    showCharacterCount
+                    helperText="Incluye solo la información que las jugadoras necesitan antes de inscribirse."
+                    onChange={(content) => {
+                      setEventDescription(content.text);
+                      setEventDescriptionHtml(content.html);
+                    }}
+                  />
                 </div>
-
-                <div className={`mt-4 px-4 py-4 ${FLOW_PANEL_CLASS}`}>
-                  {schedulePreview.start ? (
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          Horario calculado
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">
-                          {schedulePreview.dayLabel} · {schedulePreview.startLabel}
-                          {schedulePreview.hasValidRange ? ` - ${schedulePreview.endLabel}` : ''}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {schedulePreview.hasValidRange
-                            ? `Duración estimada: ${schedulePreview.durationLabel}.`
-                            : 'Todavía falta definir a qué hora termina.'}
-                        </p>
-                        {schedulePreview.spansMultipleDays ? (
-                          <p className="mt-1 text-xs font-medium text-amber-700">
-                            El fin cae al día siguiente. Revisa que esa sea la intención.
-                          </p>
-                        ) : null}
-                      </div>
-                      <p className="text-xs text-slate-500">
-                        Recomendación: los partidos abiertos suelen funcionar mejor entre 90 y 120
-                        min.
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-600">
-                      Define fecha y hora de arranque para ver el horario final del partido.
-                    </p>
-                  )}
-                </div>
-
-                {showExactEndEditor ? (
-                  <label className="mt-4 block max-w-md">
-                    <div className="mb-1 text-sm font-semibold text-slate-700">Fin exacto *</div>
-                    <input
-                      name="endTimeEditor"
-                      type="datetime-local"
-                      value={endTime}
-                      onChange={(event) => setEndTime(event.currentTarget.value)}
-                      min={startTime || undefined}
-                      className={[
-                        FLOW_FIELD_CLASS,
-                        timeError ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : '',
-                      ].join(' ')}
-                    />
-                    <p className="mt-2 text-xs text-slate-500">
-                      Úsalo solo si necesitas un cierre distinto al sugerido o un fin al día
-                      siguiente.
-                    </p>
-                    {timeError ? (
-                      <p className="mt-2 text-xs font-medium text-red-600">{timeError}</p>
-                    ) : null}
-                  </label>
-                ) : null}
-
-                <input type="hidden" name="startTime" value={startTime} readOnly />
-                <input type="hidden" name="endTime" value={endTime} readOnly />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <Input
-                  label="Mínimo de jugadoras"
-                  name="minUsers"
-                  type="number"
-                  required
-                  value={minUsersValue}
-                  onChange={(event) => setMinUsersValue(event.currentTarget.value)}
-                  bgColor="bg-white"
-                  tone="soft"
-                />
+              <div className="min-w-0 space-y-5">
+                <div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <p className="text-lg font-semibold text-slate-900">Fecha y horario</p>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                        Hora local de Lima
+                      </span>
+                    </div>
+                    <p id="event-schedule-help" className="mt-1 text-sm text-slate-600">
+                      Define cuándo empieza y cuánto durará el partido. Calcularemos la hora de
+                      fin automáticamente.
+                    </p>
+                  </div>
 
-                <Input
-                  label="Máximo de jugadoras"
-                  name="maxUsers"
-                  type="number"
-                  required
-                  value={maxUsersValue}
-                  onChange={(event) => setMaxUsersValue(event.currentTarget.value)}
-                  bgColor="bg-white"
-                  tone="soft"
-                />
+                  <div className={`mt-4 p-4 ${FLOW_PANEL_CLASS}`}>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <DatePicker
+                        id="event-start-date"
+                        name={null}
+                        label="Día del partido"
+                        value={startDateValue}
+                        minDate={isCreateMode ? todayInLima : '1900-01-01'}
+                        maxDate="2100-12-31"
+                        defaultViewDate={startDateValue || todayInLima}
+                        placeholder="Selecciona el día"
+                        dialogLabel="Seleccionar día del partido"
+                        footerText={null}
+                        controlClassName="h-12 bg-white"
+                        ariaDescribedBy="event-schedule-help"
+                        required
+                        onChange={(nextDate) => {
+                          syncScheduleStart(nextDate, startClockValue);
+                        }}
+                      />
+
+                      <label className="w-full">
+                        <div className="mb-1 text-sm font-semibold text-slate-700">
+                          Hora de inicio <span className="text-error">*</span>
+                        </div>
+                        <input
+                          type="time"
+                          required
+                          aria-describedby="event-schedule-help"
+                          value={startClockValue}
+                          onChange={(event) => {
+                            syncScheduleStart(startDateValue, event.currentTarget.value);
+                          }}
+                          className={FLOW_FIELD_CLASS}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 border-t border-slate-200 pt-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">
+                          Duración del partido
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Selecciona una opción para calcular la hora de fin.
+                        </p>
+                      </div>
+
+                      <div
+                        role="group"
+                        aria-label="Duración del partido"
+                        className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-slate-200/70 p-1"
+                      >
+                        {QUICK_DURATION_OPTIONS.map((durationOption) => (
+                          <button
+                            key={durationOption}
+                            type="button"
+                            aria-pressed={
+                              preferredDurationMinutes === durationOption && !showExactEndEditor
+                            }
+                            aria-label={`Duración ${formatDurationLabel(durationOption)}`}
+                            onClick={() => applySuggestedEndTime(durationOption)}
+                            className={[
+                              'inline-flex h-10 min-w-0 items-center justify-center rounded-lg px-1.5 text-xs font-semibold transition',
+                              preferredDurationMinutes === durationOption && !showExactEndEditor
+                                ? 'bg-mulberry text-white shadow-sm'
+                                : 'text-slate-600 hover:bg-white/80 hover:text-mulberry',
+                            ].join(' ')}
+                          >
+                            {durationOption % 60 === 0
+                              ? `${durationOption / 60} h`
+                              : `${Math.floor(durationOption / 60)} h ${durationOption % 60}`}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        aria-expanded={showExactEndEditor}
+                        aria-controls="event-exact-end-editor"
+                        onClick={() => setShowExactEndEditor((current) => !current)}
+                        className="mt-3 inline-flex text-xs font-semibold text-mulberry transition hover:underline"
+                      >
+                        {showExactEndEditor
+                          ? 'Ocultar ajuste manual'
+                          : 'Ajustar hora de fin manualmente'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {schedulePreview.start ? (
+                    <div
+                      aria-live="polite"
+                      className="mt-3 rounded-xl border border-mulberry/15 bg-mulberry/[0.04] px-4 py-3"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-mulberry/75">
+                        Horario calculado
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {schedulePreview.dayLabel} · {schedulePreview.startLabel}
+                        {schedulePreview.hasValidRange ? ` – ${schedulePreview.endLabel}` : ''}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {schedulePreview.hasValidRange
+                          ? `Duración: ${schedulePreview.durationLabel}.`
+                          : 'Todavía falta definir a qué hora termina.'}
+                      </p>
+                      {schedulePreview.spansMultipleDays ? (
+                        <p className="mt-1 text-xs font-medium text-amber-700">
+                          El partido termina al día siguiente.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {showExactEndEditor ? (
+                    <label id="event-exact-end-editor" className="mt-3 block max-w-md">
+                      <div className="mb-1 text-sm font-semibold text-slate-700">
+                        Fecha y hora de fin <span className="text-error">*</span>
+                      </div>
+                      <input
+                        name="endTimeEditor"
+                        type="datetime-local"
+                        required
+                        value={endTime}
+                        onChange={(event) => setEndTime(event.currentTarget.value)}
+                        min={startTime || undefined}
+                        className={[
+                          FLOW_FIELD_CLASS,
+                          timeError ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : '',
+                        ].join(' ')}
+                      />
+                      <p className="mt-2 text-xs text-slate-500">
+                        Este valor reemplaza la duración seleccionada arriba.
+                      </p>
+                      {timeError ? (
+                        <p className="mt-2 text-xs font-medium text-red-600">{timeError}</p>
+                      ) : null}
+                    </label>
+                  ) : null}
+
+                  <input type="hidden" name="startTime" value={startTime} readOnly />
+                  <input type="hidden" name="endTime" value={endTime} readOnly />
+                </div>
+
+                <div className="border-t border-slate-200 pt-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {isVersusSelected ? 'Equipos y planteles' : 'Cupos'}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {isVersusSelected
+                        ? 'Define cuántos equipos pueden participar y el tamaño de cada plantel.'
+                        : 'Define cuántas jugadoras necesitas para confirmar y cuántas pueden inscribirse.'}
+                    </p>
+                  </div>
+
+                  {!selectedEventType ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                      Elige primero el formato del evento para configurar sus cupos.
+                    </div>
+                  ) : isVersusSelected ? (
+                    <div className="mt-4 space-y-4 rounded-2xl border border-mulberry/15 bg-mulberry/[0.035] p-4">
+                      <Input
+                        label="Cantidad de equipos"
+                        name="teamRegistrationMaxTeams"
+                        type="number"
+                        min={2}
+                        max={64}
+                        step={1}
+                        required
+                        value={teamCountValue}
+                        onChange={(event) => setTeamCountValue(event.currentTarget.value)}
+                        bgColor="bg-white"
+                        tone="soft"
+                      />
+                      <p className="-mt-2 text-xs text-slate-500">
+                        Mínimo 2. Cada equipo ocupa un lugar y se inscribe mediante su capitana.
+                      </p>
+
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">Formato por equipo</p>
+                        <div role="group" aria-label="Jugadoras en cancha por equipo" className="mt-2 grid grid-cols-5 gap-2">
+                          {[5, 6, 7, 8, 11].map((players) => (
+                            <button
+                              key={players}
+                              type="button"
+                              aria-pressed={teamPlayers === players}
+                              onClick={() => setTeamPlayersValue(String(players))}
+                              className={[
+                                'h-10 rounded-xl border text-xs font-semibold transition',
+                                teamPlayers === players
+                                  ? 'border-mulberry bg-mulberry text-white'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:border-mulberry/35',
+                              ].join(' ')}
+                            >
+                              {players} vs {players}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <Input
+                          label="Jugadoras en cancha por equipo"
+                          name="teamRegistrationMinPlayers"
+                          type="number"
+                          min={1}
+                          max={30}
+                          step={1}
+                          required
+                          value={teamPlayersValue}
+                          onChange={(event) => setTeamPlayersValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+                        <Input
+                          label="Suplentes permitidas por equipo"
+                          name="teamSubstitutes"
+                          type="number"
+                          min={0}
+                          max={30}
+                          step={1}
+                          required
+                          value={teamSubstitutesValue}
+                          onChange={(event) => setTeamSubstitutesValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+                      </div>
+
+                      <div className="rounded-xl border border-mulberry/15 bg-white px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-mulberry/70">
+                          Resumen del formato
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {teamCount} equipos · {teamPlayers} titulares
+                          {teamSubstitutes > 0 ? ` + hasta ${teamSubstitutes} suplentes` : ' · sin suplentes'} por equipo
+                        </p>
+                      </div>
+
+                      <input type="hidden" name="allowsTeamRegistration" value="true" readOnly />
+                      <input type="hidden" name="teamRegistrationMaxPlayers" value={teamRosterMax} readOnly />
+                      <input type="hidden" name="minUsers" value={teamPlayers * 2} readOnly />
+                      <input type="hidden" name="maxUsers" value={teamRosterMax * teamCount} readOnly />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <Input
+                          label="Mínimo para confirmar"
+                          name="minUsers"
+                          type="number"
+                          min={1}
+                          step={1}
+                          required
+                          value={minUsersValue}
+                          onChange={(event) => setMinUsersValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+
+                        <Input
+                          label="Cupos disponibles"
+                          name="maxUsers"
+                          type="number"
+                          min={1}
+                          step={1}
+                          required
+                          value={maxUsersValue}
+                          onChange={(event) => setMaxUsersValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">
+                        El mínimo te ayuda a decidir si el partido continúa; los cupos disponibles
+                        marcan el límite de inscripciones.
+                      </p>
+                      <input type="hidden" name="allowsTeamRegistration" value="false" readOnly />
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </section>
@@ -1985,7 +2458,7 @@ const EventForm = ({
             ].join(' ')}
           >
             <div className="mb-5">
-              <h3 className="text-lg font-semibold text-slate-900">Ubicación y precio</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Ubicación</h3>
               <p className="mt-1 text-sm text-slate-600">
                 Guarda el nombre del lugar si te sirve como referencia y usa la dirección para
                 ubicar el evento en el mapa.
@@ -1995,7 +2468,7 @@ const EventForm = ({
             <div className="grid gap-4">
               <label className="w-full">
                 <div className="mb-1 text-sm font-semibold text-slate-700">Dirección *</div>
-                {googleMapsApiKeyConfigured && isGoogleMapsLoaded ? (
+                {canUseInteractiveMap ? (
                   <Autocomplete
                     onLoad={handleAddressAutocompleteLoad}
                     onPlaceChanged={handleAddressPlaceChanged}
@@ -2035,13 +2508,11 @@ const EventForm = ({
               </label>
 
               <div className="space-y-2">
-                <div className="text-sm font-semibold text-slate-700">Ajustar ubicación *</div>
-                {googleMapsApiKeyConfigured ? (
-                  googleMapsLoadError ? (
-                    <div className="rounded-[20px] bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200/80">
-                      No se pudo cargar Google Maps.
-                    </div>
-                  ) : !isGoogleMapsLoaded ? (
+                <div className="text-sm font-semibold text-slate-700">
+                  Pin exacto <span className="font-normal text-slate-500">(para publicar)</span>
+                </div>
+                {googleMapsApiKeyConfigured && !googleMapsLoadError && !isMapUnavailable ? (
+                  !isGoogleMapsLoaded ? (
                     <div className="h-[300px] animate-pulse rounded-[18px] bg-slate-100 ring-1 ring-slate-200/80" />
                   ) : (
                     <div className="h-[300px] overflow-hidden rounded-[18px] ring-1 ring-slate-200/80">
@@ -2078,15 +2549,25 @@ const EventForm = ({
                     </div>
                   )
                 ) : (
-                  <div className="rounded-[20px] bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200/80">
-                    Falta configurar <code>NEXT_PUBLIC_GOOGLE_MAPS_KEY</code>.
+                  <div className="rounded-[20px] bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200/80">
+                    <p className="font-semibold">El mapa no está disponible ahora.</p>
+                    <p className="mt-1 text-xs leading-5">
+                      Puedes continuar con la dirección escrita y guardar un borrador. Antes de
+                      publicar deberás volver para confirmar el pin.
+                    </p>
                   </div>
                 )}
-                <p className={`text-xs ${locationError ? 'text-red-600' : 'text-slate-500'}`}>
-                  {locationError ||
-                    'Puedes hacer clic o mover el pin para ajustar la ubicación exacta sin cambiar la dirección escrita.'}
+                <p
+                  className={`text-xs ${locationError && !isMapUnavailable ? 'text-red-600' : 'text-slate-500'}`}
+                >
+                  {isMapUnavailable
+                    ? 'La dirección queda guardada aunque el pin esté pendiente.'
+                    : locationError ||
+                      'Puedes hacer clic o mover el pin para ajustar la ubicación exacta sin cambiar la dirección escrita.'}
                 </p>
-                {geoError ? <p className="text-xs text-amber-700">{geoError}</p> : null}
+                {geoError && !isMapUnavailable ? (
+                  <p className="text-xs text-amber-700">{geoError}</p>
+                ) : null}
                 <input type="hidden" name="lat" value={lat} readOnly />
                 <input type="hidden" name="lng" value={lng} readOnly />
                 <input type="hidden" name="district" value={districtText} readOnly />
@@ -2106,19 +2587,6 @@ const EventForm = ({
                 />
               </label>
 
-              <div className="max-w-sm">
-                <Input
-                  label="Precio (S/.)"
-                  name="price"
-                  type="number"
-                  step="0.01"
-                  required
-                  value={priceValue}
-                  onChange={(event) => setPriceValue(event.currentTarget.value)}
-                  bgColor="bg-white"
-                  tone="soft"
-                />
-              </div>
             </div>
           </section>
 
@@ -2129,52 +2597,155 @@ const EventForm = ({
             ].join(' ')}
           >
             <div className="mb-5">
-              <h3 className="text-lg font-semibold text-slate-900">Detalles y cobro</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Inscripción y cobro</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Aquí defines el contexto del partido y cómo recibirás los pagos.
+                Define cuánto se pagará, cómo recibirás el dinero y los detalles adicionales.
               </p>
             </div>
 
             <div className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="w-full">
-                  <div className="mb-1 text-sm font-semibold text-slate-700">Tipo de evento *</div>
-                  <select
-                    name="eventTypeId"
-                    value={selectedEventTypeId}
-                    onChange={(event) => setSelectedEventTypeId(event.currentTarget.value)}
-                    className={FLOW_NATIVE_SELECT_CLASS}
+              <div className="max-w-md">
+                <div className="w-full">
+                  <SelectComponent
+                    labelText="Nivel"
                     required
-                  >
-                    {eventTypes.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="w-full">
-                  <div className="mb-1 text-sm font-semibold text-slate-700">Nivel *</div>
-                  <select
-                    name="levelId"
+                    options={levelSelectOptions}
                     value={selectedLevelId}
-                    onChange={(event) => setSelectedLevelId(event.currentTarget.value)}
-                    className={FLOW_NATIVE_SELECT_CLASS}
-                    required
-                  >
-                    {levels.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    onChange={(value) => setSelectedLevelId(String(value || ''))}
+                    isSearchable={false}
+                    bgColor="bg-white"
+                    tone="soft"
+                  />
+                  <input type="hidden" name="levelId" value={selectedLevelId} readOnly />
+                </div>
               </div>
 
-              <div className="w-full">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {isVersusSelected ? '¿Cómo definirás el precio?' : 'Precio de inscripción'}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {isVersusSelected
+                      ? 'La capitana realiza un solo pago por todo el plantel.'
+                      : 'Cada jugadora paga este monto al inscribirse.'}
+                  </p>
+                </div>
+
+                {isVersusSelected ? (
+                  <>
+                    <div role="radiogroup" aria-label="Forma de calcular el precio" className="mt-4 grid gap-3 md:grid-cols-2">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={teamRegistrationPriceMode === 'fixed_team'}
+                        onClick={() => setTeamRegistrationPriceMode('fixed_team')}
+                        className={[
+                          'rounded-2xl border px-4 py-4 text-left transition',
+                          teamRegistrationPriceMode === 'fixed_team'
+                            ? 'border-mulberry bg-white ring-2 ring-mulberry/10'
+                            : 'border-slate-200 bg-white hover:border-mulberry/30',
+                        ].join(' ')}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          Precio por equipo
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                            Recomendado
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-600">
+                          Cada capitana paga el mismo monto, sin importar cuántas suplentes lleve.
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={teamRegistrationPriceMode === 'per_player'}
+                        onClick={() => setTeamRegistrationPriceMode('per_player')}
+                        className={[
+                          'rounded-2xl border px-4 py-4 text-left transition',
+                          teamRegistrationPriceMode === 'per_player'
+                            ? 'border-mulberry bg-white ring-2 ring-mulberry/10'
+                            : 'border-slate-200 bg-white hover:border-mulberry/30',
+                        ].join(' ')}
+                      >
+                        <span className="block text-sm font-semibold text-slate-900">
+                          Precio según el plantel
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-600">
+                          El total se calcula según las jugadoras que la capitana inscriba.
+                        </span>
+                      </button>
+                    </div>
+
+                    <input
+                      type="hidden"
+                      name="teamRegistrationPriceMode"
+                      value={teamRegistrationPriceMode}
+                      readOnly
+                    />
+                    {teamRegistrationPriceMode === 'fixed_team' ? (
+                      <div className="mt-4 max-w-sm">
+                        <Input
+                          label="Precio por equipo (S/.)"
+                          name="teamRegistrationFixedPrice"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          required
+                          value={teamFixedPriceValue}
+                          onChange={(event) => setTeamFixedPriceValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+                        <input type="hidden" name="price" value="0" readOnly />
+                        <p className="mt-2 text-xs text-slate-500">
+                          Cada uno de los {teamCount} equipos pagará este monto.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-4 max-w-sm">
+                        <Input
+                          label="Precio por jugadora (S/.)"
+                          name="price"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          required
+                          value={priceValue}
+                          onChange={(event) => setPriceValue(event.currentTarget.value)}
+                          bgColor="bg-white"
+                          tone="soft"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">
+                          Ejemplo: {teamPlayers} jugadoras × S/ {Number(priceValue || 0).toFixed(2)} = S/{' '}
+                          {(teamPlayers * Number(priceValue || 0)).toFixed(2)} por equipo.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="mt-4 max-w-sm">
+                    <Input
+                      label="Precio por jugadora (S/.)"
+                      name="price"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      required
+                      value={priceValue}
+                      onChange={(event) => setPriceValue(event.currentTarget.value)}
+                      bgColor="bg-white"
+                      tone="soft"
+                    />
+                    <input type="hidden" name="teamRegistrationPriceMode" value="per_player" readOnly />
+                  </div>
+                )}
+              </div>
+
+              <div id="event-payment-methods" className="w-full">
                 <div className="mb-1 text-sm font-semibold text-slate-700">
-                  Métodos de pago permitidos {isPublished ? '*' : '(opcional por ahora)'}
+                  Métodos de pago para este evento {isPublished ? '*' : '(opcional por ahora)'}
                 </div>
                 <SelectComponent
                   key={`${detailsStepVisibilityKey}-payment-methods`}
@@ -2215,9 +2786,9 @@ const EventForm = ({
                 ) : (
                   <p className="mt-1 text-xs text-slate-500">
                     {selectedActivePaymentMethodIds.length > 0
-                      ? `${selectedActivePaymentMethodIds.length} método(s) activo(s) listo(s) para publicar.`
+                      ? `${selectedActivePaymentMethodIds.length} ${selectedActivePaymentMethodIds.length === 1 ? 'método seleccionado' : 'métodos seleccionados'} para recibir pagos.`
                       : selectedInactivePaymentMethodIds.length > 0
-                        ? `${selectedInactivePaymentMethodIds.length} método(s) seleccionado(s), pero no cuentan para publicar porque están inactivos.`
+                        ? `${selectedInactivePaymentMethodIds.length} ${selectedInactivePaymentMethodIds.length === 1 ? 'método seleccionado está inactivo' : 'métodos seleccionados están inactivos'} y no cuentan para publicar.`
                       : isPublished
                         ? 'Selecciona uno o más métodos activos para publicar este evento.'
                         : 'Puedes agregar métodos de pago después, antes de publicar.'}
@@ -2225,8 +2796,8 @@ const EventForm = ({
                 )}
                 {selectedInactivePaymentMethodIds.length > 0 ? (
                   <p className="mt-1 text-xs text-amber-700">
-                    {selectedInactivePaymentMethodIds.length} método(s) seleccionado(s) están
-                    inactivos. Actívalos o elige otros antes de publicar.
+                    Activa {selectedInactivePaymentMethodIds.length === 1 ? 'ese método' : 'esos métodos'} o
+                    elige otros antes de publicar.
                   </p>
                 ) : null}
                 {paymentMethodsError ? (
@@ -2249,42 +2820,50 @@ const EventForm = ({
                 onMethodSaved={handleInlinePaymentMethodSaved}
               />
 
-              <label className="w-full">
-                <div className="mb-1 text-sm font-semibold text-slate-700">
-                  Organizadora de negocio
+              {canManageFeatured ? (
+                <div className="w-full">
+                  {organizerSelectOptions.length > 0 ? (
+                    <>
+                      <SelectComponent
+                        labelText="Asociación interna de organizadora"
+                        options={[
+                          { value: '', label: 'Sin organizadora asociada' },
+                          ...organizerSelectOptions,
+                        ]}
+                        value={selectedOrganizerId}
+                        onChange={(value) => setSelectedOrganizerId(String(value || ''))}
+                        isSearchable
+                        bgColor="bg-white"
+                        tone="soft"
+                      />
+                      <input
+                        type="hidden"
+                        name="organizerId"
+                        value={selectedOrganizerId}
+                        readOnly
+                      />
+                      <p className="mt-1 text-xs text-slate-500">
+                        Campo administrativo. No cambia quién creó ni gestiona el evento.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <input type="hidden" name="organizerId" value="" readOnly />
+                      <div className="mb-1 text-sm font-semibold text-slate-700">
+                        Asociación interna de organizadora
+                      </div>
+                      <div className="rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
+                        No hay organizadoras disponibles para asociar.
+                      </div>
+                    </>
+                  )}
                 </div>
-                {organizerSelectOptions.length > 0 ? (
-                  <>
-                    <select
-                      name="organizerId"
-                      value={selectedOrganizerId}
-                      onChange={(event) => setSelectedOrganizerId(event.currentTarget.value)}
-                      className={FLOW_NATIVE_SELECT_CLASS}
-                    >
-                      <option value="">Sin organizadora asociada</option>
-                      {organizerSelectOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Esta relación es interna para administración y no cambia la dueña técnica del
-                      evento.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <input type="hidden" name="organizerId" value="" readOnly />
-                    <div className="rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
-                      No hay organizadoras disponibles para asociar.
-                    </div>
-                  </>
-                )}
-              </label>
+              ) : (
+                <input type="hidden" name="organizerId" value="" readOnly />
+              )}
 
               <div className="w-full">
-                <div className="mb-1 text-sm font-semibold text-slate-700">Features</div>
+                <div className="mb-1 text-sm font-semibold text-slate-700">Servicios incluidos</div>
                 <SelectComponent
                   key={`${detailsStepVisibilityKey}-features`}
                   options={featureOptions}
@@ -2305,8 +2884,8 @@ const EventForm = ({
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   {selectedFeatureIds.length > 0
-                    ? `${selectedFeatureIds.length} feature(s) seleccionada(s).`
-                    : 'Selecciona una o más features para el evento.'}
+                    ? `${selectedFeatureIds.length} ${selectedFeatureIds.length === 1 ? 'servicio seleccionado' : 'servicios seleccionados'}.`
+                    : 'Selecciona lo que estará disponible durante el evento.'}
                 </p>
                 {selectedFeatureIds.map((featureId) => (
                   <input
@@ -2328,7 +2907,7 @@ const EventForm = ({
             ].join(' ')}
           >
             <div className="mb-5">
-              <h3 className="text-lg font-semibold text-slate-900">Final</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Revisar y publicar</h3>
               <p className="mt-1 text-sm text-slate-600">
                 Decide si quieres publicarlo hoy o si prefieres dejarlo para después.
               </p>
@@ -2342,9 +2921,10 @@ const EventForm = ({
                 readOnly
               />
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div role="group" aria-label="Estado de publicación" className="grid gap-3 md:grid-cols-2">
                 <button
                   type="button"
+                  aria-pressed={isPublished}
                   onClick={() => setIsPublished(true)}
                   className={[
                     'rounded-[16px] px-4 py-4 text-left ring-1 transition',
@@ -2361,6 +2941,7 @@ const EventForm = ({
 
                 <button
                   type="button"
+                  aria-pressed={!isPublished}
                   onClick={() => {
                     setIsPublished(false);
                     setPaymentMethodsError('');
@@ -2407,6 +2988,7 @@ const EventForm = ({
                       name="isFieldReservedConfirmed"
                       value="true"
                       checked={isFieldReservedConfirmed}
+                      aria-describedby={fieldReservedError ? 'field-reserved-error' : undefined}
                       onChange={(event) => {
                         setIsFieldReservedConfirmed(event.currentTarget.checked);
                         if (event.currentTarget.checked) {
@@ -2423,7 +3005,9 @@ const EventForm = ({
                         Este punto solo es obligatorio si hoy vas a publicarlo.
                       </p>
                       {fieldReservedError ? (
-                        <p className="mt-2 text-xs text-red-600">{fieldReservedError}</p>
+                        <p id="field-reserved-error" role="alert" className="mt-2 text-xs text-red-600">
+                          {fieldReservedError}
+                        </p>
                       ) : null}
                     </div>
                   </label>
@@ -2439,19 +3023,36 @@ const EventForm = ({
                               <p className="text-sm font-medium text-slate-800">{item.title}</p>
                               <p className="mt-1 text-xs text-slate-500">{item.description}</p>
                               {!item.done && item.id === 'payment_methods' ? (
-                                <Link
-                                  href={paymentMethodsHref}
+                                <button
+                                  type="button"
                                   onClick={() => {
                                     trackEvent('create_event_payment_setup_clicked', {
                                       channel: 'web',
                                       source: 'wizard_publish_checklist',
                                       step: createStep,
                                     });
+                                    moveToCreateStep(3);
                                   }}
                                   className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
                                 >
-                                  Ir a Formas de pago
-                                </Link>
+                                  Volver a cobro
+                                </button>
+                              ) : !item.done && item.id === 'location' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => moveToCreateStep(2)}
+                                  className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
+                                >
+                                  Volver a ubicación
+                                </button>
+                              ) : !item.done && item.id === 'details' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => moveToCreateStep(1)}
+                                  className="mt-2 inline-flex text-xs font-semibold text-mulberry hover:underline"
+                                >
+                                  Volver a datos principales
+                                </button>
                               ) : !item.done && item.id === 'field_reservation' ? (
                                 <p className="mt-2 text-xs font-medium text-slate-600">
                                   Si no quieres confirmarlo hoy, guárdalo para después.
@@ -2510,7 +3111,7 @@ const EventForm = ({
           </section>
         </div>
 
-        {isCreateMode ? (
+        {isCreateMode && createStep === 4 ? (
           <div className="space-y-5 xl:sticky xl:top-6 xl:self-start">
             <EventPreview
               title={eventTitle}
@@ -2521,12 +3122,21 @@ const EventForm = ({
               locationText={locationText || initial?.locationText || ''}
               district={districtText}
               startTime={startTime}
-              price={Number(priceValue) || undefined}
+              price={priceValue.trim() === '' ? undefined : Number(priceValue)}
               minUsers={Number(minUsersValue) || undefined}
               maxUsers={Number(maxUsersValue) || undefined}
               eventType={selectedEventType}
               level={selectedLevel}
-              isPublished={isPublished}
+              isTeamEvent={isVersusSelected}
+              teamCount={teamCount}
+              teamPlayers={teamPlayers}
+              teamSubstitutes={teamSubstitutes}
+              teamPriceMode={teamRegistrationPriceMode}
+              fixedTeamPrice={
+                teamFixedPriceValue.trim() === '' ? undefined : Number(teamFixedPriceValue)
+              }
+              wantsToPublish={isPublished}
+              isReadyToPublish={publishReadiness.isReady}
             />
           </div>
         ) : null}
@@ -2534,7 +3144,7 @@ const EventForm = ({
         <div
           className={[
             'flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.32)]',
-            isCreateMode ? 'xl:col-span-2' : '',
+            isCreateMode && createStep === 4 ? 'xl:col-span-2' : '',
           ].join(' ')}
         >
           <div className="flex flex-wrap items-center gap-3">
@@ -2549,18 +3159,28 @@ const EventForm = ({
             ) : null}
 
             {isCreateMode && createStep < 4 ? (
-              <button
-                type="button"
-                onClick={handleNextCreateStep}
-                className="inline-flex h-11 items-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760]"
-              >
-                Continuar
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleNextCreateStep}
+                  className="inline-flex h-11 items-center rounded-xl bg-mulberry px-5 text-sm font-semibold text-white transition hover:bg-[#470760]"
+                >
+                  Continuar
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={handleDraftSaveRequest}
+                  className="inline-flex h-11 items-center rounded-xl border border-slate-300/90 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {pendingMode === 'draft' ? 'Guardando...' : 'Guardar borrador'}
+                </button>
+              </>
             ) : (
               <ButtonWrapper
                 width="fit-content"
                 htmlType="submit"
-                disabled={pending || Boolean(timeError) || Boolean(locationError)}
+                disabled={pending || Boolean(timeError)}
               >
                 {pending ? pendingLabel : resolvedSubmitLabel}
               </ButtonWrapper>
@@ -2570,7 +3190,7 @@ const EventForm = ({
           {isCreateMode ? (
             <p className="text-sm text-slate-500">
               {createStep < 4
-                ? 'Puedes volver atrás cuando quieras antes de publicar.'
+                ? 'Guárdalo en tu cuenta para retomarlo desde cualquier dispositivo.'
                 : isPublished
                   ? publishMissingCount === 0
                     ? 'Si todo está listo, crearás el evento y saldrá público.'
@@ -2586,7 +3206,62 @@ const EventForm = ({
         {!isCreateMode && !pending && submitStatus === 'error' && submitMessage ? (
           <p className="text-sm text-red-600">{submitMessage}</p>
         ) : null}
+        {isCreateMode && !pending && submitStatus !== 'idle' && submitMessage ? (
+          <div
+            role={submitStatus === 'error' ? 'alert' : 'status'}
+            aria-live="polite"
+            className={[
+              'rounded-2xl border px-4 py-3 text-sm font-medium',
+              createStep === 4 ? 'xl:col-span-2' : '',
+              submitStatus === 'error'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+            ].join(' ')}
+          >
+            {submitMessage}
+          </div>
+        ) : null}
       </form>
+
+      {isCreateMode && showResetConfirm ? (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/65 px-4 backdrop-blur-[2px]"
+          onClick={() => setShowResetConfirm(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-create-event-title"
+            aria-describedby="reset-create-event-description"
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_30px_80px_-30px_rgba(15,23,42,0.6)] sm:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="reset-create-event-title" className="text-lg font-semibold text-slate-900">
+              ¿Descartar el progreso?
+            </h3>
+            <p id="reset-create-event-description" className="mt-2 text-sm leading-6 text-slate-600">
+              Se eliminará lo guardado en este dispositivo y el formulario volverá a empezar.
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setShowResetConfirm(false)}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Conservar progreso
+              </button>
+              <button
+                type="button"
+                onClick={confirmResetCreateDraft}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-rose-700 px-5 text-sm font-semibold text-white transition hover:bg-rose-800"
+              >
+                Descartar y empezar de nuevo
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isCreateMode ? (
         <EventShareModal

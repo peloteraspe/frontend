@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@core/api/supabase.server';
+import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
 import {
   clientIdentifierFromRequest,
@@ -11,6 +12,11 @@ import { getEventCatalogs } from '@modules/events/api/queries/getEventCatalogs';
 import { getEventsExplorer } from '@modules/events/api/queries/getEventsExplorer';
 import { CreateEventPayload, EventEntity } from '@modules/events/model/types';
 import { getIsoDateInTimeZone, normalizeDateTimeLocalToLima } from '@shared/lib/dateTime';
+import {
+  hasCompleteEventProfile,
+  REQUIRED_EVENT_PROFILE_MESSAGE,
+} from '@modules/users/lib/eventProfileRequirements';
+import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 
 const EVENTS_TIMEOUT_MS = 4500;
 
@@ -22,6 +28,19 @@ function isMissingPlaceTextColumnError(error: unknown) {
         ? String((error as { message?: unknown }).message || '')
         : String(error || '');
   return /place_text/i.test(message) && /(schema cache|column|could not find|does not exist)/i.test(message);
+}
+
+function isMissingTeamModeColumnError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : error && typeof error === 'object' && 'message' in error
+        ? String((error as { message?: unknown }).message || '')
+        : String(error || '');
+  return (
+    /(registration_mode|team_registration_max_teams)/i.test(message) &&
+    /(schema cache|column|could not find|does not exist)/i.test(message)
+  );
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error) {
@@ -145,6 +164,14 @@ function validatePayload(body: any): CreateEventPayload {
     lng: parseNumber(body?.lng),
     eventTypeId: parseNumber(body?.eventTypeId),
     levelId: parseNumber(body?.levelId),
+    teamCount: Math.max(2, parseNumber(body?.teamCount, 2)),
+    teamPlayers: Math.max(1, parseNumber(body?.teamPlayers, 7)),
+    teamSubstitutes: Math.max(0, parseNumber(body?.teamSubstitutes, 0)),
+    teamPriceMode: body?.teamPriceMode === 'fixed_team' ? 'fixed_team' : 'per_player',
+    fixedTeamPrice:
+      body?.fixedTeamPrice === null || body?.fixedTeamPrice === undefined
+        ? null
+        : Math.max(0, parseNumber(body.fixedTeamPrice, 0)),
   };
 
   if (!payload.title) throw new Error('El título es obligatorio.');
@@ -240,6 +267,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Solo admins pueden crear eventos por esta ruta.' }, { status: 403 });
     }
 
+    if (!hasCompleteEventProfile(user)) {
+      return NextResponse.json(
+        { error: REQUIRED_EVENT_PROFILE_MESSAGE, code: 'PROFILE_DETAILS_REQUIRED' },
+        { status: 422 }
+      );
+    }
+
     const limitedByUser = await rateLimitByIdentifier({
       keyPrefix: 'api_events_post_user',
       identifier: `user:${user.id}`,
@@ -254,20 +288,48 @@ export async function POST(request: Request) {
     const payload = validatePayload(body);
     const catalogs = await getEventCatalogs();
 
-    const validEventType = catalogs.eventTypes.some((item) => item.id === payload.eventTypeId);
+    const selectedEventType = catalogs.eventTypes.find((item) => item.id === payload.eventTypeId);
+    const validEventType = Boolean(selectedEventType);
     const validLevel = catalogs.levels.some((item) => item.id === payload.levelId);
 
     if (!validEventType || !validLevel) {
       return NextResponse.json({ error: 'Tipo de evento o nivel inválido.' }, { status: 400 });
     }
 
-    const { data: profile } = await supabase
+    const adminSupabase = getAdminSupabase();
+    const { data: profile } = await adminSupabase
       .from('profile')
       .select('username')
       .eq('user', user.id)
       .maybeSingle();
 
     const createdBy = profile?.username || user.email?.split('@')[0] || 'Peloteras';
+    const isVersus = isVersusEventTypeName(selectedEventType?.name);
+    const versusTeamCount = Math.max(2, payload.teamCount ?? 2);
+    const versusTeamPlayers = Math.max(1, payload.teamPlayers ?? 7);
+    const versusTeamSubstitutes = Math.max(0, payload.teamSubstitutes ?? 0);
+    const versusTeamMaxPlayers = versusTeamPlayers + versusTeamSubstitutes;
+    if (isVersus && (!Number.isInteger(versusTeamCount) || versusTeamCount > 64)) {
+      return NextResponse.json(
+        { error: 'La cantidad de equipos debe estar entre 2 y 64.' },
+        { status: 400 }
+      );
+    }
+    if (
+      isVersus &&
+      (!Number.isInteger(versusTeamPlayers) ||
+        versusTeamPlayers > 30 ||
+        !Number.isInteger(versusTeamSubstitutes) ||
+        versusTeamSubstitutes > 30)
+    ) {
+      return NextResponse.json(
+        { error: 'Revisa el tamaño del plantel por equipo.' },
+        { status: 400 }
+      );
+    }
+    if (isVersus && payload.teamPriceMode === 'fixed_team' && payload.fixedTeamPrice === null) {
+      return NextResponse.json({ error: 'Define el precio por equipo.' }, { status: 400 });
+    }
 
     const baseInsertPayload = {
       title: payload.title,
@@ -284,46 +346,88 @@ export async function POST(request: Request) {
       },
       location_text: payload.locationText,
       district: payload.district,
-      min_users: payload.minUsers,
-      max_users: payload.maxUsers,
-      price: payload.price,
+      min_users: isVersus ? versusTeamPlayers * 2 : payload.minUsers,
+      max_users: isVersus ? versusTeamMaxPlayers * versusTeamCount : payload.maxUsers,
+      price: isVersus && payload.teamPriceMode === 'fixed_team' ? 0 : payload.price,
       EventType: payload.eventTypeId,
       level: payload.levelId,
       created_by: createdBy,
       created_by_id: user.id,
       is_published: false,
+      allows_team_registration: isVersus,
+      team_registration_min_players: isVersus ? versusTeamPlayers : null,
+      team_registration_max_players: isVersus ? versusTeamMaxPlayers : null,
+      team_registration_price_mode: isVersus ? payload.teamPriceMode : 'per_player',
+      team_registration_fixed_price:
+        isVersus && payload.teamPriceMode === 'fixed_team' ? payload.fixedTeamPrice : null,
     };
+    const teamModeInsertPayload = {
+      registration_mode: isVersus ? 'team' : 'individual',
+      team_registration_max_teams: isVersus ? versusTeamCount : null,
+    };
+    let includePlaceTextColumn = true;
+    let includeTeamModeColumns = true;
+    let data: { id: string | number } | null = null;
+    let error: any = null;
 
-    let { data, error } = await supabase
-      .from('event')
-      .insert({
-        ...baseInsertPayload,
-        place_text: payload.placeText,
-      })
-      .select('id')
-      .single();
-
-    if (error && isMissingPlaceTextColumnError(error)) {
-      log.warn('Event place_text column missing; retrying public create without it', 'EVENT_API', {
-        userId: user.id,
-      });
-      const retried = await supabase
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const result = await adminSupabase
         .from('event')
         .insert({
           ...baseInsertPayload,
-          description: {
-            ...baseInsertPayload.description,
-            place_text: payload.placeText || null,
-          },
+          ...(includeTeamModeColumns ? teamModeInsertPayload : {}),
+          ...(includePlaceTextColumn
+            ? { place_text: payload.placeText }
+            : {
+                description: {
+                  ...baseInsertPayload.description,
+                  place_text: payload.placeText || null,
+                },
+              }),
         })
         .select('id')
         .single();
-      data = retried.data;
-      error = retried.error;
+
+      data = result.data as { id: string | number } | null;
+      error = result.error;
+      if (!error) break;
+
+      if (includePlaceTextColumn && isMissingPlaceTextColumnError(error)) {
+        includePlaceTextColumn = false;
+        log.warn('Event place_text column missing; retrying public create without it', 'EVENT_API', {
+          userId: user.id,
+        });
+        continue;
+      }
+
+      if (includeTeamModeColumns && isMissingTeamModeColumnError(error)) {
+        if (isVersus) {
+          return NextResponse.json(
+            {
+              error:
+                'La base de datos aún no tiene habilitado el nuevo formato Versus. Aplica las migraciones pendientes e inténtalo nuevamente.',
+            },
+            { status: 503 }
+          );
+        }
+        includeTeamModeColumns = false;
+        log.warn(
+          'Event team-mode columns missing; retrying public individual event with legacy schema',
+          'EVENT_API',
+          { userId: user.id }
+        );
+        continue;
+      }
+
+      break;
     }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (!data?.id) {
+      return NextResponse.json({ error: 'No se pudo obtener el evento creado.' }, { status: 500 });
     }
 
     return NextResponse.json({ id: data.id }, { status: 201 });

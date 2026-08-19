@@ -60,16 +60,16 @@ function ActionButton({
       onClick={() => onSelect(decision)}
       disabled={pending}
       className={[
-        'inline-flex min-w-[112px] items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
+        'inline-flex min-h-10 min-w-[104px] items-center justify-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
         isVisualPending
           ? isCurrentAction
             ? isApprove
-              ? 'cursor-wait bg-emerald-700 text-white shadow-lg ring-emerald-200'
-              : 'cursor-wait bg-rose-700 text-white shadow-lg ring-rose-200'
-            : 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
+              ? 'cursor-wait border-emerald-700 bg-emerald-700 text-white shadow-lg ring-emerald-200'
+              : 'cursor-wait border-rose-700 bg-rose-700 text-white shadow-lg ring-rose-200'
+            : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none'
           : isApprove
-            ? 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 focus:ring-emerald-200'
-            : 'bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus:ring-rose-200',
+            ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm hover:border-emerald-700 hover:bg-emerald-700 focus:ring-emerald-200'
+            : 'border-rose-200 bg-white text-rose-700 hover:border-rose-300 hover:bg-rose-50 focus:ring-rose-200',
       ].join(' ')}
       aria-disabled={pending}
     >
@@ -98,7 +98,7 @@ function PaymentDecisionFormContent({
   const isVisualPending = pending || (currentDecision !== null && state.status !== 'error');
 
   return (
-    <div className="inline-flex flex-col items-end gap-2 transition-all duration-200">
+    <div className="flex flex-col items-end gap-2 transition-all duration-200">
       <div className="flex flex-wrap justify-end gap-2">
         {allowApprove ? (
           <ActionButton

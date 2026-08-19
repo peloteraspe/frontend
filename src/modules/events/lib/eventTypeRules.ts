@@ -7,13 +7,28 @@ function normalizeEventTypeName(rawName: unknown) {
     .trim();
 }
 
+export type EventRegistrationMode = 'individual' | 'team' | 'both';
+
 export function isVersusEventTypeName(rawName: unknown) {
   const normalized = normalizeEventTypeName(rawName);
   if (!normalized) return false;
 
   if (normalized.includes('versus')) return true;
   if (/\bvs\b/.test(normalized)) return true;
-  if (normalized.includes('equipo')) return true;
+  if (normalized === 'partido entre equipos') return true;
 
   return false;
+}
+
+export function resolveEventRegistrationMode(
+  rawMode: unknown,
+  rawEventTypeName: unknown,
+  allowsTeamRegistration = false
+): EventRegistrationMode {
+  if (rawMode === 'individual' || rawMode === 'team' || rawMode === 'both') {
+    return rawMode;
+  }
+
+  if (isVersusEventTypeName(rawEventTypeName)) return 'team';
+  return allowsTeamRegistration ? 'both' : 'individual';
 }

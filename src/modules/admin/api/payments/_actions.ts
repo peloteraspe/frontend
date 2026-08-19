@@ -545,3 +545,89 @@ export async function submitPaymentReviewAction(
     };
   }
 }
+
+async function assertCanManageTeamRegistration(
+  registrationId: number,
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  admin: ReturnType<typeof getAdminSupabase>
+) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!isAdmin(user as any)) throw new Error('No autorizado para gestionar pagos.');
+  const { data: registration, error } = await admin
+    .from('team_event_registration')
+    .select('id,event_id')
+    .eq('id', registrationId)
+    .maybeSingle();
+  if (error || !registration) throw new Error('No se encontró la inscripción grupal.');
+  if (!isSuperAdmin(user as any)) {
+    const { data: event } = await admin.from('event').select('created_by_id').eq('id', registration.event_id).maybeSingle();
+    if (String(event?.created_by_id || '') !== String(user?.id || '')) {
+      throw new Error('No autorizado para gestionar pagos de este evento.');
+    }
+  }
+  return user!;
+}
+
+export async function submitTeamPaymentReviewAction(
+  _previousState: PaymentReviewActionState,
+  formData: FormData
+): Promise<PaymentReviewActionState> {
+  const registrationId = normalizeAssistantId(String(formData.get('registrationId') || ''));
+  const decision = String(formData.get('decision') || '') as PaymentReviewDecision;
+  if (!registrationId || !['approve', 'reject'].includes(decision)) {
+    return { status: 'error', message: 'La acción solicitada no es válida.', decision: null };
+  }
+  const rejectReason = String(formData.get('reason') || '').trim();
+  if (decision === 'reject' && !rejectReason) {
+    return { status: 'error', message: 'Indica el motivo del rechazo.', decision };
+  }
+  try {
+    const supabase = await getServerSupabase();
+    const admin = getAdminSupabase();
+    const user = await assertCanManageTeamRegistration(registrationId, supabase, admin);
+    const { data, error } = await admin.rpc('review_team_event_registration', {
+      p_registration_id: registrationId,
+      p_decision: decision,
+      p_reviewer_user_id: user.id,
+      p_reject_reason: decision === 'reject' ? rejectReason : null,
+    });
+    if (error) {
+      if (isEventSoldOutError(error)) throw new Error(EVENT_SOLD_OUT_MESSAGE);
+      throw new Error(error.message);
+    }
+    const assistantIds = Array.isArray((data as any)?.assistantIds)
+      ? (data as any).assistantIds
+          .map((value: unknown) => Number(value))
+          .filter((value: number) => Number.isInteger(value) && value > 0)
+      : [];
+    if (decision === 'approve') {
+      await Promise.all(
+        assistantIds.map(async (assistantId: number) => {
+          try {
+            await ensureTicketForAssistant(admin as any, assistantId);
+          } catch (ticketError) {
+            log.warn('Team ticket enrichment failed after approval', 'ADMIN_PAYMENTS', {
+              registrationId,
+              assistantId,
+              ticketError,
+            });
+          }
+        })
+      );
+    }
+    await Promise.all(
+      assistantIds.map((assistantId: number) =>
+        notifyAssistantPaymentStatus(supabase, assistantId, decision === 'approve' ? 'approved' : 'rejected')
+      )
+    );
+    revalidatePath('/admin/payments');
+    revalidatePath('/tickets');
+    return {
+      status: 'success',
+      message: decision === 'approve' ? 'Pago grupal aprobado y entradas emitidas.' : 'Pago grupal rechazado.',
+      decision,
+    };
+  } catch (error) {
+    return { status: 'error', message: formatPaymentReviewError(error, decision), decision };
+  }
+}

@@ -1,22 +1,41 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
+import { useAuth } from '@core/auth/AuthProvider';
 import NavBarAuthControls from './NavBarAuthControls';
 
 export const NavBar = ({ simple = false }: { simple?: boolean }) => {
+  const { user, loading } = useAuth();
+  const hideAuthenticatedMobileNav = !simple && (loading || Boolean(user));
+
   return (
-    <nav className="site-shell sticky top-0 z-50 pt-3 sm:pt-4">
-      <div className="site-panel-soft overflow-visible flex min-h-[72px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+    <nav
+      className={[
+        'sticky top-0 z-50 w-full border-b border-slate-200/90 bg-white/95 backdrop-blur-sm',
+        hideAuthenticatedMobileNav ? 'hidden md:block' : '',
+      ].join(' ')}
+    >
+      <div className="site-shell flex min-h-16 items-center justify-between gap-3 py-2">
         <Link
           href="/"
-          className="flex h-full items-center gap-3 rounded-full transition-transform duration-200 hover:scale-[1.01]"
+          className="flex h-full shrink-0 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mulberry/25"
           aria-label="Ir al inicio"
         >
+          <Image
+            src="/assets/logo.png"
+            width={48}
+            height={48}
+            alt=""
+            aria-hidden="true"
+            className="h-10 w-10 object-contain sm:hidden"
+          />
           <Image
             src="/assets/peloteras.svg"
             width={207}
             height={37}
             alt="Peloteras logo"
-            className="h-10 w-auto sm:h-11"
+            className="hidden h-9 w-auto sm:block"
           />
         </Link>
 

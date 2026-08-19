@@ -103,13 +103,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body
         className="h-full w-full"
         style={{
-          backgroundColor: '#fffdfb',
-          backgroundImage: `radial-gradient(42rem 30rem at 18% 2%, rgba(240, 129, 91, 0.22), transparent 60%),
-            radial-gradient(44rem 32rem at 72% 6%, rgba(179, 71, 177, 0.2), transparent 58%),
-            radial-gradient(36rem 28rem at 88% 92%, rgba(76, 129, 214, 0.16), transparent 50%),
-            linear-gradient(180deg, rgba(255, 252, 249, 1) 0%, rgba(255, 255, 255, 1) 34%)`,
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: 'cover',
+          backgroundColor: '#FFFFFF',
         }}
         suppressHydrationWarning
       >

@@ -21,7 +21,7 @@ export default function VerifyEventsPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setMessage('Tu sesion no esta activa. Inicia sesion para continuar.');
+        setMessage('Tu sesión no esta activa. Inicia sesión para continuar.');
         setTimeout(() => router.replace('/login'), 1300);
         return;
       }

@@ -12,13 +12,24 @@ import { useAuth } from '@core/auth/AuthProvider';
 
 import { ParagraphM } from '@core/ui/Typography';
 import Input from '@core/ui/Input';
+import BirthDatePicker from '@core/ui/BirthDatePicker';
+import InternationalPhoneField from '@core/ui/InternationalPhoneField';
 import SelectComponent, { OptionSelect } from '@core/ui/SelectComponent';
 
 import type { Step, SignupStep1Values } from './signup.types';
 import { fetchCurrentOnboardingState } from '@modules/auth/lib/onboarding.client';
 import { authCallbackUrl, sanitizeNextPath } from '@modules/auth/lib/redirect';
 import { fetchLevelsOptions, fetchPositionsOptions } from '@modules/users/api/lookups.client';
-import { normalizePhoneMetadata } from '@shared/lib/phone';
+import {
+  normalizePhoneMetadata,
+  resolveStoredPhone,
+  validateInternationalPhone,
+} from '@shared/lib/phone';
+import {
+  getLatestAdultBirthDate,
+  resolveStoredBirthDate,
+  validateBirthDate,
+} from '@modules/users/lib/eventProfileRequirements';
 import {
   checkUsernameAvailabilityAction,
   completeOnboardingProfileAction,
@@ -51,6 +62,10 @@ function appendNextPath(path: string, nextPath: string | null) {
   if (!nextPath) return path;
   const separator = path.includes('?') ? '&' : '?';
   return `${path}${separator}next=${encodeURIComponent(nextPath)}`;
+}
+
+function normalizeGoogleUsernameSuggestion(value: string) {
+  return value.replace(/\s+/g, '');
 }
 
 export default function SignupClient() {
@@ -89,6 +104,8 @@ export default function SignupClient() {
     formState: { errors },
   } = useForm<SignupStep1Values>({
     defaultValues: { username: '', password: '' },
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   });
 
   const username = watch('username');
@@ -106,6 +123,11 @@ export default function SignupClient() {
   const [levels, setLevels] = useState<OptionSelect[]>([]);
   const [selectedPositions, setSelectedPositions] = useState<(string | number)[]>([]);
   const [selectedLevel, setSelectedLevel] = useState<string | number | null>(null);
+  const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [birthDateError, setBirthDateError] = useState('');
+  const maxBirthDate = useMemo(() => getLatestAdultBirthDate(), []);
 
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -236,11 +258,15 @@ export default function SignupClient() {
                 appMetadata.providers.some((provider) => provider === 'google')
               ? 'google'
               : '';
-        const initialUsername =
+        const suggestedUsername =
           (typeof profile?.username === 'string' && profile.username.trim()) ||
           (typeof metadata.username === 'string' && metadata.username.trim()) ||
           (typeof metadata.full_name === 'string' && metadata.full_name.trim()) ||
           (user.email ? user.email.split('@')[0] : '');
+        const initialUsername =
+          authProvider === 'google'
+            ? normalizeGoogleUsernameSuggestion(suggestedUsername)
+            : suggestedUsername;
 
         setSignupEmail(user.email ?? prefilledEmail);
         setUserId(user.id);
@@ -249,6 +275,8 @@ export default function SignupClient() {
         setRequiresEmailVerification(!user.email_confirmed_at);
         setValue('username', initialUsername);
         setIsIdentityConfirmed(isGenderIdentityConfirmed(metadata.gender_identity_confirmed));
+        setPhone(resolveStoredPhone(user));
+        setBirthDate(resolveStoredBirthDate(user));
 
         if (nextStep === null) {
           window.location.href = requestedNextPath || destination;
@@ -382,7 +410,7 @@ export default function SignupClient() {
       }
 
       toast.error(
-        'Cuenta creada, pero no pudimos continuar. Inicia sesion para completar tu perfil.'
+        'Cuenta creada, pero no pudimos continuar. Inicia sesión para completar tu perfil.'
       );
     } catch (e) {
       toast.error('Error creando la cuenta');
@@ -404,11 +432,24 @@ export default function SignupClient() {
     if (!selectedLevel) return toast.error('Selecciona un nivel.');
     if (selectedPositions.length === 0) return toast.error('Selecciona al menos una posicion.');
 
+    const phoneValidation = validateInternationalPhone(phone);
+    if (!phoneValidation.isValid) {
+      setPhoneError('Ingresa un celular válido.');
+      toast.error('Ingresa un celular válido.');
+      return;
+    }
+
+    const birthDateValidation = validateBirthDate(birthDate, maxBirthDate);
+    if (birthDateValidation.ok === false) {
+      setBirthDateError(birthDateValidation.message);
+      toast.error(birthDateValidation.message);
+      return;
+    }
+
     setLoading(true);
     try {
       const usernameValidation = validateUsername(username);
       if (usernameValidation.ok === false) {
-        setStep(1);
         setError('username', {
           type: 'manual',
           message: usernameValidation.message,
@@ -452,7 +493,6 @@ export default function SignupClient() {
               usernameCheck.message ||
               'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.',
           });
-          setStep(1);
           toast.error(
             usernameCheck.message ||
               'Ese nombre de usuario acaba de ocuparse. Elige otro para continuar.'
@@ -469,6 +509,8 @@ export default function SignupClient() {
         username: normalizedUsername,
         level_id: Number(selectedLevel),
         player_position: positionIds,
+        phone: phoneValidation.e164,
+        birth_date: birthDateValidation.value,
       };
 
       // We create the final profile here. If a draft exists and backend treats it as duplicate,
@@ -480,7 +522,6 @@ export default function SignupClient() {
             type: 'manual',
             message: 'El nombre de usuario ya está en uso, elige otro.',
           });
-          setStep(1);
           toast.error('Ese nombre de usuario ya está en uso, elige otro.');
           return;
         }
@@ -490,17 +531,16 @@ export default function SignupClient() {
             type: 'manual',
             message: onboardingResult.message,
           });
-          setStep(1);
           toast.error(onboardingResult.message);
           return;
         }
 
         if (onboardingResult.code === 'USER_NOT_READY') {
           toast.error(
-            'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesion.'
+            'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesión.'
           );
           window.location.href = appendNextPath(
-            '/login?message=Completa tu perfil al iniciar sesion',
+            '/login?message=Completa tu perfil al iniciar sesión',
             requestedNextPath
           );
           return;
@@ -518,6 +558,8 @@ export default function SignupClient() {
         const { error: metadataError } = await supabase.auth.updateUser({
           data: {
             ...normalizePhoneMetadata(authenticatedUser.user_metadata),
+            phone: phoneValidation.e164,
+            birth_date: birthDateValidation.value,
             gender_identity_confirmed: true,
           },
         });
@@ -544,10 +586,10 @@ export default function SignupClient() {
       const errorMessage = String(err?.message || err || '');
       if (errorMessage.includes('profile_user_fkey')) {
         toast.error(
-          'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesion.'
+          'No pudimos completar tu perfil ahora. Puedes terminarlo cuando inicies sesión.'
         );
         window.location.href = appendNextPath(
-          '/login?message=Completa tu perfil al iniciar sesion',
+          '/login?message=Completa tu perfil al iniciar sesión',
           requestedNextPath
         );
         return;
@@ -557,7 +599,6 @@ export default function SignupClient() {
           type: 'manual',
           message: 'El nombre de usuario ya está en uso, elige otro.',
         });
-        setStep(1);
         toast.error('Ese nombre de usuario ya está en uso, elige otro.');
       } else {
         toast.error('No se pudo crear el perfil.');
@@ -665,53 +706,47 @@ export default function SignupClient() {
   }, [step, requiresEmailVerification]);
 
   return (
-    <div className="w-full max-w-[560px] mx-auto px-4 pt-4 pb-8 md:pt-6">
-      <div className="text-center mb-4">
+    <div className="mx-auto w-full max-w-[560px] px-4 pb-8 pt-4 md:pt-6">
+      <div className="mb-5 text-center">
         <h1 className="mt-3 font-eastman-extrabold text-3xl md:text-4xl leading-tight text-slate-900">
           Crea tu cuenta
         </h1>
         <p className="mt-2 text-slate-600 text-sm">Completa tus datos y empieza a jugar.</p>
       </div>
 
-      {step === 1 ? (
-        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
-          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm">
-            {hasActiveSession ? (
-              <span
-                className="rounded-xl text-slate-400 text-center py-2 cursor-not-allowed"
-                aria-disabled="true"
-              >
-                Iniciar sesion
-              </span>
-            ) : (
-              <Link
-                href={appendNextPath('/login', requestedNextPath)}
-                className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
-              >
-                Iniciar sesion
-              </Link>
-            )}
-            <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
-              Crear cuenta
-            </span>
-          </div>
+      <div className="mb-4" aria-label={`Paso ${step} de 3`}>
+        <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500">
+          <span>Paso {step} de 3</span>
+          <span>{step === 1 ? 'Acceso' : step === 2 ? 'Tu perfil' : 'Verificación'}</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2" aria-hidden="true">
+          {[1, 2, 3].map((progressStep) => (
+            <span
+              key={progressStep}
+              className={`h-1.5 rounded-full ${progressStep <= step ? 'bg-mulberry' : 'bg-slate-200'}`}
+            />
+          ))}
+        </div>
+      </div>
 
-          <p className="text-slate-600 text-sm mb-4">
-            Completa tus datos por primera vez para que tengas una experiencia personalizada
+      {step === 1 ? (
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+          <p className="mb-4 text-sm leading-6 text-slate-600">
+            Usa un correo al que tengas acceso. Te enviaremos la verificación de tu cuenta.
           </p>
 
           <form
             onSubmit={handleSubmit(handleStep1)}
             className="flex flex-col gap-3"
-            autoComplete="off"
+            autoComplete="on"
             noValidate
           >
             <Input
-              label="Correo electronico"
+              label="Correo electrónico"
               type="email"
               required
               name="email"
-              autoComplete="off"
+              autoComplete="email"
               inputMode="email"
               placeholder="pelotera@gmail.com"
               value={signupEmail}
@@ -741,14 +776,14 @@ export default function SignupClient() {
               errorText={errors.password?.message as string | undefined}
             />
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <label className="flex items-start gap-3">
                 <input
-                  type="radio"
+                  type="checkbox"
                   name="gender_identity_confirmation"
                   checked={isIdentityConfirmed}
-                  onChange={() => {
-                    setIsIdentityConfirmed(true);
+                  onChange={(event) => {
+                    setIsIdentityConfirmed(event.target.checked);
                     if (identityError) setIdentityError(undefined);
                   }}
                   className="mt-1 h-4 w-4 border-slate-300 text-mulberry focus:ring-mulberry"
@@ -769,7 +804,7 @@ export default function SignupClient() {
 
             <button
               type="submit"
-              className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
+              className="h-11 w-full rounded-xl bg-mulberry font-semibold text-white disabled:opacity-60"
               disabled={loading || isGoogleLoading || !canSubmitStep1}
             >
               {loading ? 'Creando...' : 'Continuar'}
@@ -780,7 +815,7 @@ export default function SignupClient() {
                 <span className="w-full border-t border-gray-300" />
               </div>
               <div className="relative flex justify-center text-xs uppercase tracking-wide">
-                <span className="bg-white px-3 text-gray-500">o continua con</span>
+                <span className="bg-white px-3 text-gray-500">o continúa con</span>
               </div>
             </div>
 
@@ -793,30 +828,9 @@ export default function SignupClient() {
           </form>
         </div>
       ) : step === 2 ? (
-        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
-          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-sm">
-            {hasActiveSession ? (
-              <span
-                className="rounded-xl text-slate-400 text-center py-2 cursor-not-allowed"
-                aria-disabled="true"
-              >
-                Iniciar sesion
-              </span>
-            ) : (
-              <Link
-                href={appendNextPath('/login', requestedNextPath)}
-                className="rounded-xl text-slate-600 text-center py-2 hover:text-slate-900 transition-colors"
-              >
-                Iniciar sesion
-              </Link>
-            )}
-            <span className="rounded-xl bg-white text-mulberry font-semibold text-center py-2 shadow-sm">
-              Crear cuenta
-            </span>
-          </div>
-
-          <p className="text-slate-600 text-sm mb-4">
-            Completa tus datos por primera vez para que tengas una experiencia personalizada
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+          <p className="mb-4 text-sm leading-6 text-slate-600">
+            Estos datos nos ayudan a mostrarte eventos que encajen mejor contigo.
           </p>
 
           <form
@@ -841,16 +855,46 @@ export default function SignupClient() {
                   message: `Máximo ${USERNAME_MAX_LENGTH} caracteres`,
                 },
                 validate: validateUsernameForForm,
-                onChange: () => {
-                  clearErrors('username');
-                },
               })}
               autoComplete="nickname"
               maxLength={USERNAME_MAX_LENGTH}
               className="h-11"
+              aria-invalid={Boolean(errors.username)}
               errorText={errors.username?.message as string | undefined}
             />
             <p className="text-xs text-slate-500 -mt-2">Máximo 15 caracteres, sin espacios.</p>
+
+            <InternationalPhoneField
+              label="Número de celular"
+              name="phone"
+              value={phone}
+              onChange={(nextPhone) => {
+                setPhone(nextPhone);
+                if (phoneError) setPhoneError('');
+              }}
+              onBlur={() => {
+                const validation = validateInternationalPhone(phone);
+                setPhoneError(validation.isValid ? '' : 'Ingresa un celular válido.');
+              }}
+              placeholder="999 999 999"
+              errorText={phoneError}
+              required
+            />
+
+            <BirthDatePicker
+              label="Fecha de nacimiento"
+              name="birth_date"
+              value={birthDate}
+              minDate="1900-01-01"
+              maxDate={maxBirthDate}
+              helperText="Debes tener 18 años o más para crear una cuenta."
+              required
+              onChange={(nextBirthDate) => {
+                setBirthDate(nextBirthDate);
+                if (birthDateError) setBirthDateError('');
+              }}
+              errorText={birthDateError}
+            />
 
             <label className="w-full">
               <div className="mb-1">
@@ -881,41 +925,41 @@ export default function SignupClient() {
               />
             </label>
 
-            {!isIdentityConfirmed && (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <label className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="gender_identity_confirmation_step_2"
-                    checked={isIdentityConfirmed}
-                    onChange={() => {
-                      setIsIdentityConfirmed(true);
-                      if (identityError) setIdentityError(undefined);
-                    }}
-                    className="mt-1 h-4 w-4 border-slate-300 text-mulberry focus:ring-mulberry"
-                  />
-                  <span className="text-sm leading-6 text-slate-700">
-                    Confirmo que me identifico como mujer o persona de la diversidad de género.{' '}
-                    <button
-                      type="button"
-                      onClick={() => setIsIdentityModalOpen(true)}
-                      className="font-semibold text-mulberry hover:text-mulberry/80"
-                    >
-                      Más información
-                    </button>
-                  </span>
-                </label>
-                {identityError && <p className="mt-2 text-sm text-red-500">{identityError}</p>}
-              </div>
-            )}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  name="gender_identity_confirmation_step_2"
+                  checked={isIdentityConfirmed}
+                  onChange={(event) => {
+                    setIsIdentityConfirmed(event.target.checked);
+                    if (identityError) setIdentityError(undefined);
+                  }}
+                  className="mt-1 h-4 w-4 border-slate-300 text-mulberry focus:ring-mulberry"
+                />
+                <span className="text-sm leading-6 text-slate-700">
+                  Confirmo que me identifico como mujer o persona de la diversidad de género.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIsIdentityModalOpen(true)}
+                    className="font-semibold text-mulberry hover:text-mulberry/80"
+                  >
+                    Más información
+                  </button>
+                </span>
+              </label>
+              {identityError && <p className="mt-2 text-sm text-red-500">{identityError}</p>}
+            </div>
 
             <button
               type="submit"
-              className="h-10 w-full rounded-xl bg-mulberry text-white disabled:opacity-60"
+              className="h-11 w-full rounded-xl bg-mulberry font-semibold text-white disabled:opacity-60"
               disabled={
                 loading ||
                 !isIdentityConfirmed ||
                 !validateUsername(username).ok ||
+                !validateInternationalPhone(phone).isValid ||
+                !validateBirthDate(birthDate, maxBirthDate).ok ||
                 !selectedLevel ||
                 selectedPositions.length === 0
               }
@@ -925,14 +969,14 @@ export default function SignupClient() {
           </form>
         </div>
       ) : (
-        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)]">
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
           <h2 className="text-xl md:text-2xl font-eastman-extrabold text-slate-900">
             Revisa tu correo para verificar tu cuenta
           </h2>
 
           <p className="text-slate-700 mt-3 text-sm md:text-base">
             Te enviamos un enlace a <strong>{signupEmail}</strong>. Cuando verifiques, te
-            redirigiremos automaticamente para continuar.
+            redirigiremos automáticamente para continuar.
           </p>
 
           <div className="mt-5 flex flex-col gap-3">
@@ -963,14 +1007,14 @@ export default function SignupClient() {
                 className="text-sm text-center text-slate-400 font-semibold cursor-not-allowed"
                 aria-disabled="true"
               >
-                Volver a iniciar sesion
+                Volver a iniciar sesión
               </span>
             ) : (
               <Link
                 href={appendNextPath('/login', requestedNextPath)}
                 className="text-sm text-center text-mulberry font-semibold hover:text-mulberry/80"
               >
-                Volver a iniciar sesion
+                Volver a iniciar sesión
               </Link>
             )}
           </div>
@@ -980,17 +1024,23 @@ export default function SignupClient() {
       {isIdentityModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
           <div
-            className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-slate-950/55"
             onClick={() => setIsIdentityModalOpen(false)}
           />
-          <div className="relative z-[81] w-full max-w-lg rounded-[28px] bg-white p-6 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.45)]">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Información sobre la comunidad Peloteras"
+            className="relative z-[81] w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+          >
             <div className="flex items-start justify-end">
               <button
                 type="button"
                 onClick={() => setIsIdentityModalOpen(false)}
-                className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-500 hover:text-slate-900"
+                aria-label="Cerrar información"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg text-slate-500 hover:text-slate-900"
               >
-                X
+                ×
               </button>
             </div>
 

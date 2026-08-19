@@ -22,6 +22,10 @@ import {
   shouldBlockCouponReuse,
   type CouponReimbursementStatus,
 } from '@modules/payments/lib/couponReimbursement';
+import {
+  hasCompleteEventProfile,
+  REQUIRED_EVENT_PROFILE_MESSAGE,
+} from '@modules/users/lib/eventProfileRequirements';
 
 function parseEventId(value: unknown) {
   const n = Number(value);
@@ -379,6 +383,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Debes iniciar sesión.' }, { status: 401 });
     }
 
+    if (!hasCompleteEventProfile(user)) {
+      return NextResponse.json(
+        { error: REQUIRED_EVENT_PROFILE_MESSAGE, code: 'PROFILE_DETAILS_REQUIRED' },
+        { status: 422 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const eventId = parseEventId(body?.eventId);
     const operationNumber = parseOperationNumber(body?.operationNumber);
@@ -393,7 +404,7 @@ export async function POST(request: Request) {
 
     const { data: eventRow, error: eventError } = await admin
       .from('event')
-      .select('id,start_time,end_time,title,location_text,is_published,created_by,created_by_id,max_users,price')
+      .select('id,start_time,end_time,title,location_text,is_published,created_by,created_by_id,max_users,price,registration_mode')
       .eq('id', eventId)
       .maybeSingle();
 
@@ -409,6 +420,16 @@ export async function POST(request: Request) {
     if ((eventRow as any)?.is_published === false) {
       return NextResponse.json(
         { error: 'Las inscripciones para este evento no están disponibles por el momento.' },
+        { status: 409 }
+      );
+    }
+
+    if ((eventRow as any)?.registration_mode === 'team') {
+      return NextResponse.json(
+        {
+          error: 'Este partido acepta únicamente inscripciones de equipos.',
+          code: 'TEAM_ONLY_EVENT',
+        },
         { status: 409 }
       );
     }

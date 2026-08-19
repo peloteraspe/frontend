@@ -14,6 +14,10 @@ import {
 } from '@shared/lib/eventDescription';
 import { redirect } from 'next/navigation';
 import { getOrganizerOptionsForEventForm } from '@modules/admin/api/organizers/organizers.service';
+import {
+  buildEventProfileCompletionPath,
+  hasCompleteEventProfile,
+} from '@modules/users/lib/eventProfileRequirements';
 
 type Props = {
   templateId?: string;
@@ -26,6 +30,18 @@ export default async function NewEventScreen({ templateId }: Props) {
   } = await supabase.auth.getUser();
   if (!user?.id) {
     redirect('/');
+  }
+
+  if (!hasCompleteEventProfile(user)) {
+    const nextPath = templateId
+      ? `/admin/events/new?templateId=${encodeURIComponent(templateId)}`
+      : '/admin/events/new';
+    redirect(
+      buildEventProfileCompletionPath({
+        nextPath,
+        intent: 'create_event',
+      })
+    );
   }
 
   const canManageFeatured = isSuperAdmin(user as any);
@@ -71,11 +87,7 @@ export default async function NewEventScreen({ templateId }: Props) {
     }))
     .filter((method) => Number.isInteger(method.id) && method.id > 0);
 
-  const eventTypes =
-    catalogs.eventTypes.filter((option) => option.name.trim().toLowerCase() === 'pichanga libre') ||
-    [];
-  const selectableEventTypes =
-    eventTypes.length > 0 ? eventTypes : catalogs.eventTypes.length > 0 ? [catalogs.eventTypes[0]] : [];
+  const selectableEventTypes = catalogs.eventTypes;
 
   let templateInitial:
     | {
@@ -100,6 +112,12 @@ export default async function NewEventScreen({ templateId }: Props) {
         isPublished: boolean;
         isFieldReservedConfirmed: boolean;
         isFeatured: boolean;
+        allowsTeamRegistration: boolean;
+        teamRegistrationMaxTeams: number | null;
+        teamRegistrationMinPlayers: number | null;
+        teamRegistrationMaxPlayers: number | null;
+        teamRegistrationPriceMode: 'per_player' | 'fixed_team';
+        teamRegistrationFixedPrice: number | null;
       }
     | null = null;
   let templateTitle = '';
@@ -167,6 +185,13 @@ export default async function NewEventScreen({ templateId }: Props) {
         isPublished: templateEvent.is_published !== false,
         isFieldReservedConfirmed: parseStoredBoolean(descriptionObject?.field_reserved_confirmed),
         isFeatured: Boolean(templateEvent.is_featured),
+        allowsTeamRegistration: Boolean(templateEvent.allows_team_registration),
+        teamRegistrationMaxTeams: templateEvent.team_registration_max_teams ?? null,
+        teamRegistrationMinPlayers: templateEvent.team_registration_min_players ?? null,
+        teamRegistrationMaxPlayers: templateEvent.team_registration_max_players ?? null,
+        teamRegistrationPriceMode:
+          templateEvent.team_registration_price_mode === 'fixed_team' ? 'fixed_team' : 'per_player',
+        teamRegistrationFixedPrice: templateEvent.team_registration_fixed_price ?? null,
       };
     }
   }
@@ -187,8 +212,14 @@ export default async function NewEventScreen({ templateId }: Props) {
     featureIds: [],
     paymentMethodIds: [],
     organizerId: null,
-    eventTypeId: selectableEventTypes[0]?.id ?? 1,
+    eventTypeId: 0,
     levelId: catalogs.levels[0]?.id ?? 1,
+    allowsTeamRegistration: false,
+    teamRegistrationMaxTeams: 2,
+    teamRegistrationMinPlayers: 7,
+    teamRegistrationMaxPlayers: null,
+    teamRegistrationPriceMode: 'fixed_team' as const,
+    teamRegistrationFixedPrice: null,
     ...templateInitial,
     isPublished: false,
     isFieldReservedConfirmed: false,

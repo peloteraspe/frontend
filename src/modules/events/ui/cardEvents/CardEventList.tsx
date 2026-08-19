@@ -48,23 +48,20 @@ const CardEventList = async ({ previewCount, showViewAll = true }: CardEventList
     <div className="space-y-6 md:space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-[39rem]">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-mulberry/75">
-            Eventos destacados
-          </p>
-          <h2 className="mt-3 font-eastman-extrabold text-4xl leading-[1.02] text-slate-900 sm:text-5xl lg:text-[3rem]">
-            Pichangas y partidos para volver a la cancha
+          <p className="text-sm font-semibold text-mulberry">Próximas fechas</p>
+          <h2 className="mt-2 max-w-[15ch] font-eastman-extrabold text-4xl leading-[1.04] text-slate-900 sm:text-5xl">
+            Elige tu próxima pichanga
           </h2>
           <p className="mt-4 text-base leading-8 text-slate-600 sm:text-lg">
-            Explora las próximas pichangas en Peloteras y encuentra una oportunidad para jugar,
-            conocer gente nueva y sumarte a la comunidad.
+            Revisa fecha, sede, nivel, precio y cupos antes de decidir dónde jugar.
           </p>
         </div>
         {showViewAll && (
           <Link
             href="/events"
-            className="group home-button-micro premium-outline inline-flex h-12 items-center gap-2 rounded-full px-6 text-base font-semibold text-[#54086F] hover:border-[#54086F] hover:bg-[#54086F] hover:text-white"
+            className="group home-button-micro premium-outline inline-flex h-12 items-center gap-2 rounded-xl px-6 text-base font-semibold text-[#54086F] hover:border-[#54086F] hover:bg-[#54086F] hover:text-white"
           >
-            <span>Ver todos los eventos</span>
+            <span>Ver todas las fechas</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 16 16"

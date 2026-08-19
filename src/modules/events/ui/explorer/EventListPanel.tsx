@@ -1,8 +1,5 @@
 'use client';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-
-import ArrowRight from '@core/assets/images/arrow-right.png';
+import type { ReactNode } from 'react';
 import Badge, { StatusBadge } from '@core/ui/Badge';
 import { ButtonWrapper } from '@core/ui/Button';
 import AuthRedirectLoader from '@modules/auth/ui/AuthRedirectLoader';
@@ -21,6 +18,7 @@ type Props = {
   onHoverEvent: (id: string | null) => void;
   isLoading?: boolean;
   emptyMessage?: string;
+  emptyAction?: ReactNode;
 };
 
 function EventCardSameAsLanding({
@@ -28,17 +26,15 @@ function EventCardSameAsLanding({
   isActive,
   onHover,
   onLeave,
-  onOpenEvent,
   onOpenJoinFlow,
 }: {
   event: EventEntity;
   isActive: boolean;
   onHover: () => void;
   onLeave: () => void;
-  onOpenEvent: (eventId: string) => void;
   onOpenJoinFlow: (eventId: string, isVersus: boolean) => void;
 }) {
-  const isVersus = isVersusEventTypeName(event.eventTypeName);
+  const isVersus = event.registrationMode === 'team' || isVersusEventTypeName(event.eventTypeName);
   const isSoldOut = event.isSoldOut === true;
   const isPastEvent = hasEventEnded(event.endTime, undefined, event.startTime);
   const isJoinDisabled = isEventJoinDisabled({
@@ -57,37 +53,52 @@ function EventCardSameAsLanding({
     viewerHasApprovedRegistration: event.viewerHasApprovedRegistration,
     viewerHasPendingRegistration: event.viewerHasPendingRegistration,
   });
+  const resolvedJoinLabel =
+    isVersus && isSoldOut && Number(event.pendingTeamRegistrationCount || 0) > 0
+      ? 'Lugares reservados'
+      : joinLabel;
 
   return (
-    <div
-      onClick={() => onOpenEvent(event.id)}
-      onMouseEnter={onHover}
-      onMouseLeave={onLeave}
-      className={isActive ? 'rounded-xl ring-2 ring-[#54086F]/40 ring-offset-2 ring-offset-white' : ''}
-    >
+    <div onMouseEnter={onHover} onMouseLeave={onLeave}>
       <CardEvent
+        detailsHref={`/events/${event.id}`}
         typeEvent={event.eventTypeName}
-        levelText={`NIVEL: ${event.levelName.toUpperCase()}`}
+        levelText={`Nivel ${event.levelName}`}
         matchText={event.title}
         dateText={event.dateLabel}
         textLocation={event.locationText}
         compact
+        active={isActive}
         button={
-          <ButtonWrapper
-            icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-            width="fit-content"
-            disabled={isJoinDisabled}
-            className="!h-11 !rounded-full !px-5 !py-0 shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
-            onClick={(e: any) => {
-              e.stopPropagation();
-              if (isJoinDisabled) return;
-              onOpenJoinFlow(event.id, isVersus);
-            }}
-          >
-            {joinLabel}
-          </ButtonWrapper>
+          isJoinDisabled ? (
+            <StatusBadge
+              variant={
+                event.viewerHasApprovedRegistration
+                  ? 'success'
+                  : event.viewerHasPendingRegistration
+                    ? 'warning'
+                    : 'default'
+              }
+              size="md"
+              className="min-h-10 max-w-full justify-center whitespace-nowrap !px-3 text-center !text-xs"
+            >
+              {resolvedJoinLabel}
+            </StatusBadge>
+          ) : (
+            <ButtonWrapper
+              width="fit-content"
+              className="pointer-events-auto !min-h-10 !rounded-full !px-4 !py-2 text-sm leading-tight shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                e.stopPropagation();
+                onOpenJoinFlow(event.id, isVersus);
+              }}
+            >
+              {resolvedJoinLabel}
+            </ButtonWrapper>
+          )
         }
         price={formattedPrice(event.price)}
+        priceCaption={event.priceUnit === 'team' ? 'Por equipo' : 'Por jugadora'}
         badge={
           [
             <Badge
@@ -96,20 +107,7 @@ function EventCardSameAsLanding({
               icon={true}
               badgeType="Primary"
             />,
-          ].concat(
-            isPastEvent
-              ? [
-                  <StatusBadge
-                    key={`${event.id}-status`}
-                    variant="warning"
-                    size="sm"
-                    className="whitespace-nowrap"
-                  >
-                    Finalizado
-                  </StatusBadge>,
-                ]
-              : []
-          )
+          ]
         }
       />
     </div>
@@ -123,30 +121,32 @@ export default function EventListPanel({
   onHoverEvent,
   isLoading = false,
   emptyMessage = 'No hay eventos en esta zona todavía.',
+  emptyAction,
 }: Props) {
-  const router = useRouter();
   const { navigateWithSessionCheck, isPendingNavigation, pendingNavigationMessage } =
     useSessionGuardNavigation();
 
-  function openEventDetails(eventId: string) {
-    router.push(`/events/${eventId}`);
-  }
-
   function openJoinFlow(eventId: string, isVersus: boolean) {
     navigateWithSessionCheck({
-      destination: isVersus ? `/versus/${eventId}` : `/payments/${eventId}`,
+      destination: isVersus ? `/payments/${eventId}/team` : `/payments/${eventId}`,
       authenticatedMessage: 'Preparando tu inscripción...',
-      loginMessage: 'Inicia sesion para inscribirte al evento',
+      loginMessage: 'Inicia sesión para inscribirte al evento',
       loginRedirectMessage: 'Redirigiendo al login...',
       requireEmailConfirmed: true,
       emailConfirmationMessage: 'Verifica tu identidad para poder inscribirte a este evento.',
+      requireEventProfile: true,
+      eventProfileIntent: 'join_event',
     });
   }
 
   if (!events.length) {
     return (
-      <div className="premium-card h-[60vh] border-dashed p-6 text-center text-sm text-slate-600 md:h-[76vh]">
-        {emptyMessage}
+      <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center md:min-h-[340px]">
+        <p className="max-w-md text-base font-semibold text-slate-800">{emptyMessage}</p>
+        <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+          Prueba otra fecha o revisa la actividad anterior de la comunidad.
+        </p>
+        {emptyAction ? <div className="mt-5 flex flex-wrap justify-center gap-3">{emptyAction}</div> : null}
       </div>
     );
   }
@@ -166,7 +166,6 @@ export default function EventListPanel({
                 isActive={selectedEventId === event.id || hoveredEventId === event.id}
                 onHover={() => onHoverEvent(event.id)}
                 onLeave={() => onHoverEvent(null)}
-                onOpenEvent={openEventDetails}
                 onOpenJoinFlow={openJoinFlow}
               />
             </div>

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import CardEventList from '@modules/events/ui/cardEvents/CardEventList';
-import AlliesCarouselEntry from '@modules/home/ui/AlliesCarouselEntry';
+import HomeAlliesSection from '@modules/home/ui/HomeAlliesSection';
 import LandingGrowthBlocks from '@modules/home/ui/LandingGrowthBlocks';
 import HomeReveal from '@modules/home/ui/HomeReveal';
 import HomeHowItWorksSection from '@modules/home/ui/HomeHowItWorksSection';
@@ -87,41 +86,17 @@ export default async function Index() {
       <div className="flex w-full flex-col gap-8 pb-8 sm:gap-10 sm:pb-10 lg:gap-12 lg:pb-12">
         <MainSection />
 
-        <HomeHowItWorksSection />
-
         <section className="home-scroll-target w-full" id="eventos-destacados">
           <HomeReveal className="site-shell">
-            <CardEventList />
+            <CardEventList previewCount={3} />
           </HomeReveal>
         </section>
 
+        <HomeHowItWorksSection />
+
         <LandingGrowthBlocks />
 
-        {homeAllies.length > 0 && (
-          <section className="home-scroll-target w-full" id="aliadxs">
-            <HomeReveal className="site-shell">
-              <div className="flex flex-col gap-4 sm:gap-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-mulberry/70">
-                      Aliadxs que impulsan esta comunidad
-                    </p>
-                    <p className="max-w-xl text-base leading-7 text-slate-600">
-                      Marcas y organizaciones que acompañan el crecimiento de Peloteras.
-                    </p>
-                  </div>
-                  <Link
-                    href="/patrocinios"
-                    className="home-button-micro inline-flex w-fit rounded-full px-5 py-2.5 text-sm font-semibold text-mulberry hover:bg-mulberry/5"
-                  >
-                    ¿Tu marca quiere sumarse?
-                  </Link>
-                </div>
-                <AlliesCarouselEntry allies={homeAllies} />
-              </div>
-            </HomeReveal>
-          </section>
-        )}
+        <HomeAlliesSection allies={homeAllies} />
       </div>
     </>
   );

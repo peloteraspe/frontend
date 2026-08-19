@@ -218,8 +218,22 @@ export async function updateProfile(
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to update profile: ${error}`);
+      const rawError = await response.text();
+      let errorMessage = 'No se pudo actualizar el perfil.';
+
+      try {
+        const payload = JSON.parse(rawError) as { error?: unknown; message?: unknown };
+        const nestedError =
+          typeof payload.error === 'string' && payload.error.trim().startsWith('{')
+            ? (JSON.parse(payload.error) as { message?: unknown })
+            : null;
+        const candidate = nestedError?.message ?? payload.message ?? payload.error;
+        if (typeof candidate === 'string' && candidate.trim()) errorMessage = candidate.trim();
+      } catch {
+        if (rawError.trim()) errorMessage = rawError.trim();
+      }
+
+      throw new Error(errorMessage);
     }
 
     return await response.json();

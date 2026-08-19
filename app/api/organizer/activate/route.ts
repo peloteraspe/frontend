@@ -8,6 +8,7 @@ import { sendEventAnnouncementEmail } from '@modules/admin/api/events/services/e
 import { activateOrganizerByUserId } from '@modules/admin/api/users/services/adminUsers.service';
 import { getSuperAdminEmails } from '@shared/lib/auth/isAdmin';
 import { validateInternationalPhone } from '@shared/lib/phone';
+import { hasCompleteEventProfile } from '@modules/users/lib/eventProfileRequirements';
 
 type OrganizerActivationPayload = {
   phone?: string;
@@ -177,6 +178,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Debes iniciar sesión para crear eventos.' }, { status: 401 });
     }
 
+    if (!user.email_confirmed_at) {
+      return NextResponse.json(
+        { error: 'Confirma tu correo antes de activar el perfil organizadora.' },
+        { status: 403 }
+      );
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profile')
+      .select('username,level_id,onboarding_step,is_profile_complete')
+      .eq('user', user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      throw new Error(profileError.message);
+    }
+
+    const hasCompleteDatabaseProfile = Boolean(
+      profile &&
+        String(profile.username || '').trim() &&
+        profile.level_id != null &&
+        (profile.is_profile_complete === true || Number(profile.onboarding_step || 0) >= 2)
+    );
+
+    if (!hasCompleteDatabaseProfile || !hasCompleteEventProfile(user)) {
+      return NextResponse.json(
+        { error: 'Completa tu perfil, celular y fecha de nacimiento antes de activar el perfil organizadora.' },
+        { status: 422 }
+      );
+    }
+
     const activation = await activateOrganizerByUserId(user.id, {
       phone: phoneValidation.e164,
       source,
@@ -185,36 +217,38 @@ export async function POST(request: Request) {
       commitmentReportIncidents,
     });
 
-    try {
-      await trackOrganizerActivation({
-        userId: user.id,
-        contactName: activation.contactName,
-        contactEmail: activation.contactEmail,
-        phone: activation.phone,
-        source: activation.source,
-        activatedAt: activation.activatedAt,
-      });
-      revalidatePath('/admin/requests');
-      revalidatePath('/admin/users');
-    } catch (error) {
-      log.warn('No se pudo registrar el monitoreo de activación organizadora', 'ORGANIZER', {
-        userId: user.id,
-        error: error instanceof Error ? error.message : String(error || ''),
-      });
-    }
+    if (!activation.alreadyActive) {
+      try {
+        await trackOrganizerActivation({
+          userId: user.id,
+          contactName: activation.contactName,
+          contactEmail: activation.contactEmail,
+          phone: activation.phone,
+          source: activation.source,
+          activatedAt: activation.activatedAt,
+        });
+        revalidatePath('/admin/requests');
+        revalidatePath('/admin/users');
+      } catch (error) {
+        log.warn('No se pudo registrar el monitoreo de activación organizadora', 'ORGANIZER', {
+          userId: user.id,
+          error: error instanceof Error ? error.message : String(error || ''),
+        });
+      }
 
-    try {
-      await notifySuperAdmins({
-        contactName: activation.contactName,
-        contactEmail: activation.contactEmail,
-        phone: activation.phone,
-        source: activation.source,
-      });
-    } catch (error) {
-      log.warn('No se pudo notificar la activación organizadora por correo', 'ORGANIZER', {
-        userId: user.id,
-        error: error instanceof Error ? error.message : String(error || ''),
-      });
+      try {
+        await notifySuperAdmins({
+          contactName: activation.contactName,
+          contactEmail: activation.contactEmail,
+          phone: activation.phone,
+          source: activation.source,
+        });
+      } catch (error) {
+        log.warn('No se pudo notificar la activación organizadora por correo', 'ORGANIZER', {
+          userId: user.id,
+          error: error instanceof Error ? error.message : String(error || ''),
+        });
+      }
     }
 
     return NextResponse.json({

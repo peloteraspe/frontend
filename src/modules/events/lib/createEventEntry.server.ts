@@ -2,6 +2,10 @@ import { getServerSupabase } from '@core/api/supabase.server';
 import { resolveNextOnboardingStep } from '@modules/auth/lib/onboarding-state';
 import { isAdmin } from '@shared/lib/auth/isAdmin';
 import { resolveStoredPhone } from '@shared/lib/phone';
+import {
+  buildEventProfileCompletionPath,
+  hasCompleteEventProfile,
+} from '@modules/users/lib/eventProfileRequirements';
 
 type OnboardingProfileRow = {
   username?: string | null;
@@ -116,6 +120,16 @@ export async function resolveCreateEventEntryState(): Promise<CreateEventEntrySt
     return {
       kind: 'redirect',
       destination: onboardingRedirect,
+    };
+  }
+
+  if (!hasCompleteEventProfile(user)) {
+    return {
+      kind: 'redirect',
+      destination: buildEventProfileCompletionPath({
+        nextPath: CREATE_EVENT_ENTRY_PATH,
+        intent: 'create_event',
+      }),
     };
   }
 

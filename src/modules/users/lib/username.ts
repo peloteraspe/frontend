@@ -13,10 +13,19 @@ export function normalizeUsername(value: unknown) {
 }
 
 export function validateUsername(value: unknown): UsernameValidationResult {
-  const username = normalizeUsername(value);
+  const rawUsername = String(value ?? '');
+  const username = normalizeUsername(rawUsername);
 
   if (!username) {
     return { ok: false, reason: 'required', message: 'Este campo es requerido.' };
+  }
+
+  if (/\s/.test(rawUsername)) {
+    return {
+      ok: false,
+      reason: 'spaces',
+      message: 'El nombre de usuario no puede tener espacios.',
+    };
   }
 
   if (username.length < USERNAME_MIN_LENGTH) {
@@ -32,14 +41,6 @@ export function validateUsername(value: unknown): UsernameValidationResult {
       ok: false,
       reason: 'too_long',
       message: `Máximo ${USERNAME_MAX_LENGTH} caracteres.`,
-    };
-  }
-
-  if (/\s/.test(username)) {
-    return {
-      ok: false,
-      reason: 'spaces',
-      message: 'El nombre de usuario no puede tener espacios.',
     };
   }
 

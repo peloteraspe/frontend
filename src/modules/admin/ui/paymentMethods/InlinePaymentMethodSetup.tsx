@@ -82,6 +82,21 @@ function paymentTypeLabel(rawType: string | null | undefined) {
   return 'Sin definir';
 }
 
+export function getPaymentMethodDisplayName(method: {
+  name?: string | null;
+  type?: string | null;
+  id?: number | null;
+}) {
+  const name = String(method.name || '').trim();
+  const typeLabel = paymentTypeLabel(method.type);
+  const normalizedNameType = normalizePaymentType(name);
+  const normalizedMethodType = normalizePaymentType(method.type);
+
+  if (!name) return normalizedMethodType ? typeLabel : `Método #${method.id ?? ''}`.trim();
+  if (normalizedNameType && normalizedNameType === normalizedMethodType) return name;
+  return normalizedMethodType ? `${name} · ${typeLabel}` : name;
+}
+
 function paymentTypeLabelFromFlags(allowYape: boolean, allowPlin: boolean) {
   if (allowYape && allowPlin) return 'Yape / Plin';
   if (allowYape) return 'Yape';
@@ -164,7 +179,6 @@ export default function InlinePaymentMethodSetup({
 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const activePaymentMethods = paymentMethods.filter((method) => method.is_active !== false);
 
   useEffect(() => {
     if (hasLoadedRemoteMethods) return;
@@ -398,9 +412,12 @@ export default function InlinePaymentMethodSetup({
     <section className="rounded-[18px] bg-slate-50/80 px-4 py-4 ring-1 ring-slate-200/70">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Configura cobro sin salir del borrador</p>
+          <p className="text-sm font-semibold text-slate-900">
+            ¿No encuentras el método que necesitas?
+          </p>
           <p className="mt-1 text-sm text-slate-600">
-            Crea o edita Yape y Plin aquí mismo. Cuando guardes, el método queda disponible al instante para este evento.
+            Crea uno nuevo o corrige su número y QR. Si queda activo, lo seleccionaremos
+            automáticamente para este evento.
           </p>
         </div>
         <button
@@ -418,22 +435,9 @@ export default function InlinePaymentMethodSetup({
           }}
           className="inline-flex h-11 items-center rounded-xl border border-slate-300/90 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
         >
-          {isOpen ? 'Ocultar editor' : 'Agregar o editar aquí'}
+          {isOpen ? 'Cerrar administración' : 'Administrar métodos de pago'}
         </button>
       </div>
-
-      {activePaymentMethods.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {activePaymentMethods.map((method) => (
-            <span
-              key={method.id}
-              className="inline-flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800"
-            >
-              {method.name || `Método #${method.id}`} · {paymentTypeLabel(method.type)}
-            </span>
-          ))}
-        </div>
-      ) : null}
 
       {isOpen ? (
         <div className="mt-4 grid gap-4 rounded-[18px] bg-white/90 p-4 ring-1 ring-slate-200/70">
@@ -443,7 +447,7 @@ export default function InlinePaymentMethodSetup({
                 {editingId ? 'Editar método' : 'Nuevo método de pago'}
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Un método activo nuevo puede quedar seleccionado automáticamente para este evento.
+                Si queda activo, se seleccionará automáticamente para este evento.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -600,7 +604,7 @@ export default function InlinePaymentMethodSetup({
 
           <div className="overflow-hidden rounded-[16px] bg-white/85 ring-1 ring-slate-200/70">
             <div className="bg-slate-50/80 px-3 py-2 text-sm font-semibold text-slate-700">
-              Métodos disponibles
+              Tus métodos guardados
             </div>
             {!paymentMethods.length ? (
               <p className="p-3 text-sm text-slate-500">
@@ -615,7 +619,7 @@ export default function InlinePaymentMethodSetup({
                   >
                     <div>
                       <p className="text-sm font-semibold text-slate-900">
-                        {item.name || `Método #${item.id}`} · {paymentTypeLabel(item.type)}
+                        {getPaymentMethodDisplayName(item)}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
                         {item.number ? `Número: ${item.number}` : 'Sin número visible'} ·{' '}
@@ -638,7 +642,7 @@ export default function InlinePaymentMethodSetup({
                         onClick={() => hydrateForm(item)}
                         className="rounded-xl border border-mulberry/20 bg-white px-3 py-2 text-xs font-semibold text-mulberry"
                       >
-                        Editar aquí
+                        Editar
                       </button>
                     </div>
                   </div>

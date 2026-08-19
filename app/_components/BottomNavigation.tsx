@@ -2,10 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { UserGroupIcon } from '@heroicons/react/24/solid';
 import { useAuth } from '@core/auth/AuthProvider';
 import { isAdmin as isAdminUser } from '@shared/lib/auth/isAdmin';
 import UserImage from '@shared/ui/UserImage';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AccountMenuContent, getAccountDisplayName } from './AccountMenuContent';
+import { usePendingTeamInvitationCount } from '@modules/teams/ui/usePendingTeamInvitationCount';
+import { useFeaturedTeam } from '@modules/teams/ui/useFeaturedTeam';
+import { buildPublicTeamPath } from '@shared/lib/publicProfilePaths';
+import { handleSameProfileHashNavigation } from './profileHashNavigation';
 
 type NavItem = {
   href: string;
@@ -13,13 +19,6 @@ type NavItem = {
   icon: React.ReactNode;
   authRequired?: boolean;
   getUserHref?: (userId: string) => string;
-};
-
-type DropdownItem = {
-  label: string;
-  href?: string;
-  danger?: boolean;
-  action?: () => void;
 };
 
 const HOME_ITEM: NavItem = {
@@ -88,6 +87,8 @@ const PROFILE_ITEM: NavItem = {
   authRequired: true,
 };
 
+const TEAMS_ICON = <UserGroupIcon className="h-6 w-6" aria-hidden="true" />;
+
 const ACCOUNT_TAP_HIGHLIGHT = 'rgba(84, 8, 111, 0.18)';
 
 export default function BottomNavigation() {
@@ -96,25 +97,14 @@ export default function BottomNavigation() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [profileHash, setProfileHash] = useState('');
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const userIsAdmin = Boolean(user && isAdminUser(user as any));
-  const accountName = useMemo(() => {
-    const candidates = [
-      user?.username,
-      user?.user_metadata?.username,
-      user?.user_metadata?.full_name,
-      String(user?.email || '').split('@')[0],
-    ];
-
-    for (const candidate of candidates) {
-      const value = String(candidate || '').trim();
-      if (value) return value;
-    }
-
-    return 'Usuario';
-  }, [user]);
-  const accountEmail = useMemo(() => String(user?.email || '').trim() || 'Sin correo', [user?.email]);
+  const accountName = user ? getAccountDisplayName(user) : 'Usuario';
+  const pendingInvitationCount = usePendingTeamInvitationCount(Boolean(user));
+  const featuredTeam = useFeaturedTeam(Boolean(user));
 
   const hiddenRoutes = ['/login', '/signUp', '/onboarding', '/auth'];
   const shouldHide = hiddenRoutes.some((route) => pathname.startsWith(route));
@@ -124,16 +114,33 @@ export default function BottomNavigation() {
   }, [pathname, user?.id]);
 
   useEffect(() => {
+    const syncProfileHash = () => setProfileHash(window.location.hash);
+    syncProfileHash();
+    window.addEventListener('hashchange', syncProfileHash);
+    return () => window.removeEventListener('hashchange', syncProfileHash);
+  }, [pathname]);
+
+  useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setMenuOpen(false);
       }
     };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && menuOpen) {
+        setMenuOpen(false);
+        menuTriggerRef.current?.focus();
+      }
+    };
     window.addEventListener('mousedown', onClickOutside);
-    return () => window.removeEventListener('mousedown', onClickOutside);
-  }, []);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', onClickOutside);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     if (isSigningOut) return;
     setIsSigningOut(true);
     setMenuOpen(false);
@@ -145,34 +152,6 @@ export default function BottomNavigation() {
     if (userIsAdmin) return [HOME_ITEM, CREATE_EVENT_ITEM, DASHBOARD_ITEM];
     return [HOME_ITEM, EVENTS_ITEM, TICKETS_ITEM];
   }, [user, userIsAdmin]);
-
-  const dropdownItems = useMemo<DropdownItem[]>(() => {
-    if (!user) return [];
-
-    if (userIsAdmin) {
-      return [
-        { label: 'Crear evento', href: '/admin/events/new' },
-        { label: 'Mis entradas', href: `/tickets/${user.id}` },
-        { label: 'Mi perfil', href: '/profile' },
-        { label: 'Eventos', href: '/events' },
-        {
-          label: isSigningOut ? 'Cerrando sesion...' : 'Cerrar sesión',
-          action: handleSignOut,
-          danger: true,
-        },
-      ];
-    }
-
-    return [
-      { label: 'Crear evento', href: '/create-event' },
-      {
-        label: isSigningOut ? 'Cerrando sesion...' : 'Cerrar sesión',
-        action: handleSignOut,
-        danger: true,
-      },
-      { label: 'Mi perfil', href: '/profile' },
-    ];
-  }, [handleSignOut, isSigningOut, user, userIsAdmin]);
 
   const getHref = (item: NavItem) => {
     if (item.getUserHref && user?.id) {
@@ -188,20 +167,30 @@ export default function BottomNavigation() {
 
   if (shouldHide || loading || !user) return null;
 
+  const teamAreaActive =
+    (pathname === '/profile' &&
+      (profileHash === '#mis-equipos' || profileHash === '#crear-equipo')) ||
+    Boolean(featuredTeam && pathname === buildPublicTeamPath(featuredTeam.slug));
+  const accountAreaActive = pathname === '/profile' && !teamAreaActive;
+  const teamsHref = featuredTeam
+    ? buildPublicTeamPath(featuredTeam.slug)
+    : '/profile#mis-equipos';
+
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 pb-safe md:hidden"
-      aria-label="Navegacion principal"
-    >
-      <div className="relative flex h-16 items-stretch">
-        {navItems.map((item) => {
+    <>
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 pb-safe md:hidden"
+        aria-label="Navegación principal"
+      >
+        <div className="relative flex h-16 items-stretch">
+          {navItems.map((item) => {
           if (item.authRequired && !user && !loading) {
             return (
               <Link
                 key={item.href}
                 href="/login"
                 className="relative flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors"
-                aria-label={`${item.label} - Inicia sesion`}
+                aria-label={`${item.label} - Inicia sesión`}
               >
                 <span className="flex h-8 w-8 items-center justify-center opacity-50">{item.icon}</span>
                 <span className="text-xs font-medium leading-none">{item.label}</span>
@@ -233,89 +222,115 @@ export default function BottomNavigation() {
               )}
             </Link>
           );
-        })}
+          })}
 
-        {user ? (
-          <div ref={menuRef} className="relative flex h-full flex-1 items-stretch">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((current) => !current)}
+          <Link
+            href={teamsHref}
+            onClick={(event) => handleSameProfileHashNavigation(event, teamsHref)}
+            className={[
+              'relative flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors',
+              teamAreaActive ? 'text-mulberry' : 'text-slate-500 hover:text-slate-700',
+            ].join(' ')}
+            aria-label="Mis equipos"
+            aria-current={teamAreaActive ? 'page' : undefined}
+          >
+            <span className="flex h-8 w-8 items-center justify-center">
+              <span className={teamAreaActive ? 'scale-110 transition-transform' : ''}>
+                {featuredTeam ? (
+                  <UserImage src={featuredTeam.avatar_url} name={featuredTeam.name} size={28} />
+                ) : TEAMS_ICON}
+              </span>
+            </span>
+            <span
               className={[
-                'relative flex h-full w-full flex-col items-center justify-center gap-1 transition-colors active:bg-mulberry/5',
-                menuOpen ? 'text-mulberry' : 'text-slate-500 hover:text-slate-700',
+                'text-xs leading-none',
+                teamAreaActive ? 'font-semibold' : 'font-medium',
               ].join(' ')}
-              style={{ WebkitTapHighlightColor: ACCOUNT_TAP_HIGHLIGHT }}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              aria-label={`Cuenta de ${accountName}`}
             >
-              <span className="relative flex h-8 w-8 items-center justify-center">
-                {menuOpen ? (
+              {featuredTeam?.name || 'Equipos'}
+            </span>
+            {teamAreaActive && (
+              <span className="absolute bottom-1 h-1 w-1 rounded-full bg-mulberry" aria-hidden="true" />
+            )}
+          </Link>
+
+          {user ? (
+            <div ref={menuRef} className="relative flex h-full flex-1 items-stretch">
+              <button
+                ref={menuTriggerRef}
+                type="button"
+                onClick={() => setMenuOpen((current) => !current)}
+                className={[
+                  'relative flex h-full w-full flex-col items-center justify-center gap-1 transition-colors active:bg-mulberry/5',
+                  menuOpen || accountAreaActive
+                    ? 'text-mulberry'
+                    : 'text-slate-500 hover:text-slate-700',
+                ].join(' ')}
+                style={{ WebkitTapHighlightColor: ACCOUNT_TAP_HIGHLIGHT }}
+                aria-expanded={menuOpen}
+                aria-controls="mobile-account-menu"
+                aria-label={`${menuOpen ? 'Cerrar' : 'Abrir'} opciones de la cuenta de ${accountName}`}
+                aria-current={accountAreaActive ? 'page' : undefined}
+              >
+                <span className="relative flex h-8 w-8 items-center justify-center">
+                  {pendingInvitationCount > 0 ? (
+                    <span
+                      className="absolute -right-1 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-bold text-white ring-2 ring-white"
+                      aria-label={`${pendingInvitationCount} convocatorias pendientes`}
+                    >
+                      {pendingInvitationCount > 9 ? '9+' : pendingInvitationCount}
+                    </span>
+                  ) : null}
+                  {menuOpen ? (
+                    <span
+                      className="absolute -inset-1 rounded-full bg-[#54086F]/25 blur-[8px]"
+                      aria-hidden="true"
+                    />
+                  ) : null}
                   <span
-                    className="absolute -inset-1 rounded-full bg-[#54086F]/25 blur-[8px]"
-                    aria-hidden="true"
-                  />
-                ) : null}
+                    className={[
+                      'relative inline-flex h-8 w-8 items-center justify-center rounded-full',
+                      menuOpen ? 'ring-1 ring-mulberry/25' : '',
+                    ].join(' ')}
+                  >
+                    <UserImage src={user.avatar_url} name={accountName} size={28} />
+                  </span>
+                </span>
                 <span
                   className={[
-                    'relative inline-flex h-8 w-8 items-center justify-center rounded-full',
-                    menuOpen ? 'ring-1 ring-mulberry/25' : '',
+                    'max-w-[72px] truncate text-xs leading-none',
+                    menuOpen || accountAreaActive
+                      ? 'font-semibold text-mulberry'
+                      : 'font-medium',
                   ].join(' ')}
                 >
-                  <UserImage src={user.avatar_url} name={accountName} size={28} />
+                  Cuenta
                 </span>
-              </span>
-              <span
-                className={[
-                  'max-w-[72px] truncate text-xs leading-none',
-                  menuOpen ? 'font-semibold text-mulberry' : 'font-medium',
-                ].join(' ')}
-              >
-                Cuenta
-              </span>
-            </button>
-
-            {menuOpen ? (
-              <div className="absolute bottom-[calc(100%+8px)] right-2 min-w-[240px] overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-                <div className="border-b border-slate-100 px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <UserImage src={user.avatar_url} name={accountName} size={40} />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{accountName}</p>
-                      <p className="truncate text-xs text-slate-500">{accountEmail}</p>
-                    </div>
-                  </div>
-                </div>
-                {dropdownItems.map((item) =>
-                  item.href ? (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      onClick={() => setMenuOpen(false)}
-                      className="block px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                    >
-                      {item.label}
-                    </Link>
-                  ) : (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={item.action}
-                      disabled={isSigningOut}
-                      className={[
-                        'block w-full px-4 py-2 text-left text-sm font-medium hover:bg-slate-100',
-                        item.danger ? 'text-rose-600' : 'text-slate-700',
-                      ].join(' ')}
-                    >
-                      {item.label}
-                    </button>
-                  )
+                {accountAreaActive && (
+                  <span
+                    className="absolute bottom-1 h-1 w-1 rounded-full bg-mulberry"
+                    aria-hidden="true"
+                  />
                 )}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </nav>
+              </button>
+
+              {menuOpen ? (
+                <AccountMenuContent
+                  id="mobile-account-menu"
+                  user={user}
+                  isAdmin={userIsAdmin}
+                  isSigningOut={isSigningOut}
+                  pendingInvitationCount={pendingInvitationCount}
+                  featuredTeam={featuredTeam}
+                  onNavigate={() => setMenuOpen(false)}
+                  onSignOut={handleSignOut}
+                  className="absolute bottom-[calc(100%+8px)] right-2 max-h-[calc(100dvh-6rem)] w-[calc(100vw-1rem)] max-w-[21rem]"
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </nav>
+    </>
   );
 }

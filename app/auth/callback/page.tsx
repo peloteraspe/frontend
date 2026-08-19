@@ -206,9 +206,9 @@ export default function AuthCallback() {
                     if (response.ok) {
                       const onboarding = (await response.json()) as { emailConfirmed?: boolean };
                       if (onboarding.emailConfirmed) {
-                        setStatusMessage('Cuenta verificada. Iniciando sesion…');
+                        setStatusMessage('Cuenta verificada. Iniciando sesión…');
                         navigate(
-                          '/login?message=Tu correo ya fue verificado. Inicia sesion para continuar.'
+                          '/login?message=Tu correo ya fue verificado. Inicia sesión para continuar.'
                         );
                         return;
                       }
@@ -219,7 +219,7 @@ export default function AuthCallback() {
                 }
 
                 navigate(
-                  '/login?message=No pudimos abrir tu sesion automaticamente despues de verificar el correo. Inicia sesion para continuar.'
+                  '/login?message=No pudimos abrir tu sesión automaticamente despues de verificar el correo. Inicia sesión para continuar.'
                 );
                 return;
               }
@@ -245,14 +245,14 @@ export default function AuthCallback() {
         return;
       }
 
-      setStatusMessage('Cuenta verificada. Iniciando sesion…');
+      setStatusMessage('Cuenta verificada. Iniciando sesión…');
       const hasUsableAuth = await waitForUsableAuth(20, 200);
       if (!hasUsableAuth) {
         const {
           data: { user: currentUser },
         } = await supabase.auth.getUser();
         if (!currentUser) {
-          navigate('/login?error=No%20pudimos%20iniciar%20tu%20sesion%20automaticamente');
+          navigate('/login?error=No%20pudimos%20iniciar%20tu%20sesi%C3%B3n%20automaticamente');
           return;
         }
       }

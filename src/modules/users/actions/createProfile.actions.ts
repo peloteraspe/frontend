@@ -4,7 +4,8 @@ import { createProfile, updateProfileByUserId } from '@modules/users/api/profile
 import { getServerSupabase } from '@core/api/supabase.server';
 import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
-import { normalizePhoneMetadata } from '@shared/lib/phone';
+import { normalizePhoneMetadata, validateInternationalPhone } from '@shared/lib/phone';
+import { validateBirthDate } from '@modules/users/lib/eventProfileRequirements';
 import {
   USERNAME_REQUIREMENTS_MESSAGE,
   validateUsername,
@@ -21,6 +22,11 @@ export type UpdateProfilePayload = {
   username: string;
   level_id: number;
   player_position: number[];
+};
+
+export type CompleteOnboardingProfilePayload = CreateProfilePayload & {
+  phone: string;
+  birth_date: string;
 };
 
 export type CompleteOnboardingProfileResult =
@@ -116,6 +122,15 @@ function isTransientProfileBackendError(message: string) {
     message.includes('gateway timeout') ||
     message.includes(' 500') ||
     message.startsWith('500')
+  );
+}
+
+function isProfileBackendUnavailableError(message: string) {
+  return (
+    isTransientProfileBackendError(message) ||
+    message.includes('backend_url is not defined') ||
+    message.includes('failed to parse url') ||
+    message.includes('invalid url')
   );
 }
 
@@ -298,7 +313,13 @@ async function saveOnboardingProfileState(
     }
 
     if ((existingRows?.length ?? 0) > 0) {
-      const { error } = await supabase.from('profile').update(payload).eq('user', userId);
+      const ownProfileChanges = {
+        username: payload.username,
+        level_id: payload.level_id,
+        onboarding_step: payload.onboarding_step,
+        is_profile_complete: payload.is_profile_complete,
+      };
+      const { error } = await supabase.from('profile').update(ownProfileChanges).eq('user', userId);
       if (error) throw new Error(error.message);
       return;
     }
@@ -365,13 +386,16 @@ async function saveOnboardingProfileState(
   }
 }
 
-async function syncAuthUserMetadata(userId: string, username: string) {
+async function syncAuthUserMetadata(
+  userId: string,
+  details: { username: string; phone: string; birthDate: string }
+) {
   const adminSupabase = tryGetAdminSupabase('syncAuthUserMetadata');
   if (!adminSupabase) {
     return;
   }
 
-  const normalizedUsername = username.trim();
+  const normalizedUsername = details.username.trim();
 
   const { data: authUserData, error: getUserError } = await adminSupabase.auth.admin.getUserById(
     userId
@@ -390,6 +414,8 @@ async function syncAuthUserMetadata(userId: string, username: string) {
   const nextMetadata: Record<string, unknown> = {
     ...currentMetadata,
     username: normalizedUsername,
+    phone: details.phone,
+    birth_date: details.birthDate,
     gender_identity_confirmed: true,
   };
 
@@ -411,7 +437,7 @@ async function syncAuthUserMetadata(userId: string, username: string) {
 }
 
 export async function completeOnboardingProfileAction(
-  payload: CreateProfilePayload
+  payload: CompleteOnboardingProfilePayload
 ): Promise<CompleteOnboardingProfileResult> {
   try {
     const usernameValidation = validateUsername(payload.username);
@@ -423,7 +449,31 @@ export async function completeOnboardingProfileAction(
       };
     }
 
+    const phoneValidation = validateInternationalPhone(payload.phone);
+    if (!phoneValidation.isValid) {
+      return {
+        ok: false,
+        code: 'UNKNOWN',
+        message: 'Ingresa un celular válido.',
+      };
+    }
+
+    const birthDateValidation = validateBirthDate(payload.birth_date);
+    if (birthDateValidation.ok === false) {
+      return {
+        ok: false,
+        code: 'UNKNOWN',
+        message: birthDateValidation.message,
+      };
+    }
+
     const normalizedUsername = usernameValidation.value;
+    const createProfilePayload: CreateProfilePayload = {
+      user: payload.user,
+      username: normalizedUsername,
+      level_id: payload.level_id,
+      player_position: payload.player_position,
+    };
     const profilePayload: UpdateProfilePayload = {
       username: normalizedUsername,
       level_id: payload.level_id as number,
@@ -446,10 +496,7 @@ export async function completeOnboardingProfileAction(
       });
 
       try {
-        await createProfile({
-          ...payload,
-          username: normalizedUsername,
-        });
+        await createProfile(createProfilePayload);
       } catch (createError: any) {
         const createMessage = normalizeErrorMessage(createError);
         if (isProfileUsernameConflictError(createMessage)) {
@@ -460,8 +507,8 @@ export async function completeOnboardingProfileAction(
           !isProfileUsernameValidationError(createMessage) &&
           (isProfileUserFkError(createMessage) ||
             isUserMissingError(createMessage) ||
-            isTransientProfileBackendError(createMessage) ||
-            isTransientProfileBackendError(message) ||
+            isProfileBackendUnavailableError(createMessage) ||
+            isProfileBackendUnavailableError(message) ||
             createMessage.includes('http ') ||
             message.includes('http '));
 
@@ -479,13 +526,7 @@ export async function completeOnboardingProfileAction(
           }
         );
 
-        await saveProfileAndPositionsWithRetry(
-          {
-            ...payload,
-            username: normalizedUsername,
-          },
-          4
-        );
+        await saveProfileAndPositionsWithRetry(createProfilePayload, 4);
         usedDirectSupabaseFallback = true;
       }
     }
@@ -499,7 +540,11 @@ export async function completeOnboardingProfileAction(
       });
     }
 
-    await syncAuthUserMetadata(payload.user, normalizedUsername);
+    await syncAuthUserMetadata(payload.user, {
+      username: normalizedUsername,
+      phone: phoneValidation.e164,
+      birthDate: birthDateValidation.value,
+    });
     return { ok: true };
   } catch (error: any) {
     const message = normalizeErrorMessage(error);
@@ -567,51 +612,27 @@ export async function checkUsernameAvailabilityAction(
     let lookupError: string | null = null;
 
     try {
-      const supabase = await getServerSupabase();
-      const { data, error } = await supabase
+      // This server action returns only availability. Use service_role so RLS
+      // does not hide an incomplete profile and incorrectly report a taken
+      // username as available.
+      const adminSupabase = getAdminSupabase();
+      const { data, error } = await adminSupabase
         .from('profile')
         .select('user')
         .eq('username', normalizedUsername)
         .limit(1);
 
-      if (!error) {
-        matchingUserId = data?.[0]?.user ?? null;
-      } else {
+      if (error) {
         lookupError = error.message;
-        log.warn('Username lookup failed via server Supabase client', 'SIGNUP', {
-          username: normalizedUsername,
-          error: error.message,
-        });
+      } else {
+        matchingUserId = data?.[0]?.user ?? null;
       }
     } catch (error: any) {
-      lookupError = String(error?.message || error || 'Unknown server Supabase error');
-      log.warn('Username lookup crashed via server Supabase client', 'SIGNUP', {
+      lookupError = String(error?.message || error || 'Unknown admin Supabase error');
+      log.warn('Username lookup crashed via admin Supabase client', 'SIGNUP', {
         username: normalizedUsername,
         error: lookupError,
       });
-    }
-
-    if (matchingUserId === undefined) {
-      try {
-        const adminSupabase = getAdminSupabase();
-        const { data, error } = await adminSupabase
-          .from('profile')
-          .select('user')
-          .eq('username', normalizedUsername)
-          .limit(1);
-
-        if (error) {
-          lookupError = error.message;
-        } else {
-          matchingUserId = data?.[0]?.user ?? null;
-        }
-      } catch (error: any) {
-        lookupError = String(error?.message || error || 'Unknown admin Supabase error');
-        log.warn('Username lookup crashed via admin Supabase client', 'SIGNUP', {
-          username: normalizedUsername,
-          error: lookupError,
-        });
-      }
     }
 
     if (matchingUserId === undefined) {

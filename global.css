@@ -2,6 +2,30 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
+@keyframes navigation-progress {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  55%,
+  100% {
+    transform: translateX(310%);
+  }
+}
+
+.navigation-progress-indicator {
+  width: 34%;
+  animation: navigation-progress 1.05s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation-progress-indicator {
+    width: 100%;
+    animation: none;
+    opacity: 0.65;
+  }
+}
+
 /* ============================================
    SISTEMA DE DISENO - PELOTERAS
    ============================================ */
@@ -66,9 +90,9 @@
     --page-padding-inline-mobile: 1.25rem;
     --page-padding-inline-tablet: 2rem;
     --page-padding-inline-desktop: 2.5rem;
-    --section-space-compact: clamp(2.5rem, 4vw, 3.5rem);
-    --section-space-default: clamp(3.5rem, 6vw, 5rem);
-    --section-space-relaxed: clamp(4rem, 7vw, 6rem);
+    --section-space-compact: clamp(2rem, 3vw, 3rem);
+    --section-space-default: clamp(3rem, 5vw, 4.5rem);
+    --section-space-relaxed: clamp(3.5rem, 6vw, 5rem);
     
     /* Sombras */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -92,6 +116,7 @@
 
   body {
     min-height: 100%;
+    background: rgb(var(--color-background));
     color: rgb(var(--color-foreground));
     font-family: var(--font-poppins);
     text-rendering: optimizeLegibility;
@@ -140,46 +165,42 @@
   .site-panel-soft {
     position: relative;
     overflow: hidden;
-    border: 1px solid rgb(226 232 240 / 0.9);
-    border-radius: 1.75rem;
-    background: rgb(255 255 255 / 0.84);
-    box-shadow: var(--ring-soft), var(--shadow-premium);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgb(226 232 240);
+    border-radius: 1rem;
+    background: rgb(255 255 255);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
   }
 
   .site-panel-dark {
     position: relative;
     overflow: hidden;
     border: 1px solid rgb(255 255 255 / 0.14);
-    border-radius: 2rem;
-    background:
-      linear-gradient(145deg, rgb(84 8 111 / 0.96) 0%, rgb(58 11 83 / 0.98) 45%, rgb(32 14 58 / 1) 100%);
-    box-shadow: var(--shadow-premium-strong);
+    border-radius: 1.25rem;
+    background: rgb(var(--color-mulberry));
+    box-shadow: none;
   }
 
   .site-panel-accent {
     position: relative;
     overflow: hidden;
     border: 1px solid rgb(15 23 42 / 0.08);
-    border-radius: 2rem;
-    background:
-      linear-gradient(145deg, rgb(240 129 91 / 0.94) 0%, rgb(255 174 141 / 0.95) 100%);
-    box-shadow: var(--shadow-premium);
+    border-radius: 1.25rem;
+    background: rgb(var(--color-primary));
+    box-shadow: none;
   }
 
   .premium-card {
     position: relative;
     border: 1px solid rgb(226 232 240 / 0.92);
-    border-radius: 1.5rem;
-    background: rgb(255 255 255 / 0.94);
-    box-shadow: 0 20px 38px -32px rgb(15 23 42 / 0.28), inset 0 1px 0 rgb(255 255 255 / 0.74);
+    border-radius: 1rem;
+    background: rgb(255 255 255);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
   }
 
   .premium-outline {
     border: 1px solid rgb(203 213 225 / 0.82);
-    background: rgb(255 255 255 / 0.7);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.78);
+    background: rgb(255 255 255);
+    box-shadow: none;
   }
 
   .premium-tab-group {
@@ -189,10 +210,8 @@
     padding: 0.25rem;
     border: 1px solid rgb(226 232 240 / 0.9);
     border-radius: 9999px;
-    background: rgb(255 255 255 / 0.82);
-    box-shadow: var(--ring-soft), 0 18px 30px -26px rgb(15 23 42 / 0.18);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    background: rgb(255 255 255);
+    box-shadow: none;
   }
 
   .premium-tab-button {
@@ -218,9 +237,8 @@
 
   .premium-tab-button[data-active='true'] {
     color: rgb(255 255 255);
-    background:
-      linear-gradient(135deg, rgb(84 8 111) 0%, rgb(111 28 130) 100%);
-    box-shadow: 0 18px 32px -24px rgb(84 8 111 / 0.45);
+    background: rgb(var(--color-mulberry));
+    box-shadow: none;
   }
 
   .premium-tab-count {
@@ -248,6 +266,7 @@
   .site-shell {
     padding-inline: var(--page-padding-inline-tablet);
   }
+
 }
 
 @media (min-width: 1024px) {
@@ -268,20 +287,20 @@
 
   .home-reveal {
     opacity: 0;
-    transform: translate3d(0, 24px, 0) scale(0.985);
-    filter: blur(10px);
+    transform: translate3d(0, 12px, 0);
+    filter: none;
     transition:
-      opacity 720ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 720ms cubic-bezier(0.22, 1, 0.36, 1),
-      filter 720ms cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 280ms ease,
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: opacity, transform, filter;
   }
 
   .home-reveal-visible {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
-    filter: blur(0);
+    filter: none;
   }
+
 
   .home-button-micro {
     transition:
@@ -294,8 +313,7 @@
   }
 
   .home-button-micro:hover {
-    transform: translate3d(0, -2px, 0);
-    box-shadow: 0 18px 32px -26px rgb(15 23 42 / 0.45);
+    transform: translate3d(0, -1px, 0);
   }
 
   .home-button-micro:active {
@@ -312,8 +330,8 @@
   }
 
   .home-card-lift:hover {
-    transform: translate3d(0, -6px, 0);
-    box-shadow: 0 28px 55px -34px rgb(84 8 111 / 0.35);
+    transform: translate3d(0, -2px, 0);
+    box-shadow: 0 8px 20px -18px rgb(84 8 111 / 0.28);
   }
 
   .home-card-lift:active {
@@ -349,6 +367,16 @@
   }
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .cursor-ball {
+    cursor: url('/assets/cursor-ball.svg') 9 9, default;
+  }
+
+  .cursor-ball-action {
+    cursor: url('/assets/cursor-ball.svg') 9 9, pointer;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .home-reveal,
   .home-button-micro,
@@ -359,6 +387,7 @@
     transition-duration: 1ms !important;
     animation: none !important;
   }
+
 }
 
 * {
@@ -378,10 +407,6 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
-/* opcional: afina tamaños del input interno */
-.rs__value-container {
-  padding: 0 0.25rem !important;
-}
 .rs__multi-value {
   margin: 2px !important;
 }
@@ -416,21 +441,6 @@ input[type='number'] {
   line-height: 24px !important;
   display: flex;
   align-items: center;
-}
-
-/* Chips multi un poco más compactos */
-.rs__value-container {
-  padding: 0 0.25rem !important;
-}
-.rs__multi-value {
-  margin: 2px !important;
-}
-
-.rs__input input {
-  caret-color: #5b1c70 !important;
-}
-.rs--no-caret .rs__input input {
-  caret-color: transparent !important;
 }
 
 .rs__single-value,

@@ -16,7 +16,7 @@ const Footer: React.FC = () => {
   return (
     <footer className="mt-auto w-full pb-8 pt-5 font-poppins sm:pb-12 sm:pt-8">
       <div className="site-shell">
-        <div className="site-panel-soft px-6 py-8 sm:px-8 sm:py-10">
+        <div className="border-t border-slate-200 px-1 py-8 sm:py-10">
           <div className="flex flex-col gap-8 text-center sm:text-left lg:flex-row lg:items-start lg:justify-between">
             <div className="flex max-w-sm flex-col items-center gap-3 sm:items-start">
               <Image src={Logo} alt="Peloteras logo" width={150} height={40} />
@@ -52,16 +52,14 @@ const Footer: React.FC = () => {
             </nav>
 
             <div className="flex flex-col items-center gap-4 sm:items-start">
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-mulberry/70">
-                Nuestras redes
-              </div>
+              <div className="text-sm font-semibold text-mulberry/80">Nuestras redes</div>
               <div className="flex gap-3">
                 <a
                   href={SOCIAL_LINKS.instagram}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="Siguenos en Instagram"
-                  className="home-button-micro premium-outline rounded-2xl p-3 text-btnBg-light transition-colors hover:border-mulberry/30 hover:bg-white hover:text-btnBg-dark focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
+                  aria-label="Síguenos en Instagram"
+                  className="home-button-micro premium-outline rounded-xl p-3 text-btnBg-light transition-colors hover:border-mulberry/30 hover:bg-white hover:text-btnBg-dark focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
                 >
                   <InstagramIcon />
                 </a>
@@ -69,8 +67,8 @@ const Footer: React.FC = () => {
                   href={SOCIAL_LINKS.tiktok}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="Siguenos en TikTok"
-                  className="home-button-micro premium-outline rounded-2xl p-3 text-btnBg-light transition-colors hover:border-mulberry/30 hover:bg-white hover:text-btnBg-dark focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
+                  aria-label="Síguenos en TikTok"
+                  className="home-button-micro premium-outline rounded-xl p-3 text-btnBg-light transition-colors hover:border-mulberry/30 hover:bg-white hover:text-btnBg-dark focus:outline-none focus:ring-2 focus:ring-mulberry focus:ring-offset-2"
                 >
                   <TiktokIcon />
                 </a>

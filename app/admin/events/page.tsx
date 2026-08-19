@@ -1,6 +1,9 @@
 import EventsAdminPage from '@modules/admin/ui/events/EventsAdminPage';
 
 type PageSearchParams = {
+  q?: string;
+  status?: string;
+  period?: string;
   dateOrder?: string;
 };
 

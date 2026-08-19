@@ -42,17 +42,17 @@ export const whatIsPeloterasCards: HomeCard[] = [
 
 export const playerBenefits: HomeCard[] = [
   {
-    title: 'Más claridad antes de jugar',
+    title: 'Información completa',
     description:
       'Revisa detalles clave del evento antes de inscribirte: costo, sede, horario, cupos e indicaciones.',
   },
   {
-    title: 'Más opciones para sumarte',
+    title: 'Fechas para distintos niveles',
     description:
-      'Descubre eventos publicados por la comunidad y encuentra nuevas oportunidades para jugar más seguido.',
+      'Encuentra opciones publicadas por distintas organizadoras y elige la que mejor encaje contigo.',
   },
   {
-    title: 'Más comunidad en cancha',
+    title: 'Nuevas peloteras en la cancha',
     description:
       'Conoce a jugadoras con las mismas ganas de jugar y construye el hábito de estar en cancha más seguido.',
   },
@@ -67,22 +67,12 @@ export const adminBenefits: HomeCard[] = [
   {
     title: 'Llega a más jugadoras interesadas',
     description:
-      'Tu evento aparece en una comunidad que está buscando dónde jugar.',
+      'Tu evento aparece ante jugadoras que ya están buscando dónde jugar.',
   },
   {
-    title: 'Gestiona inscripciones con más orden',
+    title: 'Gestiona cada fecha con orden',
     description:
-      'Haz seguimiento de participantes y organiza cada fecha con menos fricción.',
-  },
-  {
-    title: 'Valida ingresos con QR',
-    description:
-      'Confirma entradas de forma rápida el día del evento.',
-  },
-  {
-    title: 'Reutiliza eventos como plantilla',
-    description:
-      'Si organizas seguido, crea nuevas fechas sin empezar desde cero.',
+      'Haz seguimiento de participantes, valida ingresos y reutiliza eventos sin empezar desde cero.',
   },
 ];
 

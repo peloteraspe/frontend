@@ -1,13 +1,10 @@
 'use client';
 
-import ArrowRight from '@core/assets/images/arrow-right.png';
 import Badge, { StatusBadge } from '@src/core/ui/Badge';
-import Image from 'next/image';
 import CardEvent from '../CardEvent';
 import { ButtonWrapper } from '@src/core/ui/Button';
 import AuthRedirectLoader from '@modules/auth/ui/AuthRedirectLoader';
 import { useSessionGuardNavigation } from '@modules/auth/ui/useSessionGuardNavigation';
-import { useRouter } from 'next/navigation';
 
 import { isVersusEventTypeName } from '@modules/events/lib/eventTypeRules';
 import { isEventSoldOut } from '@modules/events/lib/eventCapacity';
@@ -29,6 +26,7 @@ type CardEventData = {
   endTime?: string | null;
   locationText?: string;
   price?: number;
+  priceUnit?: 'team' | 'player';
   placesLeft?: number;
   approvedCount?: number;
   minUsers?: number;
@@ -37,6 +35,8 @@ type CardEventData = {
   isPublished?: boolean;
   viewerHasApprovedRegistration?: boolean;
   viewerHasPendingRegistration?: boolean;
+  pendingTeamRegistrationCount?: number;
+  registrationMode?: 'individual' | 'team' | 'both';
   level?: {
     name?: string;
   };
@@ -79,19 +79,20 @@ function getBadges(event: CardEventData) {
 }
 
 const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) => {
-  const router = useRouter();
   const { navigateWithSessionCheck, isPendingNavigation, pendingNavigationMessage } =
     useSessionGuardNavigation();
   const itemContainerClass = variant === 'landing' ? 'w-full max-w-none' : 'max-w-xl';
 
   function openJoinFlow(eventId: string | number, isVersus: boolean) {
     navigateWithSessionCheck({
-      destination: isVersus ? `/versus/${eventId}` : `/payments/${eventId}`,
+      destination: isVersus ? `/payments/${eventId}/team` : `/payments/${eventId}`,
       authenticatedMessage: 'Preparando tu inscripción...',
-      loginMessage: 'Inicia sesion para inscribirte al evento',
+      loginMessage: 'Inicia sesión para inscribirte al evento',
       loginRedirectMessage: 'Redirigiendo al login...',
       requireEmailConfirmed: true,
       emailConfirmationMessage: 'Verifica tu identidad para poder inscribirte a este evento.',
+      requireEventProfile: true,
+      eventProfileIntent: 'join_event',
     });
   }
 
@@ -101,7 +102,8 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
       {cardEvents?.map((event) => {
         const eventTypeName = getEventTypeName(event);
         const badges = getBadges(event);
-        const isVersus = isVersusEventTypeName(eventTypeName);
+        const isVersus =
+          event.registrationMode === 'team' || isVersusEventTypeName(eventTypeName);
         const isSoldOut = getIsSoldOut(event);
         const isPastEvent = hasEventEnded(event.endTime, undefined, event.startTime);
         const isJoinDisabled = isEventJoinDisabled({
@@ -120,57 +122,58 @@ const CardEventItem = ({ cardEvents, variant = 'legacy' }: CardEventItemProps) =
           viewerHasApprovedRegistration: event.viewerHasApprovedRegistration,
           viewerHasPendingRegistration: event.viewerHasPendingRegistration,
         });
+        const resolvedJoinLabel =
+          isVersus && isSoldOut && Number(event.pendingTeamRegistrationCount || 0) > 0
+            ? 'Lugares reservados'
+            : joinLabel;
 
         return (
-          <div
-            key={event.id}
-            onClick={() => router.push(`/events/${event.id}`)}
-            className={itemContainerClass}
-          >
+          <div key={event.id} className={itemContainerClass}>
             <CardEvent
+              detailsHref={`/events/${event.id}`}
               typeEvent={eventTypeName}
-              levelText={`NIVEL: ${getLevelName(event).toUpperCase()}`}
+              levelText={`Nivel ${getLevelName(event)}`}
               matchText={event.title || 'Evento sin título'}
               dateText={getDateLabel(event)}
               textLocation={event.locationText || 'Ubicación por confirmar'}
               button={
-                <ButtonWrapper
-                  icon={<Image src={ArrowRight} alt="arrow" width={24} height={24} />}
-                  width="fit-content"
-                  disabled={isJoinDisabled}
-                  className="!h-11 !rounded-full !px-5 !py-0 shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                    e.stopPropagation();
-                    if (isJoinDisabled) return;
-                    openJoinFlow(event.id, isVersus);
-                  }}
-                  children={joinLabel}
-                />
+                isJoinDisabled ? (
+                  <StatusBadge
+                    variant={
+                      event.viewerHasApprovedRegistration
+                        ? 'success'
+                        : event.viewerHasPendingRegistration
+                          ? 'warning'
+                          : 'default'
+                    }
+                    size="md"
+                    className="min-h-10 max-w-full justify-center whitespace-nowrap !px-3 text-center !text-xs"
+                  >
+                    {resolvedJoinLabel}
+                  </StatusBadge>
+                ) : (
+                  <ButtonWrapper
+                    width="fit-content"
+                    className="pointer-events-auto !min-h-10 !rounded-full !px-4 !py-2 text-sm leading-tight shadow-[0_18px_32px_-24px_rgba(84,8,111,0.72)]"
+                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      e.stopPropagation();
+                      openJoinFlow(event.id, isVersus);
+                    }}
+                  >
+                    {resolvedJoinLabel}
+                  </ButtonWrapper>
+                )
               }
               price={formattedPrice(Number(event.price ?? 0))}
-              badge={badges
-                .map((badge, index) => (
+              priceCaption={event.priceUnit === 'team' ? 'Por equipo' : 'Por jugadora'}
+              badge={badges.map((badge, index) => (
                   <Badge
                     key={index}
                     text={badge.toUpperCase()}
                     icon={true}
                     badgeType="Primary"
                   />
-                ))
-                .concat(
-                  isPastEvent
-                    ? [
-                        <StatusBadge
-                          key={`${event.id}-status`}
-                          variant="warning"
-                          size="sm"
-                          className="whitespace-nowrap"
-                        >
-                          Finalizado
-                        </StatusBadge>,
-                      ]
-                    : []
-                )}
+                ))}
             />
           </div>
         );

@@ -13,6 +13,9 @@ function isAllowedPath(pathname: string) {
   if (pathname.startsWith('/_next')) return true;
   if (pathname.startsWith('/assets')) return true;
   if (pathname.startsWith('/api/waitlist')) return true;
+  if (pathname.startsWith('/equipo/')) return true;
+  if (pathname.startsWith('/teams/invite/')) return true;
+  if (pathname.startsWith('/jugadora/')) return true;
   if (pathname === '/favicon.ico') return true;
   return false;
 }
@@ -22,6 +25,9 @@ function isPublicPath(pathname: string) {
   if (pathname.startsWith('/_next')) return true;
   if (pathname.startsWith('/api')) return true;
   if (pathname.startsWith('/assets')) return true;
+  if (pathname.startsWith('/equipo/')) return true;
+  if (pathname.startsWith('/teams/invite/')) return true;
+  if (pathname.startsWith('/jugadora/')) return true;
   if (pathname.startsWith('/auth')) return true;
   if (pathname === '/login') return true;
   if (pathname === '/signUp') return true;

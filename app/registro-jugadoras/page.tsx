@@ -146,7 +146,7 @@ export default function RegistroJugadorasPage() {
                 Quiero unirme a la comunidad
               </Link>
               <Link
-                href="/login?message=Inicia%20sesion%20para%20seguir%20jugando"
+                href="/login?message=Inicia%20sesi%C3%B3n%20para%20seguir%20jugando"
                 className="inline-flex h-12 items-center justify-center rounded-xl border border-[#54086F] px-6 text-sm font-semibold text-[#54086F] transition hover:bg-[#54086F] hover:text-white"
               >
                 Ya tengo cuenta

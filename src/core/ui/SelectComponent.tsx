@@ -1,10 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
 import Select, { type Props as RSProps, type StylesConfig, ThemeConfig } from 'react-select';
 import makeAnimated from 'react-select/animated';
 import { Controller, type Control } from 'react-hook-form';
-import { ParagraphM } from '@core/ui/Typography';
 
 export interface OptionSelect {
   key?: number | string;
@@ -44,21 +43,21 @@ const animatedComponents = makeAnimated();
 /**
  * Paleta / constantes visuales para mantener consistencia con InternationalPhoneField
  */
-const MULBERRY = '#5b1c70';
-const MULBERRY_DARK = '#4a175f';
+const MULBERRY = '#54086F';
+const MULBERRY_DARK = '#470B62';
 const BORDER_DEFAULT = '#cbd5e1';
 const BORDER_HOVER = '#94a3b8';
 const BORDER_ERROR = '#EF4444'; // --color-error
 const TEXT_DEFAULT = '#0f172a';
 const TEXT_MUTED = '#94a3b8';
 const BG_WHITE = '#ffffff';
-const HOVER_BG = 'rgba(91, 28, 112, 0.08)'; // morado 8%
+const HOVER_BG = 'rgba(84, 8, 111, 0.08)'; // morado 8%
 const SELECTED_BG = MULBERRY;
 const SELECTED_TEXT = '#ffffff';
 const RADIUS = 16;
 const HEIGHT = 44;
 const BORDER_WIDTH = 1;
-const FOCUS_RING = '0 0 0 4px rgba(91, 28, 112, 0.1)';
+const FOCUS_RING = '0 0 0 4px rgba(84, 8, 111, 0.1)';
 
 const buildStyles = (
   hasError?: boolean,
@@ -154,6 +153,7 @@ const buildStyles = (
     }),
     menu: (base) => ({
       ...base,
+      zIndex: 70,
       border: `1px solid ${BORDER_DEFAULT}`,
       borderRadius: RADIUS,
       overflow: 'hidden',
@@ -218,7 +218,15 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
   tone = 'soft',
   selectProps,
 }) => {
+  const generatedId = useId();
   const hasError = Boolean(errorText);
+  const generatedBaseId = `select-${generatedId.replace(/:/g, '')}`;
+  const inputId = selectProps?.inputId || (name ? `select-${name.replace(/[^a-zA-Z0-9_-]/g, '-')}` : generatedBaseId);
+  const labelId = `${inputId}-label`;
+  const errorId = `${inputId}-error`;
+  const describedBy = [selectProps?.['aria-describedby'], hasError ? errorId : null]
+    .filter(Boolean)
+    .join(' ') || undefined;
 
   const renderSelect = (
     selectValue: any,
@@ -226,6 +234,7 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
     isDisabled?: boolean
   ) => (
     <Select
+      {...selectProps}
       components={animatedComponents}
       options={options}
       isMulti={isMulti}
@@ -252,33 +261,35 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
           selectOnChange(selected ? selected.value : null);
         }
       }}
-      placeholder="Selecciona una opción"
+      placeholder={selectProps?.placeholder || 'Selecciona una opción'}
       noOptionsMessage={() => 'Sin opciones'}
       isDisabled={isDisabled}
+      inputId={inputId}
+      instanceId={selectProps?.instanceId || inputId}
+      aria-labelledby={labelText ? labelId : selectProps?.['aria-labelledby']}
+      aria-describedby={describedBy}
+      aria-invalid={hasError || selectProps?.['aria-invalid'] || undefined}
       styles={buildStyles(hasError, isDisabled, bgColor, isMulti, tone)}
       theme={buildTheme}
       className={className}
       classNamePrefix="rs" // por si quieres añadir CSS escoped adicional
-      {...selectProps}
     />
   );
 
   return (
-    <label className="w-full">
+    <div className="w-full">
       {labelText && (
-        <div className="mb-1">
-          <ParagraphM fontWeight="semibold">
-            {labelText}
-            {required && <span className="text-error"> *</span>}
-          </ParagraphM>
-        </div>
+        <label id={labelId} htmlFor={inputId} className="mb-1 block text-sm font-semibold text-slate-700">
+          {labelText}
+          {required && <span className="text-error"> *</span>}
+        </label>
       )}
 
       {control && name ? (
         <Controller
           name={name}
           control={control}
-          render={({ field: { value: rhfValue, onChange: rhfOnChange }, fieldState }) =>
+          render={({ field: { value: rhfValue, onChange: rhfOnChange } }) =>
             renderSelect(rhfValue, rhfOnChange, selectProps?.isDisabled)
           }
         />
@@ -287,11 +298,11 @@ const SelectComponent: React.FC<SelectComponentProps> = ({
       )}
 
       {hasError && (
-        <span className="text-sm text-error mt-1 inline-block">
+        <span id={errorId} role="alert" className="mt-1 inline-block text-sm text-error">
           {errorText || 'Este campo es requerido'}
         </span>
       )}
-    </label>
+    </div>
   );
 };
 

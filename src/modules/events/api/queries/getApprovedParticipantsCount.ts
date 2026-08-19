@@ -1,4 +1,4 @@
-import { getServerSupabase } from '@core/api/supabase.server';
+import { getAdminSupabase } from '@core/api/supabase.admin';
 import { log } from '@core/lib/logger';
 
 function normalizeEventId(value: unknown) {
@@ -16,7 +16,7 @@ export async function getApprovedParticipantsCountByEventIds(
 
   if (!normalizedEventIds.length) return countByEventId;
 
-  const supabase = supabaseClient ?? (await getServerSupabase());
+  const supabase = supabaseClient ?? getAdminSupabase();
   const { data, error } = await supabase
     .from('assistants')
     .select('event')
