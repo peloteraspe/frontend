@@ -6,6 +6,7 @@ import { useAuth } from '@core/auth/AuthProvider';
 import {
   AdjustmentsHorizontalIcon,
   ArrowPathIcon,
+  CalendarDaysIcon,
   ChevronDownIcon,
   MapPinIcon,
   MagnifyingGlassIcon,
@@ -30,6 +31,7 @@ type Props = {
 type Filters = {
   q: string;
   date: string;
+  sortOrder: EventSortOrder;
   eventTypeId: number;
   levelId: number;
   distanceKm: number;
@@ -38,7 +40,26 @@ type Filters = {
 };
 
 const LIMA_DEFAULT = { lat: -12.0464, lng: -77.0428 };
+const FILTER_DATE_FORMATTER = new Intl.DateTimeFormat('es-PE', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
 type TimeFilter = 'upcoming' | 'past';
+type EventSortOrder = 'date_asc' | 'date_desc';
+
+const EVENT_SORT_OPTIONS: OptionSelect[] = [
+  { value: 'date_asc', label: 'Fecha más próxima' },
+  { value: 'date_desc', label: 'Fecha más lejana' },
+];
+
+function formatFilterDate(value: string) {
+  if (!value) return 'Cualquier fecha';
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return 'Cualquier fecha';
+  return FILTER_DATE_FORMATTER.format(date);
+}
 
 export default function EventExplorerClient({ initialEvents, initialCatalogs }: Props) {
   const router = useRouter();
@@ -56,6 +77,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const [filters, setFilters] = useState<Filters>({
     q: '',
     date: '',
+    sortOrder: 'date_asc',
     eventTypeId: 0,
     levelId: 0,
     distanceKm: 0,
@@ -66,6 +88,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
   const activeFilterCount = [
     filters.q,
     filters.date,
+    filters.sortOrder !== 'date_asc',
     filters.eventTypeId,
     filters.levelId,
     filters.distanceKm,
@@ -101,7 +124,24 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
     [events]
   );
 
-  const visibleEvents = timeFilter === 'upcoming' ? upcomingEvents : pastEvents;
+  const visibleEvents = useMemo(() => {
+    const sourceEvents = timeFilter === 'upcoming' ? upcomingEvents : pastEvents;
+
+    return [...sourceEvents].sort((firstEvent, secondEvent) => {
+      const firstTime = Date.parse(firstEvent.startTime || '');
+      const secondTime = Date.parse(secondEvent.startTime || '');
+      const firstIsValid = Number.isFinite(firstTime);
+      const secondIsValid = Number.isFinite(secondTime);
+
+      if (!firstIsValid && !secondIsValid) return 0;
+      if (!firstIsValid) return 1;
+      if (!secondIsValid) return -1;
+
+      return filters.sortOrder === 'date_asc'
+        ? firstTime - secondTime
+        : secondTime - firstTime;
+    });
+  }, [filters.sortOrder, pastEvents, timeFilter, upcomingEvents]);
 
   const visibleEventIds = useMemo(() => new Set(visibleEvents.map((event) => event.id)), [visibleEvents]);
   const createIntentRequested = searchParams.get('create') === '1';
@@ -205,6 +245,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
     setFilters({
       q: '',
       date: '',
+      sortOrder: 'date_asc',
       eventTypeId: 0,
       levelId: 0,
       distanceKm: 0,
@@ -319,7 +360,7 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.35fr)]">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(180px,0.35fr)_minmax(210px,0.4fr)]">
             <div>
               <p className="mb-1.5 text-xs font-semibold text-slate-600">Buscar</p>
               <Input
@@ -334,12 +375,48 @@ export default function EventExplorerClient({ initialEvents, initialCatalogs }: 
 
             <div>
               <p className="mb-1.5 text-xs font-semibold text-slate-600">Fecha</p>
-              <Input
-                type="date"
-                value={filters.date}
-                onChange={(event) => setFilters((prev) => ({ ...prev, date: event.target.value }))}
-                className="h-11"
-                aria-label="Filtrar por fecha"
+              <div className="peloteras-form-control group relative flex h-11 items-center gap-3 px-4 focus-within:border-mulberry focus-within:ring-4 focus-within:ring-mulberry/10">
+                <span
+                  className={[
+                    'min-w-0 flex-1 truncate text-sm',
+                    filters.date ? 'font-medium text-slate-900' : 'text-slate-400',
+                  ].join(' ')}
+                  aria-hidden="true"
+                >
+                  {formatFilterDate(filters.date)}
+                </span>
+                <CalendarDaysIcon
+                  className="h-5 w-5 shrink-0 text-mulberry transition-transform group-hover:scale-105"
+                  aria-hidden="true"
+                />
+                <input
+                  type="date"
+                  value={filters.date}
+                  onChange={(event) => setFilters((prev) => ({ ...prev, date: event.target.value }))}
+                  className="absolute inset-0 h-full w-full cursor-pointer rounded-xl opacity-0"
+                  aria-label="Filtrar por fecha"
+                />
+              </div>
+            </div>
+
+            <div className="sm:col-span-2 lg:col-span-1">
+              <p className="mb-1.5 text-xs font-semibold text-slate-600">Ordenar por</p>
+              <SelectComponent
+                options={EVENT_SORT_OPTIONS}
+                value={filters.sortOrder}
+                onChange={(value) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    sortOrder: value === 'date_desc' ? 'date_desc' : 'date_asc',
+                  }))
+                }
+                isSearchable={false}
+                className="text-sm"
+                selectProps={{
+                  instanceId: 'event-map-sort-order',
+                  inputId: 'event-map-sort-order',
+                  'aria-label': 'Ordenar eventos por fecha',
+                }}
               />
             </div>
 

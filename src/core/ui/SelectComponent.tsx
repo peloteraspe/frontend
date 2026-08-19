@@ -153,6 +153,7 @@ const buildStyles = (
     }),
     menu: (base) => ({
       ...base,
+      zIndex: 70,
       border: `1px solid ${BORDER_DEFAULT}`,
       borderRadius: RADIUS,
       overflow: 'hidden',

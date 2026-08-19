@@ -6,6 +6,7 @@ import type {
   CaptainTeamInvitationCard,
   TeamInvitationStatus,
 } from '@modules/teams/model/types';
+import SelectComponent from '@core/ui/SelectComponent';
 
 const STATUS_LABELS: Record<TeamInvitationStatus, string> = {
   pending: 'Pendiente',
@@ -14,6 +15,15 @@ const STATUS_LABELS: Record<TeamInvitationStatus, string> = {
   cancelled: 'Cancelada',
   expired: 'Vencida',
 };
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'Todos los estados' },
+  { value: 'pending', label: 'Pendientes' },
+  { value: 'accepted', label: 'Aceptadas' },
+  { value: 'rejected', label: 'Rechazadas' },
+  { value: 'cancelled', label: 'Canceladas' },
+  { value: 'expired', label: 'Vencidas' },
+];
 
 function formatDate(value: string | null) {
   if (!value) return null;
@@ -79,14 +89,19 @@ export default function CaptainTeamInvitationsPanel({
           <h2 id="captain-invitations-title" className="mt-1 text-2xl font-semibold text-slate-950">Convocatorias enviadas</h2>
           <p className="mt-1 text-sm text-slate-500">Revisa respuestas y entregas de correo.</p>
         </div>
-        <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} aria-label="Filtrar convocatorias por estado" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700">
-          <option value="all">Todos los estados</option>
-          <option value="pending">Pendientes</option>
-          <option value="accepted">Aceptadas</option>
-          <option value="rejected">Rechazadas</option>
-          <option value="cancelled">Canceladas</option>
-          <option value="expired">Vencidas</option>
-        </select>
+        <div className="w-full sm:w-56">
+          <SelectComponent
+            options={STATUS_FILTER_OPTIONS}
+            value={filter}
+            onChange={(value) => setFilter(value as typeof filter)}
+            isSearchable={false}
+            selectProps={{
+              inputId: 'team-invitation-status-filter',
+              instanceId: 'team-invitation-status-filter',
+              'aria-label': 'Filtrar convocatorias por estado',
+            }}
+          />
+        </div>
       </div>
 
       {error ? <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p> : null}

@@ -5,6 +5,7 @@ import {
   removeUploadedTeamAvatar,
   uploadTeamAvatar,
 } from './teams.create';
+import { normalizeTeamSocialHandle } from '@modules/teams/lib/socialHandle';
 
 type RouteContext = { params: Promise<{ teamRef: string }> };
 
@@ -55,6 +56,21 @@ export async function POST(request: Request, context: RouteContext) {
     let result: { data: unknown; error: { message?: string } | null };
 
     if (action === 'update') {
+      const instagramUsername = normalizeTeamSocialHandle(body?.instagramUsername);
+      const tiktokUsername = normalizeTeamSocialHandle(body?.tiktokUsername);
+      if (!instagramUsername.ok) {
+        return NextResponse.json(
+          { error: `Instagram: ${instagramUsername.error}` },
+          { status: 400 }
+        );
+      }
+      if (!tiktokUsername.ok) {
+        return NextResponse.json(
+          { error: `TikTok: ${tiktokUsername.error}` },
+          { status: 400 }
+        );
+      }
+
       let avatarUrl = String(body?.avatarUrl || '').trim() || null;
       const avatar = formData?.get('avatar');
       if (avatar instanceof File && avatar.size > 0) {
@@ -75,8 +91,8 @@ export async function POST(request: Request, context: RouteContext) {
         p_team_id: teamId,
         p_name: String(body?.name || '').trim(),
         p_avatar_url: avatarUrl,
-        p_instagram_username: String(body?.instagramUsername || '').trim() || null,
-        p_tiktok_username: String(body?.tiktokUsername || '').trim() || null,
+        p_instagram_username: instagramUsername.value,
+        p_tiktok_username: tiktokUsername.value,
         p_max_members: numericId(body?.maxMembers),
       });
     } else if (action === 'remove-member') {

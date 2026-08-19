@@ -5,6 +5,7 @@ import { getCurrentUserId } from '@core/auth/supabase-user';
 import { HTTP_401, jsonNoStore } from '@core/api/responses';
 import type { CreateTeamBody } from '@modules/teams/model/types';
 import { createTeamWithCaptain } from '@modules/teams/api/services/teams.service';
+import { normalizeTeamSocialHandle } from '@modules/teams/lib/socialHandle';
 
 const TEAM_AVATARS_BUCKET = 'team-avatars';
 const MAX_AVATAR_BYTES = 300 * 1024;
@@ -29,12 +30,6 @@ type CreateTeamPayload = {
 type TeamAvatarUploadResult =
   | { error: string; publicUrl: null; path: null }
   | { error: null; publicUrl: string; path: string };
-
-function toOptionalHandle(value: unknown) {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().replace(/^@+/, '');
-  return trimmed || null;
-}
 
 function getAvatarExtension(fileName: string) {
   return fileName.split('.').pop()?.trim().toLowerCase() || '';
@@ -169,6 +164,12 @@ async function parseCreateTeamPayload(req: Request): Promise<CreateTeamPayload |
     const formData = await req.formData();
     const avatarValue = formData.get('avatar');
     const maxMembers = normalizeMaxMembers(getStringFormValue(formData, 'maxMembers'));
+    const instagramUsername = normalizeTeamSocialHandle(
+      getStringFormValue(formData, 'instagramUsername')
+    );
+    const tiktokUsername = normalizeTeamSocialHandle(
+      getStringFormValue(formData, 'tiktokUsername')
+    );
 
     if (!maxMembers) {
       return NextResponse.json(
@@ -177,11 +178,24 @@ async function parseCreateTeamPayload(req: Request): Promise<CreateTeamPayload |
       );
     }
 
+    if (!instagramUsername.ok) {
+      return NextResponse.json(
+        { error: `Instagram: ${instagramUsername.error}` },
+        { status: 400 }
+      );
+    }
+    if (!tiktokUsername.ok) {
+      return NextResponse.json(
+        { error: `TikTok: ${tiktokUsername.error}` },
+        { status: 400 }
+      );
+    }
+
     return {
       name: getStringFormValue(formData, 'name')?.trim() || '',
       avatarFile: avatarValue instanceof File && avatarValue.size > 0 ? avatarValue : null,
-      instagramUsername: toOptionalHandle(getStringFormValue(formData, 'instagramUsername')),
-      tiktokUsername: toOptionalHandle(getStringFormValue(formData, 'tiktokUsername')),
+      instagramUsername: instagramUsername.value,
+      tiktokUsername: tiktokUsername.value,
       idempotencyKey: normalizeIdempotencyKey(getStringFormValue(formData, 'idempotencyKey')),
       maxMembers,
     };
@@ -202,6 +216,8 @@ async function parseCreateTeamPayload(req: Request): Promise<CreateTeamPayload |
   }
 
   const maxMembers = normalizeMaxMembers(raw.maxMembers);
+  const instagramUsername = normalizeTeamSocialHandle(raw.instagramUsername);
+  const tiktokUsername = normalizeTeamSocialHandle(raw.tiktokUsername);
   if (!maxMembers) {
     return NextResponse.json(
       { error: 'El límite del equipo debe estar entre 1 y 100 integrantes.' },
@@ -209,11 +225,24 @@ async function parseCreateTeamPayload(req: Request): Promise<CreateTeamPayload |
     );
   }
 
+  if (!instagramUsername.ok) {
+    return NextResponse.json(
+      { error: `Instagram: ${instagramUsername.error}` },
+      { status: 400 }
+    );
+  }
+  if (!tiktokUsername.ok) {
+    return NextResponse.json(
+      { error: `TikTok: ${tiktokUsername.error}` },
+      { status: 400 }
+    );
+  }
+
   return {
     name: typeof raw.name === 'string' ? raw.name.trim() : '',
     avatarFile: null,
-    instagramUsername: toOptionalHandle(raw.instagramUsername),
-    tiktokUsername: toOptionalHandle(raw.tiktokUsername),
+    instagramUsername: instagramUsername.value,
+    tiktokUsername: tiktokUsername.value,
     idempotencyKey: normalizeIdempotencyKey(raw.idempotencyKey),
     maxMembers,
   };

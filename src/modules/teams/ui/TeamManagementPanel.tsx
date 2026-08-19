@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import type { PublicTeamMember, TeamMemberRole, TeamSummaryRow } from '@modules/teams/model/types';
+import { normalizeTeamSocialHandle } from '@modules/teams/lib/socialHandle';
 
 type Props = {
   team: TeamSummaryRow;
@@ -17,6 +18,10 @@ export default function TeamManagementPanel({ team, members, viewerRole, isFeatu
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [socialErrors, setSocialErrors] = useState<{
+    instagramUsername?: string;
+    tiktokUsername?: string;
+  }>({});
 
   async function run(action: string, payload: Record<string, unknown> | FormData = {}, message?: string) {
     setBusy(action);
@@ -89,6 +94,19 @@ export default function TeamManagementPanel({ team, members, viewerRole, isFeatu
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
+              const instagramUsername = normalizeTeamSocialHandle(form.get('instagramUsername'));
+              const tiktokUsername = normalizeTeamSocialHandle(form.get('tiktokUsername'));
+              const nextSocialErrors = {
+                ...(!instagramUsername.ok
+                  ? { instagramUsername: instagramUsername.error }
+                  : {}),
+                ...(!tiktokUsername.ok ? { tiktokUsername: tiktokUsername.error } : {}),
+              };
+              setSocialErrors(nextSocialErrors);
+              if (!instagramUsername.ok || !tiktokUsername.ok) return;
+
+              form.set('instagramUsername', instagramUsername.value || '');
+              form.set('tiktokUsername', tiktokUsername.value || '');
               void run('update', form, 'Datos del equipo guardados.');
             }}
           >
@@ -103,11 +121,49 @@ export default function TeamManagementPanel({ team, members, viewerRole, isFeatu
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-xs font-semibold text-slate-600">
                 Instagram
-                <input name="instagramUsername" defaultValue={team.instagram_username || ''} placeholder="@equipo" className="peloteras-form-control h-10 px-3 text-sm" />
+                <input
+                  name="instagramUsername"
+                  defaultValue={team.instagram_username || ''}
+                  placeholder="@micuenta o micuenta"
+                  onChange={() => {
+                    if (socialErrors.instagramUsername) {
+                      setSocialErrors((current) => ({ ...current, instagramUsername: undefined }));
+                    }
+                  }}
+                  aria-invalid={Boolean(socialErrors.instagramUsername)}
+                  aria-describedby={socialErrors.instagramUsername ? 'team-admin-instagram-error' : undefined}
+                  className={`peloteras-form-control h-10 px-3 text-sm ${
+                    socialErrors.instagramUsername ? 'peloteras-form-control--error' : ''
+                  }`}
+                />
+                {socialErrors.instagramUsername ? (
+                  <span id="team-admin-instagram-error" role="alert" className="font-normal text-red-600">
+                    {socialErrors.instagramUsername}
+                  </span>
+                ) : null}
               </label>
               <label className="grid gap-1 text-xs font-semibold text-slate-600">
                 TikTok
-                <input name="tiktokUsername" defaultValue={team.tiktok_username || ''} placeholder="@equipo" className="peloteras-form-control h-10 px-3 text-sm" />
+                <input
+                  name="tiktokUsername"
+                  defaultValue={team.tiktok_username || ''}
+                  placeholder="@micuenta o micuenta"
+                  onChange={() => {
+                    if (socialErrors.tiktokUsername) {
+                      setSocialErrors((current) => ({ ...current, tiktokUsername: undefined }));
+                    }
+                  }}
+                  aria-invalid={Boolean(socialErrors.tiktokUsername)}
+                  aria-describedby={socialErrors.tiktokUsername ? 'team-admin-tiktok-error' : undefined}
+                  className={`peloteras-form-control h-10 px-3 text-sm ${
+                    socialErrors.tiktokUsername ? 'peloteras-form-control--error' : ''
+                  }`}
+                />
+                {socialErrors.tiktokUsername ? (
+                  <span id="team-admin-tiktok-error" role="alert" className="font-normal text-red-600">
+                    {socialErrors.tiktokUsername}
+                  </span>
+                ) : null}
               </label>
             </div>
             <label className="grid gap-1 text-xs font-semibold text-slate-600">

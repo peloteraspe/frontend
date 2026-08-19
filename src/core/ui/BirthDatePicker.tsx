@@ -22,10 +22,16 @@ const WEEKDAY_NAMES = ['L', 'M', 'X', 'J', 'V', 'S', 'D'] as const;
 type Props = {
   id?: string;
   label?: string;
-  name?: string;
+  name?: string | null;
   value?: string;
   minDate?: string;
   maxDate: string;
+  defaultViewDate?: string;
+  placeholder?: string;
+  dialogLabel?: string;
+  footerText?: string | null;
+  controlClassName?: string;
+  ariaDescribedBy?: string;
   errorText?: string;
   helperText?: string;
   required?: boolean;
@@ -104,6 +110,12 @@ export default function BirthDatePicker({
   value = '',
   minDate = '1900-01-01',
   maxDate,
+  defaultViewDate,
+  placeholder = 'Selecciona tu fecha',
+  dialogLabel = 'Seleccionar fecha de nacimiento',
+  footerText = 'Solo mostramos fechas válidas para mayores de 18 años.',
+  controlClassName = 'h-11',
+  ariaDescribedBy,
   errorText,
   helperText,
   required = false,
@@ -120,10 +132,15 @@ export default function BirthDatePicker({
   const minDateValue = useMemo(() => parseIsoDate(minDate) || new Date(1900, 0, 1), [minDate]);
   const maxDateValue = useMemo(() => parseIsoDate(maxDate) || new Date(), [maxDate]);
   const selectedDate = useMemo(() => parseIsoDate(value), [value]);
+  const defaultViewDateValue = useMemo(() => parseIsoDate(defaultViewDate), [defaultViewDate]);
   const [isOpen, setIsOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<CalendarMenu>(null);
   const [viewMonth, setViewMonth] = useState(() =>
-    clampViewMonth(selectedDate || getDefaultViewDate(maxDateValue), minDateValue, maxDateValue)
+    clampViewMonth(
+      selectedDate || defaultViewDateValue || getDefaultViewDate(maxDateValue),
+      minDateValue,
+      maxDateValue
+    )
   );
 
   useEffect(() => {
@@ -172,6 +189,9 @@ export default function BirthDatePicker({
   }, [openMenu]);
 
   const displayValue = formatDisplayDate(value);
+  const describedBy = [errorText ? errorId : helperText ? helperId : '', ariaDescribedBy]
+    .filter(Boolean)
+    .join(' ') || undefined;
   const calendarDays = buildCalendarDays(viewMonth);
   const minIso = toIsoDate(minDateValue);
   const maxIso = toIsoDate(maxDateValue);
@@ -226,15 +246,16 @@ export default function BirthDatePicker({
         aria-expanded={isOpen}
         aria-controls={isOpen ? calendarId : undefined}
         aria-invalid={Boolean(errorText) || undefined}
-        aria-describedby={errorText ? errorId : helperText ? helperId : undefined}
+        aria-describedby={describedBy}
         onClick={toggleCalendar}
         className={[
-          'peloteras-form-control flex h-11 items-center justify-between gap-3 text-left',
+          'peloteras-form-control flex items-center justify-between gap-3 text-left',
+          controlClassName,
           errorText ? 'peloteras-form-control--error' : '',
           displayValue ? 'text-slate-900' : 'text-slate-400',
         ].join(' ')}
       >
-        <span className="min-w-0 truncate">{displayValue || 'Selecciona tu fecha'}</span>
+        <span className="min-w-0 truncate">{displayValue || placeholder}</span>
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -247,7 +268,7 @@ export default function BirthDatePicker({
           <rect x="4" y="5" width="16" height="15" rx="3" />
         </svg>
       </button>
-      <input type="hidden" name={name} value={value} />
+      {name ? <input type="hidden" name={name} value={value} /> : null}
 
       {errorText ? (
         <span id={errorId} className="mt-1 block text-sm text-error">
@@ -263,7 +284,7 @@ export default function BirthDatePicker({
         <div
           id={calendarId}
           role="dialog"
-          aria-label="Seleccionar fecha de nacimiento"
+          aria-label={dialogLabel}
           className="absolute right-0 z-[150] mt-2 w-[calc(100vw-2rem)] max-w-[340px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_24px_60px_-24px_rgba(15,23,42,0.45)]"
         >
           <div className="relative flex items-center gap-2">
@@ -435,9 +456,9 @@ export default function BirthDatePicker({
             })}
           </div>
 
-          <p className="mt-3 text-center text-xs text-slate-500">
-            Solo mostramos fechas válidas para mayores de 18 años.
-          </p>
+          {footerText ? (
+            <p className="mt-3 text-center text-xs text-slate-500">{footerText}</p>
+          ) : null}
         </div>
       ) : null}
     </div>

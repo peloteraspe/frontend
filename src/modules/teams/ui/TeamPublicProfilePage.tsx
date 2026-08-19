@@ -11,7 +11,7 @@ import type {
   PublicTeamProfile,
 } from '@modules/teams/model/types';
 import { buildPublicPlayerPath } from '@shared/lib/publicProfilePaths';
-import PublicProfileShareButton from '@shared/ui/PublicProfileShareButton';
+import TeamWhatsAppShareButton from '@shared/ui/TeamWhatsAppShareButton';
 import TeamInvitationManager from './TeamInvitationManager';
 import CaptainTeamInvitationsPanel from './CaptainTeamInvitationsPanel';
 import TeamInvitationLinkManager from './TeamInvitationLinkManager';
@@ -35,8 +35,38 @@ function getInitials(name: string) {
     .join('');
 }
 
-function getSocialUrl(network: 'instagram' | 'tiktok', username: string) {
-  const cleanUsername = username.replace(/^@+/, '');
+function getSocialUsername(network: 'instagram' | 'tiktok', value: string) {
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      const segments = url.pathname.split('/').filter(Boolean);
+      const candidate = network === 'tiktok'
+        ? segments.find((segment) => segment.startsWith('@')) || segments[0]
+        : segments[0];
+      if (candidate) return candidate.replace(/^@+/, '');
+    } catch {
+      // El valor legado se mostrará sin el prefijo si no puede parsearse como URL.
+    }
+  }
+
+  return trimmed.replace(/^@+/, '');
+}
+
+function getSocialUrl(network: 'instagram' | 'tiktok', value: string) {
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      const hostname = url.hostname.replace(/^www\./, '').toLowerCase();
+      const expectedHostname = network === 'instagram' ? 'instagram.com' : 'tiktok.com';
+      if (hostname === expectedHostname) return url.toString();
+    } catch {
+      // Continúa con el formato normalizado para no generar un enlace roto.
+    }
+  }
+
+  const cleanUsername = getSocialUsername(network, trimmed);
   return network === 'instagram'
     ? `https://www.instagram.com/${cleanUsername}`
     : `https://www.tiktok.com/@${cleanUsername}`;
@@ -124,11 +154,7 @@ export default function TeamPublicProfilePage({
             <p className="whitespace-nowrap text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-mulberry/70 sm:text-xs sm:tracking-[0.16em]">
               Perfil del equipo
             </p>
-            <PublicProfileShareButton
-              title={`${team.name} en Peloteras`}
-              text={`Conoce el perfil de ${team.name} en Peloteras.`}
-              compactOnMobile
-            />
+            <TeamWhatsAppShareButton teamName={team.name} compactOnMobile />
           </div>
 
           <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
@@ -167,8 +193,8 @@ export default function TeamPublicProfilePage({
         </div>
       </section>
 
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-6">
+      <div className="mt-6 grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-6">
           <section aria-labelledby="team-members-title" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-5 flex items-end justify-between gap-4 border-b border-slate-100 pb-5">
             <div>
@@ -226,7 +252,7 @@ export default function TeamPublicProfilePage({
           ) : null}
         </div>
 
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           {viewerRole ? (
             <TeamManagementPanel team={team} members={members} viewerRole={viewerRole} isFeatured={isFeatured} />
           ) : null}
@@ -268,7 +294,9 @@ export default function TeamPublicProfilePage({
                     rel="noreferrer"
                     className="flex items-center justify-between rounded-xl border border-slate-200 px-3.5 py-3 text-sm font-semibold text-slate-700 transition hover:border-mulberry/30 hover:text-mulberry"
                   >
-                    Instagram · @{team.instagram_username.replace(/^@+/, '')}
+                    <span className="min-w-0 break-all">
+                      Instagram · @{getSocialUsername('instagram', team.instagram_username)}
+                    </span>
                     <ArrowTopRightOnSquareIcon aria-hidden="true" className="h-4 w-4" />
                   </a>
                 ) : null}
@@ -279,7 +307,9 @@ export default function TeamPublicProfilePage({
                     rel="noreferrer"
                     className="flex items-center justify-between rounded-xl border border-slate-200 px-3.5 py-3 text-sm font-semibold text-slate-700 transition hover:border-mulberry/30 hover:text-mulberry"
                   >
-                    TikTok · @{team.tiktok_username.replace(/^@+/, '')}
+                    <span className="min-w-0 break-all">
+                      TikTok · @{getSocialUsername('tiktok', team.tiktok_username)}
+                    </span>
                     <ArrowTopRightOnSquareIcon aria-hidden="true" className="h-4 w-4" />
                   </a>
                 ) : null}
